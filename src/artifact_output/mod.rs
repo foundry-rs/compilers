@@ -438,7 +438,7 @@ pub trait Artifact {
     /// Returns the contents of this type as a single tuple of abi, bytecode and deployed bytecode
     fn into_parts(self) -> (Option<JsonAbi>, Option<Bytes>, Option<Bytes>);
 
-    /// Consumes the type and returns the [Abi]
+    /// Consumes the type and returns the [JsonAbi]
     fn into_abi(self) -> Option<JsonAbi>
     where
         Self: Sized,
@@ -525,7 +525,7 @@ pub trait Artifact {
         Some(val)
     }
 
-    /// Returns the reference to the [Abi] if available
+    /// Returns the reference to the [JsonAbi] if available
     fn get_abi(&self) -> Option<Cow<JsonAbi>> {
         self.get_contract_bytecode().abi
     }
