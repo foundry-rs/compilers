@@ -1678,7 +1678,7 @@ impl<'de> Deserialize<'de> for LosslessAbi {
         D: Deserializer<'de>,
     {
         let abi_value = serde_json::Value::deserialize(deserializer)?;
-        let abi = serde_json::from_value(abi_value.clone()).map_err(serde::de::Error::custom)?;
+        let abi = Abi::from_json_str(&abi_value.to_string()).map_err(serde::de::Error::custom)?;
         Ok(Self { abi_value, abi })
     }
 }
