@@ -35,7 +35,7 @@ jobs:
               run: |
                   cargo nextest run \
                   ${{ matrix.flags.flags }} \
-                  -E "!(deps(ethers-etherscan) & kind(test))" \
+                  -E "!(kind(test))" \
                   --retries 2
 
     feature-checks:
