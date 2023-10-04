@@ -7,7 +7,8 @@ use crate::artifacts::{
     serde_helpers, DevDoc, Evm, Ewasm, LosslessAbi, LosslessMetadata, Offsets, StorageLayout,
     UserDoc,
 };
-use ethers_core::{abi::Contract as Abi, types::Bytes};
+use alloy_json_abi::JsonAbi as Abi;
+use alloy_primitives::Bytes;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::BTreeMap, convert::TryFrom};
 

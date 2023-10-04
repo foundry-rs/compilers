@@ -1,6 +1,6 @@
 //! serde helpers
 
-use ethers_core::types::Bytes;
+use alloy_primitives::Bytes;
 use serde::{Deserialize, Deserializer};
 
 pub fn deserialize_bytes<'de, D>(d: D) -> Result<Bytes, D::Error>

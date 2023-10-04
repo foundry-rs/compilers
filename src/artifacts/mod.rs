@@ -2,7 +2,7 @@
 use crate::{
     compile::*, error::SolcIoError, remappings::Remapping, utils, ProjectPathsConfig, SolcError,
 };
-use ethers_core::abi::Abi;
+use alloy_json_abi::JsonAbi as Abi;
 use md5::Digest;
 use semver::Version;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
@@ -2270,7 +2270,7 @@ impl SourceFiles {
 mod tests {
     use super::*;
     use crate::AggregatedCompilerOutput;
-    use ethers_core::types::Address;
+    use alloy_primitives::Address;
     use std::{fs, path::PathBuf};
 
     #[test]

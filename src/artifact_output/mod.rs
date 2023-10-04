@@ -12,7 +12,8 @@ use crate::{
     sources::VersionedSourceFile,
     utils, HardhatArtifact, ProjectPathsConfig, SolFilesCache, SolcError, SolcIoError,
 };
-use ethers_core::{abi::Abi, types::Bytes};
+use alloy_json_abi::JsonAbi;
+use alloy_primitives::Bytes;
 use semver::Version;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
@@ -426,7 +427,7 @@ impl<T> Artifacts<T> {
 /// A trait representation for a [`crate::Contract`] artifact
 pub trait Artifact {
     /// Returns the artifact's `Abi` and bytecode
-    fn into_inner(self) -> (Option<Abi>, Option<Bytes>);
+    fn into_inner(self) -> (Option<JsonAbi>, Option<Bytes>);
 
     /// Turns the artifact into a container type for abi, compact bytecode and deployed bytecode
     fn into_compact_contract(self) -> CompactContract;
@@ -435,10 +436,10 @@ pub trait Artifact {
     fn into_contract_bytecode(self) -> CompactContractBytecode;
 
     /// Returns the contents of this type as a single tuple of abi, bytecode and deployed bytecode
-    fn into_parts(self) -> (Option<Abi>, Option<Bytes>, Option<Bytes>);
+    fn into_parts(self) -> (Option<JsonAbi>, Option<Bytes>, Option<Bytes>);
 
     /// Consumes the type and returns the [Abi]
-    fn into_abi(self) -> Option<Abi>
+    fn into_abi(self) -> Option<JsonAbi>
     where
         Self: Sized,
     {
@@ -461,7 +462,7 @@ pub trait Artifact {
     }
 
     /// Same as [`Self::into_parts()`] but returns `Err` if an element is `None`
-    fn try_into_parts(self) -> Result<(Abi, Bytes, Bytes)>
+    fn try_into_parts(self) -> Result<(JsonAbi, Bytes, Bytes)>
     where
         Self: Sized,
     {
@@ -525,7 +526,7 @@ pub trait Artifact {
     }
 
     /// Returns the reference to the [Abi] if available
-    fn get_abi(&self) -> Option<Cow<Abi>> {
+    fn get_abi(&self) -> Option<Cow<JsonAbi>> {
         self.get_contract_bytecode().abi
     }
 
@@ -567,7 +568,7 @@ where
     T: Into<CompactContractBytecode> + Into<CompactContract>,
     for<'a> &'a T: Into<CompactContractBytecodeCow<'a>>,
 {
-    fn into_inner(self) -> (Option<Abi>, Option<Bytes>) {
+    fn into_inner(self) -> (Option<JsonAbi>, Option<Bytes>) {
         let artifact = self.into_compact_contract();
         (artifact.abi, artifact.bin.and_then(|bin| bin.into_bytes()))
     }
@@ -580,7 +581,7 @@ where
         self.into()
     }
 
-    fn into_parts(self) -> (Option<Abi>, Option<Bytes>, Option<Bytes>) {
+    fn into_parts(self) -> (Option<JsonAbi>, Option<Bytes>, Option<Bytes>) {
         self.into_compact_contract().into_parts()
     }
 
