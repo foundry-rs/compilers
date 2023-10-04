@@ -16,7 +16,7 @@ all-features = true
 
 [dependencies]
 ethers-core = { version = "2", default-features = false }
-alloy-primitives = { version = "0.4", default-features = false, features = ["std", "serde"] }
+alloy-primitives = { version = "0.4", default-features = false, features = ["std", "serde", "rand"] }
 alloy-dyn-abi = { version = "0.4", default-features = false, features = ["std"] }
 alloy-json-abi = { version = "0.4", default-features = false, features = ["std"] }
 
