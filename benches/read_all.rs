@@ -4,7 +4,6 @@ extern crate criterion;
 extern crate rand;
 
 use criterion::Criterion;
-use rand;
 use foundry_compilers::{artifacts::Source, project_util::TempProject};
 use rand::{distributions::Alphanumeric, Rng};
 use std::{
