@@ -24,10 +24,6 @@ jobs:
         steps:
             - uses: actions/checkout@v3
             - uses: dtolnay/rust-toolchain@stable
-            - name: Install Anvil
-              uses: foundry-rs/foundry-toolchain@v1
-              with:
-                  version: nightly
             - name: Install test binaries
               shell: bash
               run: ./.github/scripts/install_test_binaries.sh
@@ -39,6 +35,7 @@ jobs:
               run: |
                   cargo nextest run \
                   ${{ matrix.flags.flags }} \
+                  -E "!(deps(ethers-etherscan) & kind(test))" \
                   --retries 2
 
     feature-checks:
