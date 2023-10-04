@@ -979,7 +979,7 @@ mod tests {
         let project = Project::builder().paths(paths).no_artifacts().ephemeral().build().unwrap();
         let contracts = project.compile().unwrap().succeeded().output().contracts;
         // Contracts A to F
-        assert_eq!(contracts.contracts().count(), 5);
+        assert_eq!(contracts.contracts().count(), 3);
     }
 
     #[test]

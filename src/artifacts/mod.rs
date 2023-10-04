@@ -2,7 +2,7 @@
 use crate::{
     compile::*, error::SolcIoError, remappings::Remapping, utils, ProjectPathsConfig, SolcError,
 };
-use ethers_core::abi::Abi;
+use alloy_json_abi::JsonAbi as Abi;
 use md5::Digest;
 use semver::Version;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
@@ -1635,13 +1635,7 @@ impl OutputContracts {
     }
 }
 
-/// A helper type that ensures lossless (de)serialisation unlike [`ethers_core::abi::Abi`] which
-/// omits some information of (nested) components in a serde roundtrip. This is a problem for
-/// abienconderv2 structs because [`ethers_core::abi::Contract`]'s representation of those are
-/// [`ethers_core::abi::Param`] and the `kind` field of type [`ethers_core::abi::ParamType`] does
-/// not support deeply nested components as it's the case for structs. This is not easily fixable in
-/// ethabi as it would require a redesign of the overall `Param` and `ParamType` types. Instead,
-/// this type keeps a copy of the [`serde_json::Value`] when deserialized from the `solc` json
+/// This type keeps a copy of the [`serde_json::Value`] when deserialized from the `solc` json
 /// compiler output and uses it to serialize the `abi` without loss.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LosslessAbi {
@@ -1678,7 +1672,7 @@ impl<'de> Deserialize<'de> for LosslessAbi {
         D: Deserializer<'de>,
     {
         let abi_value = serde_json::Value::deserialize(deserializer)?;
-        let abi = serde_json::from_value(abi_value.clone()).map_err(serde::de::Error::custom)?;
+        let abi = Abi::from_json_str(&abi_value.to_string()).map_err(serde::de::Error::custom)?;
         Ok(Self { abi_value, abi })
     }
 }
@@ -2270,7 +2264,7 @@ impl SourceFiles {
 mod tests {
     use super::*;
     use crate::AggregatedCompilerOutput;
-    use ethers_core::types::Address;
+    use alloy_primitives::Address;
     use std::{fs, path::PathBuf};
 
     #[test]
