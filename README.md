@@ -10,7 +10,7 @@ Once you compiled the project, you can configure cargo change detection with `re
 
 ```toml
 [build-dependencies]
-ethers-solc = { git = "https://github.com/gakonst/ethers-rs" }
+foundry-compilers = { git = "https://github.com/foundry-rs/compilers" }
 ```
 
 ```rust
