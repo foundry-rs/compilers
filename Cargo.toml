@@ -16,6 +16,9 @@ all-features = true
 
 [dependencies]
 ethers-core = { version = "2", default-features = false }
+alloy-primitives = { version = "0.4", default-features = false, features = ["std", "serde"] }
+alloy-dyn-abi = { version = "0.4", default-features = false, features = ["std"] }
+alloy-json-abi = { version = "0.4", default-features = false, features = ["std"] }
 
 solang-parser = { version = "=0.3.2", default-features = false }
 
@@ -41,7 +44,6 @@ hex = { package = "const-hex", version = "1.6", features = ["hex"] }
 yansi = "0.5.1"
 dirs = "5.0"
 glob = "0.3.1"
-
 
 num_cpus = "1.16.0"
 dunce = "1.0"
