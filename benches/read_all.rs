@@ -1,9 +1,10 @@
 //! read many sources
 #[macro_use]
 extern crate criterion;
+extern crate rand;
 
 use criterion::Criterion;
-use ethers_core::rand;
+use rand;
 use foundry_compilers::{artifacts::Source, project_util::TempProject};
 use rand::{distributions::Alphanumeric, Rng};
 use std::{
