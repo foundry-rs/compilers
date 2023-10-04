@@ -1,6 +1,6 @@
 //! project tests
 
-use ethers_core::types::Address;
+use alloy_primitives::Address;
 use foundry_compilers::{
     artifacts::{
         BytecodeHash, DevDoc, ErrorDoc, EventDoc, Libraries, MethodDoc, ModelCheckerEngine::CHC,
@@ -1117,7 +1117,7 @@ library MyLib {
     // provide the library settings to let solc link
     tmp.project_mut().solc_config.settings.libraries = BTreeMap::from([(
         lib,
-        BTreeMap::from([("MyLib".to_string(), format!("{:?}", Address::zero()))]),
+        BTreeMap::from([("MyLib".to_string(), format!("{:?}", Address::ZERO))]),
     )])
     .into();
 
@@ -1129,7 +1129,7 @@ library MyLib {
     let bytecode = &contract.bytecode.as_ref().unwrap().object;
     assert!(!bytecode.is_unlinked());
 
-    let libs = Libraries::parse(&[format!("./src/MyLib.sol:MyLib:{:?}", Address::zero())]).unwrap();
+    let libs = Libraries::parse(&[format!("./src/MyLib.sol:MyLib:{:?}", Address::ZERO)]).unwrap();
     // provide the library settings to let solc link
     tmp.project_mut().solc_config.settings.libraries = libs.with_applied_remappings(tmp.paths());
 
@@ -1187,7 +1187,7 @@ library MyLib {
     assert!(bytecode.is_unlinked());
 
     let libs =
-        Libraries::parse(&[format!("remapping/MyLib.sol:MyLib:{:?}", Address::zero())]).unwrap(); // provide the library settings to let solc link
+        Libraries::parse(&[format!("remapping/MyLib.sol:MyLib:{:?}", Address::ZERO)]).unwrap(); // provide the library settings to let solc link
     tmp.project_mut().solc_config.settings.libraries = libs.with_applied_remappings(tmp.paths());
 
     let compiled = tmp.compile().unwrap();
