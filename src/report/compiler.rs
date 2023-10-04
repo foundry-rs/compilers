@@ -14,9 +14,9 @@ use std::{env, path::PathBuf, str::FromStr};
 ///
 /// # Example
 ///
-/// If `foundry_compilers_LOG=in=in.json,out=out.json` is then the reporter will be configured to write
-/// the compiler input as pretty formatted json to `in.{solc version}.json` and the compiler output
-/// to `out.{solc version}.json`
+/// If `foundry_compilers_LOG=in=in.json,out=out.json` is then the reporter will be configured to
+/// write the compiler input as pretty formatted json to `in.{solc version}.json` and the compiler
+/// output to `out.{solc version}.json`
 ///
 /// ```no_run
 /// use foundry_compilers::report::SolcCompilerIoReporter;
@@ -42,8 +42,8 @@ impl SolcCompilerIoReporter {
     /// [`SolcCompilerIOLayer::from_default_env`]: #method.from_default_env
     pub const DEFAULT_ENV: &'static str = "foundry_compilers_LOG";
 
-    /// Returns a new `SolcCompilerIOLayer` from the value of the `foundry_compilers_LOG` environment
-    /// variable, ignoring any invalid filter directives.
+    /// Returns a new `SolcCompilerIOLayer` from the value of the `foundry_compilers_LOG`
+    /// environment variable, ignoring any invalid filter directives.
     pub fn from_default_env() -> Self {
         Self::from_env(Self::DEFAULT_ENV)
     }
