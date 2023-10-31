@@ -20,7 +20,7 @@ alloy-primitives = { version = "0.4", default-features = false, features = ["std
 alloy-dyn-abi = { version = "0.4", default-features = false, features = ["std"] }
 alloy-json-abi = { version = "0.4", default-features = false, features = ["std", "serde_json"] }
 
-solang-parser = { version = "=0.3.2", default-features = false }
+solang-parser = { version = "=0.3.3", default-features = false }
 
 # serde
 serde = { version = "1", features = ["derive", "rc"] }
