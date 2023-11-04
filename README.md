@@ -12,6 +12,7 @@ Originally part of [`ethers-rs`] as `ethers-solc`, Foundry Compilers is the comp
 [actions-badge]: https://img.shields.io/github/actions/workflow/status/foundry-rs/compilers/ci.yml?branch=main&style=for-the-badge
 [actions-url]: https://github.com/foundry-rs/compilers/actions?query=branch%3Amain
 [telegram-badge]: https://img.shields.io/endpoint?color=neon&style=for-the-badge&url=https%3A%2F%2Ftg.sumanjay.workers.dev%2Ffoundry_rs
+[telegram-url]: https://t.me/foundry_rs
 
 ## Supported Rust Versions
 
