@@ -171,6 +171,9 @@ fn get_file_name(path: impl Into<PathBuf>, v: &Version) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use semver::Version;
+    use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn can_set_file_name() {
@@ -207,5 +210,52 @@ mod tests {
             Target { dest_input: "in.json".into(), dest_output: "out.json".into() }
         );
         std::env::remove_var("foundry_compilers_LOG");
+    }
+
+    #[test]
+    fn fails_on_invalid_format() {
+        let result: Result<Target, _> = "invalid_format".parse();
+        assert!(result.is_err());
+    }
+    #[test]
+    fn fails_on_bad_name() {
+        let result: Result<Target, _> = "bad=in.json".parse();
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert_eq!(e.to_string(), "bad");
+        }
+    }
+    #[test]
+    fn check_no_write_when_no_target() {
+        let reporter = SolcCompilerIoReporter::default();
+        let version = Version::parse("0.8.10").unwrap();
+        let input = CompilerInput::default();
+        let output = CompilerOutput::default();
+
+        reporter.log_compiler_input(&input, &version);
+        reporter.log_compiler_output(&output, &version);
+    }
+
+    #[test]
+    fn serialize_and_write_to_file() {
+        let dir = tempdir().unwrap();
+        let input_path = dir.path().join("input.json");
+        let output_path = dir.path().join("output.json");
+        let version = Version::parse("0.8.10").unwrap();
+        let target = Target { dest_input: input_path.clone(), dest_output: output_path.clone() };
+
+        let input = CompilerInput::default();
+        let output = CompilerOutput::default();
+
+        target.write_input(&input, &version);
+        target.write_output(&output, &version);
+
+        let input_content = fs::read_to_string(get_file_name(&input_path, &version)).unwrap();
+        let output_content = fs::read_to_string(get_file_name(&output_path, &version)).unwrap();
+
+        assert!(!input_content.is_empty());
+        assert!(!output_content.is_empty());
+
+        dir.close().unwrap();
     }
 }
