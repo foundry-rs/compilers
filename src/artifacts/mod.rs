@@ -54,7 +54,7 @@ const SOLIDITY: &str = "Solidity";
 const YUL: &str = "Yul";
 
 /// Input type `solc` expects
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct CompilerInput {
     pub language: String,
     pub sources: Sources,
