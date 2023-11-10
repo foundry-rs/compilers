@@ -212,8 +212,6 @@ mod tests {
         std::env::remove_var("foundry_compilers_LOG");
     }
 
-    
-
     #[test]
     fn check_no_write_when_no_target() {
         let reporter = SolcCompilerIoReporter::default();
