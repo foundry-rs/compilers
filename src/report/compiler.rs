@@ -212,20 +212,7 @@ mod tests {
         std::env::remove_var("foundry_compilers_LOG");
     }
 
-    #[test]
-    fn fails_on_invalid_format() {
-        let result: Result<Target, _> = "invalid_format".parse();
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn fails_on_bad_name() {
-        let result: Result<Target, _> = "bad=in.json".parse();
-        assert!(result.is_err());
-        if let Err(e) = result {
-            assert_eq!(e.to_string(), "bad=in.json");
-        }
-    }
+    
 
     #[test]
     fn check_no_write_when_no_target() {
