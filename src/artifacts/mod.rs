@@ -53,6 +53,18 @@ pub(crate) type VersionedFilteredSources = BTreeMap<Solc, (Version, FilteredSour
 const SOLIDITY: &str = "Solidity";
 const YUL: &str = "Yul";
 
+///
+/// Default `language` field is set to `"SOLIDITY"`.
+/// This indicates the language used for the compiler input is Solidity.
+impl Default for CompilerInput {
+    fn default() -> Self {
+        CompilerInput {
+            language: "SOLIDITY".to_string(),
+            sources: Sources::default(),
+            settings: Settings::default(),
+        }
+    }
+}
 /// Input type `solc` expects
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CompilerInput {
