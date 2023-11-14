@@ -1,8 +1,8 @@
-//! Solc artifact types
+//! Solc artifact types.
+
 use crate::{
     compile::*, error::SolcIoError, remappings::Remapping, utils, ProjectPathsConfig, SolcError,
 };
-use alloy_json_abi::JsonAbi as Abi;
 use md5::Digest;
 use semver::Version;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
@@ -1644,48 +1644,6 @@ impl OutputContracts {
     pub fn remove(&mut self, contract: impl AsRef<str>) -> Option<Contract> {
         let contract_name = contract.as_ref();
         self.0.values_mut().find_map(|c| c.remove(contract_name))
-    }
-}
-
-/// This type keeps a copy of the [`serde_json::Value`] when deserialized from the `solc` json
-/// compiler output and uses it to serialize the `abi` without loss.
-#[derive(Clone, Debug, PartialEq)]
-pub struct LosslessAbi {
-    /// The complete abi as json value
-    pub abi_value: serde_json::Value,
-    /// The deserialised version of `abi_value`
-    pub abi: Abi,
-}
-
-impl Default for LosslessAbi {
-    fn default() -> Self {
-        LosslessAbi { abi_value: serde_json::json!([]), abi: Default::default() }
-    }
-}
-
-impl From<LosslessAbi> for Abi {
-    fn from(abi: LosslessAbi) -> Self {
-        abi.abi
-    }
-}
-
-impl Serialize for LosslessAbi {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.abi_value.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for LosslessAbi {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let abi_value = serde_json::Value::deserialize(deserializer)?;
-        let abi = Abi::from_json_str(&abi_value.to_string()).map_err(serde::de::Error::custom)?;
-        Ok(Self { abi_value, abi })
     }
 }
 

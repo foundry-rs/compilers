@@ -17,12 +17,12 @@ use crate::{
             EvmOutputSelection, EwasmOutputSelection,
         },
         Ast, CompactContractBytecodeCow, DevDoc, Evm, Ewasm, FunctionDebugData, GasEstimates,
-        GeneratedSource, LosslessAbi, LosslessMetadata, Metadata, Offsets, Settings, StorageLayout,
-        UserDoc,
+        GeneratedSource, LosslessMetadata, Metadata, Offsets, Settings, StorageLayout, UserDoc,
     },
     sources::VersionedSourceFile,
     Artifact, ArtifactOutput, SolcConfig, SolcError, SourceFile,
 };
+use alloy_json_abi::JsonAbi;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::BTreeMap, fs, path::Path};
 
@@ -34,7 +34,7 @@ use std::{borrow::Cow, collections::BTreeMap, fs, path::Path};
 pub struct ConfigurableContractArtifact {
     /// The Ethereum Contract ABI. If empty, it is represented as an empty
     /// array. See <https://docs.soliditylang.org/en/develop/abi-spec.html>
-    pub abi: Option<LosslessAbi>,
+    pub abi: Option<JsonAbi>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bytecode: Option<CompactBytecode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -120,7 +120,7 @@ impl From<ConfigurableContractArtifact> for CompactContract {
 impl<'a> From<&'a ConfigurableContractArtifact> for CompactContractBytecodeCow<'a> {
     fn from(artifact: &'a ConfigurableContractArtifact) -> Self {
         CompactContractBytecodeCow {
-            abi: artifact.abi.as_ref().map(|abi| Cow::Borrowed(&abi.abi)),
+            abi: artifact.abi.as_ref().map(Cow::Borrowed),
             bytecode: artifact.bytecode.as_ref().map(Cow::Borrowed),
             deployed_bytecode: artifact.deployed_bytecode.as_ref().map(Cow::Borrowed),
         }
@@ -361,7 +361,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
         file: &VersionedSourceFile,
     ) -> Option<Self::Artifact> {
         file.source_file.ast.clone().map(|ast| ConfigurableContractArtifact {
-            abi: Some(LosslessAbi::default()),
+            abi: Some(JsonAbi::default()),
             id: Some(file.source_file.id),
             ast: Some(ast),
             bytecode: Some(CompactBytecode::empty()),
