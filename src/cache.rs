@@ -366,16 +366,28 @@ impl SolFilesCache {
 #[cfg(feature = "async")]
 impl SolFilesCache {
     pub async fn async_read(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
-        let content =
-            tokio::fs::read_to_string(path).await.map_err(|err| SolcError::io(err, path))?;
-        Ok(serde_json::from_str(&content)?)
+        let path = path.as_ref().to_owned();
+        Self::asyncify(move || Self::read(path)).await
     }
 
     pub async fn async_write(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref();
         let content = serde_json::to_vec(self)?;
         tokio::fs::write(path, content).await.map_err(|err| SolcError::io(err, path))
+    }
+
+    async fn asyncify<F, T>(f: F) -> Result<T>
+    where
+        F: FnOnce() -> Result<T> + Send + 'static,
+        T: Send + 'static,
+    {
+        match tokio::task::spawn_blocking(f).await {
+            Ok(res) => res,
+            Err(_) => Err(SolcError::io(
+                std::io::Error::new(std::io::ErrorKind::Other, "background task failed"),
+                "",
+            )),
+        }
     }
 }
 

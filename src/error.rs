@@ -11,15 +11,15 @@ pub type Result<T> = std::result::Result<T, SolcError>;
 #[derive(Debug, Error)]
 pub enum SolcError {
     /// Errors related to the Solc executable itself.
-    #[error("Solc exited with {0}\n{1}")]
+    #[error("solc exited with {0}\n{1}")]
     SolcError(std::process::ExitStatus, String),
-    #[error("Missing pragma from solidity file")]
+    #[error("missing pragma from Solidity file")]
     PragmaNotFound,
-    #[error("Could not find solc version locally or upstream")]
+    #[error("could not find Solc version locally or upstream")]
     VersionNotFound,
-    #[error("Checksum mismatch for {file}: expected {expected} found {detected} for {version}")]
+    #[error("checksum mismatch for {file}: expected {expected} found {detected} for {version}")]
     ChecksumMismatch { version: Version, expected: String, detected: String, file: PathBuf },
-    #[error("Checksum not found for {version}")]
+    #[error("checksum not found for {version}")]
     ChecksumNotFound { version: Version },
     #[error(transparent)]
     SemverError(#[from] semver::Error),
@@ -29,12 +29,12 @@ pub enum SolcError {
     /// Filesystem IO error
     #[error(transparent)]
     Io(#[from] SolcIoError),
-    #[error("File could not be resolved due to broken symlink: {0}.")]
+    #[error("file could not be resolved due to broken symlink: {0}")]
     ResolveBadSymlink(SolcIoError),
     /// Failed to resolve a file
-    #[error("Failed to resolve file: {0}.\n Check configured remappings.")]
+    #[error("failed to resolve file: {0}; check configured remappings")]
     Resolve(SolcIoError),
-    #[error("File cannot be resolved due to mismatch of file name case: {error}.\n Found existing file: {existing_file:?}\n Please check the case of the import.")]
+    #[error("file cannot be resolved due to mismatch of file name case: {error}.\nFound existing file: {existing_file:?}\nPlease check the case of the import.")]
     ResolveCaseSensitiveFileName { error: SolcIoError, existing_file: PathBuf },
     #[error(
         r#"{0}.
@@ -45,7 +45,7 @@ pub enum SolcError {
     #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
     #[error(transparent)]
     SvmError(#[from] svm::SolcVmError),
-    #[error("No contracts found at \"{0}\"")]
+    #[error("no contracts found at \"{0}\"")]
     NoContracts(String),
     #[error(transparent)]
     PatternError(#[from] glob::PatternError),
@@ -53,7 +53,7 @@ pub enum SolcError {
     #[error("{0}")]
     Message(String),
 
-    #[error("No artifact found for `{}:{}`", .0.display(), .1)]
+    #[error("no artifact found for `{}:{}`", .0.display(), .1)]
     ArtifactNotFound(PathBuf, String),
 
     #[cfg(feature = "project-util")]
