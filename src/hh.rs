@@ -4,10 +4,11 @@ use crate::{
     artifacts::{
         bytecode::{Bytecode, BytecodeObject, DeployedBytecode},
         contract::{CompactContract, CompactContractBytecode, Contract, ContractBytecode},
-        CompactContractBytecodeCow, LosslessAbi, Offsets,
+        CompactContractBytecodeCow, Offsets,
     },
     ArtifactOutput, SourceFile, VersionedSourceFile,
 };
+use alloy_json_abi::JsonAbi;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::btree_map::BTreeMap};
 
@@ -24,7 +25,7 @@ pub struct HardhatArtifact {
     /// The source name of this contract in the workspace like `contracts/Greeter.sol`
     pub source_name: String,
     /// The contract's ABI
-    pub abi: LosslessAbi,
+    pub abi: JsonAbi,
     /// A "0x"-prefixed hex string of the unlinked deployment bytecode. If the contract is not
     /// deployable, this has the string "0x"
     pub bytecode: Option<BytecodeObject>,
@@ -45,7 +46,7 @@ impl<'a> From<&'a HardhatArtifact> for CompactContractBytecodeCow<'a> {
     fn from(artifact: &'a HardhatArtifact) -> Self {
         let c: ContractBytecode = artifact.clone().into();
         CompactContractBytecodeCow {
-            abi: Some(Cow::Borrowed(&artifact.abi.abi)),
+            abi: Some(Cow::Borrowed(&artifact.abi)),
             bytecode: c.bytecode.map(|b| Cow::Owned(b.into())),
             deployed_bytecode: c.deployed_bytecode.map(|b| Cow::Owned(b.into())),
         }
@@ -55,7 +56,7 @@ impl<'a> From<&'a HardhatArtifact> for CompactContractBytecodeCow<'a> {
 impl From<HardhatArtifact> for CompactContract {
     fn from(artifact: HardhatArtifact) -> Self {
         CompactContract {
-            abi: Some(artifact.abi.abi),
+            abi: Some(artifact.abi),
             bin: artifact.bytecode,
             bin_runtime: artifact.deployed_bytecode,
         }
@@ -76,7 +77,7 @@ impl From<HardhatArtifact> for ContractBytecode {
             bcode.into()
         });
 
-        ContractBytecode { abi: Some(artifact.abi.abi), bytecode, deployed_bytecode }
+        ContractBytecode { abi: Some(artifact.abi), bytecode, deployed_bytecode }
     }
 }
 

@@ -424,7 +424,7 @@ impl<T> Artifacts<T> {
 
 /// A trait representation for a [`crate::Contract`] artifact
 pub trait Artifact {
-    /// Returns the artifact's `Abi` and bytecode
+    /// Returns the artifact's [`JsonAbi`] and bytecode.
     fn into_inner(self) -> (Option<JsonAbi>, Option<Bytes>);
 
     /// Turns the artifact into a container type for abi, compact bytecode and deployed bytecode

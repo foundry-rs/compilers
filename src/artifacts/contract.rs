@@ -4,10 +4,9 @@ use crate::artifacts::{
     bytecode::{
         Bytecode, BytecodeObject, CompactBytecode, CompactDeployedBytecode, DeployedBytecode,
     },
-    serde_helpers, DevDoc, Evm, Ewasm, LosslessAbi, LosslessMetadata, Offsets, StorageLayout,
-    UserDoc,
+    serde_helpers, DevDoc, Evm, Ewasm, LosslessMetadata, Offsets, StorageLayout, UserDoc,
 };
-use alloy_json_abi::JsonAbi as Abi;
+use alloy_json_abi::JsonAbi;
 use alloy_primitives::Bytes;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::BTreeMap, convert::TryFrom};
@@ -18,7 +17,7 @@ use std::{borrow::Cow, collections::BTreeMap, convert::TryFrom};
 pub struct Contract {
     /// The Ethereum Contract Metadata.
     /// See <https://docs.soliditylang.org/en/develop/metadata.html>
-    pub abi: Option<LosslessAbi>,
+    pub abi: Option<JsonAbi>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -54,7 +53,7 @@ impl<'a> From<&'a Contract> for CompactContractBytecodeCow<'a> {
             (None, None)
         };
         CompactContractBytecodeCow {
-            abi: artifact.abi.as_ref().map(|abi| Cow::Borrowed(&abi.abi)),
+            abi: artifact.abi.as_ref().map(Cow::Borrowed),
             bytecode,
             deployed_bytecode,
         }
@@ -69,7 +68,7 @@ impl<'a> From<&'a Contract> for CompactContractBytecodeCow<'a> {
 pub struct ContractBytecode {
     /// The Ethereum Contract ABI. If empty, it is represented as an empty
     /// array. See <https://docs.soliditylang.org/en/develop/abi-spec.html>
-    pub abi: Option<Abi>,
+    pub abi: Option<JsonAbi>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bytecode: Option<Bytecode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -139,7 +138,7 @@ impl From<Contract> for ContractBytecode {
 pub struct CompactContractBytecode {
     /// The Ethereum Contract ABI. If empty, it is represented as an empty
     /// array. See <https://docs.soliditylang.org/en/develop/abi-spec.html>
-    pub abi: Option<Abi>,
+    pub abi: Option<JsonAbi>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bytecode: Option<CompactBytecode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -214,7 +213,7 @@ impl From<CompactContractBytecode> for ContractBytecode {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CompactContractBytecodeCow<'a> {
-    pub abi: Option<Cow<'a, Abi>>,
+    pub abi: Option<Cow<'a, JsonAbi>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bytecode: Option<Cow<'a, CompactBytecode>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -227,7 +226,7 @@ pub struct CompactContractBytecodeCow<'a> {
 /// `Bytecode` object.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ContractBytecodeSome {
-    pub abi: Abi,
+    pub abi: JsonAbi,
     pub bytecode: Bytecode,
     pub deployed_bytecode: DeployedBytecode,
 }
@@ -248,7 +247,7 @@ impl TryFrom<ContractBytecode> for ContractBytecodeSome {
 pub struct CompactContractSome {
     /// The Ethereum Contract ABI. If empty, it is represented as an empty
     /// array. See <https://docs.soliditylang.org/en/develop/abi-spec.html>
-    pub abi: Abi,
+    pub abi: JsonAbi,
     pub bin: BytecodeObject,
     #[serde(rename = "bin-runtime")]
     pub bin_runtime: BytecodeObject,
@@ -272,7 +271,7 @@ impl TryFrom<CompactContract> for CompactContractSome {
 pub struct CompactContract {
     /// The Ethereum Contract ABI. If empty, it is represented as an empty
     /// array. See <https://docs.soliditylang.org/en/develop/abi-spec.html>
-    pub abi: Option<Abi>,
+    pub abi: Option<JsonAbi>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bin: Option<BytecodeObject>,
     #[serde(default, rename = "bin-runtime", skip_serializing_if = "Option::is_none")]
@@ -281,7 +280,7 @@ pub struct CompactContract {
 
 impl CompactContract {
     /// Returns the contents of this type as a single tuple of abi, bytecode and deployed bytecode
-    pub fn into_parts(self) -> (Option<Abi>, Option<Bytes>, Option<Bytes>) {
+    pub fn into_parts(self) -> (Option<JsonAbi>, Option<Bytes>, Option<Bytes>) {
         (
             self.abi,
             self.bin.and_then(|bin| bin.into_bytes()),
@@ -292,7 +291,7 @@ impl CompactContract {
     /// Returns the individual parts of this contract.
     ///
     /// If the values are `None`, then `Default` is returned.
-    pub fn into_parts_or_default(self) -> (Abi, Bytes, Bytes) {
+    pub fn into_parts_or_default(self) -> (JsonAbi, Bytes, Bytes) {
         (
             self.abi.unwrap_or_default(),
             self.bin.and_then(|bin| bin.into_bytes()).unwrap_or_default(),
@@ -429,7 +428,7 @@ impl<'a> From<CompactContractRefSome<'a>> for CompactContract {
 /// Minimal representation of a contract with a present abi and bytecode that borrows.
 #[derive(Copy, Clone, Debug, Serialize)]
 pub struct CompactContractRefSome<'a> {
-    pub abi: &'a Abi,
+    pub abi: &'a JsonAbi,
     pub bin: &'a BytecodeObject,
     #[serde(rename = "bin-runtime")]
     pub bin_runtime: &'a BytecodeObject,
@@ -439,7 +438,7 @@ impl<'a> CompactContractRefSome<'a> {
     /// Returns the individual parts of this contract.
     ///
     /// If the values are `None`, then `Default` is returned.
-    pub fn into_parts(self) -> (Abi, Bytes, Bytes) {
+    pub fn into_parts(self) -> (JsonAbi, Bytes, Bytes) {
         CompactContract::from(self).into_parts_or_default()
     }
 }
@@ -458,7 +457,7 @@ impl<'a> TryFrom<CompactContractRef<'a>> for CompactContractRefSome<'a> {
 /// Helper type to serialize while borrowing from `Contract`
 #[derive(Copy, Clone, Debug, Serialize)]
 pub struct CompactContractRef<'a> {
-    pub abi: Option<&'a Abi>,
+    pub abi: Option<&'a JsonAbi>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bin: Option<&'a BytecodeObject>,
     #[serde(default, rename = "bin-runtime", skip_serializing_if = "Option::is_none")]
@@ -467,14 +466,14 @@ pub struct CompactContractRef<'a> {
 
 impl<'a> CompactContractRef<'a> {
     /// Clones the referenced values and returns as tuples
-    pub fn into_parts(self) -> (Option<Abi>, Option<Bytes>, Option<Bytes>) {
+    pub fn into_parts(self) -> (Option<JsonAbi>, Option<Bytes>, Option<Bytes>) {
         CompactContract::from(self).into_parts()
     }
 
     /// Returns the individual parts of this contract.
     ///
     /// If the values are `None`, then `Default` is returned.
-    pub fn into_parts_or_default(self) -> (Abi, Bytes, Bytes) {
+    pub fn into_parts_or_default(self) -> (JsonAbi, Bytes, Bytes) {
         CompactContract::from(self).into_parts_or_default()
     }
 
@@ -525,6 +524,6 @@ impl<'a> From<&'a Contract> for CompactContractRef<'a> {
             (None, None)
         };
 
-        Self { abi: c.abi.as_ref().map(|abi| &abi.abi), bin, bin_runtime }
+        Self { abi: c.abi.as_ref(), bin, bin_runtime }
     }
 }
