@@ -104,9 +104,7 @@ impl<T: Serialize> ArtifactFile<T> {
     pub fn write(&self) -> Result<()> {
         trace!("writing artifact file {:?} {}", self.file, self.version);
         utils::create_parent_dir_all(&self.file)?;
-        fs::write(&self.file, serde_json::to_vec_pretty(&self.artifact)?)
-            .map_err(|err| SolcError::io(err, &self.file))?;
-        Ok(())
+        utils::write_json_file(&self.artifact, &self.file, 64 * 1024)
     }
 }
 

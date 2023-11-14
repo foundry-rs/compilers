@@ -1,17 +1,18 @@
 //! Utility functions
 
-use cfg_if::cfg_if;
-use std::{
-    collections::HashSet,
-    ops::Range,
-    path::{Component, Path, PathBuf},
-};
-
 use crate::{error::SolcError, SolcIoError};
+use cfg_if::cfg_if;
 use once_cell::sync::Lazy;
 use regex::{Match, Regex};
 use semver::Version;
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Serialize};
+use std::{
+    collections::HashSet,
+    fs,
+    io::Write,
+    ops::Range,
+    path::{Component, Path, PathBuf},
+};
 use tiny_keccak::{Hasher, Keccak};
 use walkdir::WalkDir;
 
@@ -441,25 +442,41 @@ impl RuntimeOrHandle {
     }
 }
 
-/// Creates a new named tempdir
+/// Creates a new named tempdir.
 #[cfg(any(test, feature = "project-util"))]
 pub(crate) fn tempdir(name: &str) -> Result<tempfile::TempDir, SolcIoError> {
     tempfile::Builder::new().prefix(name).tempdir().map_err(|err| SolcIoError::new(err, name))
 }
 
-/// Reads the json file and deserialize it into the provided type
+/// Reads the json file and deserialize it into the provided type.
 pub fn read_json_file<T: DeserializeOwned>(path: impl AsRef<Path>) -> Result<T, SolcError> {
     let path = path.as_ref();
-    let contents = std::fs::read_to_string(path).map_err(|err| SolcError::io(err, path))?;
-    serde_json::from_str(&contents).map_err(Into::into)
+    // See: https://github.com/serde-rs/json/issues/160
+    let file = fs::File::open(path).map_err(|err| SolcError::io(err, path))?;
+    let bytes = unsafe { memmap2::Mmap::map(&file).map_err(|err| SolcError::io(err, path))? };
+    serde_json::from_slice(&bytes).map_err(Into::into)
 }
 
-/// Creates the parent directory of the `file` and all its ancestors if it does not exist
-/// See [`std::fs::create_dir_all()`]
+/// Writes serializes the provided value to JSON and writes it to a file.
+pub fn write_json_file<T: Serialize>(
+    value: &T,
+    path: impl AsRef<Path>,
+    capacity: usize,
+) -> Result<(), SolcError> {
+    let path = path.as_ref();
+    let file = fs::File::create(path).map_err(|err| SolcError::io(err, path))?;
+    let mut writer = std::io::BufWriter::with_capacity(capacity, file);
+    serde_json::to_writer(&mut writer, value)?;
+    writer.flush().map_err(|e| SolcError::io(e, path))
+}
+
+/// Creates the parent directory of the `file` and all its ancestors if it does not exist.
+///
+/// See [`fs::create_dir_all()`].
 pub fn create_parent_dir_all(file: impl AsRef<Path>) -> Result<(), SolcError> {
     let file = file.as_ref();
     if let Some(parent) = file.parent() {
-        std::fs::create_dir_all(parent).map_err(|err| {
+        fs::create_dir_all(parent).map_err(|err| {
             SolcError::msg(format!(
                 "Failed to create artifact parent folder \"{}\": {}",
                 parent.display(),
@@ -488,7 +505,7 @@ mod tests {
         create_dir_all(&path).unwrap();
         let existing = path.join("Test.sol");
         let non_existing = path.join("test.sol");
-        std::fs::write(&existing, b"").unwrap();
+        fs::write(&existing, b"").unwrap();
 
         #[cfg(target_os = "linux")]
         assert!(!non_existing.exists());
@@ -505,7 +522,7 @@ mod tests {
         create_dir_all(&path).unwrap();
         let existing = path.join("Test.sol");
         let non_existing = path.join("test.sol");
-        std::fs::write(
+        fs::write(
             existing,
             "
 pragma solidity ^0.8.10;
