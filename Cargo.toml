@@ -20,7 +20,11 @@ rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
 
 [dependencies]
-alloy-primitives = { version = "0.4", default-features = false, features = ["std", "serde", "rand"] }
+alloy-primitives = { version = "0.4", default-features = false, features = [
+    "std",
+    "serde",
+    "rand",
+] }
 alloy-json-abi = { version = "0.4", default-features = false, features = ["std", "serde_json"] }
 
 solang-parser = { version = "=0.3.3", default-features = false }
@@ -66,10 +70,12 @@ svm = { package = "svm-rs", version = "0.3", default-features = false, features 
 svm-builds = { package = "svm-rs-builds", version = "0.2", optional = true }
 tokio = { version = "1.32", features = ["rt-multi-thread"] }
 
-
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async_tokio"] }
-tracing-subscriber = { version = "0.3.17", default-features = false, features = ["env-filter", "fmt"] }
+tracing-subscriber = { version = "0.3.17", default-features = false, features = [
+    "env-filter",
+    "fmt",
+] }
 rand = "0.8"
 pretty_assertions = "1"
 tempfile = "3.8"
