@@ -15,8 +15,7 @@ use std::{
         btree_map::{BTreeMap, Entry},
         hash_map, BTreeSet, HashMap, HashSet,
     },
-    fs::{self},
-    io::Write,
+    fs,
     path::{Path, PathBuf},
     time::{Duration, UNIX_EPOCH},
 };
@@ -133,16 +132,13 @@ impl SolFilesCache {
     /// Write the cache as json file to the given path
     pub fn write(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref();
-        utils::create_parent_dir_all(path)?;
-        let file = fs::File::create(path).map_err(|err| SolcError::io(err, path))?;
         tracing::trace!(
             "writing cache with {} entries to json file: \"{}\"",
             self.len(),
             path.display()
         );
-        let mut writer = std::io::BufWriter::with_capacity(1024 * 256, file);
-        serde_json::to_writer_pretty(&mut writer, self)?;
-        writer.flush().map_err(|e| SolcError::io(e, path))?;
+        utils::create_parent_dir_all(path)?;
+        utils::write_json_file(self, path, 128 * 1024)?;
         tracing::trace!("cache file located: \"{}\"", path.display());
         Ok(())
     }
@@ -378,7 +374,7 @@ impl SolFilesCache {
 
     pub async fn async_write(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref();
-        let content = serde_json::to_vec_pretty(self)?;
+        let content = serde_json::to_vec(self)?;
         tokio::fs::write(path, content).await.map_err(|err| SolcError::io(err, path))
     }
 }
