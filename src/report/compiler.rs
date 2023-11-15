@@ -7,8 +7,13 @@
 
 use crate::{CompilerInput, CompilerOutput};
 use semver::Version;
-use std::{env, path::PathBuf, str::FromStr};
-
+use std::{
+    env,
+    fs::{self, File},
+    io::Write,
+    path::PathBuf,
+    str::FromStr,
+};
 /// Debug Helper type that can be used to write the [crate::Solc] [CompilerInput] and
 /// [CompilerOutput] to disk if configured.
 ///
@@ -85,9 +90,36 @@ struct Target {
     dest_input: PathBuf,
     /// path where the compiler output file should be written to
     dest_output: PathBuf,
+    /// Maximum size of the log file in bytes
+    max_log_size: u64,
+    /// Maximum number of rotated log files to keep
+    max_log_count: u32,
 }
 
 impl Target {
+    fn write_with_rotation(&self, path: &PathBuf, content: &str, version: &Version) {
+        let file_path = get_file_name(path, version);
+
+        // Check if the file needs rotation
+        if let Ok(metadata) = fs::metadata(&file_path) {
+            if metadata.len() > self.max_log_size {
+                // Rotate the file
+                for i in (1..self.max_log_count).rev() {
+                    let old_path = file_path.with_extension(format!("{}.log", i));
+                    let new_path = file_path.with_extension(format!("{}.log", i + 1));
+                    let _ = fs::rename(&old_path, &new_path);
+                }
+                let rotated_path = file_path.with_extension("1.log");
+                let _ = fs::rename(&file_path, &rotated_path);
+            }
+        }
+
+        // Write to the log file
+        let mut file = File::options().create(true).append(true).open(file_path).unwrap();
+        if let Err(err) = writeln!(file, "{}", content) {
+            tracing::error!("Failed to write to log file: {}", err);
+        }
+    }
     fn write_input(&self, input: &CompilerInput, version: &Version) {
         tracing::trace!("logging compiler input to {}", self.dest_input.display());
         match serde_json::to_string_pretty(input) {
@@ -100,6 +132,8 @@ impl Target {
                 tracing::error!("Failed to serialize compiler input: {}", err)
             }
         }
+        let json = serde_json::to_string_pretty(input).unwrap();
+        self.write_with_rotation(&self.dest_input, &json, version);
     }
 
     fn write_output(&self, output: &CompilerOutput, version: &Version) {
@@ -114,6 +148,8 @@ impl Target {
                 tracing::error!("Failed to serialize compiler output: {}", err)
             }
         }
+        let json = serde_json::to_string_pretty(output).unwrap();
+        self.write_with_rotation(&self.dest_output, &json, version);
     }
 }
 
@@ -122,6 +158,8 @@ impl Default for Target {
         Self {
             dest_input: "compiler-input.json".into(),
             dest_output: "compiler-output.json".into(),
+            max_log_size: 10 * 1024 * 1024, // 10 MB
+            max_log_count: 5,
         }
     }
 }
@@ -148,6 +186,8 @@ impl FromStr for Target {
         Ok(Self {
             dest_input: dest_input.unwrap_or_else(|| "compiler-input.json".into()),
             dest_output: dest_output.unwrap_or_else(|| "compiler-output.json".into()),
+            max_log_size: 10 * 1024 * 1024,
+            max_log_count: 5,
         })
     }
 }
@@ -189,7 +229,15 @@ mod tests {
     #[test]
     fn can_parse_target() {
         let target: Target = "in=in.json,out=out.json".parse().unwrap();
-        assert_eq!(target, Target { dest_input: "in.json".into(), dest_output: "out.json".into() });
+        assert_eq!(
+            target,
+            Target {
+                dest_input: "in.json".into(),
+                dest_output: "out.json".into(),
+                max_log_size: 10 * 1024 * 1024, // Include these values
+                max_log_count: 5,
+            }
+        );
 
         let target: Target = "in=in.json".parse().unwrap();
         assert_eq!(target, Target { dest_input: "in.json".into(), ..Default::default() });
@@ -207,7 +255,12 @@ mod tests {
         assert!(rep.target.is_some());
         assert_eq!(
             rep.target.unwrap(),
-            Target { dest_input: "in.json".into(), dest_output: "out.json".into() }
+            Target {
+                dest_input: "in.json".into(),
+                dest_output: "out.json".into(),
+                max_log_size: 10 * 1024 * 1024,
+                max_log_count: 5,
+            }
         );
         std::env::remove_var("foundry_compilers_LOG");
     }
@@ -229,7 +282,12 @@ mod tests {
         let input_path = dir.path().join("input.json");
         let output_path = dir.path().join("output.json");
         let version = Version::parse("0.8.10").unwrap();
-        let target = Target { dest_input: input_path.clone(), dest_output: output_path.clone() };
+        let target = Target {
+            dest_input: input_path.clone(),
+            dest_output: output_path.clone(),
+            max_log_size: 10 * 1024 * 1024,
+            max_log_count: 5,
+        };
 
         let input = CompilerInput::default();
         let output = CompilerOutput::default();
