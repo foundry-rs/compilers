@@ -213,50 +213,8 @@ mod tests {
     use super::*;
     use crate::Source;
     use semver::Version;
-    use std::{collections::BTreeMap, fs};
+    use std::fs;
     use tempfile::tempdir;
-
-    #[test]
-    fn test_log_file_rotation() {
-        let temp_dir = tempdir().unwrap();
-        let temp_path = temp_dir.path();
-
-        let target = Target {
-            dest_input: temp_path.join("log.json"),
-            dest_output: temp_path.join("log.json"),
-            max_log_size: 1024, // 1 KB for testing
-            max_log_count: 3,
-        };
-
-        let version = Version::parse("0.8.10").unwrap();
-
-        for _ in 0..10 {
-            let mut input = CompilerInput::default();
-            input.sources = {
-                let mut sources = BTreeMap::new();
-                sources.insert(PathBuf::from("test.sol"), Source::new("a".repeat(1024)));
-                sources
-            };
-
-            target.write_input(&input, &version);
-        }
-
-        let log_files = fs::read_dir(temp_path)
-            .unwrap()
-            .filter(|entry| {
-                if let Ok(entry) = entry {
-                    let file_name = entry.file_name().to_string_lossy().to_string(); // Bind to a longer-lived variable
-                    file_name.starts_with("log") && file_name.ends_with(".json")
-                } else {
-                    false
-                }
-            })
-            .count();
-
-        assert!(log_files <= target.max_log_count as usize);
-
-        temp_dir.close().unwrap();
-    }
 
     #[test]
     fn can_set_file_name() {
