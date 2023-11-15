@@ -110,7 +110,7 @@ impl Target {
                     let _ = fs::rename(&old_path, &new_path);
                 }
                 let rotated_path = file_path.with_extension("1.log");
-                let _ = fs::rename(&file_path, &rotated_path);
+                let _ = fs::rename(&file_path, rotated_path);
             }
         }
 
