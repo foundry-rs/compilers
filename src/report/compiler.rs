@@ -210,8 +210,7 @@ fn get_file_name(path: impl Into<PathBuf>, v: &Version) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::Source;
+    use super::*;    
     use semver::Version;
     use std::fs;
     use tempfile::tempdir;
