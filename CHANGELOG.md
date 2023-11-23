@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1](https://github.com/foundry-rs/compilers/releases/tag/v0.1.1) - 2023-11-23
+
+### Bug Fixes
+
+- Default Solidity language string ([#28](https://github.com/foundry-rs/compilers/issues/28))
+- [`ci`] Put flags inside matrix correctly ([#20](https://github.com/foundry-rs/compilers/issues/20))
+
+### Dependencies
+
+- Bump Alloy
+- Bump solc ([#21](https://github.com/foundry-rs/compilers/issues/21))
+
+### Miscellaneous Tasks
+
+- [meta] Update CODEOWNERS
+- Remove LosslessAbi ([#27](https://github.com/foundry-rs/compilers/issues/27))
+
+### Performance
+
+- Don't prettify json when not necessary ([#24](https://github.com/foundry-rs/compilers/issues/24))
+
+### Styling
+
+- Toml
+- More test in report/compiler.rs and Default trait for CompilerInput ([#19](https://github.com/foundry-rs/compilers/issues/19))
+
 ## [0.1.0](https://github.com/foundry-rs/compilers/releases/tag/v0.1.0) - 2023-11-07
 
 ### Bug Fixes
@@ -26,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.1.0
 - Add missing cargo.toml fields + changelog tag ([#17](https://github.com/foundry-rs/compilers/issues/17))
 - Add missing telegram url ([#14](https://github.com/foundry-rs/compilers/issues/14))
 - Remove alloy-dyn-abi as its an unused dep ([#12](https://github.com/foundry-rs/compilers/issues/12))
