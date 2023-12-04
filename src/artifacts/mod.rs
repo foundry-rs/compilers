@@ -53,6 +53,14 @@ pub(crate) type VersionedFilteredSources = BTreeMap<Solc, (Version, FilteredSour
 const SOLIDITY: &str = "Solidity";
 const YUL: &str = "Yul";
 
+/// Input type `solc` expects.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CompilerInput {
+    pub language: String,
+    pub sources: Sources,
+    pub settings: Settings,
+}
+
 /// Default `language` field is set to `"Solidity"`.
 impl Default for CompilerInput {
     fn default() -> Self {
@@ -62,13 +70,6 @@ impl Default for CompilerInput {
             settings: Settings::default(),
         }
     }
-}
-/// Input type `solc` expects
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CompilerInput {
-    pub language: String,
-    pub sources: Sources,
-    pub settings: Settings,
 }
 
 impl CompilerInput {
@@ -494,9 +495,8 @@ impl Settings {
     /// Adds `ast` to output
     #[must_use]
     pub fn with_ast(mut self) -> Self {
-        let output =
-            self.output_selection.as_mut().entry("*".to_string()).or_insert_with(BTreeMap::default);
-        output.insert("".to_string(), vec!["ast".to_string()]);
+        let output = self.output_selection.as_mut().entry("*".to_string()).or_default();
+        output.insert(String::new(), vec!["ast".to_string()]);
         self
     }
 
