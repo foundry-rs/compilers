@@ -52,6 +52,7 @@ impl CompactBytecode {
     pub fn empty() -> Self {
         Self { object: Default::default(), source_map: None, link_references: Default::default() }
     }
+
     /// Returns the parsed source map
     ///
     /// See also <https://docs.soliditylang.org/en/v0.8.10/internals/source_mappings.html>
@@ -88,6 +89,16 @@ impl CompactBytecode {
             }
         }
         false
+    }
+
+    /// Returns the bytes of the bytecode object.
+    pub fn bytes(&self) -> Option<&Bytes> {
+        self.object.as_bytes()
+    }
+
+    /// Returns the underlying `Bytes` if the object is a valid bytecode.
+    pub fn into_bytes(self) -> Option<Bytes> {
+        self.object.into_bytes()
     }
 }
 
@@ -203,31 +214,32 @@ impl Bytecode {
         }
         false
     }
+
+    /// Returns a reference to the underlying `Bytes` if the object is a valid bytecode.
+    pub fn bytes(&self) -> Option<&Bytes> {
+        self.object.as_bytes()
+    }
+
+    /// Returns the underlying `Bytes` if the object is a valid bytecode.
+    pub fn into_bytes(self) -> Option<Bytes> {
+        self.object.into_bytes()
+    }
 }
 
 /// Represents the bytecode of a contracts that might be not fully linked yet.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(untagged)]
 pub enum BytecodeObject {
-    /// Fully linked bytecode object
+    /// Fully linked bytecode object.
     #[serde(deserialize_with = "serde_helpers::deserialize_bytes")]
     Bytecode(Bytes),
-    /// Bytecode as hex string that's not fully linked yet and contains library placeholders
+    /// Bytecode as hex string that's not fully linked yet and contains library placeholders.
     #[serde(with = "serde_helpers::string_bytes")]
     Unlinked(String),
 }
 
 impl BytecodeObject {
-    /// Returns the underlying `Bytes` if the object is a valid bytecode, and not empty
-    pub fn into_bytes(self) -> Option<Bytes> {
-        match self {
-            BytecodeObject::Bytecode(bytes) => Some(bytes),
-            BytecodeObject::Unlinked(_) => None,
-        }
-    }
-
-    /// Returns a reference to the underlying `Bytes` if the object is a valid bytecode, and not
-    /// empty
+    /// Returns a reference to the underlying `Bytes` if the object is a valid bytecode.
     pub fn as_bytes(&self) -> Option<&Bytes> {
         match self {
             BytecodeObject::Bytecode(bytes) => Some(bytes),
@@ -235,14 +247,22 @@ impl BytecodeObject {
         }
     }
 
-    /// Returns the number of bytes of the fully linked bytecode
+    /// Returns the underlying `Bytes` if the object is a valid bytecode.
+    pub fn into_bytes(self) -> Option<Bytes> {
+        match self {
+            BytecodeObject::Bytecode(bytes) => Some(bytes),
+            BytecodeObject::Unlinked(_) => None,
+        }
+    }
+
+    /// Returns the number of bytes of the fully linked bytecode.
     ///
     /// Returns `0` if this object is unlinked.
     pub fn bytes_len(&self) -> usize {
         self.as_bytes().map(|b| b.as_ref().len()).unwrap_or_default()
     }
 
-    /// Returns a reference to the underlying `String` if the object is unlinked
+    /// Returns a reference to the underlying `String` if the object is unlinked.
     pub fn as_str(&self) -> Option<&str> {
         match self {
             BytecodeObject::Bytecode(_) => None,
@@ -250,7 +270,7 @@ impl BytecodeObject {
         }
     }
 
-    /// Returns the unlinked `String` if the object is unlinked or empty
+    /// Returns the unlinked `String` if the object is unlinked.
     pub fn into_unlinked(self) -> Option<String> {
         match self {
             BytecodeObject::Bytecode(_) => None,
@@ -258,23 +278,24 @@ impl BytecodeObject {
         }
     }
 
-    /// Whether this object is still unlinked
+    /// Whether this object is still unlinked.
     pub fn is_unlinked(&self) -> bool {
         matches!(self, BytecodeObject::Unlinked(_))
     }
 
-    /// Whether this object a valid bytecode
+    /// Whether this object a valid bytecode.
     pub fn is_bytecode(&self) -> bool {
         matches!(self, BytecodeObject::Bytecode(_))
     }
 
     /// Returns `true` if the object is a valid bytecode and not empty.
-    /// Returns false the object is a valid but empty bytecode or unlinked.
+    ///
+    /// Returns `false` if the object is a valid but empty or unlinked bytecode.
     pub fn is_non_empty_bytecode(&self) -> bool {
         self.as_bytes().map(|c| !c.0.is_empty()).unwrap_or_default()
     }
 
-    /// Tries to resolve the unlinked string object a valid bytecode object in place
+    /// Tries to resolve the unlinked string object a valid bytecode object in place.
     ///
     /// Returns the string if it is a valid
     pub fn resolve(&mut self) -> Option<&Bytes> {
@@ -286,7 +307,8 @@ impl BytecodeObject {
         self.as_bytes()
     }
 
-    /// Link using the fully qualified name of a library
+    /// Links using the fully qualified name of a library.
+    ///
     /// The fully qualified library name is the path of its source file and the library name
     /// separated by `:` like `file.sol:Math`
     ///
@@ -311,18 +333,19 @@ impl BytecodeObject {
         self
     }
 
-    /// Link using the `file` and `library` names as fully qualified name `<file>:<library>`
-    /// See `BytecodeObject::link_fully_qualified`
+    /// Links using the `file` and `library` names as fully qualified name `<file>:<library>`.
+    ///
+    /// See [`link_fully_qualified`](Self::link_fully_qualified).
     pub fn link(
         &mut self,
         file: impl AsRef<str>,
         library: impl AsRef<str>,
         addr: Address,
     ) -> &mut Self {
-        self.link_fully_qualified(format!("{}:{}", file.as_ref(), library.as_ref(),), addr)
+        self.link_fully_qualified(format!("{}:{}", file.as_ref(), library.as_ref()), addr)
     }
 
-    /// Links the bytecode object with all provided `(file, lib, addr)`
+    /// Links the bytecode object with all provided `(file, lib, addr)`.
     pub fn link_all<I, S, T>(&mut self, libs: I) -> &mut Self
     where
         I: IntoIterator<Item = (S, T, Address)>,
@@ -335,7 +358,7 @@ impl BytecodeObject {
         self
     }
 
-    /// Whether the bytecode contains a matching placeholder using the qualified name
+    /// Returns whether the bytecode contains a matching placeholder using the qualified name.
     pub fn contains_fully_qualified_placeholder(&self, name: impl AsRef<str>) -> bool {
         if let BytecodeObject::Unlinked(unlinked) = self {
             let name = name.as_ref();
@@ -346,7 +369,7 @@ impl BytecodeObject {
         }
     }
 
-    /// Whether the bytecode contains a matching placeholder
+    /// Returns whether the bytecode contains a matching placeholder.
     pub fn contains_placeholder(&self, file: impl AsRef<str>, library: impl AsRef<str>) -> bool {
         self.contains_fully_qualified_placeholder(format!("{}:{}", file.as_ref(), library.as_ref()))
     }
@@ -400,9 +423,14 @@ pub struct DeployedBytecode {
 }
 
 impl DeployedBytecode {
-    /// Returns the underlying `Bytes` if the object is a valid bytecode, and not empty
+    /// Returns a reference to the underlying `Bytes` if the object is a valid bytecode.
+    pub fn bytes(&self) -> Option<&Bytes> {
+        self.bytecode.as_ref().and_then(|bytecode| bytecode.object.as_bytes())
+    }
+
+    /// Returns the underlying `Bytes` if the object is a valid bytecode.
     pub fn into_bytes(self) -> Option<Bytes> {
-        self.bytecode?.object.into_bytes()
+        self.bytecode.and_then(|bytecode| bytecode.object.into_bytes())
     }
 }
 
@@ -430,6 +458,16 @@ impl CompactDeployedBytecode {
     /// interfaces and standalone solidity files that don't contain any contract definitions
     pub fn empty() -> Self {
         Self { bytecode: Some(CompactBytecode::empty()), immutable_references: Default::default() }
+    }
+
+    /// Returns a reference to the underlying `Bytes` if the object is a valid bytecode.
+    pub fn bytes(&self) -> Option<&Bytes> {
+        self.bytecode.as_ref().and_then(|bytecode| bytecode.object.as_bytes())
+    }
+
+    /// Returns the underlying `Bytes` if the object is a valid bytecode.
+    pub fn into_bytes(self) -> Option<Bytes> {
+        self.bytecode.and_then(|bytecode| bytecode.object.into_bytes())
     }
 
     /// Returns the parsed source map
