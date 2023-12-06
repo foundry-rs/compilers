@@ -271,7 +271,7 @@ impl<T: ArtifactOutput> Project<T> {
         #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
         if self.auto_detect {
             tracing::trace!("using solc auto detection to compile sources");
-            return self.svm_compile(sources)
+            return self.svm_compile(sources);
         }
 
         self.compile_with_version(&self.solc, sources)
@@ -292,7 +292,7 @@ impl<T: ArtifactOutput> Project<T> {
     /// # Example
     ///
     /// ```
-    /// use foundry_compilers::{artifacts::Source, Project, utils};
+    /// use foundry_compilers::{artifacts::Source, utils, Project};
     /// # fn demo(project: Project) {
     /// let project = Project::builder().build().unwrap();
     /// let files = utils::source_files("./src");
@@ -333,10 +333,7 @@ impl<T: ArtifactOutput> Project<T> {
     /// use foundry_compilers::Project;
     /// # fn demo(project: Project) {
     /// let project = Project::builder().build().unwrap();
-    /// let output = project
-    ///     .compile_files(
-    ///         vec!["examples/Foo.sol", "examples/Bar.sol"]
-    ///     ).unwrap();
+    /// let output = project.compile_files(vec!["examples/Foo.sol", "examples/Bar.sol"]).unwrap();
     /// # }
     /// ```
     pub fn compile_files<P, I>(&self, files: I) -> Result<ProjectCompileOutput<T>>
@@ -348,7 +345,7 @@ impl<T: ArtifactOutput> Project<T> {
 
         #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
         if self.auto_detect {
-            return project::ProjectCompiler::with_sources(self, sources)?.compile()
+            return project::ProjectCompiler::with_sources(self, sources)?.compile();
         }
 
         let solc = self.configure_solc(self.solc.clone());
@@ -365,24 +362,18 @@ impl<T: ArtifactOutput> Project<T> {
     /// use foundry_compilers::{Project, TestFileFilter};
     /// # fn demo(project: Project) {
     /// let project = Project::builder().build().unwrap();
-    /// let output = project
-    ///     .compile_sparse(
-    ///         TestFileFilter::default()
-    ///     ).unwrap();
+    /// let output = project.compile_sparse(TestFileFilter::default()).unwrap();
     /// # }
     /// ```
     ///
     /// # Example - Apply a custom filter
     ///
     /// ```
-    /// use std::path::Path;
     /// use foundry_compilers::Project;
+    /// use std::path::Path;
     /// # fn demo(project: Project) {
     /// let project = Project::builder().build().unwrap();
-    /// let output = project
-    ///     .compile_sparse(
-    ///         |path: &Path| path.ends_with("Greeter.sol")
-    ///     ).unwrap();
+    /// let output = project.compile_sparse(|path: &Path| path.ends_with("Greeter.sol")).unwrap();
     /// # }
     /// ```
     pub fn compile_sparse<F: FileFilter + 'static>(
@@ -397,7 +388,7 @@ impl<T: ArtifactOutput> Project<T> {
         if self.auto_detect {
             return project::ProjectCompiler::with_sources(self, sources)?
                 .with_sparse_output(filter)
-                .compile()
+                .compile();
         }
 
         project::ProjectCompiler::with_sources_and_solc(self, sources, self.solc.clone())?

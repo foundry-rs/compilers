@@ -449,8 +449,7 @@ impl TempProject<ConfigurableArtifacts> {
     /// Create a new temporary project and populate it with mock files
     ///
     /// ```no_run
-    /// use foundry_compilers::project_util::mock::MockProjectSettings;
-    /// use foundry_compilers::project_util::TempProject;
+    /// use foundry_compilers::project_util::{mock::MockProjectSettings, TempProject};
     /// let tmp = TempProject::mocked(&MockProjectSettings::default(), "^0.8.10").unwrap();
     /// ```
     pub fn mocked(settings: &MockProjectSettings, version: impl AsRef<str>) -> Result<Self> {
@@ -472,8 +471,7 @@ impl TempProject<ConfigurableArtifacts> {
     /// This is a convenience function for:
     ///
     /// ```no_run
-    /// use foundry_compilers::project_util::mock::MockProjectSettings;
-    /// use foundry_compilers::project_util::TempProject;
+    /// use foundry_compilers::project_util::{mock::MockProjectSettings, TempProject};
     /// let tmp = TempProject::mocked(&MockProjectSettings::random(), "^0.8.10").unwrap();
     /// ```
     pub fn mocked_random(version: impl AsRef<str>) -> Result<Self> {

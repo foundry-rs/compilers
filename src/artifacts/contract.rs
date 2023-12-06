@@ -85,8 +85,7 @@ impl ContractBytecode {
     /// # Example
     ///
     /// ```
-    /// use foundry_compilers::Project;
-    /// use foundry_compilers::artifacts::*;
+    /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
     /// let mut output = project.compile().unwrap().output();
     /// let contract: ContractBytecode = output.remove_first("Greeter").unwrap().into();
@@ -236,7 +235,7 @@ impl TryFrom<ContractBytecode> for ContractBytecodeSome {
 
     fn try_from(value: ContractBytecode) -> Result<Self, Self::Error> {
         if value.abi.is_none() || value.bytecode.is_none() || value.deployed_bytecode.is_none() {
-            return Err(value)
+            return Err(value);
         }
         Ok(value.unwrap())
     }
@@ -258,7 +257,7 @@ impl TryFrom<CompactContract> for CompactContractSome {
 
     fn try_from(value: CompactContract) -> Result<Self, Self::Error> {
         if value.abi.is_none() || value.bin.is_none() || value.bin_runtime.is_none() {
-            return Err(value)
+            return Err(value);
         }
         Ok(value.unwrap())
     }
@@ -308,8 +307,7 @@ impl CompactContract {
     /// # Example
     ///
     /// ```
-    /// use foundry_compilers::Project;
-    /// use foundry_compilers::artifacts::*;
+    /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
     /// let mut output = project.compile().unwrap().output();
     /// let contract: CompactContract = output.remove_first("Greeter").unwrap().into();
@@ -448,7 +446,7 @@ impl<'a> TryFrom<CompactContractRef<'a>> for CompactContractRefSome<'a> {
 
     fn try_from(value: CompactContractRef<'a>) -> Result<Self, Self::Error> {
         if value.abi.is_none() || value.bin.is_none() || value.bin_runtime.is_none() {
-            return Err(value)
+            return Err(value);
         }
         Ok(value.unwrap())
     }
@@ -494,8 +492,7 @@ impl<'a> CompactContractRef<'a> {
     /// # Example
     ///
     /// ```
-    /// use foundry_compilers::Project;
-    /// use foundry_compilers::artifacts::*;
+    /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
     /// let output = project.compile().unwrap().output();
     /// let contract = output.find_first("Greeter").unwrap();

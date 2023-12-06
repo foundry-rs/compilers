@@ -152,8 +152,7 @@ pub struct ConfigurableArtifacts {
     /// _always_ be done using a public constructor or update syntax:
     ///
     /// ```rust
-    /// 
-    /// use foundry_compilers::{ExtraOutputFiles, ConfigurableArtifacts};
+    /// use foundry_compilers::{ConfigurableArtifacts, ExtraOutputFiles};
     /// let config = ConfigurableArtifacts {
     ///     additional_files: ExtraOutputFiles { metadata: true, ..Default::default() },
     ///     ..Default::default()
@@ -395,12 +394,8 @@ pub struct ExtraOutputValues {
     /// _always_ be done using a public constructor or update syntax:
     ///
     /// ```rust
-    /// 
     /// use foundry_compilers::ExtraOutputValues;
-    /// let config = ExtraOutputValues {
-    ///     ir: true,
-    ///     ..Default::default()
-    /// };
+    /// let config = ExtraOutputValues { ir: true, ..Default::default() };
     /// ```
     #[doc(hidden)]
     pub __non_exhaustive: (),
@@ -516,12 +511,8 @@ pub struct ExtraOutputFiles {
     /// _always_ be done using a public constructor or update syntax:
     ///
     /// ```rust
-    /// 
     /// use foundry_compilers::ExtraOutputFiles;
-    /// let config = ExtraOutputFiles {
-    ///     metadata: true,
-    ///     ..Default::default()
-    /// };
+    /// let config = ExtraOutputFiles { metadata: true, ..Default::default() };
     /// ```
     #[doc(hidden)]
     pub __non_exhaustive: (),
@@ -584,8 +575,8 @@ impl ExtraOutputFiles {
                     EvmOutputSelection::ByteCode(BytecodeOutputSelection::SourceMap) => {
                         config.source_map = true;
                     }
-                    EvmOutputSelection::DeployedByteCode(DeployedBytecodeOutputSelection::All) |
-                    EvmOutputSelection::DeployedByteCode(
+                    EvmOutputSelection::DeployedByteCode(DeployedBytecodeOutputSelection::All)
+                    | EvmOutputSelection::DeployedByteCode(
                         DeployedBytecodeOutputSelection::Object,
                     ) => {
                         config.deployed_bytecode = true;

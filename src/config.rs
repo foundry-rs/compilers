@@ -182,8 +182,8 @@ impl ProjectPathsConfig {
     /// # Example
     ///
     /// ```
-    ///  use std::path::Path;
     /// use foundry_compilers::ProjectPathsConfig;
+    /// use std::path::Path;
     /// let config = ProjectPathsConfig::builder().lib("lib").build().unwrap();
     /// assert_eq!(config.find_library_ancestor("lib/src/Greeter.sol").unwrap(), Path::new("lib"));
     /// ```
@@ -191,19 +191,19 @@ impl ProjectPathsConfig {
         let file = file.as_ref();
 
         for lib in &self.libraries {
-            if lib.is_relative() &&
-                file.is_absolute() &&
-                file.starts_with(&self.root) &&
-                file.starts_with(self.root.join(lib)) ||
-                file.is_relative() &&
-                    lib.is_absolute() &&
-                    lib.starts_with(&self.root) &&
-                    self.root.join(file).starts_with(lib)
+            if lib.is_relative()
+                && file.is_absolute()
+                && file.starts_with(&self.root)
+                && file.starts_with(self.root.join(lib))
+                || file.is_relative()
+                    && lib.is_absolute()
+                    && lib.starts_with(&self.root)
+                    && self.root.join(file).starts_with(lib)
             {
-                return Some(lib)
+                return Some(lib);
             }
             if file.starts_with(lib) {
-                return Some(lib)
+                return Some(lib);
             }
         }
 
@@ -247,14 +247,14 @@ impl ProjectPathsConfig {
                     {
                         // track the path for this absolute import inside a nested library
                         include_paths.insert(include_path);
-                        return Ok(import)
+                        return Ok(import);
                     }
                 }
                 // also try to resolve absolute imports from the project paths
                 for path in [&self.root, &self.sources, &self.tests, &self.scripts] {
                     if cwd.starts_with(path) {
                         if let Ok(import) = utils::canonicalize(path.join(import)) {
-                            return Ok(import)
+                            return Ok(import);
                         }
                     }
                 }
@@ -349,7 +349,7 @@ impl ProjectPathsConfig {
                     // `contracts`
                     if let Ok(adjusted_import) = stripped_import.strip_prefix("contracts/") {
                         if r.path.ends_with("contracts/") && !lib_path.exists() {
-                            return Path::new(&r.path).join(adjusted_import)
+                            return Path::new(&r.path).join(adjusted_import);
                         }
                     }
                     lib_path
@@ -430,7 +430,7 @@ impl ProjectPathsConfig {
 
         if imported.contains(target_index) {
             // short circuit nodes that were already imported, if both A.sol and B.sol import C.sol
-            return Ok(String::new())
+            return Ok(String::new());
         }
         imported.insert(*target_index);
 
@@ -451,7 +451,7 @@ impl ProjectPathsConfig {
             let mut replace_offset = 0;
             for cap in name_regex.captures_iter(&content.clone()) {
                 if cap.name("ignore").is_some() {
-                    continue
+                    continue;
                 }
                 if let Some(name_match) = ["n1", "n2", "n3"].iter().find_map(|name| cap.name(name))
                 {
@@ -879,7 +879,7 @@ impl AllowedLibPaths {
     pub fn args(&self) -> Option<[String; 2]> {
         let args = self.to_string();
         if args.is_empty() {
-            return None
+            return None;
         }
         Some(["--allow-paths".to_string(), args])
     }

@@ -206,7 +206,7 @@ pub fn resolve_library(libs: &[impl AsRef<Path>], source: impl AsRef<Path>) -> O
                 let contract = lib.join(source);
                 if contract.exists() {
                     // contract exists in <lib>/<source>
-                    return Some(contract)
+                    return Some(contract);
                 }
                 // check for <lib>/<first_dir>/src/name.sol
                 let contract = lib
@@ -214,7 +214,7 @@ pub fn resolve_library(libs: &[impl AsRef<Path>], source: impl AsRef<Path>) -> O
                     .join("src")
                     .join(source.strip_prefix(first_dir).expect("is first component"));
                 if contract.exists() {
-                    return Some(contract)
+                    return Some(contract);
                 }
             }
             None
@@ -248,7 +248,7 @@ pub fn resolve_absolute_library(
     let mut parent = cwd.parent()?;
     while parent != root {
         if let Ok(import) = canonicalize(parent.join(import)) {
-            return Some((parent.to_path_buf(), import))
+            return Some((parent.to_path_buf(), import));
         }
         parent = parent.parent()?;
     }
@@ -309,7 +309,7 @@ pub fn library_hash(name: impl AsRef<[u8]>) -> [u8; 17] {
 /// # Example
 ///
 /// ```rust
-/// use std::path::{PathBuf, Path};
+/// use std::path::{Path, PathBuf};
 ///
 /// # fn main() {
 /// use foundry_compilers::utils::common_ancestor_all;
@@ -331,7 +331,7 @@ where
         if let Some(r) = common_ancestor(ret, path.as_ref()) {
             ret = r;
         } else {
-            return None
+            return None;
         }
     }
     Some(ret)
@@ -342,7 +342,7 @@ where
 /// # Example
 ///
 /// ```rust
-/// use std::path::{PathBuf, Path};
+/// use std::path::{Path, PathBuf};
 ///
 /// # fn main() {
 /// use foundry_compilers::utils::common_ancestor;
@@ -362,7 +362,7 @@ pub fn common_ancestor(a: impl AsRef<Path>, b: impl AsRef<Path>) -> Option<PathB
             ret.push(c1);
             found = true;
         } else {
-            break
+            break;
         }
     }
     if found {
@@ -382,7 +382,7 @@ pub(crate) fn find_fave_or_alt_path(root: impl AsRef<Path>, fave: &str, alt: &st
     if !p.exists() {
         let alt = root.join(alt);
         if alt.exists() {
-            return alt
+            return alt;
         }
     }
     p
@@ -399,10 +399,10 @@ pub(crate) fn find_case_sensitive_existing_file(non_existing: &Path) -> Option<P
         .filter(|e| e.file_type().is_file())
         .find_map(|e| {
             let existing_file_name = e.path().file_name()?;
-            if existing_file_name.eq_ignore_ascii_case(non_existing_file_name) &&
-                existing_file_name != non_existing_file_name
+            if existing_file_name.eq_ignore_ascii_case(non_existing_file_name)
+                && existing_file_name != non_existing_file_name
             {
-                return Some(e.path().to_path_buf())
+                return Some(e.path().to_path_buf());
             }
             None
         })

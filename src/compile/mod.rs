@@ -155,7 +155,7 @@ pub struct Solc {
 impl Default for Solc {
     fn default() -> Self {
         if let Ok(solc) = std::env::var("SOLC_PATH") {
-            return Solc::new(solc)
+            return Solc::new(solc);
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -163,7 +163,7 @@ impl Default for Solc {
                 .and_then(|vers| Solc::find_svm_installed_version(vers.to_string()).ok())
                 .flatten()
             {
-                return solc
+                return solc;
             }
         }
 
@@ -289,7 +289,7 @@ impl Solc {
     /// # Example
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///  use foundry_compilers::Solc;
+    /// use foundry_compilers::Solc;
     /// let solc = Solc::find_svm_installed_version("0.8.9").unwrap();
     /// assert_eq!(solc, Some(Solc::new("~/.svm/0.8.9/solc-0.8.9")));
     /// # Ok(())
@@ -304,7 +304,7 @@ impl Solc {
             .join(format!("solc-{version}"));
 
         if !solc.is_file() {
-            return Ok(None)
+            return Ok(None);
         }
         Ok(Some(Solc::new(solc)))
     }
@@ -316,7 +316,7 @@ impl Solc {
     /// # Example
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///  use foundry_compilers::Solc;
+    /// use foundry_compilers::Solc;
     /// let solc = Solc::find_or_install_svm_version("0.8.9").unwrap();
     /// assert_eq!(solc, Solc::new("~/.svm/0.8.9/solc-0.8.9"));
     /// # Ok(())
@@ -420,8 +420,8 @@ impl Solc {
     /// # Example
     /// ```no_run
     /// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
-    ///  use foundry_compilers::{Solc, ISTANBUL_SOLC};
-    ///  let solc = Solc::install(&ISTANBUL_SOLC).await.unwrap();
+    /// use foundry_compilers::{Solc, ISTANBUL_SOLC};
+    /// let solc = Solc::install(&ISTANBUL_SOLC).await.unwrap();
     /// # Ok(())
     /// # }
     /// ```
@@ -477,7 +477,7 @@ impl Solc {
         if !RELEASES.2 {
             // we skip checksum verification because the underlying request to fetch release info
             // failed so we have nothing to compare against
-            return Ok(())
+            return Ok(());
         }
 
         #[cfg(windows)]
@@ -486,7 +486,7 @@ impl Solc {
             // <https://binaries.soliditylang.org/windows-amd64/list.json>
             const V0_7_2: Version = Version::new(0, 7, 2);
             if version < V0_7_2 {
-                return Ok(())
+                return Ok(());
             }
         }
 
@@ -531,7 +531,7 @@ impl Solc {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///  use foundry_compilers::{CompilerInput, Solc};
+    /// use foundry_compilers::{CompilerInput, Solc};
     /// let solc = Solc::default();
     /// let input = CompilerInput::new("./contracts")?[0].clone();
     /// let output = solc.compile_exact(&input)?;
@@ -551,7 +551,7 @@ impl Solc {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///  use foundry_compilers::{CompilerInput, Solc};
+    /// use foundry_compilers::{CompilerInput, Solc};
     /// let solc = Solc::default();
     /// let input = CompilerInput::new("./contracts")?;
     /// let output = solc.compile(&input)?;
@@ -687,7 +687,8 @@ impl Solc {
     /// let input1 = CompilerInput::new("contracts").unwrap()[0].clone();
     /// let input2 = CompilerInput::new("src").unwrap()[0].clone();
     ///
-    /// let outputs = Solc::compile_many([(solc1, input1), (solc2, input2)], 2).await.flattened().unwrap();
+    /// let outputs =
+    ///     Solc::compile_many([(solc1, input1), (solc2, input2)], 2).await.flattened().unwrap();
     /// # }
     /// ```
     pub async fn compile_many<I>(jobs: I, n: usize) -> crate::many::CompiledMany

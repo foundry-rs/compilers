@@ -28,9 +28,12 @@ impl ContractInfo {
     /// # Example
     ///
     /// ```
-    ///  use foundry_compilers::info::ContractInfo;
+    /// use foundry_compilers::info::ContractInfo;
     /// let info = ContractInfo::new("src/Greeter.sol:Greeter");
-    /// assert_eq!(info, ContractInfo {path: Some("src/Greeter.sol".to_string()), name: "Greeter".to_string()});
+    /// assert_eq!(
+    ///     info,
+    ///     ContractInfo { path: Some("src/Greeter.sol".to_string()), name: "Greeter".to_string() }
+    /// );
     /// ```
     pub fn new(info: impl AsRef<str>) -> Self {
         let info = info.as_ref();
@@ -63,7 +66,7 @@ impl FromStr for ContractInfo {
         let path = iter.next().map(str::to_string);
 
         if name.ends_with(".sol") || name.contains('/') {
-            return Err(err())
+            return Err(err());
         }
 
         Ok(Self { path, name })
