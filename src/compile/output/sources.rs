@@ -37,10 +37,10 @@ impl VersionedSourceFiles {
     /// Returns an iterator over the source files' ids and path
     ///
     /// ```
-    /// use std::collections::BTreeMap;
     /// use foundry_compilers::sources::VersionedSourceFiles;
+    /// use std::collections::BTreeMap;
     /// # fn demo(files: VersionedSourceFiles) {
-    /// let sources: BTreeMap<u32,String> = files.into_ids().collect();
+    /// let sources: BTreeMap<u32, String> = files.into_ids().collect();
     /// # }
     /// ```
     pub fn into_ids(self) -> impl Iterator<Item = (u32, String)> {
@@ -50,10 +50,10 @@ impl VersionedSourceFiles {
     /// Returns an iterator over the source files' paths and ids
     ///
     /// ```
-    /// use std::collections::BTreeMap;
     /// use foundry_compilers::artifacts::SourceFiles;
+    /// use std::collections::BTreeMap;
     /// # fn demo(files: SourceFiles) {
-    /// let sources :BTreeMap<String, u32> = files.into_paths().collect();
+    /// let sources: BTreeMap<String, u32> = files.into_paths().collect();
     /// # }
     /// ```
     pub fn into_paths(self) -> impl Iterator<Item = (String, u32)> {
@@ -63,11 +63,14 @@ impl VersionedSourceFiles {
     /// Returns an iterator over the source files' ids and path
     ///
     /// ```
-    /// use std::collections::BTreeMap;
-    /// use semver::Version;
     /// use foundry_compilers::sources::VersionedSourceFiles;
+    /// use semver::Version;
+    /// use std::collections::BTreeMap;
     /// # fn demo(files: VersionedSourceFiles) {
-    /// let sources: BTreeMap<(u32, Version) ,String> = files.into_ids_with_version().map(|(id, source, version)|((id, version), source)).collect();
+    /// let sources: BTreeMap<(u32, Version), String> = files
+    ///     .into_ids_with_version()
+    ///     .map(|(id, source, version)| ((id, version), source))
+    ///     .collect();
     /// # }
     /// ```
     pub fn into_ids_with_version(self) -> impl Iterator<Item = (u32, String, Version)> {
@@ -79,8 +82,7 @@ impl VersionedSourceFiles {
     /// # Example
     ///
     /// ```
-    /// use foundry_compilers::Project;
-    /// use foundry_compilers::artifacts::*;
+    /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
     /// let output = project.compile().unwrap().output();
     /// let source_file = output.sources.find_file("src/Greeter.sol").unwrap();
@@ -117,8 +119,7 @@ impl VersionedSourceFiles {
     /// # Example
     ///
     /// ```
-    /// use foundry_compilers::Project;
-    /// use foundry_compilers::artifacts::*;
+    /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
     /// let output = project.compile().unwrap().output();
     /// let source_file = output.sources.find_id(0).unwrap();
@@ -141,8 +142,7 @@ impl VersionedSourceFiles {
     /// # Example
     ///
     /// ```
-    /// use foundry_compilers::Project;
-    /// use foundry_compilers::artifacts::*;
+    /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
     /// let (mut sources, _) = project.compile().unwrap().output().split();
     /// let source_file = sources.remove_by_path("src/Greeter.sol").unwrap();
@@ -164,8 +164,7 @@ impl VersionedSourceFiles {
     /// # Example
     ///
     /// ```
-    /// use foundry_compilers::Project;
-    /// use foundry_compilers::artifacts::*;
+    /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
     /// let (mut sources, _) = project.compile().unwrap().output().split();
     /// let source_file = sources.remove_by_id(0).unwrap();
@@ -200,13 +199,10 @@ impl VersionedSourceFiles {
     /// Returns an iterator over all contracts and their source names.
     ///
     /// ```
+    /// use foundry_compilers::{artifacts::*, sources::VersionedSourceFiles};
     /// use std::collections::BTreeMap;
-    /// use foundry_compilers::{ artifacts::* };
-    /// use foundry_compilers::sources::VersionedSourceFiles;
     /// # fn demo(sources: VersionedSourceFiles) {
-    /// let sources: BTreeMap<String, SourceFile> = sources
-    ///     .into_sources()
-    ///     .collect();
+    /// let sources: BTreeMap<String, SourceFile> = sources.into_sources().collect();
     /// # }
     /// ```
     pub fn into_sources(self) -> impl Iterator<Item = (String, SourceFile)> {
@@ -218,13 +214,13 @@ impl VersionedSourceFiles {
     /// Returns an iterator over all contracts and their source names.
     ///
     /// ```
-    /// use std::collections::BTreeMap;
+    /// use foundry_compilers::{artifacts::*, sources::VersionedSourceFiles};
     /// use semver::Version;
-    /// use foundry_compilers::{ artifacts::* };
-    /// use foundry_compilers::sources::VersionedSourceFiles;
+    /// use std::collections::BTreeMap;
     /// # fn demo(sources: VersionedSourceFiles) {
-    /// let sources: BTreeMap<(String,Version), SourceFile> = sources
-    ///     .into_sources_with_version().map(|(path, source, version)|((path,version), source))
+    /// let sources: BTreeMap<(String, Version), SourceFile> = sources
+    ///     .into_sources_with_version()
+    ///     .map(|(path, source, version)| ((path, version), source))
     ///     .collect();
     /// # }
     /// ```
