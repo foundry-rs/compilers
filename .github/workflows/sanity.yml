@@ -2,7 +2,7 @@ on:
   workflow_dispatch: {}
   # Once per day at 00:00 UTC
   schedule:
-    - cron: '0 0 * * *'
+    - cron: "0 0 * * *"
 
 env:
   RUSTFLAGS: -D warnings
@@ -30,8 +30,8 @@ jobs:
         if: ${{ failure() }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WORKFLOW_URL:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           update_existing: true
           filename: .github/SANITY_UNUSED_DEPS_ISSUE_TEMPLATE.md
-
