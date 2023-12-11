@@ -260,6 +260,15 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
         &self.compiled_artifacts
     }
 
+    /// Sets the compiled artifacts for this output.
+    /// 
+    /// # Arguments
+    ///
+    /// * `new_compiled_artifacts` - A collection of artifacts that will replace the current compiled artifacts.
+    pub fn set_compiled_artifacts(&mut self, new_compiled_artifacts: Artifacts<T::Artifact>) {
+        self.compiled_artifacts = new_compiled_artifacts;
+    }
+
     /// Returns a `BTreeMap` that maps the compiler version used during
     /// [`crate::Project::compile()`] to a Vector of tuples containing the contract name and the
     /// `Contract`
