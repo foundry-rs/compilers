@@ -261,10 +261,6 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
     }
 
     /// Sets the compiled artifacts for this output.
-    /// 
-    /// # Arguments
-    ///
-    /// * `new_compiled_artifacts` - A collection of artifacts that will replace the current compiled artifacts.
     pub fn set_compiled_artifacts(&mut self, new_compiled_artifacts: Artifacts<T::Artifact>) {
         self.compiled_artifacts = new_compiled_artifacts;
     }
