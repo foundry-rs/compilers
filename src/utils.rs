@@ -177,6 +177,52 @@ pub fn canonicalize(path: impl AsRef<Path>) -> Result<PathBuf, SolcIoError> {
     res.map_err(|err| SolcIoError::new(err, path))
 }
 
+/// Returns a normalized Solidity file path for the given import path based on the specified
+/// directory.
+///
+/// This function resolves `./` and `../`, but, unlike [`canonicalize`], it does not resolve
+/// symbolic links.
+///
+/// The function returns an error if the normalized path does not exist in the file system.
+///
+/// See also: <https://docs.soliditylang.org/en/v0.8.23/path-resolution.html>
+pub fn normalize_solidity_import_path(
+    directory: impl AsRef<Path>,
+    import_path: impl AsRef<Path>,
+) -> Result<PathBuf, SolcIoError> {
+    let original = directory.as_ref().join(import_path);
+    let cleaned = clean_solidity_path(&original);
+
+    // this is to align the behavior with `canonicalize`
+    use path_slash::PathExt;
+    let normalized = PathBuf::from(dunce::simplified(&cleaned).to_slash_lossy().as_ref());
+
+    fs::metadata(&normalized).map(|_| normalized).map_err(|err| SolcIoError::new(err, original))
+}
+
+fn clean_solidity_path(original_path: impl AsRef<Path>) -> PathBuf {
+    let mut new_path = Vec::new();
+
+    for component in original_path.as_ref().components() {
+        match component {
+            Component::Prefix(..) | Component::RootDir | Component::Normal(..) => {
+                new_path.push(component);
+            }
+            Component::CurDir => {}
+            Component::ParentDir => match new_path.last() {
+                Some(Component::Normal(..)) => {
+                    new_path.pop();
+                }
+                _ => {
+                    new_path.push(component);
+                }
+            },
+        }
+    }
+
+    new_path.iter().collect()
+}
+
 /// Returns the same path config but with canonicalized paths.
 ///
 /// This will take care of potential symbolic linked directories.
@@ -228,7 +274,7 @@ pub fn resolve_library(libs: &[impl AsRef<Path>], source: impl AsRef<Path>) -> O
 /// until the `root` is reached.
 ///
 /// If an existing file under `root` is found, this returns the path up to the `import` path and the
-/// canonicalized `import` path itself:
+/// normalized `import` path itself:
 ///
 /// For example for following layout:
 ///
@@ -247,7 +293,7 @@ pub fn resolve_absolute_library(
 ) -> Option<(PathBuf, PathBuf)> {
     let mut parent = cwd.parent()?;
     while parent != root {
-        if let Ok(import) = canonicalize(parent.join(import)) {
+        if let Ok(import) = normalize_solidity_import_path(parent, import) {
             return Some((parent.to_path_buf(), import));
         }
         parent = parent.parent()?;
@@ -652,6 +698,98 @@ import { T } from '../Test2.sol';
 pragma solidity ^0.8.0;
 ";
         assert_eq!(Some("^0.8.0"), find_version_pragma(s).map(|s| s.as_str()));
+    }
+
+    #[test]
+    fn can_normalize_solidity_import_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let dir_path = dir.path();
+
+        // File structure:
+        //
+        // `dir_path`
+        // └── src (`cwd`)
+        //     ├── Token.sol
+        //     └── common
+        //         └── Burnable.sol
+
+        fs::create_dir_all(dir_path.join("src/common")).unwrap();
+        fs::write(dir_path.join("src/Token.sol"), "").unwrap();
+        fs::write(dir_path.join("src/common/Burnable.sol"), "").unwrap();
+
+        // assume that the import path is specified in Token.sol
+        let cwd = dir_path.join("src");
+
+        assert_eq!(
+            normalize_solidity_import_path(&cwd, "./common/Burnable.sol").unwrap(),
+            dir_path.join("src/common/Burnable.sol"),
+        );
+
+        assert!(normalize_solidity_import_path(&cwd, "./common/Pausable.sol").is_err());
+    }
+
+    // This test is exclusive to unix because creating a symlink is a privileged action on Windows.
+    // https://doc.rust-lang.org/std/os/windows/fs/fn.symlink_dir.html#limitations
+    #[test]
+    #[cfg(unix)]
+    fn can_normalize_solidity_import_path_symlink() {
+        let dir = tempfile::tempdir().unwrap();
+        let dir_path = dir.path();
+
+        // File structure:
+        //
+        // `dir_path`
+        // ├── dependency
+        // │   └── Math.sol
+        // └── project
+        //     ├── node_modules
+        //     │   └── dependency -> symlink to actual 'dependency' directory
+        //     └── src (`cwd`)
+        //         └── Token.sol
+
+        fs::create_dir_all(dir_path.join("project/src")).unwrap();
+        fs::write(dir_path.join("project/src/Token.sol"), "").unwrap();
+        fs::create_dir(dir_path.join("project/node_modules")).unwrap();
+
+        fs::create_dir(dir_path.join("dependency")).unwrap();
+        fs::write(dir_path.join("dependency/Math.sol"), "").unwrap();
+
+        std::os::unix::fs::symlink(
+            dir_path.join("dependency"),
+            dir_path.join("project/node_modules/dependency"),
+        )
+        .unwrap();
+
+        // assume that the import path is specified in Token.sol
+        let cwd = dir_path.join("project/src");
+
+        assert_eq!(
+            normalize_solidity_import_path(cwd, "../node_modules/dependency/Math.sol").unwrap(),
+            dir_path.join("project/node_modules/dependency/Math.sol"),
+        );
+    }
+
+    #[test]
+    fn can_clean_solidity_path() {
+        assert_eq!(clean_solidity_path("a"), PathBuf::from("a"));
+        assert_eq!(clean_solidity_path("./a"), PathBuf::from("a"));
+        assert_eq!(clean_solidity_path("../a"), PathBuf::from("../a"));
+        assert_eq!(clean_solidity_path("/a/"), PathBuf::from("/a"));
+        assert_eq!(clean_solidity_path("//a"), PathBuf::from("/a"));
+        assert_eq!(clean_solidity_path("a/b"), PathBuf::from("a/b"));
+        assert_eq!(clean_solidity_path("a//b"), PathBuf::from("a/b"));
+        assert_eq!(clean_solidity_path("/a/b"), PathBuf::from("/a/b"));
+        assert_eq!(clean_solidity_path("a/./b"), PathBuf::from("a/b"));
+        assert_eq!(clean_solidity_path("a/././b"), PathBuf::from("a/b"));
+        assert_eq!(clean_solidity_path("/a/../b"), PathBuf::from("/b"));
+        assert_eq!(clean_solidity_path("a/b/c"), PathBuf::from("a/b/c"));
+        assert_eq!(clean_solidity_path("a/b/../c"), PathBuf::from("a/c"));
+        assert_eq!(clean_solidity_path("a/b/../../c"), PathBuf::from("c"));
+        assert_eq!(clean_solidity_path("a/b/../../../c"), PathBuf::from("../c"));
+        assert_eq!(
+            clean_solidity_path("a/../b/../../c/./Token.sol"),
+            PathBuf::from("../c/Token.sol")
+        );
     }
 
     #[test]

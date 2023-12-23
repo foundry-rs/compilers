@@ -230,7 +230,7 @@ impl ProjectPathsConfig {
         if component == Component::CurDir || component == Component::ParentDir {
             // if the import is relative we assume it's already part of the processed input
             // file set
-            utils::canonicalize(cwd.join(import)).map_err(|err| {
+            utils::normalize_solidity_import_path(cwd, import).map_err(|err| {
                 SolcError::msg(format!("failed to resolve relative import \"{err:?}\""))
             })
         } else {
@@ -253,7 +253,7 @@ impl ProjectPathsConfig {
                 // also try to resolve absolute imports from the project paths
                 for path in [&self.root, &self.sources, &self.tests, &self.scripts] {
                     if cwd.starts_with(path) {
-                        if let Ok(import) = utils::canonicalize(path.join(import)) {
+                        if let Ok(import) = utils::normalize_solidity_import_path(path, import) {
                             return Ok(import);
                         }
                     }
@@ -1024,6 +1024,67 @@ mod tests {
         assert_eq!(
             config.find_library_ancestor("/root/test/src/Greeter.sol").unwrap(),
             Path::new("/root/test/")
+        );
+    }
+
+    #[test]
+    fn can_resolve_import() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = ProjectPathsConfig::builder().root(dir.path()).build().unwrap();
+        config.create_all().unwrap();
+
+        fs::write(config.sources.join("A.sol"), r"pragma solidity ^0.8.0; contract A {}").unwrap();
+
+        // relative import
+        assert_eq!(
+            config
+                .resolve_import_and_include_paths(
+                    &config.sources,
+                    Path::new("./A.sol"),
+                    &mut Default::default(),
+                )
+                .unwrap(),
+            config.sources.join("A.sol")
+        );
+
+        // direct import
+        assert_eq!(
+            config
+                .resolve_import_and_include_paths(
+                    &config.sources,
+                    Path::new("src/A.sol"),
+                    &mut Default::default(),
+                )
+                .unwrap(),
+            config.sources.join("A.sol")
+        );
+    }
+
+    #[test]
+    fn can_resolve_remapped_import() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = ProjectPathsConfig::builder().root(dir.path()).build().unwrap();
+        config.create_all().unwrap();
+
+        let dependency = config.root.join("dependency");
+        fs::create_dir(&dependency).unwrap();
+        fs::write(dependency.join("A.sol"), r"pragma solidity ^0.8.0; contract A {}").unwrap();
+
+        config.remappings.push(Remapping {
+            context: None,
+            name: "@dependency/".into(),
+            path: "dependency/".into(),
+        });
+
+        assert_eq!(
+            config
+                .resolve_import_and_include_paths(
+                    &config.sources,
+                    Path::new("@dependency/A.sol"),
+                    &mut Default::default(),
+                )
+                .unwrap(),
+            dependency.join("A.sol")
         );
     }
 }
