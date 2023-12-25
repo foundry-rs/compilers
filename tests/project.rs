@@ -1605,7 +1605,7 @@ fn can_sanitize_bytecode_hash() {
 fn can_create_standard_json_input_with_external_file() {
     // File structure:
     // .
-    // ├── bad_verif
+    // ├── verif
     // │   └── src
     // │       └── Counter.sol
     // └── remapped
@@ -1613,39 +1613,38 @@ fn can_create_standard_json_input_with_external_file() {
     //     └── Parent.sol
 
     let dir = tempfile::tempdir().unwrap();
-    let bad_verif_dir = utils::canonicalize(dir.path()).unwrap().join("bad_verif");
+    let verif_dir = utils::canonicalize(dir.path()).unwrap().join("verif");
     let remapped_dir = utils::canonicalize(dir.path()).unwrap().join("remapped");
-    fs::create_dir_all(bad_verif_dir.join("src")).unwrap();
+    fs::create_dir_all(verif_dir.join("src")).unwrap();
     fs::create_dir(&remapped_dir).unwrap();
 
-    let mut bad_verif_project = Project::builder()
-        .paths(ProjectPathsConfig::dapptools(&bad_verif_dir).unwrap())
+    let mut verif_project = Project::builder()
+        .paths(ProjectPathsConfig::dapptools(&verif_dir).unwrap())
         .build()
         .unwrap();
 
-    bad_verif_project.paths.remappings.push(Remapping {
+    verif_project.paths.remappings.push(Remapping {
         context: None,
         name: "@remapped/".into(),
         path: "../remapped/".into(),
     });
-    bad_verif_project.allowed_paths.insert(remapped_dir.clone());
+    verif_project.allowed_paths.insert(remapped_dir.clone());
 
     fs::write(remapped_dir.join("Parent.sol"), "pragma solidity >=0.8.0; import './Child.sol';")
         .unwrap();
     fs::write(remapped_dir.join("Child.sol"), "pragma solidity >=0.8.0;").unwrap();
     fs::write(
-        bad_verif_dir.join("src/Counter.sol"),
+        verif_dir.join("src/Counter.sol"),
         "pragma solidity >=0.8.0; import '@remapped/Parent.sol'; contract Counter {}",
     )
     .unwrap();
 
     // solc compiles using the host file system; therefore, this setup is considered valid
-    let compiled = bad_verif_project.compile().unwrap();
+    let compiled = verif_project.compile().unwrap();
     compiled.assert_success();
 
     // can create project root based paths
-    let std_json =
-        bad_verif_project.standard_json_input(bad_verif_dir.join("src/Counter.sol")).unwrap();
+    let std_json = verif_project.standard_json_input(verif_dir.join("src/Counter.sol")).unwrap();
     assert_eq!(
         std_json.sources.iter().map(|(path, _)| path.clone()).collect::<Vec<_>>(),
         vec![

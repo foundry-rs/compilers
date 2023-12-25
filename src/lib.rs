@@ -518,7 +518,26 @@ impl<T: ArtifactOutput> Project<T> {
                 let path: PathBuf = if let Ok(stripped) = path.strip_prefix(root) {
                     stripped.to_slash_lossy().into_owned().into()
                 } else {
-                    path.to_slash_lossy().into_owned().into()
+                    let mut new_path = path.components().collect::<std::collections::VecDeque<_>>();
+
+                    for (i, (root_component, path_component)) in
+                        root.components().zip(path.components()).enumerate()
+                    {
+                        if root_component == path_component {
+                            new_path.pop_front();
+                        } else {
+                            let mut parent_dirs = vec![
+                                std::path::Component::ParentDir;
+                                root.components().collect::<Vec<_>>().len()
+                                    - i
+                            ];
+                            parent_dirs.extend(new_path);
+                            new_path = parent_dirs.into();
+                            break;
+                        }
+                    }
+
+                    new_path.iter().collect::<PathBuf>().to_slash_lossy().into_owned().into()
                 };
                 (path, source.clone())
             })
