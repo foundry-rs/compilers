@@ -811,6 +811,7 @@ pragma solidity ^0.8.0;
         assert_eq!(clean_solidity_path("a/./b"), PathBuf::from("a/b"));
         assert_eq!(clean_solidity_path("a/././b"), PathBuf::from("a/b"));
         assert_eq!(clean_solidity_path("/a/../b"), PathBuf::from("/b"));
+        assert_eq!(clean_solidity_path("a/./../b/."), PathBuf::from("b"));
         assert_eq!(clean_solidity_path("a/b/c"), PathBuf::from("a/b/c"));
         assert_eq!(clean_solidity_path("a/b/../c"), PathBuf::from("a/c"));
         assert_eq!(clean_solidity_path("a/b/../../c"), PathBuf::from("c"));
