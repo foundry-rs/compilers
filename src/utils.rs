@@ -200,6 +200,35 @@ pub fn normalize_solidity_import_path(
     fs::metadata(&normalized).map(|_| normalized).map_err(|err| SolcIoError::new(err, original))
 }
 
+// This function lexically cleans the given path.
+//
+// It performs the following transformations for the path:
+//
+// * Resolves references (current directories (`.`) and parent (`..`) directories).
+// * Reduces repeated separators to a single separator (e.g., from `//` to `/`).
+//
+// This transformation is lexical, not involving the file system, which means it does not account
+// for symlinks. This approach has a caveat. For example, consider a filesystem-accessible path
+// `a/b/../c.sol` passed to this function. It returns `a/c.sol`. However, if `b` is a symlink,
+// `a/c.sol` might not be accessible in the filesystem in some environments. Despite this, it's
+// unlikely that this will pose a problem for our intended use.
+//
+// # How it works
+//
+// The function splits the given path into components, where each component roughly corresponds to a
+// string between separators. It then iterates over these components (starting from the leftmost
+// part of the path) to reconstruct the path. The following steps are applied to each component:
+//
+// * If the component is a current directory, it's removed.
+// * If the component is a parent directory, the following rules are applied:
+//     * If the preceding component is a normal, then both the preceding normal component and the
+//       parent directory component are removed. (Examples of normal components include `a` and `b`
+//       in `a/b`.)
+//     * Otherwise (if there is no preceding component, or if the preceding component is a parent,
+//       root, or prefix), it remains untouched.
+// * Otherwise, the component remains untouched.
+//
+// Finally, the processed components are reassembled into a path.
 fn clean_solidity_path(original_path: impl AsRef<Path>) -> PathBuf {
     let mut new_path = Vec::new();
 
