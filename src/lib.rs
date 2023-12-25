@@ -490,8 +490,6 @@ impl<T: ArtifactOutput> Project<T> {
         &self,
         target: impl AsRef<Path>,
     ) -> Result<StandardJsonCompilerInput> {
-        use path_slash::PathExt;
-
         let target = target.as_ref();
         tracing::trace!("Building standard-json-input for {:?}", target);
         let graph = Graph::resolve(&self.paths)?;
@@ -514,33 +512,7 @@ impl<T: ArtifactOutput> Project<T> {
         let root = self.root();
         let sources = sources
             .into_iter()
-            .map(|(path, source)| {
-                let path: PathBuf = if let Ok(stripped) = path.strip_prefix(root) {
-                    stripped.to_slash_lossy().into_owned().into()
-                } else {
-                    let mut new_path = path.components().collect::<std::collections::VecDeque<_>>();
-
-                    for (i, (root_component, path_component)) in
-                        root.components().zip(path.components()).enumerate()
-                    {
-                        if root_component == path_component {
-                            new_path.pop_front();
-                        } else {
-                            let mut parent_dirs = vec![
-                                std::path::Component::ParentDir;
-                                root.components().collect::<Vec<_>>().len()
-                                    - i
-                            ];
-                            parent_dirs.extend(new_path);
-                            new_path = parent_dirs.into();
-                            break;
-                        }
-                    }
-
-                    new_path.iter().collect::<PathBuf>().to_slash_lossy().into_owned().into()
-                };
-                (path, source.clone())
-            })
+            .map(|(path, source)| (rebase_path(root, path), source.clone()))
             .collect();
 
         let mut settings = self.solc_config.settings.clone();
@@ -973,6 +945,43 @@ impl<T: ArtifactOutput> ArtifactOutput for Project<T> {
     }
 }
 
+// Rebases the given path to the base directory lexically.
+//
+// The returned path from this function usually starts either with a normal component (e.g., `src`)
+// or a parent directory component (i.e., `..`), which is based on the base directory. Additionally,
+// this function converts the path into a UTF-8 string and replaces all separators with forward
+// slashes (`/`).
+//
+// The rebasing process is as follows:
+//
+// 1. Remove the leading components from the path that match the base components.
+// 2. Prepend `..` components to the path, equal in number to the remaining base components.
+fn rebase_path(base: impl AsRef<Path>, path: impl AsRef<Path>) -> PathBuf {
+    use path_slash::PathExt;
+
+    let base = base.as_ref();
+    let path = path.as_ref();
+
+    let mut new_path = path.components().collect::<std::collections::VecDeque<_>>();
+
+    for (i, (base_component, path_component)) in
+        base.components().zip(path.components()).enumerate()
+    {
+        if base_component == path_component {
+            new_path.pop_front();
+        } else {
+            let mut parent_dirs =
+                vec![std::path::Component::ParentDir; base.components().count() - i];
+            parent_dirs.extend(new_path);
+            new_path = parent_dirs.into();
+
+            break;
+        }
+    }
+
+    new_path.iter().collect::<PathBuf>().to_slash_lossy().into_owned().into()
+}
+
 #[cfg(test)]
 #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
 mod tests {
@@ -1032,5 +1041,44 @@ mod tests {
         let project = Project::builder().no_artifacts().paths(paths).ephemeral().build().unwrap();
         let contracts = project.compile().unwrap().succeeded().output().contracts;
         assert_eq!(contracts.contracts().count(), 2);
+    }
+
+    #[test]
+    fn can_rebase_path() {
+        assert_eq!(rebase_path("a/b", "a/b/c"), PathBuf::from("c"));
+        assert_eq!(rebase_path("a/b", "a/c"), PathBuf::from("../c"));
+        assert_eq!(rebase_path("a/b", "c"), PathBuf::from("../../c"));
+
+        assert_eq!(
+            rebase_path("/home/user/project", "/home/user/project/A.sol"),
+            PathBuf::from("A.sol")
+        );
+        assert_eq!(
+            rebase_path("/home/user/project", "/home/user/project/src/A.sol"),
+            PathBuf::from("src/A.sol")
+        );
+        assert_eq!(
+            rebase_path("/home/user/project", "/home/user/project/lib/forge-std/src/Test.sol"),
+            PathBuf::from("lib/forge-std/src/Test.sol")
+        );
+        assert_eq!(
+            rebase_path("/home/user/project", "/home/user/A.sol"),
+            PathBuf::from("../A.sol")
+        );
+        assert_eq!(rebase_path("/home/user/project", "/home/A.sol"), PathBuf::from("../../A.sol"));
+        assert_eq!(rebase_path("/home/user/project", "/A.sol"), PathBuf::from("../../../A.sol"));
+        assert_eq!(
+            rebase_path("/home/user/project", "/tmp/A.sol"),
+            PathBuf::from("../../../tmp/A.sol")
+        );
+
+        assert_eq!(
+            rebase_path("/Users/ah/temp/verif", "/Users/ah/temp/remapped/Child.sol"),
+            PathBuf::from("../remapped/Child.sol")
+        );
+        assert_eq!(
+            rebase_path("/Users/ah/temp/verif", "/Users/ah/temp/verif/../remapped/Parent.sol"),
+            PathBuf::from("../remapped/Parent.sol")
+        );
     }
 }
