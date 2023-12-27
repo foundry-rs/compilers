@@ -238,14 +238,13 @@ fn clean_solidity_path(original_path: impl AsRef<Path>) -> PathBuf {
                 new_path.push(component);
             }
             Component::CurDir => {}
-            Component::ParentDir => match new_path.last() {
-                Some(Component::Normal(..)) => {
+            Component::ParentDir => {
+                if let Some(Component::Normal(..)) = new_path.last() {
                     new_path.pop();
-                }
-                _ => {
+                } else {
                     new_path.push(component);
                 }
-            },
+            }
         }
     }
 
