@@ -197,7 +197,8 @@ pub fn normalize_solidity_import_path(
     use path_slash::PathExt;
     let normalized = PathBuf::from(dunce::simplified(&cleaned).to_slash_lossy().as_ref());
 
-    fs::metadata(&normalized).map(|_| normalized).map_err(|err| SolcIoError::new(err, original))
+    // checks if the path exists without reading its content and obtains an io error if it doesn't.
+    normalized.metadata().map(|_| normalized).map_err(|err| SolcIoError::new(err, original))
 }
 
 // This function lexically cleans the given path.
