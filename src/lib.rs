@@ -947,15 +947,31 @@ impl<T: ArtifactOutput> ArtifactOutput for Project<T> {
 
 // Rebases the given path to the base directory lexically.
 //
-// The returned path from this function usually starts either with a normal component (e.g., `src`)
-// or a parent directory component (i.e., `..`), which is based on the base directory. Additionally,
-// this function converts the path into a UTF-8 string and replaces all separators with forward
-// slashes (`/`).
+// For instance, given the base `/home/user/project` and the path `/home/user/project/src/A.sol`,
+// this function returns `src/A.sol`.
 //
-// The rebasing process is as follows:
+// This function transforms a path into a form that is relative to the base directory. The returned
+// path starts either with a normal component (e.g., `src`) or a parent directory component (i.e.,
+// `..`). It also converts the path into a UTF-8 string and replaces all separators with forward
+// slashes (`/`), if they're not.
 //
-// 1. Remove the leading components from the path that match the base components.
-// 2. Prepend `..` components to the path, equal in number to the remaining base components.
+// The rebasing process can be conceptualized as follows:
+//
+// 1. Remove the leading components from the path that match those in the base.
+// 2. Prepend `..` components to the path, matching the number of remaining components in the base.
+//
+// # Examples
+//
+// `rebase_path("/home/user/project", "/home/user/project/src/A.sol")` returns `src/A.sol`. The
+// common part, `/home/user/project`, is removed from the path.
+//
+// `rebase_path("/home/user/project", "/home/user/A.sol")` returns `../A.sol`. First, the common
+// part, `/home/user`, is removed, leaving `A.sol`. Next, as `project` remains in the base, `..` is
+// prepended to the path.
+//
+// On Windows, paths like `a\b\c` are converted to `a/b/c`.
+//
+// For more examples, see the test.
 fn rebase_path(base: impl AsRef<Path>, path: impl AsRef<Path>) -> PathBuf {
     use path_slash::PathExt;
 
