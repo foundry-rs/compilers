@@ -12,7 +12,7 @@ use foundry_compilers::{
     info::ContractInfo,
     project_util::*,
     remappings::Remapping,
-    Artifact, CompilerInput, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
+    utils, Artifact, CompilerInput, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
     ProjectCompileOutput, ProjectPathsConfig, Solc, TestFileFilter,
 };
 use pretty_assertions::assert_eq;
@@ -1598,6 +1598,71 @@ fn can_sanitize_bytecode_hash() {
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
     assert!(compiled.find_first("A").is_some());
+}
+
+// https://github.com/foundry-rs/foundry/issues/5307
+#[test]
+fn can_create_standard_json_input_with_external_file() {
+    // File structure:
+    // .
+    // ├── verif
+    // │   └── src
+    // │       └── Counter.sol
+    // └── remapped
+    //     ├── Child.sol
+    //     └── Parent.sol
+
+    let dir = tempfile::tempdir().unwrap();
+    let verif_dir = utils::canonicalize(dir.path()).unwrap().join("verif");
+    let remapped_dir = utils::canonicalize(dir.path()).unwrap().join("remapped");
+    fs::create_dir_all(verif_dir.join("src")).unwrap();
+    fs::create_dir(&remapped_dir).unwrap();
+
+    let mut verif_project = Project::builder()
+        .paths(ProjectPathsConfig::dapptools(&verif_dir).unwrap())
+        .build()
+        .unwrap();
+
+    verif_project.paths.remappings.push(Remapping {
+        context: None,
+        name: "@remapped/".into(),
+        path: "../remapped/".into(),
+    });
+    verif_project.allowed_paths.insert(remapped_dir.clone());
+
+    fs::write(remapped_dir.join("Parent.sol"), "pragma solidity >=0.8.0; import './Child.sol';")
+        .unwrap();
+    fs::write(remapped_dir.join("Child.sol"), "pragma solidity >=0.8.0;").unwrap();
+    fs::write(
+        verif_dir.join("src/Counter.sol"),
+        "pragma solidity >=0.8.0; import '@remapped/Parent.sol'; contract Counter {}",
+    )
+    .unwrap();
+
+    // solc compiles using the host file system; therefore, this setup is considered valid
+    let compiled = verif_project.compile().unwrap();
+    compiled.assert_success();
+
+    // can create project root based paths
+    let std_json = verif_project.standard_json_input(verif_dir.join("src/Counter.sol")).unwrap();
+    assert_eq!(
+        std_json.sources.iter().map(|(path, _)| path.clone()).collect::<Vec<_>>(),
+        vec![
+            PathBuf::from("src/Counter.sol"),
+            PathBuf::from("../remapped/Parent.sol"),
+            PathBuf::from("../remapped/Child.sol")
+        ]
+    );
+
+    // can compile using the created json
+    let compiler_errors = Solc::default()
+        .compile(&std_json)
+        .unwrap()
+        .errors
+        .into_iter()
+        .filter_map(|e| if e.severity.is_error() { Some(e.message) } else { None })
+        .collect::<Vec<_>>();
+    assert!(compiler_errors.is_empty(), "{:?}", compiler_errors);
 }
 
 #[test]

@@ -490,8 +490,6 @@ impl<T: ArtifactOutput> Project<T> {
         &self,
         target: impl AsRef<Path>,
     ) -> Result<StandardJsonCompilerInput> {
-        use path_slash::PathExt;
-
         let target = target.as_ref();
         tracing::trace!("Building standard-json-input for {:?}", target);
         let graph = Graph::resolve(&self.paths)?;
@@ -514,14 +512,7 @@ impl<T: ArtifactOutput> Project<T> {
         let root = self.root();
         let sources = sources
             .into_iter()
-            .map(|(path, source)| {
-                let path: PathBuf = if let Ok(stripped) = path.strip_prefix(root) {
-                    stripped.to_slash_lossy().into_owned().into()
-                } else {
-                    path.to_slash_lossy().into_owned().into()
-                };
-                (path, source.clone())
-            })
+            .map(|(path, source)| (rebase_path(root, path), source.clone()))
             .collect();
 
         let mut settings = self.solc_config.settings.clone();
@@ -954,6 +945,62 @@ impl<T: ArtifactOutput> ArtifactOutput for Project<T> {
     }
 }
 
+// Rebases the given path to the base directory lexically.
+//
+// For instance, given the base `/home/user/project` and the path `/home/user/project/src/A.sol`,
+// this function returns `src/A.sol`.
+//
+// This function transforms a path into a form that is relative to the base directory. The returned
+// path starts either with a normal component (e.g., `src`) or a parent directory component (i.e.,
+// `..`). It also converts the path into a UTF-8 string and replaces all separators with forward
+// slashes (`/`), if they're not.
+//
+// The rebasing process can be conceptualized as follows:
+//
+// 1. Remove the leading components from the path that match those in the base.
+// 2. Prepend `..` components to the path, matching the number of remaining components in the base.
+//
+// # Examples
+//
+// `rebase_path("/home/user/project", "/home/user/project/src/A.sol")` returns `src/A.sol`. The
+// common part, `/home/user/project`, is removed from the path.
+//
+// `rebase_path("/home/user/project", "/home/user/A.sol")` returns `../A.sol`. First, the common
+// part, `/home/user`, is removed, leaving `A.sol`. Next, as `project` remains in the base, `..` is
+// prepended to the path.
+//
+// On Windows, paths like `a\b\c` are converted to `a/b/c`.
+//
+// For more examples, see the test.
+fn rebase_path(base: impl AsRef<Path>, path: impl AsRef<Path>) -> PathBuf {
+    use path_slash::PathExt;
+
+    let mut base_components = base.as_ref().components();
+    let mut path_components = path.as_ref().components();
+
+    let mut new_path = PathBuf::new();
+
+    while let Some(path_component) = path_components.next() {
+        let base_component = base_components.next();
+
+        if Some(path_component) != base_component {
+            if base_component.is_some() {
+                new_path.extend(
+                    std::iter::repeat(std::path::Component::ParentDir)
+                        .take(base_components.count() + 1),
+                );
+            }
+
+            new_path.push(path_component);
+            new_path.extend(path_components);
+
+            break;
+        }
+    }
+
+    new_path.to_slash_lossy().into_owned().into()
+}
+
 #[cfg(test)]
 #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
 mod tests {
@@ -1013,5 +1060,44 @@ mod tests {
         let project = Project::builder().no_artifacts().paths(paths).ephemeral().build().unwrap();
         let contracts = project.compile().unwrap().succeeded().output().contracts;
         assert_eq!(contracts.contracts().count(), 2);
+    }
+
+    #[test]
+    fn can_rebase_path() {
+        assert_eq!(rebase_path("a/b", "a/b/c"), PathBuf::from("c"));
+        assert_eq!(rebase_path("a/b", "a/c"), PathBuf::from("../c"));
+        assert_eq!(rebase_path("a/b", "c"), PathBuf::from("../../c"));
+
+        assert_eq!(
+            rebase_path("/home/user/project", "/home/user/project/A.sol"),
+            PathBuf::from("A.sol")
+        );
+        assert_eq!(
+            rebase_path("/home/user/project", "/home/user/project/src/A.sol"),
+            PathBuf::from("src/A.sol")
+        );
+        assert_eq!(
+            rebase_path("/home/user/project", "/home/user/project/lib/forge-std/src/Test.sol"),
+            PathBuf::from("lib/forge-std/src/Test.sol")
+        );
+        assert_eq!(
+            rebase_path("/home/user/project", "/home/user/A.sol"),
+            PathBuf::from("../A.sol")
+        );
+        assert_eq!(rebase_path("/home/user/project", "/home/A.sol"), PathBuf::from("../../A.sol"));
+        assert_eq!(rebase_path("/home/user/project", "/A.sol"), PathBuf::from("../../../A.sol"));
+        assert_eq!(
+            rebase_path("/home/user/project", "/tmp/A.sol"),
+            PathBuf::from("../../../tmp/A.sol")
+        );
+
+        assert_eq!(
+            rebase_path("/Users/ah/temp/verif", "/Users/ah/temp/remapped/Child.sol"),
+            PathBuf::from("../remapped/Child.sol")
+        );
+        assert_eq!(
+            rebase_path("/Users/ah/temp/verif", "/Users/ah/temp/verif/../remapped/Parent.sol"),
+            PathBuf::from("../remapped/Parent.sol")
+        );
     }
 }
