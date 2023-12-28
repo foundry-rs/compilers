@@ -959,27 +959,30 @@ impl<T: ArtifactOutput> ArtifactOutput for Project<T> {
 fn rebase_path(base: impl AsRef<Path>, path: impl AsRef<Path>) -> PathBuf {
     use path_slash::PathExt;
 
-    let base = base.as_ref();
-    let path = path.as_ref();
+    let mut base_components = base.as_ref().components();
+    let mut path_components = path.as_ref().components();
 
-    let mut new_path = path.components().collect::<std::collections::VecDeque<_>>();
+    let mut new_path = PathBuf::new();
 
-    for (i, (base_component, path_component)) in
-        base.components().zip(path.components()).enumerate()
-    {
-        if base_component == path_component {
-            new_path.pop_front();
-        } else {
-            let mut parent_dirs =
-                vec![std::path::Component::ParentDir; base.components().count() - i];
-            parent_dirs.extend(new_path);
-            new_path = parent_dirs.into();
+    while let Some(path_component) = path_components.next() {
+        let base_component = base_components.next();
+
+        if Some(path_component) != base_component {
+            if base_component.is_some() {
+                new_path.extend(
+                    std::iter::repeat(std::path::Component::ParentDir)
+                        .take(base_components.count() + 1),
+                );
+            }
+
+            new_path.push(path_component);
+            new_path.extend(path_components);
 
             break;
         }
     }
 
-    new_path.iter().collect::<PathBuf>().to_slash_lossy().into_owned().into()
+    new_path.to_slash_lossy().into_owned().into()
 }
 
 #[cfg(test)]
