@@ -1684,6 +1684,74 @@ fn can_compile_std_json_input() {
     }
 }
 
+// This test is exclusive to unix because creating a symlink is a privileged action on windows.
+// https://doc.rust-lang.org/std/os/windows/fs/fn.symlink_dir.html#limitations
+#[test]
+#[cfg(unix)]
+fn can_create_standard_json_input_with_symlink() {
+    let mut project = TempProject::dapptools().unwrap();
+    let dependency = TempProject::dapptools().unwrap();
+
+    // File structure:
+    //
+    // project
+    // ├── node_modules
+    // │   └── dependency -> symlink to actual 'dependency' directory
+    // └── src
+    //     └── A.sol
+    //
+    // dependency
+    // └── src
+    //     ├── B.sol
+    //     └── C.sol
+
+    fs::create_dir(project.root().join("node_modules")).unwrap();
+
+    std::os::unix::fs::symlink(dependency.root(), project.root().join("node_modules/dependency"))
+        .unwrap();
+    project.project_mut().paths.remappings.push(Remapping {
+        context: None,
+        name: "@dependency/".into(),
+        path: "node_modules/dependency/".into(),
+    });
+
+    project
+        .add_source(
+            "A",
+            r"pragma solidity >=0.8.0; import '@dependency/src/B.sol'; contract A is B {}",
+        )
+        .unwrap();
+    dependency
+        .add_source("B", r"pragma solidity >=0.8.0; import './C.sol'; contract B is C {}")
+        .unwrap();
+    dependency.add_source("C", r"pragma solidity >=0.8.0; contract C {}").unwrap();
+
+    // solc compiles using the host file system; therefore, this setup is considered valid
+    project.assert_no_errors();
+
+    // can create project root based paths
+    let std_json =
+        project.project().standard_json_input(project.sources_path().join("A.sol")).unwrap();
+    assert_eq!(
+        std_json.sources.iter().map(|(path, _)| path.clone()).collect::<Vec<_>>(),
+        vec![
+            PathBuf::from("src/A.sol"),
+            PathBuf::from("node_modules/dependency/src/B.sol"),
+            PathBuf::from("node_modules/dependency/src/C.sol")
+        ]
+    );
+
+    // can compile using the created json
+    let compiler_errors = Solc::default()
+        .compile(&std_json)
+        .unwrap()
+        .errors
+        .into_iter()
+        .filter_map(|e| if e.severity.is_error() { Some(e.message) } else { None })
+        .collect::<Vec<_>>();
+    assert!(compiler_errors.is_empty(), "{:?}", compiler_errors);
+}
+
 #[test]
 fn can_compile_model_checker_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/model-checker-sample");
