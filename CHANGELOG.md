@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2](https://github.com/foundry-rs/compilers/releases/tag/v0.1.2) - 2023-12-29
+
+### Bug Fixes
+
+- Create valid Standard JSON to verify for projects with symlinks ([#35](https://github.com/foundry-rs/compilers/issues/35))
+- Create verifiable Standard JSON for projects with external files ([#36](https://github.com/foundry-rs/compilers/issues/36))
+
+### Features
+
+- Add more getter methods to bytecode structs ([#30](https://github.com/foundry-rs/compilers/issues/30))
+
+### Miscellaneous Tasks
+
+- Add `set_compiled_artifacts` to ProjectCompileOutput impl ([#33](https://github.com/foundry-rs/compilers/issues/33))
+
+### Other
+
+- Trim test matrix ([#32](https://github.com/foundry-rs/compilers/issues/32))
+
+### Styling
+
+- Update rustfmt config ([#31](https://github.com/foundry-rs/compilers/issues/31))
+
 ## [0.1.1](https://github.com/foundry-rs/compilers/releases/tag/v0.1.1) - 2023-11-23
 
 ### Bug Fixes
@@ -19,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.1.1
 - [meta] Update CODEOWNERS
 - Remove LosslessAbi ([#27](https://github.com/foundry-rs/compilers/issues/27))
 
