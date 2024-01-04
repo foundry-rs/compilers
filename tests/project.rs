@@ -1550,7 +1550,7 @@ fn can_compile_sparse_with_link_references() {
         )
         .unwrap();
 
-    let mut compiled = tmp.compile_sparse(TestFileFilter::default()).unwrap();
+    let mut compiled = tmp.compile_sparse(Box::<TestFileFilter>::default()).unwrap();
     compiled.assert_success();
 
     let mut output = compiled.clone().output();
