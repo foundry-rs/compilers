@@ -2,6 +2,9 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+#[macro_use]
+extern crate tracing;
+
 pub mod artifacts;
 pub mod sourcemap;
 
@@ -216,7 +219,7 @@ impl<T: ArtifactOutput> Project<T> {
     }
 
     /// Returns all sources found under the project's configured sources path
-    #[tracing::instrument(skip_all, fields(name = "sources"))]
+    #[instrument(skip_all, fields(name = "sources"))]
     pub fn sources(&self) -> Result<Sources> {
         self.paths.read_sources()
     }
@@ -263,14 +266,14 @@ impl<T: ArtifactOutput> Project<T> {
     /// let output = project.compile().unwrap();
     /// # }
     /// ```
-    #[tracing::instrument(skip_all, name = "compile")]
+    #[instrument(skip_all, name = "compile")]
     pub fn compile(&self) -> Result<ProjectCompileOutput<T>> {
         let sources = self.paths.read_input_files()?;
-        tracing::trace!("found {} sources to compile: {:?}", sources.len(), sources.keys());
+        trace!("found {} sources to compile: {:?}", sources.len(), sources.keys());
 
         #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
         if self.auto_detect {
-            tracing::trace!("using solc auto detection to compile sources");
+            trace!("using solc auto detection to compile sources");
             return self.svm_compile(sources);
         }
 
@@ -447,7 +450,7 @@ impl<T: ArtifactOutput> Project<T> {
     /// # }
     /// ```
     pub fn cleanup(&self) -> std::result::Result<(), SolcIoError> {
-        tracing::trace!("clean up project");
+        trace!("clean up project");
         if self.cache_path().exists() {
             std::fs::remove_file(self.cache_path())
                 .map_err(|err| SolcIoError::new(err, self.cache_path()))?;
@@ -463,12 +466,12 @@ impl<T: ArtifactOutput> Project<T> {
                         .map_err(|err| SolcIoError::new(err, cache_folder))?;
                 }
             }
-            tracing::trace!("removed cache file \"{}\"", self.cache_path().display());
+            trace!("removed cache file \"{}\"", self.cache_path().display());
         }
         if self.paths.artifacts.exists() {
             std::fs::remove_dir_all(self.artifacts_path())
                 .map_err(|err| SolcIoError::new(err, self.artifacts_path().clone()))?;
-            tracing::trace!("removed artifacts dir \"{}\"", self.artifacts_path().display());
+            trace!("removed artifacts dir \"{}\"", self.artifacts_path().display());
         }
         Ok(())
     }
@@ -493,7 +496,7 @@ impl<T: ArtifactOutput> Project<T> {
         use path_slash::PathExt;
 
         let target = target.as_ref();
-        tracing::trace!("Building standard-json-input for {:?}", target);
+        trace!("Building standard-json-input for {:?}", target);
         let graph = Graph::resolve(&self.paths)?;
         let target_index = graph.files().get(target).ok_or_else(|| {
             SolcError::msg(format!("cannot resolve file at {:?}", target.display()))

@@ -89,29 +89,29 @@ struct Target {
 
 impl Target {
     fn write_input(&self, input: &CompilerInput, version: &Version) {
-        tracing::trace!("logging compiler input to {}", self.dest_input.display());
+        trace!("logging compiler input to {}", self.dest_input.display());
         match serde_json::to_string_pretty(input) {
             Ok(json) => {
                 if let Err(err) = std::fs::write(get_file_name(&self.dest_input, version), json) {
-                    tracing::error!("Failed to write compiler input: {}", err)
+                    error!("Failed to write compiler input: {}", err)
                 }
             }
             Err(err) => {
-                tracing::error!("Failed to serialize compiler input: {}", err)
+                error!("Failed to serialize compiler input: {}", err)
             }
         }
     }
 
     fn write_output(&self, output: &CompilerOutput, version: &Version) {
-        tracing::trace!("logging compiler output to {}", self.dest_output.display());
+        trace!("logging compiler output to {}", self.dest_output.display());
         match serde_json::to_string_pretty(output) {
             Ok(json) => {
                 if let Err(err) = std::fs::write(get_file_name(&self.dest_output, version), json) {
-                    tracing::error!("Failed to write compiler output: {}", err)
+                    error!("Failed to write compiler output: {}", err)
                 }
             }
             Err(err) => {
-                tracing::error!("Failed to serialize compiler output: {}", err)
+                error!("Failed to serialize compiler output: {}", err)
             }
         }
     }

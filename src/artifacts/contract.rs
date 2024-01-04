@@ -1,4 +1,4 @@
-//! Contract related types
+//! Contract related types.
 
 use crate::artifacts::{
     bytecode::{

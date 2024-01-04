@@ -103,19 +103,19 @@ impl ProjectPathsConfig {
 
     /// Returns all sources found under the project's configured `sources` path
     pub fn read_sources(&self) -> Result<Sources> {
-        tracing::trace!("reading all sources from \"{}\"", self.sources.display());
+        trace!("reading all sources from \"{}\"", self.sources.display());
         Ok(Source::read_all_from(&self.sources)?)
     }
 
     /// Returns all sources found under the project's configured `test` path
     pub fn read_tests(&self) -> Result<Sources> {
-        tracing::trace!("reading all tests from \"{}\"", self.tests.display());
+        trace!("reading all tests from \"{}\"", self.tests.display());
         Ok(Source::read_all_from(&self.tests)?)
     }
 
     /// Returns all sources found under the project's configured `script` path
     pub fn read_scripts(&self) -> Result<Sources> {
-        tracing::trace!("reading all scripts from \"{}\"", self.scripts.display());
+        trace!("reading all scripts from \"{}\"", self.scripts.display());
         Ok(Source::read_all_from(&self.scripts)?)
     }
 
@@ -394,7 +394,7 @@ impl ProjectPathsConfig {
 
     /// Flattens all file imports into a single string
     pub fn flatten(&self, target: &Path) -> Result<String> {
-        tracing::trace!("flattening file");
+        trace!("flattening file");
         let mut input_files = self.input_files();
 
         // we need to ensure that the target is part of the input set, otherwise it's not

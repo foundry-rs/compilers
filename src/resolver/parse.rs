@@ -105,7 +105,7 @@ impl SolData {
                 }
             }
             Err(err) => {
-                tracing::trace!(
+                trace!(
                     "failed to parse \"{}\" ast: \"{:?}\". Falling back to regex to extract data",
                     file.display(),
                     err

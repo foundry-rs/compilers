@@ -1,4 +1,5 @@
-//! Utilities for mocking project workspaces
+//! Utilities for mocking project workspaces.
+
 use crate::{
     artifacts::Settings,
     config::ProjectPathsConfigBuilder,

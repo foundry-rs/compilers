@@ -1,4 +1,5 @@
-//! Support for compiling contracts
+//! Support for compiling contracts.
+
 use crate::{
     artifacts::Sources,
     config::{ProjectPaths, SolcConfig},
@@ -94,12 +95,12 @@ impl SolFilesCache {
     /// cache.join_artifacts_files(project.artifacts_path());
     /// # }
     /// ```
-    #[tracing::instrument(skip_all, name = "sol-files-cache::read")]
+    #[instrument(skip_all, name = "sol-files-cache::read")]
     pub fn read(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
-        tracing::trace!("reading solfiles cache at {}", path.display());
+        trace!("reading solfiles cache at {}", path.display());
         let cache: SolFilesCache = utils::read_json_file(path)?;
-        tracing::trace!("read cache \"{}\" with {} entries", cache.format, cache.files.len());
+        trace!("read cache \"{}\" with {} entries", cache.format, cache.files.len());
         Ok(cache)
     }
 
@@ -130,14 +131,10 @@ impl SolFilesCache {
     /// Write the cache as json file to the given path
     pub fn write(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref();
-        tracing::trace!(
-            "writing cache with {} entries to json file: \"{}\"",
-            self.len(),
-            path.display()
-        );
+        trace!("writing cache with {} entries to json file: \"{}\"", self.len(), path.display());
         utils::create_parent_dir_all(path)?;
         utils::write_json_file(self, path, 128 * 1024)?;
-        tracing::trace!("cache file located: \"{}\"", path.display());
+        trace!("cache file located: \"{}\"", path.display());
         Ok(())
     }
 
@@ -179,11 +176,11 @@ impl SolFilesCache {
     ///
     /// **NOTE:** this assumes the `files` are absolute
     pub fn remove_missing_files(&mut self) {
-        tracing::trace!("remove non existing files from cache");
+        trace!("remove non existing files from cache");
         self.files.retain(|file, _| {
             let exists = file.exists();
             if !exists {
-                tracing::trace!("remove {} from cache", file.display());
+                trace!("remove {} from cache", file.display());
             }
             exists
         })
@@ -729,7 +726,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
     }
 
     /// Returns `false` if the corresponding cache entry remained unchanged, otherwise `true`.
-    #[tracing::instrument(level = "trace", skip_all, fields(file = %file.display(), version = %version))]
+    #[instrument(level = "trace", skip_all, fields(file = %file.display(), version = %version))]
     fn is_dirty(
         &self,
         file: &Path,
@@ -739,7 +736,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
     ) -> bool {
         match memo.get(file) {
             Some(&dirty) => {
-                tracing::trace!(dirty, "memoized");
+                trace!(dirty, "memoized");
                 dirty
             }
             None => {
@@ -759,22 +756,22 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
 
     fn is_dirty_impl(&self, file: &Path, version: &Version) -> bool {
         let Some(hash) = self.content_hashes.get(file) else {
-            tracing::trace!("missing cache entry");
+            trace!("missing cache entry");
             return true;
         };
 
         let Some(entry) = self.cache.entry(file) else {
-            tracing::trace!("missing content hash");
+            trace!("missing content hash");
             return true;
         };
 
         if entry.content_hash != *hash {
-            tracing::trace!("content hash changed");
+            trace!("content hash changed");
             return true;
         }
 
         if self.project.solc_config != entry.solc_config {
-            tracing::trace!("solc config changed");
+            trace!("solc config changed");
             return true;
         }
 
@@ -782,19 +779,19 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
         // e.g. a solidity file consisting only of import statements (like interfaces that
         // re-export) do not create artifacts
         if entry.artifacts.is_empty() {
-            tracing::trace!("no artifacts");
+            trace!("no artifacts");
             return false;
         }
 
         if !entry.contains_version(version) {
-            tracing::trace!("missing linked artifacts",);
+            trace!("missing linked artifacts",);
             return true;
         }
 
         if entry.artifacts_for_version(version).any(|artifact_path| {
             let missing_artifact = !self.cached_artifacts.has_artifact(artifact_path);
             if missing_artifact {
-                tracing::trace!("missing artifact \"{}\"", artifact_path.display());
+                trace!("missing artifact \"{}\"", artifact_path.display());
             }
             missing_artifact
         }) {
@@ -863,10 +860,10 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
 
             // read all artifacts
             let cached_artifacts = if project.paths.artifacts.exists() {
-                tracing::trace!("reading artifacts from cache...");
+                trace!("reading artifacts from cache...");
                 // if we failed to read the whole set of artifacts we use an empty set
                 let artifacts = cache.read_artifacts::<T::Artifact>().unwrap_or_default();
-                tracing::trace!("read {} artifacts from cache", artifacts.artifact_files().count());
+                trace!("read {} artifacts from cache", artifacts.artifact_files().count());
                 artifacts
             } else {
                 Default::default()
@@ -952,7 +949,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
     ) -> Result<Artifacts<T::Artifact>> {
         match self {
             ArtifactsCache::Ephemeral(_, _) => {
-                tracing::trace!("no cache configured, ephemeral");
+                trace!("no cache configured, ephemeral");
                 Ok(Default::default())
             }
             ArtifactsCache::Cached(cache) => {
@@ -990,7 +987,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
                     // cached artifacts that were overwritten also need to be removed from the
                     // `cached_artifacts` set
                     if let Some((f, mut cached)) = cached_artifacts.0.remove_entry(file) {
-                        tracing::trace!("checking {} for obsolete cached artifact entries", file);
+                        trace!("checking {} for obsolete cached artifact entries", file);
                         cached.retain(|name, cached_artifacts| {
                             if let Some(written_files) = written_artifacts.get(name) {
                                 // written artifact clashes with a cached artifact, so we need to decide whether to keep or to remove the cached
@@ -1003,7 +1000,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
                                             versions.contains(&f.version)
                                         }).unwrap_or_default();
                                     if !retain {
-                                        tracing::trace!(
+                                        trace!(
                                             "purging obsolete cached artifact {:?} for contract {} and version {}",
                                             f.file,
                                             name,

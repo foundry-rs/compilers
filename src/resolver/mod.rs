@@ -391,7 +391,7 @@ impl Graph {
                     }
                     Err(err) => {
                         unresolved_imports.insert((import_path.to_path_buf(), node.path.clone()));
-                        tracing::trace!(
+                        trace!(
                             "failed to resolve import component \"{:?}\" for {:?}",
                             err,
                             node.path
@@ -577,7 +577,7 @@ impl Graph {
     ) -> Result<HashMap<crate::SolcVersion, Vec<usize>>> {
         use crate::Solc;
 
-        tracing::trace!("resolving input node versions");
+        trace!("resolving input node versions");
         // this is likely called by an application and will be eventually printed so we don't exit
         // on first error, instead gather all the errors and return a bundled error message instead
         let mut errors = Vec::new();
@@ -636,21 +636,17 @@ impl Graph {
         }
 
         if versioned_nodes.len() == 1 {
-            tracing::trace!(
+            trace!(
                 "found exact solc version for all sources  \"{}\"",
                 versioned_nodes.keys().next().unwrap()
             );
         }
 
         if errors.is_empty() {
-            tracing::trace!(
-                "resolved {} versions {:?}",
-                versioned_nodes.len(),
-                versioned_nodes.keys()
-            );
+            trace!("resolved {} versions {:?}", versioned_nodes.len(), versioned_nodes.keys());
             Ok(versioned_nodes)
         } else {
-            tracing::error!("failed to resolve versions");
+            error!("failed to resolve versions");
             Err(SolcError::msg(errors.join("\n")))
         }
     }
@@ -702,10 +698,7 @@ impl Graph {
         if !intersection.is_empty() {
             let exact_version = remove_candidate(&mut intersection);
             let all_nodes = all_candidates.into_iter().map(|(node, _)| node).collect();
-            tracing::trace!(
-                "resolved solc version compatible with all sources  \"{}\"",
-                exact_version
-            );
+            trace!("resolved solc version compatible with all sources  \"{}\"", exact_version);
             return HashMap::from([(exact_version, all_nodes)]);
         }
 
@@ -731,7 +724,7 @@ impl Graph {
             versioned_nodes.entry(candidate).or_insert_with(|| Vec::with_capacity(1)).push(node);
         }
 
-        tracing::trace!(
+        trace!(
             "no solc version can satisfy all source files, resolved multiple versions  \"{:?}\"",
             versioned_nodes.keys()
         );
@@ -812,16 +805,13 @@ impl VersionedSources {
             };
 
             if self.offline {
-                tracing::trace!(
-                    "skip verifying solc checksum for {} in offline mode",
-                    solc.solc.display()
-                );
+                trace!("skip verifying solc checksum for {} in offline mode", solc.solc.display());
             } else {
-                tracing::trace!("verifying solc checksum for {}", solc.solc.display());
+                trace!("verifying solc checksum for {}", solc.solc.display());
                 if let Err(err) = solc.verify_checksum() {
-                    tracing::trace!(?err, "corrupted solc version, redownloading  \"{}\"", version);
+                    trace!(?err, "corrupted solc version, redownloading  \"{}\"", version);
                     Solc::blocking_install(version.as_ref())?;
-                    tracing::trace!("reinstalled solc: \"{}\"", version);
+                    trace!("reinstalled solc: \"{}\"", version);
                 }
             }
 

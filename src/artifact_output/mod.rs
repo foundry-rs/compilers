@@ -25,7 +25,6 @@ use std::{
     ops::Deref,
     path::{Path, PathBuf},
 };
-use tracing::{error, trace};
 
 mod configurable;
 pub(crate) mod files;
