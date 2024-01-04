@@ -3,7 +3,7 @@
 use crate::{
     artifacts::Settings,
     config::ProjectPathsConfigBuilder,
-    error::{bail, Result, SolcError},
+    error::{Result, SolcError},
     hh::HardhatArtifacts,
     project_util::mock::{MockProjectGenerator, MockProjectSettings},
     remappings::Remapping,

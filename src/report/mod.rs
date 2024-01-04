@@ -199,17 +199,17 @@ pub(crate) fn solc_success(
     get_default(|r| r.reporter.on_solc_success(solc, version, output, duration));
 }
 
-#[allow(unused)]
+#[allow(dead_code)]
 pub(crate) fn solc_installation_start(version: &Version) {
     get_default(|r| r.reporter.on_solc_installation_start(version));
 }
 
-#[allow(unused)]
+#[allow(dead_code)]
 pub(crate) fn solc_installation_success(version: &Version) {
     get_default(|r| r.reporter.on_solc_installation_success(version));
 }
 
-#[allow(unused)]
+#[allow(dead_code)]
 pub(crate) fn solc_installation_error(version: &Version, error: &str) {
     get_default(|r| r.reporter.on_solc_installation_error(version, error));
 }
