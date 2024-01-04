@@ -381,13 +381,9 @@ impl<T: ArtifactOutput> Project<T> {
     /// let output = project.compile_sparse(|path: &Path| path.ends_with("Greeter.sol")).unwrap();
     /// # }
     /// ```
-    pub fn compile_sparse<F: FileFilter + 'static>(
-        &self,
-        filter: F,
-    ) -> Result<ProjectCompileOutput<T>> {
+    pub fn compile_sparse(&self, filter: Box<dyn FileFilter>) -> Result<ProjectCompileOutput<T>> {
         let sources =
             Source::read_all(self.paths.input_files().into_iter().filter(|p| filter.is_match(p)))?;
-        let filter: Box<dyn FileFilter> = Box::new(filter);
 
         #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
         if self.auto_detect {

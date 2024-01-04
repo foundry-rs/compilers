@@ -85,10 +85,7 @@ impl<T: ArtifactOutput> TempProject<T> {
         self.project().compile()
     }
 
-    pub fn compile_sparse<F: FileFilter + 'static>(
-        &self,
-        filter: F,
-    ) -> Result<ProjectCompileOutput<T>> {
+    pub fn compile_sparse(&self, filter: Box<dyn FileFilter>) -> Result<ProjectCompileOutput<T>> {
         self.project().compile_sparse(filter)
     }
 
