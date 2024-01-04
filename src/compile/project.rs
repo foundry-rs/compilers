@@ -378,11 +378,11 @@ impl<'a, T: ArtifactOutput> ArtifactsState<'a, T> {
 
 /// Determines how the `solc <-> sources` pairs are executed
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 enum CompilerSources {
     /// Compile all these sequentially
     Sequential(VersionedSources),
     /// Compile all these in parallel using a certain amount of jobs
+    #[allow(dead_code)]
     Parallel(VersionedSources, usize),
 }
 
@@ -452,7 +452,6 @@ impl CompilerSources {
 
 /// Determines how the `solc <-> sources` pairs are executed
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 enum FilteredCompilerSources {
     /// Compile all these sequentially
     Sequential(VersionedFilteredSources),
@@ -481,7 +480,6 @@ impl FilteredCompilerSources {
     }
 
     #[cfg(test)]
-    #[allow(unused)]
     fn sources(&self) -> &VersionedFilteredSources {
         match self {
             FilteredCompilerSources::Sequential(v) => v,
@@ -682,7 +680,6 @@ mod tests {
 
     use std::path::PathBuf;
 
-    #[allow(unused)]
     fn init_tracing() {
         let _ = tracing_subscriber::fmt()
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())

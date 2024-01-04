@@ -64,7 +64,6 @@ pub static SUPPORTS_INCLUDE_PATH: Lazy<VersionReq> =
 use std::sync::Mutex;
 
 #[cfg(any(test, feature = "tests"))]
-#[allow(unused)]
 static LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 /// take the lock in tests, we use this to enforce that
@@ -74,7 +73,6 @@ static LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 /// Instead of taking this lock in `Solc::blocking_install`, the lock should be taken before
 /// installation is detected.
 #[cfg(any(test, feature = "tests"))]
-#[allow(unused)]
 pub(crate) fn take_solc_installer_lock() -> std::sync::MutexGuard<'static, ()> {
     LOCK.lock().unwrap()
 }

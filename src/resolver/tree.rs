@@ -132,7 +132,7 @@ fn print_node(
 }
 
 /// Prints all the imports of a node
-#[allow(clippy::too_many_arguments, clippy::ptr_arg)]
+#[allow(clippy::too_many_arguments)]
 fn print_imports(
     graph: &Graph,
     node_index: usize,

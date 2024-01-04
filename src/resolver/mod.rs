@@ -93,7 +93,6 @@ pub struct GraphEdges {
     /// Absolute imports, like `import "src/Contract.sol"` are possible, but this does not play
     /// nice with the standard-json import format, since the VFS won't be able to resolve
     /// "src/Contract.sol" without help via `--include-path`
-    #[allow(unused)]
     resolved_solc_include_paths: IncludePaths,
 }
 
@@ -204,7 +203,6 @@ pub struct Graph {
     /// relationship of the nodes
     edges: GraphEdges,
     /// the root of the project this graph represents
-    #[allow(unused)]
     root: PathBuf,
 }
 
@@ -936,7 +934,7 @@ impl<'a> fmt::Display for DisplayNode<'a> {
 
 /// Errors thrown when checking the solc version of a file
 #[derive(Debug, thiserror::Error)]
-#[allow(unused)]
+#[allow(dead_code)]
 enum SourceVersionError {
     #[error("Failed to parse solidity version {0}: {1}")]
     InvalidVersion(String, SolcError),

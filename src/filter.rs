@@ -18,10 +18,7 @@ pub trait FileFilter {
     fn is_match(&self, file: &Path) -> bool;
 }
 
-impl<F> FileFilter for F
-where
-    F: Fn(&Path) -> bool,
-{
+impl<F: Fn(&Path) -> bool> FileFilter for F {
     fn is_match(&self, file: &Path) -> bool {
         (self)(file)
     }
@@ -88,7 +85,7 @@ impl SparseOutputFilter {
                 }
             }
             SparseOutputFilter::Custom(f) => {
-                Self::apply_custom_filter(&sources, settings, graph, f)
+                Self::apply_custom_filter(&sources, settings, graph, &**f)
             }
         };
         sources.into()
@@ -102,12 +99,11 @@ impl SparseOutputFilter {
     /// `*.t.sol` files and a test file makes use of a library that won't be inlined, then the
     /// libraries bytecode will be missing. Therefore, we detect all linkReferences of a file
     /// and treat them as if the filter would also apply to those.
-    #[allow(clippy::borrowed_box)]
     fn apply_custom_filter(
         sources: &FilteredSources,
         settings: &mut Settings,
         graph: &GraphEdges,
-        f: &Box<dyn FileFilter>,
+        f: &dyn FileFilter,
     ) {
         trace!("optimizing output selection with custom filter");
         let selection = settings

@@ -24,13 +24,6 @@ use std::{
     str::FromStr,
 };
 
-#[allow(unused)]
-fn init_tracing() {
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
-}
-
 #[test]
 fn can_get_versioned_linkrefs() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/test-versioned-linkrefs");

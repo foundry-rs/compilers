@@ -5,6 +5,9 @@
 #[macro_use]
 extern crate tracing;
 
+#[macro_use]
+pub mod error;
+
 pub mod artifacts;
 pub mod sourcemap;
 
@@ -33,7 +36,6 @@ pub use config::{AllowedLibPaths, PathStyle, ProjectPaths, ProjectPathsConfig, S
 pub mod remappings;
 use crate::artifacts::{Source, SourceFile, StandardJsonCompilerInput};
 
-pub mod error;
 mod filter;
 pub mod report;
 pub mod utils;

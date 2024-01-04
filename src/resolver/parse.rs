@@ -11,7 +11,6 @@ use std::{
 
 /// Represents various information about a solidity file parsed via [solang_parser]
 #[derive(Debug)]
-#[allow(unused)]
 pub struct SolData {
     pub license: Option<SolDataUnit<String>>,
     pub version: Option<SolDataUnit<String>>,
@@ -23,7 +22,7 @@ pub struct SolData {
 }
 
 impl SolData {
-    #[allow(unused)]
+    #[allow(dead_code)]
     pub fn fmt_version<W: std::fmt::Write>(
         &self,
         f: &mut W,

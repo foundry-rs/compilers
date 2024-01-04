@@ -501,11 +501,6 @@ pub fn parse(input: &str) -> Result<SourceMap, SyntaxError> {
 mod tests {
     use super::*;
 
-    #[allow(unused)]
-    fn tokenize(s: &str) -> Vec<Spanned<Token, usize, SyntaxError>> {
-        TokenStream::new(s).collect()
-    }
-
     #[test]
     fn can_parse_source_maps() {
         // all source maps from the compiler output test data
