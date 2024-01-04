@@ -1,4 +1,4 @@
-//! bindings for standard json output selection
+//! Bindings for standard json output selection.
 
 use serde::{ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
 use std::{collections::BTreeMap, fmt, str::FromStr};

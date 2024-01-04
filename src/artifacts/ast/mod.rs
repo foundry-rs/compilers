@@ -11,6 +11,7 @@
 //! 0.4.x-0.5.x in most cases.
 //!
 //! The legacy Solidity AST is not supported.
+
 mod macros;
 mod misc;
 pub use misc::*;

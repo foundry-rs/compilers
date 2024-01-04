@@ -1,4 +1,4 @@
-//! serde helpers
+//! Serde helpers.
 
 use alloy_primitives::Bytes;
 use serde::{Deserialize, Deserializer};

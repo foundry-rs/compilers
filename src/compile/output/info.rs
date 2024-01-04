@@ -1,4 +1,5 @@
-//! Commonly used identifiers for contracts in the compiled output
+//! Commonly used identifiers for contracts in the compiled output.
+
 use std::{borrow::Cow, convert::TryFrom, fmt, str::FromStr};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

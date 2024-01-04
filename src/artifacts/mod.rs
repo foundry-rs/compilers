@@ -14,7 +14,6 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-use tracing::warn;
 use yansi::{Color, Paint, Style};
 
 pub mod ast;

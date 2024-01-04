@@ -115,7 +115,6 @@ use crate::{
 };
 use rayon::prelude::*;
 use std::{collections::btree_map::BTreeMap, path::PathBuf, time::Instant};
-use tracing::trace;
 
 #[derive(Debug)]
 pub struct ProjectCompiler<'a, T: ArtifactOutput> {
@@ -297,7 +296,7 @@ impl<'a, T: ArtifactOutput> CompiledState<'a, T> {
     ///
     /// Writes all output contracts to disk if enabled in the `Project` and if the build was
     /// successful
-    #[tracing::instrument(skip_all, name = "write-artifacts")]
+    #[instrument(skip_all, name = "write-artifacts")]
     fn write_artifacts(self) -> Result<ArtifactsState<'a, T>> {
         let CompiledState { output, cache } = self;
 

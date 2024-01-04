@@ -90,7 +90,7 @@ pub static RELEASES: Lazy<(svm::Releases, Vec<Version>, bool)> =
             (releases, sorted_versions, true)
         }
         Err(err) => {
-            tracing::error!("{:?}", err);
+            error!("{:?}", err);
             Default::default()
         }
     });
@@ -427,7 +427,7 @@ impl Solc {
     /// ```
     #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
     pub async fn install(version: &Version) -> std::result::Result<Self, svm::SolcVmError> {
-        tracing::trace!("installing solc version \"{}\"", version);
+        trace!("installing solc version \"{}\"", version);
         crate::report::solc_installation_start(version);
         let result = svm::install(version).await;
         crate::report::solc_installation_success(version);
@@ -439,7 +439,7 @@ impl Solc {
     pub fn blocking_install(version: &Version) -> std::result::Result<Self, svm::SolcVmError> {
         use crate::utils::RuntimeOrHandle;
 
-        tracing::trace!("blocking installing solc version \"{}\"", version);
+        trace!("blocking installing solc version \"{}\"", version);
         crate::report::solc_installation_start(version);
         // the async version `svm::install` is used instead of `svm::blocking_intsall`
         // because the underlying `reqwest::blocking::Client` does not behave well
@@ -470,7 +470,7 @@ impl Solc {
         let version = self.version_short()?;
         let mut version_path = svm::version_path(version.to_string().as_str());
         version_path.push(format!("solc-{}", version.to_string().as_str()));
-        tracing::trace!(target:"solc", "reading solc binary for checksum {:?}", version_path);
+        trace!(target:"solc", "reading solc binary for checksum {:?}", version_path);
         let content =
             std::fs::read(&version_path).map_err(|err| SolcError::io(err, version_path.clone()))?;
 
@@ -505,7 +505,7 @@ impl Solc {
         } else {
             let expected = hex::encode(checksum_found);
             let detected = hex::encode(checksum_calc);
-            tracing:: warn!(target : "solc", "checksum mismatch for {:?}, expected {}, but found {} for file {:?}", version, expected, detected, version_path);
+            warn!(target : "solc", "checksum mismatch for {:?}, expected {}, but found {} for file {:?}", version, expected, detected, version_path);
             Err(SolcError::ChecksumMismatch { version, expected, detected, file: version_path })
         }
     }

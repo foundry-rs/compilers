@@ -14,7 +14,6 @@ use std::{
     ops::{Deref, DerefMut},
     path::Path,
 };
-use tracing::trace;
 
 /// file -> [(contract name  -> Contract + solc version)]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]

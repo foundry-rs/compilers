@@ -109,7 +109,7 @@ impl SparseOutputFilter {
         graph: &GraphEdges,
         f: &Box<dyn FileFilter>,
     ) {
-        tracing::trace!("optimizing output selection with custom filter",);
+        trace!("optimizing output selection with custom filter");
         let selection = settings
             .output_selection
             .as_mut()
@@ -131,7 +131,7 @@ impl SparseOutputFilter {
                         .insert(format!("{}", link.display()), selection.clone());
                 }
             } else if !settings.output_selection.as_ref().contains_key(&key) {
-                tracing::trace!("using pruned output selection for {}", file.display());
+                trace!("using pruned output selection for {}", file.display());
                 settings
                     .output_selection
                     .as_mut()
@@ -143,7 +143,7 @@ impl SparseOutputFilter {
     /// prunes all clean sources and only selects an output for dirty sources
     fn all_dirty(sources: &FilteredSources, settings: &mut Settings) {
         // settings can be optimized
-        tracing::trace!(
+        trace!(
             "optimizing output selection for {}/{} sources",
             sources.clean().count(),
             sources.len()
@@ -162,7 +162,7 @@ impl SparseOutputFilter {
                     .as_mut()
                     .insert(format!("{}", file.display()), selection.clone());
             } else {
-                tracing::trace!("using pruned output selection for {}", file.display());
+                trace!("using pruned output selection for {}", file.display());
                 settings.output_selection.as_mut().insert(
                     format!("{}", file.display()),
                     OutputSelection::empty_file_output_select(),

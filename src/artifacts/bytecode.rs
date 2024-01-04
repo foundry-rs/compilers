@@ -1,4 +1,4 @@
-//! Bytecode related types
+//! Bytecode related types.
 
 use crate::{
     artifacts::{serde_helpers, FunctionDebugData, GeneratedSource, Offsets},
