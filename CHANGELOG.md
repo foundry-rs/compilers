@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3](https://github.com/foundry-rs/compilers/releases/tag/v0.1.3) - 2024-01-05
+
+### Features
+
+- Add evmVersion to settings ([#41](https://github.com/foundry-rs/compilers/issues/41))
+- Use Box<dyn> in sparse functions ([#39](https://github.com/foundry-rs/compilers/issues/39))
+
+### Miscellaneous Tasks
+
+- Clippies and such ([#38](https://github.com/foundry-rs/compilers/issues/38))
+- Purge tracing imports ([#37](https://github.com/foundry-rs/compilers/issues/37))
+
 ## [0.1.2](https://github.com/foundry-rs/compilers/releases/tag/v0.1.2) - 2023-12-29
 
 ### Bug Fixes
@@ -18,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.1.2
 - Add `set_compiled_artifacts` to ProjectCompileOutput impl ([#33](https://github.com/foundry-rs/compilers/issues/33))
 
 ### Other
