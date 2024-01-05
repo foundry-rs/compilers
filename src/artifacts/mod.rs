@@ -1123,6 +1123,14 @@ pub struct MetadataSettings {
     /// for.
     #[serde(default, rename = "compilationTarget")]
     pub compilation_target: BTreeMap<String, String>,
+    // Introduced in 0.8.20
+    #[serde(
+        default,
+        rename = "evmVersion",
+        with = "serde_helpers::display_from_str_opt",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub evm_version: Option<EvmVersion>,
     /// Metadata settings
     ///
     /// Note: this differs from `Libraries` and does not require another mapping for file name
