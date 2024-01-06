@@ -294,10 +294,15 @@ fn fmt_framed_location(
 
         if let Some((range, style)) = highlight {
             let Range { start, end } = range;
-            let rest_start = line.len() - rest.len();
-            f.write_str(&line[rest_start..start])?;
-            styled(f, style, |f| f.write_str(&line[range]))?;
-            f.write_str(&line[end..])
+            // Skip highlighting if the range is not valid unicode.
+            if !line.is_char_boundary(start) || !line.is_char_boundary(end) {
+                f.write_str(rest)
+            } else {
+                let rest_start = line.len() - rest.len();
+                f.write_str(&line[rest_start..start])?;
+                styled(f, style, |f| f.write_str(&line[range]))?;
+                f.write_str(&line[end..])
+            }
         } else {
             f.write_str(rest)
         }
@@ -323,6 +328,7 @@ mod tests {
             formatted_message: Some("ParserError: Invalid character in string. If you are trying to use Unicode characters, use a unicode\"...\" string literal.\n  --> test/Counter.t.sol:17:21:\n   |\n17 |         console.log(\"1. ownership set correctly as governance: ✓\");\n   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n".into()),
         };
         let s = e.to_string();
+        eprintln!("{s}");
         assert!(!s.is_empty());
     }
 }
