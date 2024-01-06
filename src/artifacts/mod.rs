@@ -1,5 +1,7 @@
 //! Solc artifact types.
 
+#![allow(ambiguous_glob_reexports)]
+
 use crate::{
     compile::*, error::SolcIoError, remappings::Remapping, utils, ProjectPathsConfig, SolcError,
 };
@@ -15,7 +17,6 @@ use std::{
 };
 
 pub mod error;
-#[allow(ambiguous_glob_reexports)]
 pub use error::*;
 
 pub mod ast;
