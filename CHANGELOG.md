@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4](https://github.com/foundry-rs/compilers/releases/tag/v0.1.4) - 2024-01-06
+
+### Bug Fixes
+
+- Account for unicode width in error syntax highlighting ([#40](https://github.com/foundry-rs/compilers/issues/40))
+
 ## [0.1.3](https://github.com/foundry-rs/compilers/releases/tag/v0.1.3) - 2024-01-05
 
 ### Features
@@ -14,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.1.3
 - Clippies and such ([#38](https://github.com/foundry-rs/compilers/issues/38))
 - Purge tracing imports ([#37](https://github.com/foundry-rs/compilers/issues/37))
 
