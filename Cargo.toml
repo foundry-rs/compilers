@@ -11,6 +11,7 @@ documentation = "https://docs.rs/foundry-compilers"
 description = "Utilities for working with solidity compilers, namely solc"
 keywords = ["foundry", "solidity", "solc", "ethereum", "ethers"]
 edition = "2021"
+exclude = [".github/", "sccripts/", "test-data/"]
 
 [package.metadata.docs.rs]
 all-features = true
