@@ -725,7 +725,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
         FilteredSourceInfo { file, source, idx, dirty }
     }
 
-    /// Returns a set of files that are dirty itself or import dirty file directly or indirectly
+    /// Returns a set of files that are dirty itself or import dirty file directly or indirectly.
     fn get_dirty_files(&self, sources: &Sources, version: &Version) -> HashSet<PathBuf> {
         let mut dirty_files = HashSet::new();
 
