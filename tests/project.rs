@@ -2751,12 +2751,18 @@ contract D {
         )
         .unwrap();
 
-    project.add_source("A.sol", "pragma solidity ^0.8.10; import './C.sol'; contract A is D {}").unwrap();
-    project.add_source("B.sol", "pragma solidity ^0.8.10; import './A.sol'; contract B is D {}").unwrap();
-    project.add_source("C.sol", "pragma solidity ^0.8.10; import './D.sol'; contract C is D {}").unwrap();
+    project
+        .add_source("A.sol", "pragma solidity ^0.8.10; import './C.sol'; contract A is D {}")
+        .unwrap();
+    project
+        .add_source("B.sol", "pragma solidity ^0.8.10; import './A.sol'; contract B is D {}")
+        .unwrap();
+    project
+        .add_source("C.sol", "pragma solidity ^0.8.10; import './D.sol'; contract C is D {}")
+        .unwrap();
 
     project.compile().unwrap();
-    
+
     // Change D.sol so it becomes dirty
     project
         .add_source(
