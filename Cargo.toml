@@ -1,7 +1,7 @@
 [package]
 name = "foundry-compilers"
 authors = ["Foundry Maintainers"]
-version = "0.2.1"
+version = "0.2.2"
 rust-version = "1.65"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
