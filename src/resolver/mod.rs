@@ -72,6 +72,8 @@ pub struct GraphEdges {
     /// The indices of `edges` correspond to the `nodes`. That is, `edges[0]`
     /// is the set of outgoing edges for `nodes[0]`.
     edges: Vec<Vec<usize>>,
+    /// Reverse of `edges`. That is, `rev_edges[0]` is the set of incoming edges for `nodes[0]`.
+    rev_edges: Vec<Vec<usize>>,
     /// index maps for a solidity file to an index, for fast lookup.
     indices: HashMap<PathBuf, usize>,
     /// reverse of `indices` for reverse lookup
@@ -141,6 +143,15 @@ impl GraphEdges {
     pub fn imports(&self, file: impl AsRef<Path>) -> HashSet<&PathBuf> {
         if let Some(start) = self.indices.get(file.as_ref()).copied() {
             NodesIter::new(start, self).skip(1).map(move |idx| &self.rev_indices[&idx]).collect()
+        } else {
+            HashSet::new()
+        }
+    }
+
+    /// Returns all files that import the given file
+    pub fn importers(&self, file: impl AsRef<Path>) -> HashSet<&PathBuf> {
+        if let Some(start) = self.indices.get(file.as_ref()).copied() {
+            self.rev_edges[start].iter().map(move |idx| &self.rev_indices[&idx]).collect()
         } else {
             HashSet::new()
         }
@@ -343,6 +354,7 @@ impl Graph {
         // contains the files and their dependencies
         let mut nodes = Vec::with_capacity(unresolved.len());
         let mut edges = Vec::with_capacity(unresolved.len());
+        let mut rev_edges = Vec::with_capacity(unresolved.len());
 
         // tracks additional paths that should be used with `--include-path`, these are libraries
         // that use absolute imports like `import "src/Contract.sol"`
@@ -400,6 +412,15 @@ impl Graph {
 
             nodes.push(node);
             edges.push(resolved_imports);
+            // Will be populated later
+            rev_edges.push(Vec::new());
+        }
+
+        // Build `rev_edges`
+        for (idx, edges) in edges.iter().enumerate() {
+            for &edge in edges.iter() {
+                rev_edges[edge].push(idx);
+            }
         }
 
         if !unresolved_imports.is_empty() {
@@ -415,6 +436,7 @@ impl Graph {
 
         let edges = GraphEdges {
             edges,
+            rev_edges,
             rev_indices: index.iter().map(|(k, v)| (*v, k.clone())).collect(),
             indices: index,
             num_input_files,
