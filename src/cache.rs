@@ -683,9 +683,10 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
         // separates all source files that fit the criteria (dirty) from those that don't (clean)
         let mut dirty_sources = BTreeMap::new();
         let mut clean_sources = Vec::with_capacity(sources.len());
-        let mut memo = HashMap::with_capacity(sources.len());
+        let dirty_files = self.get_dirty_files(&sources, version);
+
         for (file, source) in sources {
-            let source = self.filter_source(file, source, version, &mut memo);
+            let source = self.filter_source(file, source, &dirty_files);
             if source.dirty {
                 // mark all files that are imported by a dirty file
                 imports_of_dirty.extend(self.edges.all_imported_nodes(source.idx));
@@ -717,39 +718,42 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
         &self,
         file: PathBuf,
         source: Source,
-        version: &Version,
-        memo: &mut HashMap<PathBuf, bool>,
+        dirty_files: &HashSet<PathBuf>,
     ) -> FilteredSourceInfo {
         let idx = self.edges.node_id(&file);
-        let dirty = self.is_dirty(&file, version, memo, true);
+        let dirty = dirty_files.contains(&file);
         FilteredSourceInfo { file, source, idx, dirty }
     }
 
-    /// Returns `false` if the corresponding cache entry remained unchanged, otherwise `true`.
-    #[instrument(level = "trace", skip_all, fields(file = %file.display(), version = %version))]
-    fn is_dirty(
-        &self,
-        file: &Path,
-        version: &Version,
-        memo: &mut HashMap<PathBuf, bool>,
-        check_imports: bool,
-    ) -> bool {
-        match memo.get(file) {
-            Some(&dirty) => {
-                trace!(dirty, "memoized");
-                dirty
+    /// Returns a set of files that are dirty itself or import dirty file directly or indirectly.
+    fn get_dirty_files(&self, sources: &Sources, version: &Version) -> HashSet<PathBuf> {
+        let mut dirty_files = HashSet::new();
+
+        // Pre-add all sources that are guaranteed to be dirty
+        for file in sources.keys() {
+            if self.is_dirty_impl(file, version) {
+                dirty_files.insert(file.to_path_buf());
             }
-            None => {
-                // `check_imports` avoids infinite recursion
-                let dirty = self.is_dirty_impl(file, version)
-                    || (check_imports
-                        && self
-                            .edges
-                            .imports(file)
-                            .iter()
-                            .any(|file| self.is_dirty(file, version, memo, false)));
-                memo.insert(file.to_path_buf(), dirty);
-                dirty
+        }
+
+        // Perform DFS to find direct/indirect importers of dirty files
+        for file in dirty_files.clone().iter() {
+            self.populate_dirty_files(file, &mut dirty_files);
+        }
+
+        dirty_files
+    }
+
+    /// Accepts known dirty file and performs DFS over it's importers marking all visited files as
+    /// dirty.
+    #[instrument(level = "trace", skip_all, fields(file = %file.display()))]
+    fn populate_dirty_files(&self, file: &Path, dirty_files: &mut HashSet<PathBuf>) {
+        for file in self.edges.importers(file) {
+            // If file is marked as dirty we either have already visited it or it was marked as
+            // dirty initially and will be visited at some point later.
+            if !dirty_files.contains(file) {
+                dirty_files.insert(file.to_path_buf());
+                self.populate_dirty_files(file, dirty_files);
             }
         }
     }

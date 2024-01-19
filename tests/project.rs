@@ -2731,3 +2731,55 @@ contract ContractTest {
     compiled.assert_success();
     assert!(compiled.find_first("Contract").is_some());
 }
+
+// This is a repro and a regression test for https://github.com/foundry-rs/compilers/pull/45
+#[test]
+fn dirty_files_discovery() {
+    let project = TempProject::dapptools().unwrap();
+
+    project
+        .add_source(
+            "D.sol",
+            r"
+pragma solidity 0.8.23;
+contract D {
+    function foo() internal pure returns (uint256) {
+        return 1;
+    }
+}
+   ",
+        )
+        .unwrap();
+
+    project
+        .add_source("A.sol", "pragma solidity ^0.8.10; import './C.sol'; contract A is D {}")
+        .unwrap();
+    project
+        .add_source("B.sol", "pragma solidity ^0.8.10; import './A.sol'; contract B is D {}")
+        .unwrap();
+    project
+        .add_source("C.sol", "pragma solidity ^0.8.10; import './D.sol'; contract C is D {}")
+        .unwrap();
+
+    project.compile().unwrap();
+
+    // Change D.sol so it becomes dirty
+    project
+        .add_source(
+            "D.sol",
+            r"
+pragma solidity 0.8.23;
+contract D {
+    function foo() internal pure returns (uint256) {
+        return 2;
+    }
+}
+   ",
+        )
+        .unwrap();
+
+    let output = project.compile().unwrap();
+
+    // Check that all contracts were recompiled
+    assert_eq!(output.compiled_artifacts().len(), 4);
+}
