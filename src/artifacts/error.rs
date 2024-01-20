@@ -99,6 +99,23 @@ pub struct Error {
     pub formatted_message: Option<String>,
 }
 
+impl Error {
+    /// Returns `true` if the error is an error.
+    pub const fn is_error(&self) -> bool {
+        self.severity.is_error()
+    }
+
+    /// Returns `true` if the error is a warning.
+    pub const fn is_warning(&self) -> bool {
+        self.severity.is_warning()
+    }
+
+    /// Returns `true` if the error is an info.
+    pub const fn is_info(&self) -> bool {
+        self.severity.is_info()
+    }
+}
+
 /// Tries to mimic Solidity's own error formatting.
 ///
 /// <https://github.com/ethereum/solidity/blob/a297a687261a1c634551b1dac0e36d4573c19afe/liblangutil/SourceReferenceFormatter.cpp#L105>
