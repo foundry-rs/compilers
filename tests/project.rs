@@ -4,7 +4,7 @@ use alloy_primitives::Address;
 use foundry_compilers::{
     artifacts::{
         BytecodeHash, DevDoc, ErrorDoc, EventDoc, Libraries, MethodDoc, ModelCheckerEngine::CHC,
-        ModelCheckerSettings, UserDoc, UserDocNotice,
+        ModelCheckerSettings, Settings, Source, Sources, UserDoc, UserDocNotice,
     },
     buildinfo::BuildInfo,
     cache::{SolFilesCache, SOLIDITY_FILES_CACHE_FILENAME},
@@ -12,8 +12,8 @@ use foundry_compilers::{
     info::ContractInfo,
     project_util::*,
     remappings::Remapping,
-    utils, Artifact, CompilerInput, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectCompileOutput, ProjectPathsConfig, Solc, TestFileFilter,
+    utils, Artifact, CompilerInput, ConfigurableArtifacts, EvmVersion, ExtraOutputValues, Graph,
+    Project, ProjectCompileOutput, ProjectPathsConfig, Solc, TestFileFilter,
 };
 use pretty_assertions::assert_eq;
 use semver::Version;
@@ -22,6 +22,7 @@ use std::{
     fs, io,
     path::{Path, PathBuf},
     str::FromStr,
+    sync::Arc,
 };
 
 #[test]
@@ -1931,17 +1932,17 @@ fn can_parse_notice() {
 
         /**
          * @notice hello
-         */    
+         */
          constructor(string memory _greeting) public {
             greeting = _greeting;
         }
-        
+
         /**
          * @notice hello
          */
         function xyz() public {
         }
-        
+
         /// @notice hello
         function abc() public {
         }
@@ -2782,4 +2783,30 @@ contract D {
 
     // Check that all contracts were recompiled
     assert_eq!(output.compiled_artifacts().len(), 4);
+}
+
+// This is a reproduction of https://github.com/foundry-rs/compilers/issues/47
+#[test]
+fn remapping_trailing_slash_issue47() {
+    let mut sources = Sources::new();
+    sources.insert(
+        PathBuf::from("./C.sol"),
+        Source { content: Arc::new(r#"import "@project/D.sol"; contract C {}"#.to_string()) },
+    );
+    sources.insert(
+        PathBuf::from("./D.sol"),
+        Source { content: Arc::new(r#"contract D {}"#.to_string()) },
+    );
+
+    let mut settings = Settings::default();
+    settings.evm_version = Some(EvmVersion::Byzantium);
+    settings.remappings.push(Remapping {
+        context: None,
+        name: "@project".into(),
+        path: ".".into(),
+    });
+    let input = CompilerInput { language: "Solidity".to_string(), sources, settings };
+    let compiler = Solc::find_or_install_svm_version("0.6.8").unwrap();
+    let output = compiler.compile_exact(&input).unwrap();
+    assert!(!output.has_error());
 }
