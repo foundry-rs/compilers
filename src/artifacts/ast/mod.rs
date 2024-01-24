@@ -944,8 +944,7 @@ ast_node!(
     struct TryCatchClause {
         block: Block,
         error_name: String,
-        #[serde(default, deserialize_with = "serde_helpers::default_for_null")]
-        parameters: Vec<ParameterList>,
+        parameters: Option<ParameterList>,
     }
 );
 
