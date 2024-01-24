@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased](https://github.com/foundry-rs/compilers/compare/v0.2.2...HEAD)
+
+### Miscellaneous Tasks
+
+- Add error severity fn helpers ([#48](https://github.com/foundry-rs/compilers/issues/48))
+
 ## [0.2.2](https://github.com/foundry-rs/compilers/releases/tag/v0.2.2) - 2024-01-19
+
+### Miscellaneous Tasks
+
+- Release 0.2.2
 
 ### Other
 
