@@ -92,13 +92,13 @@ impl Flattener {
             if deps.insert(path.clone()) {
                 let target_dir = path.parent().ok_or_else(|| {
                     SolcError::msg(format!(
-                        "failed to get parent directory for \"{:?}\"",
+                        "failed to get parent directory for \"{}\"",
                         path.display()
                     ))
                 })?;
 
                 let node_id = graph.files().get(path).ok_or_else(|| {
-                    SolcError::msg(format!("cannot resolve file at {:?}", path.display()))
+                    SolcError::msg(format!("cannot resolve file at {}", path.display()))
                 })?;
 
                 let mut imports = graph.node(*node_id).imports().clone();
