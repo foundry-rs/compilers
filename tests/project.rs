@@ -9,6 +9,7 @@ use foundry_compilers::{
     buildinfo::BuildInfo,
     cache::{SolFilesCache, SOLIDITY_FILES_CACHE_FILENAME},
     error::SolcError,
+    flatten::Flattener,
     info::ContractInfo,
     project_util::*,
     remappings::Remapping,
@@ -432,6 +433,18 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> 
     Ok(())
 }
 
+// Runs both `flatten` implementations, asserts that their outputs match and runs additional checks
+// against the output.
+fn test_flatteners(project: &TempProject, target: &Path, additional_checks: fn(&str)) {
+    let result = project.flatten(&target).unwrap();
+    let solc_result =
+        Flattener::new(&project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
+
+    assert_eq!(result, solc_result);
+
+    additional_checks(&result);
+}
+
 #[test]
 fn can_flatten_file() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/test-contract-libs");
@@ -440,15 +453,22 @@ fn can_flatten_file() {
         .sources(root.join("src"))
         .lib(root.join("lib1"))
         .lib(root.join("lib2"));
+
     let project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
 
-    let result = project.flatten(&target);
-    assert!(result.is_ok());
+    test_flatteners(&project, &target, |result| {
+        assert_eq!(
+            result,
+            r#"pragma solidity 0.8.6;
 
-    let result = result.unwrap();
-    assert!(!result.contains("import"));
-    assert!(result.contains("contract Foo"));
-    assert!(result.contains("contract Bar"));
+contract Bar {}
+
+contract Baz {}
+
+contract Foo is Bar, Baz {}
+"#
+        );
+    });
 }
 
 #[test]
@@ -461,13 +481,11 @@ fn can_flatten_file_with_external_lib() {
 
     let target = root.join("contracts").join("Greeter.sol");
 
-    let result = project.flatten(&target);
-    assert!(result.is_ok());
-
-    let result = result.unwrap();
-    assert!(!result.contains("import"));
-    assert!(result.contains("library console"));
-    assert!(result.contains("contract Greeter"));
+    test_flatteners(&project, &target, |result| {
+        assert!(!result.contains("import"));
+        assert!(result.contains("library console"));
+        assert!(result.contains("contract Greeter"));
+    });
 }
 
 #[test]
@@ -478,21 +496,19 @@ fn can_flatten_file_in_dapp_sample() {
 
     let target = root.join("src/Dapp.t.sol");
 
-    let result = project.flatten(&target);
-    assert!(result.is_ok());
-
-    let result = result.unwrap();
-    assert!(!result.contains("import"));
-    assert!(result.contains("contract DSTest"));
-    assert!(result.contains("contract Dapp"));
-    assert!(result.contains("contract DappTest"));
+    test_flatteners(&project, &target, |result| {
+        assert!(!result.contains("import"));
+        assert!(result.contains("contract DSTest"));
+        assert!(result.contains("contract Dapp"));
+        assert!(result.contains("contract DappTest"));
+    });
 }
 
 #[test]
 fn can_flatten_unique() {
     let project = TempProject::dapptools().unwrap();
 
-    let f = project
+    let target = project
         .add_source(
             "A",
             r#"
@@ -526,26 +542,26 @@ contract C { }
         )
         .unwrap();
 
-    let result = project.flatten(&f).unwrap();
-
-    assert_eq!(
-        result,
-        r"pragma solidity ^0.8.10;
+    test_flatteners(&project, &target, |result| {
+        assert_eq!(
+            result,
+            r#"pragma solidity ^0.8.10;
 
 contract C { }
 
 contract B { }
 
 contract A { }
-"
-    );
+"#
+        );
+    });
 }
 
 #[test]
 fn can_flatten_experimental_pragma() {
     let project = TempProject::dapptools().unwrap();
 
-    let f = project
+    let target = project
         .add_source(
             "A",
             r#"
@@ -582,11 +598,10 @@ contract C { }
         )
         .unwrap();
 
-    let result = project.flatten(&f).unwrap();
-
-    assert_eq!(
-        result,
-        r"pragma solidity ^0.8.10;
+    test_flatteners(&project, &target, |result| {
+        assert_eq!(
+            result,
+            r"pragma solidity ^0.8.10;
 pragma experimental ABIEncoderV2;
 
 contract C { }
@@ -595,7 +610,8 @@ contract B { }
 
 contract A { }
 "
-    );
+        );
+    });
 }
 
 #[test]
@@ -606,13 +622,10 @@ fn can_flatten_file_with_duplicates() {
 
     let target = root.join("contracts/FooBar.sol");
 
-    let result = project.flatten(&target);
-    assert!(result.is_ok());
-
-    let result = result.unwrap();
-    assert_eq!(
-        result,
-        r"//SPDX-License-Identifier: UNLICENSED
+    test_flatteners(&project, &target, |result| {
+        assert_eq!(
+            result,
+            r"//SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.6.0;
 
 contract Bar {}
@@ -621,7 +634,8 @@ contract Foo {}
 
 contract FooBar {}
 "
-    );
+        );
+    });
 }
 
 #[test]
@@ -656,7 +670,7 @@ contract Contract {
 fn can_flatten_multiline() {
     let project = TempProject::dapptools().unwrap();
 
-    let f = project
+    let target = project
         .add_source(
             "A",
             r#"
@@ -692,10 +706,10 @@ contract C { }
         )
         .unwrap();
 
-    let result = project.flatten(&f).unwrap();
-    assert_eq!(
-        result,
-        r"pragma solidity ^0.8.10;
+    test_flatteners(&project, &target, |result| {
+        assert_eq!(
+            result,
+            r"pragma solidity ^0.8.10;
 
 contract C { }
 
@@ -704,14 +718,15 @@ error IllegalState();
 
 contract A { }
 "
-    );
+        );
+    });
 }
 
 #[test]
 fn can_flatten_remove_extra_spacing() {
     let project = TempProject::dapptools().unwrap();
 
-    let f = project
+    let target = project
         .add_source(
             "A",
             r#"pragma solidity ^0.8.10;
@@ -744,10 +759,10 @@ contract C { }
         )
         .unwrap();
 
-    let result = project.flatten(&f).unwrap();
-    assert_eq!(
-        result,
-        r"pragma solidity ^0.8.10;
+    test_flatteners(&project, &target, |result| {
+        assert_eq!(
+            result,
+            r"pragma solidity ^0.8.10;
 
 contract C { }
 
@@ -757,14 +772,15 @@ contract B { }
 
 contract A { }
 "
-    );
+        );
+    });
 }
 
 #[test]
 fn can_flatten_with_alias() {
     let project = TempProject::dapptools().unwrap();
 
-    let f = project
+    let target = project
         .add_source(
             "Contract",
             r#"pragma solidity ^0.8.10;
@@ -785,14 +801,10 @@ contract Contract is Parent,
 
     Peer public peer;
 
-    error Peer();
-
     constructor(address _peer) {
         peer = Peer(_peer);
-    }
-
-    function Math(uint256 value) external pure returns (uint256) {
-        return Math.minusOne(Math.max() - value.diffMax());
+        peer = new Peer();
+        uint256 x = Math.minusOne(Math.max());
     }
 }
 "#,
@@ -856,10 +868,10 @@ library SomeLib { }
         )
         .unwrap();
 
-    let result = project.flatten(&f).unwrap();
-    assert_eq!(
-        result,
-        r#"pragma solidity ^0.8.10;
+    test_flatteners(&project, &target, |result| {
+        assert_eq!(
+            result,
+            r#"pragma solidity ^0.8.10;
 
 contract ParentContract { }
 
@@ -894,25 +906,22 @@ contract Contract is ParentContract,
 
     PeerContract public peer;
 
-    error Peer();
-
     constructor(address _peer) {
         peer = PeerContract(_peer);
-    }
-
-    function Math(uint256 value) external pure returns (uint256) {
-        return MathLibrary.minusOne(MathLibrary.max() - value.diffMax());
+        peer = new PeerContract();
+        uint256 x = MathLibrary.minusOne(MathLibrary.max());
     }
 }
 "#
-    );
+        );
+    });
 }
 
 #[test]
 fn can_flatten_with_version_pragma_after_imports() {
     let project = TempProject::dapptools().unwrap();
 
-    let f = project
+    let target = project
         .add_source(
             "A",
             r#"
@@ -929,7 +938,7 @@ contract A { }
         .add_source(
             "B",
             r#"
-import D from "./D.sol";
+import {D} from "./D.sol";
 pragma solidity ^0.8.10;
 import * as C from "./C.sol";
 contract B { }
@@ -957,10 +966,10 @@ contract D { }
         )
         .unwrap();
 
-    let result = project.flatten(&f).unwrap();
-    assert_eq!(
-        result,
-        r"pragma solidity ^0.8.10;
+    test_flatteners(&project, &target, |result| {
+        assert_eq!(
+            result,
+            r#"pragma solidity ^0.8.10;
 
 contract D { }
 
@@ -969,6 +978,59 @@ contract C { }
 contract B { }
 
 contract A { }
+"#
+        );
+    });
+}
+
+#[test]
+fn can_flatten_with_duplicates() {
+    let project = TempProject::dapptools().unwrap();
+
+    project
+        .add_source(
+            "Foo.sol",
+            r#"
+pragma solidity ^0.8.10;
+
+contract Foo {
+    function foo() public pure returns (uint256) {
+        return 1;
+    }
+}
+
+contract Bar is Foo {}
+"#,
+        )
+        .unwrap();
+
+    let target = project
+        .add_source(
+            "Bar.sol",
+            r#"
+pragma solidity ^0.8.10;
+import {Foo} from "./Foo.sol";
+
+contract Bar is Foo {}
+"#,
+        )
+        .unwrap();
+
+    let result =
+        Flattener::new(&project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
+    assert_eq!(
+        result,
+        r"pragma solidity ^0.8.10;
+
+contract Foo {
+    function foo() public pure returns (uint256) {
+        return 1;
+    }
+}
+
+contract Bar_1 is Foo {}
+
+contract Bar_0 is Foo {}
 "
     );
 }
