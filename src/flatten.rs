@@ -163,9 +163,9 @@ impl Flattener {
 
             let mut ids = ids.clone().into_iter().collect::<Vec<_>>();
             // `loc.path` is expected to be different for each id because there can't be 2 top-level
+            // eclarations with the same name
             //
-            // Declarations with the same name sort by loc.path to make the renaming
-            // process deterministic
+            // Sorting by loc.path to make the renaming process deterministic
             ids.sort_by(|(_, loc_0), (_, loc_1)| loc_0.path.cmp(&loc_1.path));
 
             for (i, (id, loc)) in ids.iter().enumerate() {
@@ -242,27 +242,26 @@ impl Flattener {
             result.push('\n');
         }
 
-        let mut resulted_sources = HashMap::new();
+        let mut updated_sources = HashMap::new();
 
         for (path, source) in &self.sources {
             let mut content = source.content.as_bytes().to_vec();
             let mut offset: isize = 0;
             if let Some(updates) = updates.get_mut(path) {
                 updates.sort_by(|(start_0, _, _), (start_1, _, _)| start_0.cmp(start_1));
-                for update in updates {
-                    let start = (update.0 as isize + offset) as usize;
-                    let end = (update.1 as isize + offset) as usize;
-                    let new_value = &update.2;
+                for (start, end, new_value) in updates {
+                    let start = (*start as isize + offset) as usize;
+                    let end = (*end as isize + offset) as usize;
 
                     content.splice(start..end, new_value.bytes());
                     offset += new_value.len() as isize - (end - start) as isize;
                 }
             }
-            resulted_sources.insert(path, content);
+            updated_sources.insert(path, content);
         }
 
         for path in &self.ordered_sources {
-            let content = resulted_sources.get(path).unwrap();
+            let content = updated_sources.get(path).unwrap();
             result.push_str(&String::from_utf8_lossy(content));
             result.push_str("\n\n");
         }
