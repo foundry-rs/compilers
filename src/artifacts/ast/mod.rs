@@ -182,7 +182,7 @@ ast_node!(
         #[serde(default, deserialize_with = "serde_helpers::default_for_null")]
         used_events: Vec<usize>,
         #[serde(default, rename = "internalFunctionIDs")]
-        internal_function_ids: BTreeMap<usize, usize>,
+        internal_function_ids: BTreeMap<String, usize>,
     }
 );
 
