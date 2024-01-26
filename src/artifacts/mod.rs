@@ -779,6 +779,13 @@ impl YulDetails {
 /// EVM versions.
 ///
 /// Kept in sync with: <https://github.com/ethereum/solidity/blob/develop/liblangutil/EVMVersion.h>
+// When adding new EVM versions (see a previous attempt at https://github.com/foundry-rs/compilers/pull/51):
+// - add the version to the end of the enum
+// - update the default variant to `m_version` default: https://github.com/ethereum/solidity/blob/develop/liblangutil/EVMVersion.h#L122
+// - create a constant for the Solc version that introduced it in `../compile/mod.rs`
+// - add the version to the top of `normalize_version` and wherever else the compiler complains
+// - update `FromStr` impl
+// - write a test case in `test_evm_version_normalization` at the bottom of this file
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum EvmVersion {
     Homestead,
@@ -793,6 +800,7 @@ pub enum EvmVersion {
     Paris,
     #[default]
     Shanghai,
+    Cancun,
 }
 
 impl EvmVersion {
@@ -800,10 +808,12 @@ impl EvmVersion {
     pub fn normalize_version(self, version: &Version) -> Option<Self> {
         // The EVM version flag was only added in 0.4.21; we work our way backwards
         if *version >= BYZANTIUM_SOLC {
-            // If the Solc version is at least at Shanghai, it supports all EVM versions.
+            // If the Solc version is the latest, it supports all EVM versions.
             // For all other cases, cap at the at-the-time highest possible fork.
-            let normalized = if *version >= SHANGHAI_SOLC {
+            let normalized = if *version >= CANCUN_SOLC {
                 self
+            } else if self >= Self::Shanghai && *version >= SHANGHAI_SOLC {
+                Self::Shanghai
             } else if self >= Self::Paris && *version >= PARIS_SOLC {
                 Self::Paris
             } else if self >= Self::London && *version >= LONDON_SOLC {
@@ -841,6 +851,7 @@ impl EvmVersion {
             Self::London => "london",
             Self::Paris => "paris",
             Self::Shanghai => "shanghai",
+            Self::Cancun => "cancun",
         }
     }
 
@@ -908,6 +919,7 @@ impl FromStr for EvmVersion {
             "london" => Ok(Self::London),
             "paris" => Ok(Self::Paris),
             "shanghai" => Ok(Self::Shanghai),
+            "cancun" => Ok(Self::Cancun),
             s => Err(format!("Unknown evm version: {s}")),
         }
     }
@@ -923,7 +935,7 @@ pub struct DebuggingSettings {
         skip_serializing_if = "Option::is_none"
     )]
     pub revert_strings: Option<RevertStrings>,
-    ///How much extra debug information to include in comments in the produced EVM assembly and
+    /// How much extra debug information to include in comments in the produced EVM assembly and
     /// Yul code.
     /// Available components are:
     // - `location`: Annotations of the form `@src <index>:<start>:<end>` indicating the location of
@@ -976,7 +988,7 @@ impl FromStr for RevertStrings {
             "strip" => Ok(RevertStrings::Strip),
             "debug" => Ok(RevertStrings::Debug),
             "verboseDebug" | "verbosedebug" => Ok(RevertStrings::VerboseDebug),
-            s => Err(format!("Unknown evm version: {s}")),
+            s => Err(format!("Unknown revert string mode: {s}")),
         }
     }
 }
@@ -2074,7 +2086,7 @@ mod tests {
 
     #[test]
     fn test_evm_version_normalization() {
-        for (solc_version, evm_version, expected) in &[
+        for &(solc_version, evm_version, expected) in &[
             // Everything before 0.4.21 should always return None
             ("0.4.20", EvmVersion::Homestead, None),
             // Byzantium clipping
@@ -2109,10 +2121,15 @@ mod tests {
             ("0.8.20", EvmVersion::Homestead, Some(EvmVersion::Homestead)),
             ("0.8.20", EvmVersion::Paris, Some(EvmVersion::Paris)),
             ("0.8.20", EvmVersion::Shanghai, Some(EvmVersion::Shanghai)),
+            ("0.8.20", EvmVersion::Cancun, Some(EvmVersion::Shanghai)),
+            // Cancun
+            ("0.8.24", EvmVersion::Homestead, Some(EvmVersion::Homestead)),
+            ("0.8.24", EvmVersion::Shanghai, Some(EvmVersion::Shanghai)),
+            ("0.8.24", EvmVersion::Cancun, Some(EvmVersion::Cancun)),
         ] {
             let version = Version::from_str(solc_version).unwrap();
             assert_eq!(
-                &evm_version.normalize_version(&version),
+                evm_version.normalize_version(&version),
                 expected,
                 "({version}, {evm_version:?})"
             )
