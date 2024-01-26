@@ -436,9 +436,9 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> 
 // Runs both `flatten` implementations, asserts that their outputs match and runs additional checks
 // against the output.
 fn test_flatteners(project: &TempProject, target: &Path, additional_checks: fn(&str)) {
-    let result = project.flatten(&target).unwrap();
+    let result = project.flatten(target).unwrap();
     let solc_result =
-        Flattener::new(&project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
+        Flattener::new(project.project(), &project.compile().unwrap(), target).unwrap().flatten();
 
     assert_eq!(result, solc_result);
 
@@ -647,7 +647,7 @@ fn can_flatten_on_solang_failure() {
 
     let target = root.join("contracts/Contract.sol");
 
-    let result = project.flatten(&target);
+    let result = project.flatten(target.as_path());
     assert!(result.is_ok());
 
     let result = result.unwrap();
@@ -1017,7 +1017,7 @@ contract Bar is Foo {}
         .unwrap();
 
     let result =
-        Flattener::new(&project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
+        Flattener::new(project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
     assert_eq!(
         result,
         r"pragma solidity ^0.8.10;
