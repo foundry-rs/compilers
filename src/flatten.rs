@@ -234,12 +234,12 @@ impl Flattener {
         let mut result = String::new();
 
         if let Some(target_license) = target_license {
-            result.push_str(&target_license);
-            result.push_str("\n");
+            result.push_str(target_license);
+            result.push('\n');
         }
         for pragma in target_pragmas {
-            result.push_str(&pragma);
-            result.push_str("\n");
+            result.push_str(pragma);
+            result.push('\n');
         }
 
         let mut resulted_sources = HashMap::new();
