@@ -779,7 +779,7 @@ impl YulDetails {
 /// EVM versions.
 ///
 /// Kept in sync with: <https://github.com/ethereum/solidity/blob/develop/liblangutil/EVMVersion.h>
-// NOTE: when adding new EVM versions:
+// When adding new EVM versions (see a previous attempt at https://github.com/foundry-rs/compilers/pull/51):
 // - add the version to the end of the enum
 // - update the default variant to `m_version` default: https://github.com/ethereum/solidity/blob/develop/liblangutil/EVMVersion.h#L122
 // - create a constant for the Solc version that introduced it in `../compile/mod.rs`
