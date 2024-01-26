@@ -17,6 +17,7 @@ use std::collections::{BTreeMap, HashSet};
 mod artifact_output;
 pub mod buildinfo;
 pub mod cache;
+pub mod flatten;
 pub mod hh;
 pub use artifact_output::*;
 
