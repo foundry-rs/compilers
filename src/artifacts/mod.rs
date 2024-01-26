@@ -780,9 +780,11 @@ impl YulDetails {
 ///
 /// Kept in sync with: <https://github.com/ethereum/solidity/blob/develop/liblangutil/EVMVersion.h>
 // NOTE: when adding new EVM versions:
-// - add the version to the end of the enum, make it the default variant
+// - add the version to the end of the enum
+// - update the default variant to `m_version` default: https://github.com/ethereum/solidity/blob/develop/liblangutil/EVMVersion.h#L122
 // - create a constant for the Solc version that introduced it in `../compile/mod.rs`
 // - add the version to the top of `normalize_version` and wherever else the compiler complains
+// - update `FromStr` impl
 // - write a test case in `test_evm_version_normalization` at the bottom of this file
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum EvmVersion {
@@ -796,8 +798,8 @@ pub enum EvmVersion {
     Berlin,
     London,
     Paris,
-    Shanghai,
     #[default]
+    Shanghai,
     Cancun,
 }
 
@@ -917,6 +919,7 @@ impl FromStr for EvmVersion {
             "london" => Ok(Self::London),
             "paris" => Ok(Self::Paris),
             "shanghai" => Ok(Self::Shanghai),
+            "cancun" => Ok(Self::Cancun),
             s => Err(format!("Unknown evm version: {s}")),
         }
     }
@@ -985,7 +988,7 @@ impl FromStr for RevertStrings {
             "strip" => Ok(RevertStrings::Strip),
             "debug" => Ok(RevertStrings::Debug),
             "verboseDebug" | "verbosedebug" => Ok(RevertStrings::VerboseDebug),
-            s => Err(format!("Unknown evm version: {s}")),
+            s => Err(format!("Unknown revert string mode: {s}")),
         }
     }
 }
