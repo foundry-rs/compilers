@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4](https://github.com/foundry-rs/compilers/releases/tag/v0.2.4) - 2024-01-27
+
+### Dependencies
+
+- Bump svm builds ([#53](https://github.com/foundry-rs/compilers/issues/53))
+
 ## [0.2.3](https://github.com/foundry-rs/compilers/releases/tag/v0.2.3) - 2024-01-26
 
 ### Features
@@ -13,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.2.3
 - Add unreleased section to cliff.toml
 - Add error severity fn helpers ([#48](https://github.com/foundry-rs/compilers/issues/48))
 
