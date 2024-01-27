@@ -89,6 +89,61 @@ impl Visitor for UserDefinedTypeNamesCollector {
 /// source_path -> (start, end, new_value)
 type Updates = HashMap<PathBuf, HashSet<(usize, usize, String)>>;
 
+struct FlatteningResult<'a> {
+    /// Updated source in the order they shoud be written to the output file.
+    sources: Vec<String>,
+    /// Pragmas that should be present in the target file.
+    pragmas: Vec<&'a str>,
+    /// License identifier that should be present in the target file.
+    license: Option<&'a str>,
+}
+
+impl<'a> FlatteningResult<'a> {
+    fn new(
+        flattener: &Flattener,
+        mut updates: Updates,
+        pragmas: Vec<&'a str>,
+        license: Option<&'a str>,
+    ) -> Self {
+        let mut sources = Vec::new();
+
+        for path in &flattener.ordered_sources {
+            let mut content = flattener.sources.get(path).unwrap().content.as_bytes().to_vec();
+            let mut offset: isize = 0;
+            if let Some(updates) = updates.remove(path) {
+                let mut updates = updates.iter().collect::<Vec<_>>();
+                updates.sort_by_key(|(start, _, _)| *start);
+                for (start, end, new_value) in updates {
+                    let start = (*start as isize + offset) as usize;
+                    let end = (*end as isize + offset) as usize;
+
+                    content.splice(start..end, new_value.bytes());
+                    offset += new_value.len() as isize - (end - start) as isize;
+                }
+            }
+            sources.push(String::from_utf8(content).unwrap());
+        }
+
+        Self { sources, pragmas, license }
+    }
+
+    fn get_flattened_target(&self) -> String {
+        let mut result = String::new();
+
+        if let Some(license) = &self.license {
+            result.push_str(&format!("{}\n", license));
+        }
+        for pragma in &self.pragmas {
+            result.push_str(&format!("{}\n", pragma));
+        }
+        for source in &self.sources {
+            result.push_str(&format!("{}\n\n", source));
+        }
+
+        format!("{}\n", utils::RE_THREE_OR_MORE_NEWLINES.replace_all(&result, "\n\n").trim())
+    }
+}
+
 /// Context for flattening. Stores all sources and ASTs that are in scope of the flattening target.
 pub struct Flattener {
     /// Target file to flatten.
@@ -185,47 +240,9 @@ impl Flattener {
         let target_pragmas = self.process_pragmas(&mut updates);
         let target_license = self.process_licenses(&mut updates);
 
-        let updated_sources = self.get_updated_sources(updates);
+        let result = FlatteningResult::new(self, updates, target_pragmas, target_license);
 
-        let mut result = String::new();
-
-        if let Some(target_license) = target_license {
-            result.push_str(&format!("{}\n", target_license));
-        }
-        for pragma in target_pragmas {
-            result.push_str(&format!("{}\n", pragma));
-        }
-
-        for path in &self.ordered_sources {
-            let content = updated_sources.get(path).unwrap();
-            result.push_str(&format!("{}\n\n", content));
-        }
-
-        format!("{}\n", utils::RE_THREE_OR_MORE_NEWLINES.replace_all(&result, "\n\n").trim())
-    }
-
-    /// Consumes`updates` and returns updated sources.
-    fn get_updated_sources(&self, mut updates: Updates) -> HashMap<&PathBuf, String> {
-        let mut updated_sources = HashMap::new();
-
-        for (path, source) in &self.sources {
-            let mut content = source.content.as_bytes().to_vec();
-            let mut offset: isize = 0;
-            if let Some(updates) = updates.remove(path) {
-                let mut updates = updates.iter().collect::<Vec<_>>();
-                updates.sort_by_key(|(start, _, _)| *start);
-                for (start, end, new_value) in updates {
-                    let start = (*start as isize + offset) as usize;
-                    let end = (*end as isize + offset) as usize;
-
-                    content.splice(start..end, new_value.bytes());
-                    offset += new_value.len() as isize - (end - start) as isize;
-                }
-            }
-            updated_sources.insert(path, String::from_utf8(content).unwrap());
-        }
-
-        updated_sources
+        result.get_flattened_target()
     }
 
     /// Finds and goes over all references to file-level definitions and updates them to match
