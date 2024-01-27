@@ -1169,6 +1169,63 @@ contract D is A_0 {
     );
 }
 
+// https://github.com/foundry-rs/compilers/issues/34
+#[test]
+fn can_flatten_34_repro() {
+    let project = TempProject::dapptools().unwrap();
+    let target = project.add_source(
+        "FlieA.sol",
+        r#"pragma solidity ^0.8.10;
+import {B} from "./FileB.sol";
+
+interface FooBar {
+    function foo() external;
+}
+contract A {
+    function execute() external {
+        FooBar(address(0)).foo();
+    }
+}"#).unwrap();
+
+    project.add_source(
+        "FileB.sol",
+        r#"pragma solidity ^0.8.10;
+
+interface FooBar {
+    function bar() external;
+}
+contract B {
+    function execute() external {
+        FooBar(address(0)).bar();
+    }
+}"#).unwrap();
+
+    let result =
+        Flattener::new(project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
+    assert_eq!(
+        result,
+        r#"pragma solidity ^0.8.10;
+
+interface FooBar_0 {
+    function bar() external;
+}
+contract B {
+    function execute() external {
+        FooBar_0(address(0)).bar();
+    }
+}
+
+interface FooBar_1 {
+    function foo() external;
+}
+contract A {
+    function execute() external {
+        FooBar_1(address(0)).foo();
+    }
+}
+"#);
+}
+
 #[test]
 fn can_detect_type_error() {
     let project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
