@@ -1173,9 +1173,10 @@ contract D is A_0 {
 #[test]
 fn can_flatten_34_repro() {
     let project = TempProject::dapptools().unwrap();
-    let target = project.add_source(
-        "FlieA.sol",
-        r#"pragma solidity ^0.8.10;
+    let target = project
+        .add_source(
+            "FlieA.sol",
+            r#"pragma solidity ^0.8.10;
 import {B} from "./FileB.sol";
 
 interface FooBar {
@@ -1185,11 +1186,14 @@ contract A {
     function execute() external {
         FooBar(address(0)).foo();
     }
-}"#).unwrap();
+}"#,
+        )
+        .unwrap();
 
-    project.add_source(
-        "FileB.sol",
-        r#"pragma solidity ^0.8.10;
+    project
+        .add_source(
+            "FileB.sol",
+            r#"pragma solidity ^0.8.10;
 
 interface FooBar {
     function bar() external;
@@ -1198,7 +1202,9 @@ contract B {
     function execute() external {
         FooBar(address(0)).bar();
     }
-}"#).unwrap();
+}"#,
+        )
+        .unwrap();
 
     let result =
         Flattener::new(project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
@@ -1223,7 +1229,8 @@ contract A {
         FooBar_1(address(0)).foo();
     }
 }
-"#);
+"#
+    );
 }
 
 #[test]
