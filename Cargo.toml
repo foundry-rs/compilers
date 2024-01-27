@@ -68,7 +68,7 @@ home = "0.5.5"
 svm = { package = "svm-rs", version = "0.3", default-features = false, features = [
     "blocking",
 ], optional = true }
-svm-builds = { package = "svm-rs-builds", version = "0.2", optional = true }
+svm-builds = { package = "svm-rs-builds", version = "0.3", optional = true }
 tokio = { version = "1.32", features = ["rt-multi-thread"] }
 
 [dev-dependencies]
