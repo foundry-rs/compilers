@@ -908,6 +908,7 @@ pub enum AssemblyReferenceSuffix {
 /// Inline assembly flags.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InlineAssemblyFlag {
+    #[serde(rename = "memory-safe")]
     MemorySafe,
 }
 

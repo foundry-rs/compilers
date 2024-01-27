@@ -81,38 +81,42 @@ macro_rules! impl_walk {
 }
 
 impl_walk!(SourceUnit, visit_source_unit, |source_unit, visitor| {
-    for part in &source_unit.nodes {
-        match part {
-            SourceUnitPart::ContractDefinition(contract) => {
-                contract.walk(visitor);
-            }
-            SourceUnitPart::UsingForDirective(directive) => {
-                directive.walk(visitor);
-            }
-            SourceUnitPart::ErrorDefinition(error) => {
-                error.walk(visitor);
-            }
-            SourceUnitPart::StructDefinition(struct_) => {
-                struct_.walk(visitor);
-            }
-            SourceUnitPart::VariableDeclaration(declaration) => {
-                declaration.walk(visitor);
-            }
-            SourceUnitPart::FunctionDefinition(function) => {
-                function.walk(visitor);
-            }
-            SourceUnitPart::UserDefinedValueTypeDefinition(value_type) => {
-                value_type.walk(visitor);
-            }
-            SourceUnitPart::ImportDirective(directive) => {
-                directive.walk(visitor);
-            }
-            SourceUnitPart::EnumDefinition(enum_) => {
-                enum_.walk(visitor);
-            }
-            SourceUnitPart::PragmaDirective(directive) => {
-                directive.walk(visitor);
-            }
+    source_unit.nodes.iter().for_each(|part| {
+        part.walk(visitor);
+    });
+});
+
+impl_walk!(SourceUnitPart, |part, visitor| {
+    match part {
+        SourceUnitPart::ContractDefinition(contract) => {
+            contract.walk(visitor);
+        }
+        SourceUnitPart::UsingForDirective(directive) => {
+            directive.walk(visitor);
+        }
+        SourceUnitPart::ErrorDefinition(error) => {
+            error.walk(visitor);
+        }
+        SourceUnitPart::StructDefinition(struct_) => {
+            struct_.walk(visitor);
+        }
+        SourceUnitPart::VariableDeclaration(declaration) => {
+            declaration.walk(visitor);
+        }
+        SourceUnitPart::FunctionDefinition(function) => {
+            function.walk(visitor);
+        }
+        SourceUnitPart::UserDefinedValueTypeDefinition(value_type) => {
+            value_type.walk(visitor);
+        }
+        SourceUnitPart::ImportDirective(directive) => {
+            directive.walk(visitor);
+        }
+        SourceUnitPart::EnumDefinition(enum_) => {
+            enum_.walk(visitor);
+        }
+        SourceUnitPart::PragmaDirective(directive) => {
+            directive.walk(visitor);
         }
     }
 });

@@ -8,8 +8,8 @@ use crate::{
     artifacts::{
         ast::SourceLocation,
         visitor::{Visitor, Walk},
-        Identifier, IdentifierPath, MemberAccess, Source, SourceUnit, SourceUnitPart, Sources,
-        UserDefinedTypeName,
+        ContractDefinitionPart, Identifier, IdentifierPath, MemberAccess, Source, SourceUnit,
+        SourceUnitPart, Sources, UserDefinedTypeName,
     },
     error::SolcError,
     utils, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Result,
@@ -70,12 +70,32 @@ impl Visitor for ReferencesCollector {
     }
 }
 
+/// Visitor exploring AST and collecting all references to any declarations found in
+/// `UserDefinedTypeName` nodes
+struct UserDefinedTypeNamesCollector {
+    path: PathBuf,
+    references: HashMap<isize, HashSet<ItemLocation>>,
+}
+
+impl Visitor for UserDefinedTypeNamesCollector {
+    fn visit_user_defined_type_name(&mut self, type_name: &UserDefinedTypeName) {
+        if let Some(loc) = ItemLocation::try_from_source_loc(&type_name.src, self.path.clone()) {
+            self.references.entry(type_name.referenced_declaration).or_default().insert(loc);
+        }
+    }
+}
+
+type Updates = HashMap<PathBuf, HashSet<(usize, usize, String)>>;
+
 /// Context for flattening. Stores all sources and ASTs that are in scope of the flattening target.
 pub struct Flattener {
+    /// Target file to flatten.
     target: PathBuf,
+    /// Sources including only target and it dependencies (imports of any depth).
     sources: Sources,
+    /// Vec of (path, ast) pairs.
     asts: Vec<(PathBuf, SourceUnit)>,
-    // Sources in the order they should be written to the output file.
+    /// Sources in the order they should be written to the output file.
     ordered_sources: Vec<PathBuf>,
 }
 
@@ -145,110 +165,53 @@ impl Flattener {
         Ok(Flattener { target: target.into(), sources, asts, ordered_sources: ordered_deps })
     }
 
+    /// Flattens target file and returns the result as a string
+    ///
+    /// Flattening process includes following steps:
+    /// 1. Find all file-level declarations and rename references to them via aliased or qualified
+    ///    imports.
+    /// 2. Find all duplicates among file-level declarations and rename them to avoid conflicts.
+    /// 3. Remove all imports.
+    /// 4. Remove all pragmas except for the ones in the target file.
+    /// 5. Remove all license identifiers except for the one in the target file.
     pub fn flatten(&self) -> String {
-        let declarations = self.collect_top_level_declarations();
-        let references = self.collect_references();
+        let mut updates = Updates::new();
 
-        // path -> (start, end, new_value)[]
-        let mut updates = HashMap::new();
+        let top_level_names = self.rename_top_level_declarations(&mut updates);
+        self.rename_contract_level_types_references(&top_level_names, &mut updates);
+        self.remove_imports(&mut updates);
+        let target_pragmas = self.process_pragmas(&mut updates);
+        let target_license = self.process_licenses(&mut updates);
 
-        // Goes over all known declarations and collects all references to later replace them with
-        // full name of declaration.
-        //
-        // If we find more than 1 declaration with the same name, it's name is getting changed.
-        // Two Counter contracts will be renamed to Counter_0 and Counter_1
-        for (name, ids) in declarations {
-            let mut declaration_name = name.to_string();
-            let needs_rename = ids.len() > 1;
-
-            let mut ids = ids.clone().into_iter().collect::<Vec<_>>();
-            // `loc.path` is expected to be different for each id because there can't be 2 top-level
-            // eclarations with the same name
-            //
-            // Sorting by loc.path to make the renaming process deterministic
-            ids.sort_by(|(_, loc_0), (_, loc_1)| loc_0.path.cmp(&loc_1.path));
-
-            for (i, (id, loc)) in ids.iter().enumerate() {
-                if needs_rename {
-                    declaration_name = format!("{}_{}", name, i);
-                }
-                updates.entry(loc.path.clone()).or_insert_with(Vec::new).push((
-                    loc.start,
-                    loc.end,
-                    declaration_name.clone(),
-                ));
-                if let Some(references) = references.get(&(*id as isize)) {
-                    for loc in references {
-                        updates.entry(loc.path.clone()).or_insert_with(Vec::new).push((
-                            loc.start,
-                            loc.end,
-                            declaration_name.clone(),
-                        ));
-                    }
-                }
-            }
-        }
-
-        // Replace all imports with empty strings
-        for loc in self.collect_imports() {
-            updates.entry(loc.path.clone()).or_insert_with(Vec::new).push((
-                loc.start,
-                loc.end,
-                "".to_string(),
-            ));
-        }
-
-        let pragmas = self.collect_pragmas();
-
-        // Pragmas that will be used in the resulted file
-        let mut target_pragmas = Vec::new();
-
-        for loc in &pragmas {
-            if loc.path == self.target {
-                target_pragmas.push(loc);
-            }
-            updates.entry(loc.path.clone()).or_insert_with(Vec::new).push((
-                loc.start,
-                loc.end,
-                "".to_string(),
-            ));
-        }
-
-        target_pragmas.sort_by_key(|loc| loc.start);
-        let target_pragmas =
-            target_pragmas.iter().map(|loc| self.read_location(loc)).collect::<Vec<_>>();
-
-        let mut target_license = None;
-
-        for loc in &self.collect_licenses() {
-            if loc.path == self.target {
-                target_license = Some(self.read_location(loc));
-            }
-            updates.entry(loc.path.clone()).or_insert_with(Vec::new).push((
-                loc.start,
-                loc.end,
-                "".to_string(),
-            ));
-        }
+        let updated_sources = self.get_updated_sources(updates);
 
         let mut result = String::new();
 
         if let Some(target_license) = target_license {
-            result.push_str(target_license);
-            result.push('\n');
+            result.push_str(&format!("{}\n", target_license));
         }
         for pragma in target_pragmas {
-            result.push_str(pragma);
-            result.push('\n');
+            result.push_str(&format!("{}\n", pragma));
         }
 
+        for path in &self.ordered_sources {
+            let content = updated_sources.get(path).unwrap();
+            result.push_str(&format!("{}\n\n", content));
+        }
+
+        format!("{}\n", utils::RE_THREE_OR_MORE_NEWLINES.replace_all(&result, "\n\n").trim())
+    }
+
+    /// Consumes`updates` and returns updated sources.
+    fn get_updated_sources(&self, mut updates: Updates) -> HashMap<&PathBuf, String> {
         let mut updated_sources = HashMap::new();
 
         for (path, source) in &self.sources {
             let mut content = source.content.as_bytes().to_vec();
             let mut offset: isize = 0;
-            if let Some(updates) = updates.get_mut(path) {
-                updates.sort_by(|(start_0, _, _), (start_1, _, _)| start_0.cmp(start_1));
+            if let Some(updates) = updates.remove(path) {
+                let mut updates = updates.iter().collect::<Vec<_>>();
+                updates.sort_by_key(|(start, _, _)| *start);
                 for (start, end, new_value) in updates {
                     let start = (*start as isize + offset) as usize;
                     let end = (*end as isize + offset) as usize;
@@ -257,20 +220,124 @@ impl Flattener {
                     offset += new_value.len() as isize - (end - start) as isize;
                 }
             }
-            updated_sources.insert(path, content);
+            updated_sources.insert(path, String::from_utf8(content).unwrap());
         }
 
-        for path in &self.ordered_sources {
-            let content = updated_sources.get(path).unwrap();
-            result.push_str(&String::from_utf8_lossy(content));
-            result.push_str("\n\n");
-        }
-
-        format!("{}\n", utils::RE_THREE_OR_MORE_NEWLINES.replace_all(&result, "\n\n").trim())
+        updated_sources
     }
 
-    // Processes all ASTs and collects all top-level declarations in the form of
-    // a mapping from name to (declaration id, source location)
+    /// Finds and goes over all references to file-level declarations and updates them to match
+    /// declaration name. This is needed for two reasons:
+    /// 1. We want to rename all aliased or qualified imports.
+    /// 2. We want to find any duplicates and rename them to avoid conflicts.
+    ///
+    /// If we find more than 1 declaration with the same name, it's name is getting changed.
+    /// Two Counter contracts will be renamed to Counter_0 and Counter_1
+    ///
+    /// Returns mapping from top-level declaration id to its name (possibly updated)
+    fn rename_top_level_declarations(&self, updates: &mut Updates) -> HashMap<usize, String> {
+        let top_level_declarations = self.collect_top_level_declarations();
+        let references = self.collect_references();
+
+        let mut top_level_names = HashMap::new();
+
+        for (name, ids) in top_level_declarations {
+            let mut declaration_name = name.to_string();
+            let needs_rename = ids.len() > 1;
+
+            let mut ids = ids.clone().into_iter().collect::<Vec<_>>();
+            if needs_rename {
+                // `loc.path` is expected to be different for each id because there can't be 2
+                // top-level eclarations with the same name
+                //
+                // Sorting by loc.path to make the renaming process deterministic
+                ids.sort_by(|(_, loc_0), (_, loc_1)| loc_0.path.cmp(&loc_1.path));
+            }
+            for (i, (id, loc)) in ids.iter().enumerate() {
+                if needs_rename {
+                    declaration_name = format!("{}_{}", name, i);
+                }
+                updates.entry(loc.path.clone()).or_default().insert((
+                    loc.start,
+                    loc.end,
+                    declaration_name.clone(),
+                ));
+                if let Some(references) = references.get(&(*id as isize)) {
+                    for loc in references {
+                        updates.entry(loc.path.clone()).or_default().insert((
+                            loc.start,
+                            loc.end,
+                            declaration_name.clone(),
+                        ));
+                    }
+                }
+
+                top_level_names.insert(*id, declaration_name.clone());
+            }
+        }
+        top_level_names
+    }
+
+    /// This is a workaround to be able to correctly process declarations which types
+    /// are present in the form of `ParentName.ChildName` where `ParentName` is a
+    /// contract name and `ChildName` is a struct/enum name.
+    ///
+    /// Such types are represented as `UserDefinedTypeName` in AST and don't include any
+    /// information about parent in which the declaration of child is present.
+    fn rename_contract_level_types_references(
+        &self,
+        top_level_names: &HashMap<usize, String>,
+        updates: &mut Updates,
+    ) {
+        let contract_level_declarations = self.collect_contract_level_declarations();
+
+        for (path, ast) in &self.asts {
+            for node in &ast.nodes {
+                let current_contract_scope = match node {
+                    SourceUnitPart::ContractDefinition(contract) => Some(contract.id),
+                    _ => None,
+                };
+                let mut collector = UserDefinedTypeNamesCollector {
+                    path: self.target.clone(),
+                    references: HashMap::new(),
+                };
+
+                node.walk(&mut collector);
+
+                // Now this contains all declarations found in all UserDefinedTypeName nodes in the
+                // given source unit
+                let references = collector.references;
+
+                for (id, locs) in references {
+                    if let Some((name, contract_id)) =
+                        contract_level_declarations.get(&(id as usize))
+                    {
+                        if let Some(current_scope) = current_contract_scope {
+                            // If this is a contract-level declaration mention inside of the same
+                            // contract it declared in, we replace it with its name
+                            if current_scope == *contract_id {
+                                updates.entry(path.clone()).or_default().extend(
+                                    locs.iter().map(|loc| (loc.start, loc.end, name.to_string())),
+                                );
+                                continue;
+                            }
+                        }
+                        // If we are in some other contract or in global scope (file-level), then we
+                        // should replace type name with `ParentName.ChildName``
+                        let parent_name = top_level_names.get(contract_id).unwrap();
+                        updates.entry(path.clone()).or_default().extend(
+                            locs.iter().map(|loc| {
+                                (loc.start, loc.end, format!("{}.{}", parent_name, name))
+                            }),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Processes all ASTs and collects all top-level declarations in the form of
+    /// a mapping from name to (declaration id, source location)
     fn collect_top_level_declarations(&self) -> HashMap<&String, HashSet<(usize, ItemLocation)>> {
         self.asts
             .iter()
@@ -322,8 +389,50 @@ impl Flattener {
             })
     }
 
-    // Collects all references to any declaration in the form of a mapping from declaration id to
-    // set of source locations it appears in
+    /// Collect all contract-level declaration in the form of a mapping from declaration id to
+    /// (declaration name, contract id)
+    fn collect_contract_level_declarations(&self) -> HashMap<usize, (&String, usize)> {
+        self.asts
+            .iter()
+            .flat_map(|(_, ast)| {
+                ast.nodes.iter().filter_map(|node| match node {
+                    SourceUnitPart::ContractDefinition(contract) => {
+                        Some((contract.id, &contract.nodes))
+                    }
+                    _ => None,
+                })
+            })
+            .flat_map(|(contract_id, nodes)| {
+                nodes.iter().filter_map(move |node| match node {
+                    ContractDefinitionPart::EnumDefinition(enum_) => {
+                        Some((enum_.id, (&enum_.name, contract_id)))
+                    }
+                    ContractDefinitionPart::ErrorDefinition(error) => {
+                        Some((error.id, (&error.name, contract_id)))
+                    }
+                    ContractDefinitionPart::EventDefinition(event) => {
+                        Some((event.id, (&event.name, contract_id)))
+                    }
+                    ContractDefinitionPart::StructDefinition(struct_) => {
+                        Some((struct_.id, (&struct_.name, contract_id)))
+                    }
+                    ContractDefinitionPart::FunctionDefinition(function) => {
+                        Some((function.id, (&function.name, contract_id)))
+                    }
+                    ContractDefinitionPart::VariableDeclaration(variable) => {
+                        Some((variable.id, (&variable.name, contract_id)))
+                    }
+                    ContractDefinitionPart::UserDefinedValueTypeDefinition(value_type) => {
+                        Some((value_type.id, (&value_type.name, contract_id)))
+                    }
+                    _ => None,
+                })
+            })
+            .collect()
+    }
+
+    /// Collects all references to any declaration in the form of a mapping from declaration id to
+    /// set of source locations it appears in
     fn collect_references(&self) -> HashMap<isize, HashSet<ItemLocation>> {
         self.asts
             .iter()
@@ -339,7 +448,18 @@ impl Flattener {
             })
     }
 
-    // Collects all imports locations
+    /// Removes all imports from all sources.
+    fn remove_imports(&self, updates: &mut Updates) {
+        for loc in self.collect_imports() {
+            updates.entry(loc.path.clone()).or_default().insert((
+                loc.start,
+                loc.end,
+                "".to_string(),
+            ));
+        }
+    }
+
+    // Collects all imports locations.
     fn collect_imports(&self) -> HashSet<ItemLocation> {
         self.asts
             .iter()
@@ -354,7 +474,30 @@ impl Flattener {
             .collect()
     }
 
-    // Collects all pragma directives locations
+    /// Removes all pragma directives from all sources. Returns Vec of pragmas that were found in
+    /// target file.
+    fn process_pragmas(&self, updates: &mut Updates) -> Vec<&str> {
+        // Pragmas that will be used in the resulted file
+        let mut target_pragmas = Vec::new();
+
+        let pragmas = self.collect_pragmas();
+
+        for loc in &pragmas {
+            if loc.path == self.target {
+                target_pragmas.push(loc);
+            }
+            updates.entry(loc.path.clone()).or_default().insert((
+                loc.start,
+                loc.end,
+                "".to_string(),
+            ));
+        }
+
+        target_pragmas.sort_by_key(|loc| loc.start);
+        target_pragmas.iter().map(|loc| self.read_location(loc)).collect::<Vec<_>>()
+    }
+
+    // Collects all pragma directives locations.
     fn collect_pragmas(&self) -> HashSet<ItemLocation> {
         self.asts
             .iter()
@@ -369,7 +512,26 @@ impl Flattener {
             .collect()
     }
 
-    // Collects all SPDX-License-Identifier locations
+    /// Removes all license identifiers from all sources. Returns licesnse identifier from target
+    /// file, if any.
+    fn process_licenses(&self, updates: &mut Updates) -> Option<&str> {
+        let mut target_license = None;
+
+        for loc in &self.collect_licenses() {
+            if loc.path == self.target {
+                target_license = Some(self.read_location(loc));
+            }
+            updates.entry(loc.path.clone()).or_default().insert((
+                loc.start,
+                loc.end,
+                "".to_string(),
+            ));
+        }
+
+        target_license
+    }
+
+    // Collects all SPDX-License-Identifier locations.
     fn collect_licenses(&self) -> HashSet<ItemLocation> {
         self.sources
             .iter()
@@ -389,7 +551,7 @@ impl Flattener {
             .collect()
     }
 
-    // Reads a value of a given location
+    // Reads value from the given location of a source file.
     fn read_location(&self, loc: &ItemLocation) -> &str {
         let content: &str = &self.sources.get(&loc.path).unwrap().content;
         &content[loc.start..loc.end]

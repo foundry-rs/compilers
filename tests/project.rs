@@ -1036,6 +1036,140 @@ contract Bar_0 is Foo {}
 }
 
 #[test]
+fn can_flatten_complex_aliases_setup_with_duplicates() {
+    let project = TempProject::dapptools().unwrap();
+
+    project
+        .add_source(
+            "A.sol",
+            r#"
+pragma solidity ^0.8.10;
+
+contract A {
+    type SomeCustomValue is uint256;
+
+    struct SomeStruct {
+        uint256 field;
+    }
+
+    enum SomeEnum { VALUE1, VALUE2 }
+
+    function foo() public pure returns (uint256) {
+        return 1;
+    }
+}
+"#,
+        )
+        .unwrap();
+
+    project
+        .add_source(
+            "B.sol",
+            r#"
+pragma solidity ^0.8.10;
+import "./A.sol" as A_File;
+
+contract A is A_File.A {}
+"#,
+        )
+        .unwrap();
+
+    project
+        .add_source(
+            "C.sol",
+            r#"
+pragma solidity ^0.8.10;
+import "./B.sol" as B_File;
+
+contract A is B_File.A_File.A {}
+"#,
+        )
+        .unwrap();
+
+    let target = project
+        .add_source(
+            "D.sol",
+            r#"
+pragma solidity ^0.8.10;
+import "./C.sol" as C_File;
+
+C_File.B_File.A_File.A.SomeCustomValue constant fileLevelValue = C_File.B_File.A_File.A.SomeCustomValue.wrap(1);
+
+contract D is C_File.B_File.A_File.A {
+    C_File.B_File.A_File.A.SomeStruct public someStruct;
+    C_File.B_File.A_File.A.SomeEnum public someEnum = C_File.B_File.A_File.A.SomeEnum.VALUE1;
+
+    constructor() C_File.B_File.A_File.A() {
+        someStruct = C_File.B_File.A_File.A.SomeStruct(1);
+        someEnum = C_File.B_File.A_File.A.SomeEnum.VALUE2;
+    }
+
+    function getSelector() public pure returns (bytes4) {
+        return C_File.B_File.A_File.A.foo.selector;
+    }
+
+    function getEnumValue1() public pure returns (C_File.B_File.A_File.A.SomeEnum) {
+        return C_File.B_File.A_File.A.SomeEnum.VALUE1;
+    }
+
+    function getStruct() public pure returns (C_File.B_File.A_File.A.SomeStruct memory) {
+        return C_File.B_File.A_File.A.SomeStruct(1);
+    }
+}
+"#,).unwrap();
+
+    let result =
+        Flattener::new(project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
+    assert_eq!(
+        result,
+        r"pragma solidity ^0.8.10;
+
+contract A_0 {
+    type SomeCustomValue is uint256;
+
+    struct SomeStruct {
+        uint256 field;
+    }
+
+    enum SomeEnum { VALUE1, VALUE2 }
+
+    function foo() public pure returns (uint256) {
+        return 1;
+    }
+}
+
+contract A_1 is A_0 {}
+
+contract A_2 is A_0 {}
+
+A_0.SomeCustomValue constant fileLevelValue = A_0.SomeCustomValue.wrap(1);
+
+contract D is A_0 {
+    A_0.SomeStruct public someStruct;
+    A_0.SomeEnum public someEnum = A_0.SomeEnum.VALUE1;
+
+    constructor() A_0() {
+        someStruct = A_0.SomeStruct(1);
+        someEnum = A_0.SomeEnum.VALUE2;
+    }
+
+    function getSelector() public pure returns (bytes4) {
+        return A_0.foo.selector;
+    }
+
+    function getEnumValue1() public pure returns (A_0.SomeEnum) {
+        return A_0.SomeEnum.VALUE1;
+    }
+
+    function getStruct() public pure returns (A_0.SomeStruct memory) {
+        return A_0.SomeStruct(1);
+    }
+}
+"
+    );
+}
+
+#[test]
 fn can_detect_type_error() {
     let project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
 
