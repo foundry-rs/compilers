@@ -85,6 +85,8 @@ impl Visitor for UserDefinedTypeNamesCollector {
     }
 }
 
+/// Updates to be applied to the sources.
+/// source_path -> (start, end, new_value)
 type Updates = HashMap<PathBuf, HashSet<(usize, usize, String)>>;
 
 /// Context for flattening. Stores all sources and ASTs that are in scope of the flattening target.
@@ -226,8 +228,8 @@ impl Flattener {
         updated_sources
     }
 
-    /// Finds and goes over all references to file-level declarations and updates them to match
-    /// declaration name. This is needed for two reasons:
+    /// Finds and goes over all references to file-level definitions and updates them to match
+    /// definition name. This is needed for two reasons:
     /// 1. We want to rename all aliased or qualified imports.
     /// 2. We want to find any duplicates and rename them to avoid conflicts.
     ///
@@ -248,7 +250,7 @@ impl Flattener {
             let mut ids = ids.clone().into_iter().collect::<Vec<_>>();
             if needs_rename {
                 // `loc.path` is expected to be different for each id because there can't be 2
-                // top-level eclarations with the same name
+                // top-level eclarations with the same name in the same file.
                 //
                 // Sorting by loc.path to make the renaming process deterministic
                 ids.sort_by(|(_, loc_0), (_, loc_1)| loc_0.path.cmp(&loc_1.path));
@@ -313,7 +315,7 @@ impl Flattener {
                         contract_level_definitions.get(&(id as usize))
                     {
                         if let Some(current_scope) = current_contract_scope {
-                            // If this is a contract-level definition mention inside of the same
+                            // If this is a contract-level definition reference inside of the same
                             // contract it declared in, we replace it with its name
                             if current_scope == *contract_id {
                                 updates.entry(path.clone()).or_default().extend(
