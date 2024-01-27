@@ -168,16 +168,16 @@ impl Flattener {
     /// Flattens target file and returns the result as a string
     ///
     /// Flattening process includes following steps:
-    /// 1. Find all file-level declarations and rename references to them via aliased or qualified
+    /// 1. Find all file-level definitions and rename references to them via aliased or qualified
     ///    imports.
-    /// 2. Find all duplicates among file-level declarations and rename them to avoid conflicts.
+    /// 2. Find all duplicates among file-level definitions and rename them to avoid conflicts.
     /// 3. Remove all imports.
     /// 4. Remove all pragmas except for the ones in the target file.
     /// 5. Remove all license identifiers except for the one in the target file.
     pub fn flatten(&self) -> String {
         let mut updates = Updates::new();
 
-        let top_level_names = self.rename_top_level_declarations(&mut updates);
+        let top_level_names = self.rename_top_level_definitions(&mut updates);
         self.rename_contract_level_types_references(&top_level_names, &mut updates);
         self.remove_imports(&mut updates);
         let target_pragmas = self.process_pragmas(&mut updates);
@@ -235,14 +235,14 @@ impl Flattener {
     /// Two Counter contracts will be renamed to Counter_0 and Counter_1
     ///
     /// Returns mapping from top-level declaration id to its name (possibly updated)
-    fn rename_top_level_declarations(&self, updates: &mut Updates) -> HashMap<usize, String> {
-        let top_level_declarations = self.collect_top_level_declarations();
+    fn rename_top_level_definitions(&self, updates: &mut Updates) -> HashMap<usize, String> {
+        let top_level_definitions = self.collect_top_level_definitions();
         let references = self.collect_references();
 
         let mut top_level_names = HashMap::new();
 
-        for (name, ids) in top_level_declarations {
-            let mut declaration_name = name.to_string();
+        for (name, ids) in top_level_definitions {
+            let mut definition_name = name.to_string();
             let needs_rename = ids.len() > 1;
 
             let mut ids = ids.clone().into_iter().collect::<Vec<_>>();
@@ -255,41 +255,41 @@ impl Flattener {
             }
             for (i, (id, loc)) in ids.iter().enumerate() {
                 if needs_rename {
-                    declaration_name = format!("{}_{}", name, i);
+                    definition_name = format!("{}_{}", name, i);
                 }
                 updates.entry(loc.path.clone()).or_default().insert((
                     loc.start,
                     loc.end,
-                    declaration_name.clone(),
+                    definition_name.clone(),
                 ));
                 if let Some(references) = references.get(&(*id as isize)) {
                     for loc in references {
                         updates.entry(loc.path.clone()).or_default().insert((
                             loc.start,
                             loc.end,
-                            declaration_name.clone(),
+                            definition_name.clone(),
                         ));
                     }
                 }
 
-                top_level_names.insert(*id, declaration_name.clone());
+                top_level_names.insert(*id, definition_name.clone());
             }
         }
         top_level_names
     }
 
-    /// This is a workaround to be able to correctly process declarations which types
+    /// This is a workaround to be able to correctly process definitions which types
     /// are present in the form of `ParentName.ChildName` where `ParentName` is a
     /// contract name and `ChildName` is a struct/enum name.
     ///
     /// Such types are represented as `UserDefinedTypeName` in AST and don't include any
-    /// information about parent in which the declaration of child is present.
+    /// information about parent in which the definition of child is present.
     fn rename_contract_level_types_references(
         &self,
         top_level_names: &HashMap<usize, String>,
         updates: &mut Updates,
     ) {
-        let contract_level_declarations = self.collect_contract_level_declarations();
+        let contract_level_definitions = self.collect_contract_level_definitions();
 
         for (path, ast) in &self.asts {
             for node in &ast.nodes {
@@ -304,16 +304,16 @@ impl Flattener {
 
                 node.walk(&mut collector);
 
-                // Now this contains all declarations found in all UserDefinedTypeName nodes in the
+                // Now this contains all definitions found in all UserDefinedTypeName nodes in the
                 // given source unit
                 let references = collector.references;
 
                 for (id, locs) in references {
                     if let Some((name, contract_id)) =
-                        contract_level_declarations.get(&(id as usize))
+                        contract_level_definitions.get(&(id as usize))
                     {
                         if let Some(current_scope) = current_contract_scope {
-                            // If this is a contract-level declaration mention inside of the same
+                            // If this is a contract-level definition mention inside of the same
                             // contract it declared in, we replace it with its name
                             if current_scope == *contract_id {
                                 updates.entry(path.clone()).or_default().extend(
@@ -336,9 +336,9 @@ impl Flattener {
         }
     }
 
-    /// Processes all ASTs and collects all top-level declarations in the form of
-    /// a mapping from name to (declaration id, source location)
-    fn collect_top_level_declarations(&self) -> HashMap<&String, HashSet<(usize, ItemLocation)>> {
+    /// Processes all ASTs and collects all top-level definitions in the form of
+    /// a mapping from name to (definition id, source location)
+    fn collect_top_level_definitions(&self) -> HashMap<&String, HashSet<(usize, ItemLocation)>> {
         self.asts
             .iter()
             .flat_map(|(path, ast)| {
@@ -389,9 +389,9 @@ impl Flattener {
             })
     }
 
-    /// Collect all contract-level declaration in the form of a mapping from declaration id to
-    /// (declaration name, contract id)
-    fn collect_contract_level_declarations(&self) -> HashMap<usize, (&String, usize)> {
+    /// Collect all contract-level definitions in the form of a mapping from definition id to
+    /// (definition name, contract id)
+    fn collect_contract_level_definitions(&self) -> HashMap<usize, (&String, usize)> {
         self.asts
             .iter()
             .flat_map(|(_, ast)| {
