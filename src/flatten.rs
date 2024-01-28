@@ -611,7 +611,7 @@ pub fn collect_ordered_deps(
         collect_deps(&path, paths, graph, &mut path_deps)?;
         paths_with_deps_count.push((path_deps.len(), path));
     }
-    
+
     paths_with_deps_count.sort();
 
     let mut ordered_deps =
