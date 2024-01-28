@@ -161,38 +161,6 @@ impl Flattener {
     /// Flattener caller is expected to resolve all imports of target file, compile them and pass
     /// into this function.
     pub fn new(project: &Project, output: &ProjectCompileOutput, target: &Path) -> Result<Self> {
-        // Performs DFS to collect all dependencies of a target
-        fn collect_deps(
-            path: &PathBuf,
-            paths: &ProjectPathsConfig,
-            graph: &Graph,
-            deps: &mut HashSet<PathBuf>,
-            ordered_deps: &mut Vec<PathBuf>,
-        ) -> Result<()> {
-            if deps.insert(path.clone()) {
-                let target_dir = path.parent().ok_or_else(|| {
-                    SolcError::msg(format!(
-                        "failed to get parent directory for \"{}\"",
-                        path.display()
-                    ))
-                })?;
-
-                let node_id = graph.files().get(path).ok_or_else(|| {
-                    SolcError::msg(format!("cannot resolve file at {}", path.display()))
-                })?;
-
-                let mut imports = graph.node(*node_id).imports().clone();
-                imports.sort_by_key(|i| i.loc().start);
-
-                for import in imports {
-                    let path = paths.resolve_import(target_dir, import.data().path())?;
-                    collect_deps(&path, paths, graph, deps, ordered_deps)?;
-                }
-                ordered_deps.push(path.clone());
-            }
-            Ok(())
-        }
-
         let input_files = output
             .artifacts_with_files()
             .map(|(file, _, _)| PathBuf::from(file))
@@ -203,14 +171,7 @@ impl Flattener {
         let sources = Source::read_all_files(input_files)?;
         let graph = Graph::resolve_sources(&project.paths, sources)?;
 
-        let mut ordered_deps = Vec::new();
-        collect_deps(
-            &target.into(),
-            &project.paths,
-            &graph,
-            &mut HashSet::new(),
-            &mut ordered_deps,
-        )?;
+        let ordered_deps = collect_ordered_deps(&target.to_path_buf(), &project.paths, &graph)?;
 
         let sources = Source::read_all(&ordered_deps)?;
 
@@ -595,4 +556,69 @@ impl Flattener {
         let content: &str = &self.sources.get(&loc.path).unwrap().content;
         &content[loc.start..loc.end]
     }
+}
+
+/// Performs DFS to collect all dependencies of a target
+fn collect_deps(
+    path: &PathBuf,
+    paths: &ProjectPathsConfig,
+    graph: &Graph,
+    deps: &mut HashSet<PathBuf>,
+) -> Result<()> {
+    if deps.insert(path.clone()) {
+        let target_dir = path.parent().ok_or_else(|| {
+            SolcError::msg(format!("failed to get parent directory for \"{}\"", path.display()))
+        })?;
+
+        let node_id = graph
+            .files()
+            .get(path)
+            .ok_or_else(|| SolcError::msg(format!("cannot resolve file at {}", path.display())))?;
+
+        for import in graph.node(*node_id).imports() {
+            let path = paths.resolve_import(target_dir, import.data().path())?;
+            collect_deps(&path, paths, graph, deps)?;
+        }
+    }
+    Ok(())
+}
+
+/// We want to make order in which sources are written to resulted flattened file
+/// deterministic.
+///
+/// We can't just sort files alphabetically as it might break compilation, because Solidity
+/// does not allow base class definitions to appear after derived contract
+/// definitions.
+///
+/// Instead, we sort files by the number of their dependencies (imports of any depth) in ascending
+/// order. If files have the same number of dependencies, we sort them alphabetically.
+/// Target file is always placed last.
+pub fn collect_ordered_deps(
+    path: &PathBuf,
+    paths: &ProjectPathsConfig,
+    graph: &Graph,
+) -> Result<Vec<PathBuf>> {
+    let mut deps = HashSet::new();
+    collect_deps(path, paths, graph, &mut deps)?;
+
+    // Remove path prior counting dependencies
+    // It will be added later to the end of resulted Vec
+    deps.remove(path);
+
+    let mut path_to_deps_count = HashMap::new();
+    for path in &deps {
+        let mut path_deps = HashSet::new();
+        collect_deps(path, paths, graph, &mut path_deps)?;
+        path_to_deps_count.insert(path, path_deps.len());
+    }
+
+    let mut path_to_deps_count = path_to_deps_count.into_iter().collect::<Vec<_>>();
+    path_to_deps_count.sort_by_key(|(path, count)| (*count, path.to_path_buf()));
+
+    let mut ordered_deps =
+        path_to_deps_count.into_iter().map(|(path, _)| path.to_path_buf()).collect::<Vec<_>>();
+
+    ordered_deps.push(path.clone());
+
+    Ok(ordered_deps)
 }
