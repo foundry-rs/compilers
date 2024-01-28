@@ -157,6 +157,9 @@ pub struct Flattener {
 }
 
 impl Flattener {
+    /// Compilation output is expected to contain all artifacts for all sources.
+    /// Flattener caller is expected to resolve all imports of target file, compile them and pass
+    /// into this function.
     pub fn new(project: &Project, output: &ProjectCompileOutput, target: &Path) -> Result<Self> {
         // Performs DFS to collect all dependencies of a target
         fn collect_deps(
@@ -190,7 +193,15 @@ impl Flattener {
             Ok(())
         }
 
-        let graph = Graph::resolve(&project.paths)?;
+        let input_files = output
+            .artifacts_with_files()
+            .map(|(file, _, _)| PathBuf::from(file))
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        let sources = Source::read_all_files(input_files)?;
+        let graph = Graph::resolve_sources(&project.paths, sources)?;
 
         let mut ordered_deps = Vec::new();
         collect_deps(
@@ -501,10 +512,19 @@ impl Flattener {
 
         let pragmas = self.collect_pragmas();
 
+        let mut seen_experimental = false;
+
         for loc in &pragmas {
-            if loc.path == self.target {
+            let pragma_content = self.read_location(loc);
+            if pragma_content.contains("experimental") {
+                if !seen_experimental {
+                    seen_experimental = true;
+                    target_pragmas.push(loc);
+                }
+            } else if loc.path == self.target {
                 target_pragmas.push(loc);
             }
+
             updates.entry(loc.path.clone()).or_default().insert((
                 loc.start,
                 loc.end,

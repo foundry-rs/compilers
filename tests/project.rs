@@ -1234,6 +1234,49 @@ contract A {
 }
 
 #[test]
+fn can_flatten_experimental_in_other_file() {
+    let project = TempProject::dapptools().unwrap();
+
+    project
+        .add_source(
+            "A.sol",
+            r#"
+pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
+
+contract A {}
+"#,
+        )
+        .unwrap();
+
+    let target = project
+        .add_source(
+            "B.sol",
+            r#"
+pragma solidity 0.6.12;
+
+import "./A.sol";
+
+contract B is A {}
+"#,
+        )
+        .unwrap();
+
+    let result =
+        Flattener::new(project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
+    assert_eq!(
+        result,
+        r"pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
+
+contract A {}
+
+contract B is A {}
+"
+    );
+}
+
+#[test]
 fn can_detect_type_error() {
     let project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
 
