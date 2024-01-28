@@ -605,18 +605,17 @@ pub fn collect_ordered_deps(
     // It will be added later to the end of resulted Vec
     deps.remove(path);
 
-    let mut path_to_deps_count = HashMap::new();
-    for path in &deps {
+    let mut paths_with_deps_count = Vec::new();
+    for path in deps {
         let mut path_deps = HashSet::new();
-        collect_deps(path, paths, graph, &mut path_deps)?;
-        path_to_deps_count.insert(path, path_deps.len());
+        collect_deps(&path, paths, graph, &mut path_deps)?;
+        paths_with_deps_count.push((path_deps.len(), path));
     }
-
-    let mut path_to_deps_count = path_to_deps_count.into_iter().collect::<Vec<_>>();
-    path_to_deps_count.sort_by_key(|(path, count)| (*count, path.to_path_buf()));
+    
+    paths_with_deps_count.sort();
 
     let mut ordered_deps =
-        path_to_deps_count.into_iter().map(|(path, _)| path.to_path_buf()).collect::<Vec<_>>();
+        paths_with_deps_count.into_iter().map(|(_, path)| path).collect::<Vec<_>>();
 
     ordered_deps.push(path.clone());
 
