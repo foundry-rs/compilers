@@ -547,9 +547,9 @@ contract C { }
             result,
             r#"pragma solidity ^0.8.10;
 
-contract C { }
-
 contract B { }
+
+contract C { }
 
 contract A { }
 "#
@@ -604,9 +604,9 @@ contract C { }
             r"pragma solidity ^0.8.10;
 pragma experimental ABIEncoderV2;
 
-contract C { }
-
 contract B { }
+
+contract C { }
 
 contract A { }
 "
@@ -873,11 +873,7 @@ library SomeLib { }
             result,
             r#"pragma solidity ^0.8.10;
 
-contract ParentContract { }
-
 contract AnotherParentContract { }
-
-contract PeerContract { }
 
 library MathLibrary {
     function minusOne(uint256 val) internal returns (uint256) {
@@ -892,6 +888,10 @@ library MathLibrary {
         return type(uint256).max - value;
     }
 }
+
+contract ParentContract { }
+
+contract PeerContract { }
 
 library SomeLib { }
 
@@ -971,9 +971,9 @@ contract D { }
             result,
             r#"pragma solidity ^0.8.10;
 
-contract D { }
-
 contract C { }
+
+contract D { }
 
 contract B { }
 
