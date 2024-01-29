@@ -15,6 +15,7 @@ use crate::{
     utils, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Result,
 };
 
+/// Alternative of `SourceLocation` which includes path of the file.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct ItemLocation {
     path: PathBuf,
