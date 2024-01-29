@@ -2,13 +2,14 @@ use crate::{
     artifacts::{output_selection::ContractOutputSelection, Settings},
     cache::SOLIDITY_FILES_CACHE_FILENAME,
     error::{Result, SolcError, SolcIoError},
+    flatten::collect_ordered_deps,
     remappings::Remapping,
     resolver::{Graph, SolImportAlias},
     utils, Source, Sources,
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::BTreeSet,
     fmt::{self, Formatter},
     fs,
     ops::{Deref, DerefMut},
@@ -401,110 +402,100 @@ impl ProjectPathsConfig {
         // part of the graph if it's not imported by any input file
         let flatten_target = target.to_path_buf();
         if !input_files.contains(&flatten_target) {
-            input_files.push(flatten_target);
+            input_files.push(flatten_target.clone());
         }
 
         let sources = Source::read_all_files(input_files)?;
         let graph = Graph::resolve_sources(self, sources)?;
-        self.flatten_node(target, &graph, &mut Default::default(), false, false, false).map(|x| {
-            format!("{}\n", utils::RE_THREE_OR_MORE_NEWLINES.replace_all(&x, "\n\n").trim())
-        })
-    }
+        let ordered_deps = collect_ordered_deps(&flatten_target, self, &graph)?;
 
-    /// Flattens a single node from the dependency graph
-    fn flatten_node(
-        &self,
-        target: &Path,
-        graph: &Graph,
-        imported: &mut HashSet<usize>,
-        strip_version_pragma: bool,
-        strip_experimental_pragma: bool,
-        strip_license: bool,
-    ) -> Result<String> {
-        let target_dir = target.parent().ok_or_else(|| {
-            SolcError::msg(format!("failed to get parent directory for \"{:?}\"", target.display()))
-        })?;
-        let target_index = graph.files().get(target).ok_or_else(|| {
-            SolcError::msg(format!("cannot resolve file at {:?}", target.display()))
-        })?;
+        let mut sources = Vec::new();
 
-        if imported.contains(target_index) {
-            // short circuit nodes that were already imported, if both A.sol and B.sol import C.sol
-            return Ok(String::new());
-        }
-        imported.insert(*target_index);
+        let mut result = String::new();
 
-        let target_node = graph.node(*target_index);
+        for path in ordered_deps.iter() {
+            let node_id = graph.files().get(path).ok_or_else(|| {
+                SolcError::msg(format!("cannot resolve file at {}", path.display()))
+            })?;
+            let node = graph.node(*node_id);
+            let content = node.content().to_owned();
 
-        let mut imports = target_node.imports().clone();
-        imports.sort_by_key(|x| x.loc().start);
+            // Firstly we strip all licesnses, verson pragmas
+            // We keep target file pragma and license placing them in the beginning of the result.
+            let mut ranges_to_remove = Vec::new();
 
-        let mut content = target_node.content().to_owned();
-
-        for alias in imports.iter().flat_map(|i| i.data().aliases()) {
-            let (alias, target) = match alias {
-                SolImportAlias::Contract(alias, target) => (alias.clone(), target.clone()),
-                _ => continue,
-            };
-            let name_regex = utils::create_contract_or_lib_name_regex(&alias);
-            let target_len = target.len() as isize;
-            let mut replace_offset = 0;
-            for cap in name_regex.captures_iter(&content.clone()) {
-                if cap.name("ignore").is_some() {
-                    continue;
-                }
-                if let Some(name_match) = ["n1", "n2", "n3"].iter().find_map(|name| cap.name(name))
-                {
-                    let name_match_range =
-                        utils::range_by_offset(&name_match.range(), replace_offset);
-                    replace_offset += target_len - (name_match_range.len() as isize);
-                    content.replace_range(name_match_range, &target);
+            if let Some(license) = node.license() {
+                ranges_to_remove.push(license.loc());
+                if *path == flatten_target {
+                    result.push_str(&content[license.loc()]);
+                    result.push('\n');
                 }
             }
-        }
+            if let Some(version) = node.version() {
+                ranges_to_remove.push(version.loc());
+                if *path == flatten_target {
+                    result.push_str(&content[version.loc()]);
+                    result.push('\n');
+                }
+            }
+            if let Some(experimental) = node.experimental() {
+                ranges_to_remove.push(experimental.loc());
+                if *path == flatten_target {
+                    result.push_str(&content[experimental.loc()]);
+                    result.push('\n');
+                }
+            }
+            for import in node.imports() {
+                ranges_to_remove.push(import.loc());
+            }
+            ranges_to_remove.sort_by_key(|loc| loc.start);
 
-        let mut content = content.as_bytes().to_vec();
-        let mut offset = 0_isize;
+            let mut content = content.as_bytes().to_vec();
+            let mut offset = 0_isize;
 
-        let mut statements = [
-            (target_node.license(), strip_license),
-            (target_node.version(), strip_version_pragma),
-            (target_node.experimental(), strip_experimental_pragma),
-        ]
-        .iter()
-        .filter_map(|(data, condition)| if *condition { data.to_owned().as_ref() } else { None })
-        .collect::<Vec<_>>();
-        statements.sort_by_key(|x| x.loc().start);
-
-        let (mut imports, mut statements) =
-            (imports.iter().peekable(), statements.iter().peekable());
-        while imports.peek().is_some() || statements.peek().is_some() {
-            let (next_import_start, next_statement_start) = (
-                imports.peek().map_or(usize::max_value(), |x| x.loc().start),
-                statements.peek().map_or(usize::max_value(), |x| x.loc().start),
-            );
-            if next_statement_start < next_import_start {
-                let repl_range = statements.next().unwrap().loc_by_offset(offset);
+            for range in ranges_to_remove {
+                let repl_range = utils::range_by_offset(&range, offset);
                 offset -= repl_range.len() as isize;
                 content.splice(repl_range, std::iter::empty());
-            } else {
-                let import = imports.next().unwrap();
-                let import_path = self.resolve_import(target_dir, import.data().path())?;
-                let s = self.flatten_node(&import_path, graph, imported, true, true, true)?;
-
-                let import_content = s.as_bytes();
-                let import_content_len = import_content.len() as isize;
-                let import_range = import.loc_by_offset(offset);
-                offset += import_content_len - (import_range.len() as isize);
-                content.splice(import_range, import_content.iter().copied());
             }
+
+            let mut content = String::from_utf8(content).map_err(|err| {
+                SolcError::msg(format!("failed to convert extended bytes to string: {err}"))
+            })?;
+
+            // Iterate over all aliased imports, and replace alias with real name via regexes
+            for alias in node.imports().iter().flat_map(|i| i.data().aliases()) {
+                let (alias, target) = match alias {
+                    SolImportAlias::Contract(alias, target) => (alias.clone(), target.clone()),
+                    _ => continue,
+                };
+                let name_regex = utils::create_contract_or_lib_name_regex(&alias);
+                let target_len = target.len() as isize;
+                let mut replace_offset = 0;
+                for cap in name_regex.captures_iter(&content.clone()) {
+                    if cap.name("ignore").is_some() {
+                        continue;
+                    }
+                    if let Some(name_match) =
+                        ["n1", "n2", "n3"].iter().find_map(|name| cap.name(name))
+                    {
+                        let name_match_range =
+                            utils::range_by_offset(&name_match.range(), replace_offset);
+                        replace_offset += target_len - (name_match_range.len() as isize);
+                        content.replace_range(name_match_range, &target);
+                    }
+                }
+            }
+
+            sources.push(content);
         }
 
-        let result = String::from_utf8(content).map_err(|err| {
-            SolcError::msg(format!("failed to convert extended bytes to string: {err}"))
-        })?;
+        for source in sources {
+            result.push_str(&source);
+            result.push_str("\n\n");
+        }
 
-        Ok(result)
+        Ok(format!("{}\n", utils::RE_THREE_OR_MORE_NEWLINES.replace_all(&result, "\n\n").trim()))
     }
 }
 
