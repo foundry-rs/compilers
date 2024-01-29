@@ -1440,9 +1440,12 @@ impl Source {
     }
 
     /// Reads the file's content
+    #[instrument(level = "debug", skip_all, err)]
     pub fn read(file: impl AsRef<Path>) -> Result<Self, SolcIoError> {
         let file = file.as_ref();
-        Ok(Self::new(fs::read_to_string(file).map_err(|err| SolcIoError::new(err, file))?))
+        debug!(file=%file.display());
+        let content = fs::read_to_string(file).map_err(|err| SolcIoError::new(err, file))?;
+        Ok(Self::new(content))
     }
 
     /// Recursively finds all source files under the given dir path and reads them all

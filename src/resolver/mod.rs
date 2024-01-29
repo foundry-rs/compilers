@@ -385,8 +385,8 @@ impl Graph {
                         add_node(&mut unresolved, &mut index, &mut resolved_imports, import)
                             .map_err(|err| {
                                 match err {
-                                    err @ SolcError::ResolveCaseSensitiveFileName { .. }
-                                    | err @ SolcError::Resolve(_) => {
+                                    SolcError::ResolveCaseSensitiveFileName { .. }
+                                    | SolcError::Resolve(_) => {
                                         // make the error more helpful by providing additional
                                         // context
                                         SolcError::FailedResolveImport(
