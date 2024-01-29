@@ -5,11 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5](https://github.com/foundry-rs/compilers/releases/tag/v0.2.5) - 2024-01-29
+
+### Miscellaneous Tasks
+
+- [clippy] Make clippy happy ([#54](https://github.com/foundry-rs/compilers/issues/54))
+
+### Other
+
+- New flattening impl ([#52](https://github.com/foundry-rs/compilers/issues/52))
+
 ## [0.2.4](https://github.com/foundry-rs/compilers/releases/tag/v0.2.4) - 2024-01-27
 
 ### Dependencies
 
 - Bump svm builds ([#53](https://github.com/foundry-rs/compilers/issues/53))
+
+### Miscellaneous Tasks
+
+- Release 0.2.4
 
 ## [0.2.3](https://github.com/foundry-rs/compilers/releases/tag/v0.2.3) - 2024-01-26
 
