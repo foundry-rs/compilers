@@ -1300,6 +1300,41 @@ fn can_detect_type_error() {
 }
 
 #[test]
+fn can_flatten_aliases_with_pragma_and_license_after_source() {
+    let project = TempProject::dapptools().unwrap();
+
+    project
+        .add_source(
+            "A",
+            r#"pragma solidity ^0.8.10;
+contract A { }
+"#,
+        )
+        .unwrap();
+
+    let target = project
+        .add_source(
+            "B",
+            r#"contract B is AContract {}
+import {A as AContract} from "./A.sol";
+pragma solidity ^0.8.10;"#,
+        )
+        .unwrap();
+
+    test_flatteners(&project, &target, |result| {
+        assert_eq!(
+            result,
+            r"pragma solidity ^0.8.10;
+
+contract A { }
+
+contract B is A {}
+"
+        );
+    });
+}
+
+#[test]
 fn can_compile_single_files() {
     let tmp = TempProject::dapptools().unwrap();
 

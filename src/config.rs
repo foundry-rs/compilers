@@ -418,31 +418,10 @@ impl ProjectPathsConfig {
                 SolcError::msg(format!("cannot resolve file at {}", path.display()))
             })?;
             let node = graph.node(*node_id);
-            let mut content = node.content().to_owned();
+            let content = node.content().to_owned();
 
-            for alias in node.imports().iter().flat_map(|i| i.data().aliases()) {
-                let (alias, target) = match alias {
-                    SolImportAlias::Contract(alias, target) => (alias.clone(), target.clone()),
-                    _ => continue,
-                };
-                let name_regex = utils::create_contract_or_lib_name_regex(&alias);
-                let target_len = target.len() as isize;
-                let mut replace_offset = 0;
-                for cap in name_regex.captures_iter(&content.clone()) {
-                    if cap.name("ignore").is_some() {
-                        continue;
-                    }
-                    if let Some(name_match) =
-                        ["n1", "n2", "n3"].iter().find_map(|name| cap.name(name))
-                    {
-                        let name_match_range =
-                            utils::range_by_offset(&name_match.range(), replace_offset);
-                        replace_offset += target_len - (name_match_range.len() as isize);
-                        content.replace_range(name_match_range, &target);
-                    }
-                }
-            }
-
+            // Firstly we strip all licesnses, verson pragmas
+            // We keep target file pragma and license placing them in the beginning of the result.
             let mut ranges_to_remove = Vec::new();
 
             if let Some(license) = node.license() {
@@ -480,9 +459,35 @@ impl ProjectPathsConfig {
                 content.splice(repl_range, std::iter::empty());
             }
 
-            sources.push(String::from_utf8(content).map_err(|err| {
+            let mut content = String::from_utf8(content).map_err(|err| {
                 SolcError::msg(format!("failed to convert extended bytes to string: {err}"))
-            })?);
+            })?;
+
+            // Iterate over all aliased imports, and replace alias with real name via regexes
+            for alias in node.imports().iter().flat_map(|i| i.data().aliases()) {
+                let (alias, target) = match alias {
+                    SolImportAlias::Contract(alias, target) => (alias.clone(), target.clone()),
+                    _ => continue,
+                };
+                let name_regex = utils::create_contract_or_lib_name_regex(&alias);
+                let target_len = target.len() as isize;
+                let mut replace_offset = 0;
+                for cap in name_regex.captures_iter(&content.clone()) {
+                    if cap.name("ignore").is_some() {
+                        continue;
+                    }
+                    if let Some(name_match) =
+                        ["n1", "n2", "n3"].iter().find_map(|name| cap.name(name))
+                    {
+                        let name_match_range =
+                            utils::range_by_offset(&name_match.range(), replace_offset);
+                        replace_offset += target_len - (name_match_range.len() as isize);
+                        content.replace_range(name_match_range, &target);
+                    }
+                }
+            }
+
+            sources.push(content);
         }
 
         for source in sources {
