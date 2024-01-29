@@ -1030,7 +1030,7 @@ ast_node!(
     /// A using for directive.
     struct UsingForDirective {
         #[serde(default, deserialize_with = "serde_helpers::default_for_null")]
-        function_list: Vec<FunctionIdentifierPath>,
+        function_list: Vec<UsingForFunctionItem>,
         #[serde(default)]
         global: bool,
         library_name: Option<UserDefinedTypeNameOrIdentifierPath>,
@@ -1038,10 +1038,23 @@ ast_node!(
     }
 );
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UsingForFunctionItem {
+    Function(FunctionIdentifierPath),
+    OverloadedOperator(OverloadedOperator),
+}
+
 /// A wrapper around [IdentifierPath] for the [UsingForDirective].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FunctionIdentifierPath {
     pub function: IdentifierPath,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OverloadedOperator {
+    pub definition: IdentifierPath,
+    pub operator: String,
 }
 
 ast_node!(

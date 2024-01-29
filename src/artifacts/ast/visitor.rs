@@ -327,7 +327,7 @@ impl_walk!(UsingForDirective, visit_using_for, |directive, visitor| {
         library_name.walk(visitor);
     }
     for function in &directive.function_list {
-        function.function.walk(visitor);
+        function.walk(visitor);
     }
 });
 
@@ -593,4 +593,19 @@ impl_walk!(ElementaryOrRawTypeName, |type_name, visitor| {
         }
         ElementaryOrRawTypeName::Raw(_) => {}
     }
+});
+
+impl_walk!(UsingForFunctionItem, |item, visitor| {
+    match item {
+        UsingForFunctionItem::Function(func) => {
+            func.function.walk(visitor);
+        }
+        UsingForFunctionItem::OverloadedOperator(operator) => {
+            operator.walk(visitor);
+        }
+    }
+});
+
+impl_walk!(OverloadedOperator, |operator, visitor| {
+    operator.definition.walk(visitor);
 });
