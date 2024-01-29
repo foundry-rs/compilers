@@ -24,11 +24,8 @@ struct ItemLocation {
 
 impl ItemLocation {
     fn try_from_source_loc(src: &SourceLocation, path: PathBuf) -> Option<Self> {
-        if src.start.is_none() || src.length.is_none() {
-            return None;
-        }
-        let start = src.start.unwrap();
-        let end = start + src.length.unwrap();
+        let start = src.start?;
+        let end = start + src.length?;
 
         Some(ItemLocation { path, start, end })
     }
@@ -212,9 +209,16 @@ impl Flattener {
         let target_pragmas = self.process_pragmas(&mut updates);
         let target_license = self.process_licenses(&mut updates);
 
-        let result = FlatteningResult::new(self, updates, target_pragmas, target_license);
+        self.flatten_result(updates, target_pragmas, target_license).get_flattened_target()
+    }
 
-        result.get_flattened_target()
+    fn flatten_result<'a>(
+        &'a self,
+        updates: Updates,
+        target_pragmas: Vec<&'a str>,
+        target_license: Option<&'a str>,
+    ) -> FlatteningResult {
+        FlatteningResult::new(self, updates, target_pragmas, target_license)
     }
 
     /// Finds and goes over all references to file-level definitions and updates them to match
