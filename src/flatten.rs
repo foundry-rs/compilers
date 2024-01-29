@@ -341,39 +341,49 @@ impl Flattener {
                 ast.nodes
                     .iter()
                     .filter_map(|node| match node {
-                        SourceUnitPart::ContractDefinition(contract) => {
-                            Some((&contract.name, contract.id, &contract.src))
-                        }
+                        SourceUnitPart::ContractDefinition(contract) => Some((
+                            &contract.name,
+                            contract.id,
+                            &contract.src,
+                            &contract.name_location,
+                        )),
                         SourceUnitPart::EnumDefinition(enum_) => {
-                            Some((&enum_.name, enum_.id, &enum_.src))
+                            Some((&enum_.name, enum_.id, &enum_.src, &enum_.name_location))
                         }
                         SourceUnitPart::StructDefinition(struct_) => {
-                            Some((&struct_.name, struct_.id, &struct_.src))
+                            Some((&struct_.name, struct_.id, &struct_.src, &struct_.name_location))
                         }
-                        SourceUnitPart::FunctionDefinition(function) => {
-                            Some((&function.name, function.id, &function.src))
+                        SourceUnitPart::FunctionDefinition(func) => {
+                            Some((&func.name, func.id, &func.src, &func.name_location))
                         }
-                        SourceUnitPart::VariableDeclaration(variable) => {
-                            Some((&variable.name, variable.id, &variable.src))
+                        SourceUnitPart::VariableDeclaration(var) => {
+                            Some((&var.name, var.id, &var.src, &var.name_location))
                         }
-                        SourceUnitPart::UserDefinedValueTypeDefinition(value_type) => {
-                            Some((&value_type.name, value_type.id, &value_type.src))
+                        SourceUnitPart::UserDefinedValueTypeDefinition(type_) => {
+                            Some((&type_.name, type_.id, &type_.src, &type_.name_location))
                         }
                         _ => None,
                     })
-                    .map(|(name, id, src)| {
-                        // Find location of name in source
-                        let content: &str = &self.sources.get(path).unwrap().content;
-                        let start = src.start.unwrap();
-                        let end = start + src.length.unwrap();
+                    .map(|(name, id, src, maybe_name_src)| {
+                        let loc = match maybe_name_src {
+                            Some(src) => {
+                                ItemLocation::try_from_source_loc(src, path.clone()).unwrap()
+                            }
+                            None => {
+                                // Find location of name in source
+                                let content: &str = &self.sources.get(path).unwrap().content;
+                                let start = src.start.unwrap();
+                                let end = start + src.length.unwrap();
 
-                        let name_start = content[start..end].find(name).unwrap();
-                        let name_end = name_start + name.len();
+                                let name_start = content[start..end].find(name).unwrap();
+                                let name_end = name_start + name.len();
 
-                        let loc = ItemLocation {
-                            path: path.clone(),
-                            start: start + name_start,
-                            end: start + name_end,
+                                ItemLocation {
+                                    path: path.clone(),
+                                    start: start + name_start,
+                                    end: start + name_end,
+                                }
+                            }
                         };
 
                         (name, (id, loc))
