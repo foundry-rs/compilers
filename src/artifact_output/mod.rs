@@ -474,15 +474,15 @@ pub trait Artifact {
 
     /// Returns the reference of container type for abi, compact bytecode and deployed bytecode if
     /// available
-    fn get_contract_bytecode(&self) -> CompactContractBytecodeCow;
+    fn get_contract_bytecode(&self) -> CompactContractBytecodeCow<'_>;
 
     /// Returns the reference to the `bytecode`
-    fn get_bytecode(&self) -> Option<Cow<CompactBytecode>> {
+    fn get_bytecode(&self) -> Option<Cow<'_, CompactBytecode>> {
         self.get_contract_bytecode().bytecode
     }
 
     /// Returns the reference to the `bytecode` object
-    fn get_bytecode_object(&self) -> Option<Cow<BytecodeObject>> {
+    fn get_bytecode_object(&self) -> Option<Cow<'_, BytecodeObject>> {
         let val = match self.get_bytecode()? {
             Cow::Borrowed(b) => Cow::Borrowed(&b.object),
             Cow::Owned(b) => Cow::Owned(b.object),
@@ -491,7 +491,7 @@ pub trait Artifact {
     }
 
     /// Returns the bytes of the `bytecode` object
-    fn get_bytecode_bytes(&self) -> Option<Cow<Bytes>> {
+    fn get_bytecode_bytes(&self) -> Option<Cow<'_, Bytes>> {
         let val = match self.get_bytecode_object()? {
             Cow::Borrowed(b) => Cow::Borrowed(b.as_bytes()?),
             Cow::Owned(b) => Cow::Owned(b.into_bytes()?),
@@ -500,12 +500,12 @@ pub trait Artifact {
     }
 
     /// Returns the reference to the `deployedBytecode`
-    fn get_deployed_bytecode(&self) -> Option<Cow<CompactDeployedBytecode>> {
+    fn get_deployed_bytecode(&self) -> Option<Cow<'_, CompactDeployedBytecode>> {
         self.get_contract_bytecode().deployed_bytecode
     }
 
     /// Returns the reference to the `bytecode` object
-    fn get_deployed_bytecode_object(&self) -> Option<Cow<BytecodeObject>> {
+    fn get_deployed_bytecode_object(&self) -> Option<Cow<'_, BytecodeObject>> {
         let val = match self.get_deployed_bytecode()? {
             Cow::Borrowed(b) => Cow::Borrowed(&b.bytecode.as_ref()?.object),
             Cow::Owned(b) => Cow::Owned(b.bytecode?.object),
@@ -514,7 +514,7 @@ pub trait Artifact {
     }
 
     /// Returns the bytes of the `deployed bytecode` object
-    fn get_deployed_bytecode_bytes(&self) -> Option<Cow<Bytes>> {
+    fn get_deployed_bytecode_bytes(&self) -> Option<Cow<'_, Bytes>> {
         let val = match self.get_deployed_bytecode_object()? {
             Cow::Borrowed(b) => Cow::Borrowed(b.as_bytes()?),
             Cow::Owned(b) => Cow::Owned(b.into_bytes()?),
@@ -523,7 +523,7 @@ pub trait Artifact {
     }
 
     /// Returns the reference to the [JsonAbi] if available
-    fn get_abi(&self) -> Option<Cow<JsonAbi>> {
+    fn get_abi(&self) -> Option<Cow<'_, JsonAbi>> {
         self.get_contract_bytecode().abi
     }
 
@@ -536,7 +536,7 @@ pub trait Artifact {
     }
 
     /// Returns the creation bytecode `sourceMap` as str if it was included in the compiler output
-    fn get_source_map_str(&self) -> Option<Cow<str>> {
+    fn get_source_map_str(&self) -> Option<Cow<'_, str>> {
         match self.get_bytecode()? {
             Cow::Borrowed(code) => code.source_map.as_deref().map(Cow::Borrowed),
             Cow::Owned(code) => code.source_map.map(Cow::Owned),
@@ -552,7 +552,7 @@ pub trait Artifact {
     }
 
     /// Returns the runtime bytecode `sourceMap` as str if it was included in the compiler output
-    fn get_source_map_deployed_str(&self) -> Option<Cow<str>> {
+    fn get_source_map_deployed_str(&self) -> Option<Cow<'_, str>> {
         match self.get_bytecode()? {
             Cow::Borrowed(code) => code.source_map.as_deref().map(Cow::Borrowed),
             Cow::Owned(code) => code.source_map.map(Cow::Owned),
@@ -582,7 +582,7 @@ where
         self.into_compact_contract().into_parts()
     }
 
-    fn get_contract_bytecode(&self) -> CompactContractBytecodeCow {
+    fn get_contract_bytecode(&self) -> CompactContractBytecodeCow<'_> {
         self.into()
     }
 }
@@ -612,7 +612,7 @@ pub trait ArtifactOutput {
         contracts: &VersionedContracts,
         sources: &VersionedSourceFiles,
         layout: &ProjectPathsConfig,
-        ctx: OutputContext,
+        ctx: OutputContext<'_>,
     ) -> Result<Artifacts<Self::Artifact>> {
         let mut artifacts = self.output_to_artifacts(contracts, sources, ctx, layout);
         fs::create_dir_all(&layout.artifacts).map_err(|err| {
@@ -842,7 +842,7 @@ pub trait ArtifactOutput {
         &self,
         contracts: &VersionedContracts,
         sources: &VersionedSourceFiles,
-        ctx: OutputContext,
+        ctx: OutputContext<'_>,
         layout: &ProjectPathsConfig,
     ) -> Artifacts<Self::Artifact> {
         let mut artifacts = ArtifactsMap::new();
@@ -1079,7 +1079,7 @@ impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
         output: &VersionedContracts,
         sources: &VersionedSourceFiles,
         layout: &ProjectPathsConfig,
-        ctx: OutputContext,
+        ctx: OutputContext<'_>,
     ) -> Result<Artifacts<Self::Artifact>> {
         MinimalCombinedArtifacts::default().on_output(output, sources, layout, ctx)
     }

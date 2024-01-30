@@ -769,7 +769,7 @@ impl From<SolcConfig> for Settings {
 pub struct SolcConfigBuilder {
     settings: Option<Settings>,
 
-    /// additionally selected outputs that should be included in the `Contract` that `solc´ creates
+    /// additionally selected outputs that should be included in the `Contract` that solc creates.
     output_selection: Vec<ContractOutputSelection>,
 }
 

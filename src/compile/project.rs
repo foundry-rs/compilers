@@ -406,10 +406,13 @@ impl CompilerSources {
         }
     }
     /// Filters out all sources that don't need to be compiled, see [`ArtifactsCache::filter`]
-    fn filtered<T: ArtifactOutput>(self, cache: &mut ArtifactsCache<T>) -> FilteredCompilerSources {
+    fn filtered<T: ArtifactOutput>(
+        self,
+        cache: &mut ArtifactsCache<'_, T>,
+    ) -> FilteredCompilerSources {
         fn filtered_sources<T: ArtifactOutput>(
             sources: VersionedSources,
-            cache: &mut ArtifactsCache<T>,
+            cache: &mut ArtifactsCache<'_, T>,
         ) -> VersionedFilteredSources {
             // fill all content hashes first so they're available for all source sets
             sources.iter().for_each(|(_, (_, sources))| {

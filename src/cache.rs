@@ -913,7 +913,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
         }
     }
 
-    pub fn output_ctx(&self) -> OutputContext {
+    pub fn output_ctx(&self) -> OutputContext<'_> {
         match self {
             ArtifactsCache::Ephemeral(_, _) => Default::default(),
             ArtifactsCache::Cached(inner) => OutputContext::new(&inner.cache),

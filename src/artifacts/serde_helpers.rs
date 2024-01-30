@@ -216,7 +216,7 @@ pub mod tuple_vec_map {
         {
             type Value = Vec<(K, V)>;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a map")
             }
 

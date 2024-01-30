@@ -59,7 +59,7 @@ pub fn range_by_offset(range: &Range<usize>, offset: isize) -> Range<usize> {
 /// `import "./contracts/Contract.sol";` -> `"./contracts/Contract.sol"`.
 ///
 /// See also <https://docs.soliditylang.org/en/v0.8.9/grammar.html>
-pub fn find_import_paths(contract: &str) -> impl Iterator<Item = Match> {
+pub fn find_import_paths(contract: &str) -> impl Iterator<Item = Match<'_>> {
     RE_SOL_IMPORT.captures_iter(contract).filter_map(|cap| {
         cap.name("p1")
             .or_else(|| cap.name("p2"))
@@ -70,7 +70,7 @@ pub fn find_import_paths(contract: &str) -> impl Iterator<Item = Match> {
 
 /// Returns the solidity version pragma from the given input:
 /// `pragma solidity ^0.5.2;` => `^0.5.2`
-pub fn find_version_pragma(contract: &str) -> Option<Match> {
+pub fn find_version_pragma(contract: &str) -> Option<Match<'_>> {
     RE_SOL_PRAGMA_VERSION.captures(contract)?.name("version")
 }
 

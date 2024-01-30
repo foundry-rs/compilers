@@ -51,8 +51,8 @@ impl VersionedContracts {
     /// The `ctx` is used to avoid possible conflicts
     pub(crate) fn artifact_files<T: ArtifactOutput + ?Sized>(
         &self,
-        ctx: &OutputContext,
-    ) -> MappedArtifactFiles {
+        ctx: &OutputContext<'_>,
+    ) -> MappedArtifactFiles<'_> {
         let mut output_files = MappedArtifactFiles::with_capacity(self.len());
         for (file, contracts) in self.iter() {
             for (name, versioned_contracts) in contracts {
@@ -105,7 +105,7 @@ impl VersionedContracts {
     /// let contract = output.find_first("Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn find_first(&self, contract: impl AsRef<str>) -> Option<CompactContractRef> {
+    pub fn find_first(&self, contract: impl AsRef<str>) -> Option<CompactContractRef<'_>> {
         let contract_name = contract.as_ref();
         self.contracts().find_map(|(name, contract)| {
             (name == contract_name).then(|| CompactContractRef::from(contract))
@@ -128,7 +128,7 @@ impl VersionedContracts {
         &self,
         path: impl AsRef<str>,
         contract: impl AsRef<str>,
-    ) -> Option<CompactContractRef> {
+    ) -> Option<CompactContractRef<'_>> {
         let contract_path = path.as_ref();
         let contract_name = contract.as_ref();
         self.contracts_with_files().find_map(|(path, name, contract)| {
@@ -202,7 +202,7 @@ impl VersionedContracts {
         &self,
         path: impl AsRef<str>,
         contract: impl AsRef<str>,
-    ) -> Option<CompactContractRef> {
+    ) -> Option<CompactContractRef<'_>> {
         let contract = contract.as_ref();
         self.0
             .get(path.as_ref())
