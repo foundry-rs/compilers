@@ -16,7 +16,7 @@ jobs:
     name: unused dependencies
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install toolchain
         uses: dtolnay/rust-toolchain@nightly
 
