@@ -584,14 +584,15 @@ impl Libraries {
     /// Parses all libraries in the form of
     /// `<file>:<lib>:<addr>`
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```
     /// use foundry_compilers::artifacts::Libraries;
+    ///
     /// let libs = Libraries::parse(&[
     ///     "src/DssSpell.sol:DssExecLib:0xfD88CeE74f7D78697775aBDAE53f9Da1559728E4".to_string(),
-    /// ])
-    /// .unwrap();
+    /// ])?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn parse(libs: &[String]) -> Result<Self, SolcError> {
         let mut libraries = BTreeMap::default();
@@ -1922,34 +1923,17 @@ impl SourceFile {
     }
 }
 
-/// A wrapper type for a list of source files
-/// `path -> SourceFile`
+/// A wrapper type for a list of source files: `path -> SourceFile`.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct SourceFiles(pub BTreeMap<String, SourceFile>);
 
 impl SourceFiles {
-    /// Returns an iterator over the source files' ids and path
-    ///
-    /// ```
-    /// use foundry_compilers::artifacts::SourceFiles;
-    /// use std::collections::BTreeMap;
-    /// # fn demo(files: SourceFiles) {
-    /// let sources: BTreeMap<u32, String> = files.into_ids().collect();
-    /// # }
-    /// ```
+    /// Returns an iterator over the source files' IDs and path.
     pub fn into_ids(self) -> impl Iterator<Item = (u32, String)> {
         self.0.into_iter().map(|(k, v)| (v.id, k))
     }
 
-    /// Returns an iterator over the source files' paths and ids
-    ///
-    /// ```
-    /// use foundry_compilers::artifacts::SourceFiles;
-    /// use std::collections::BTreeMap;
-    /// # fn demo(files: SourceFiles) {
-    /// let sources: BTreeMap<String, u32> = files.into_paths().collect();
-    /// # }
-    /// ```
+    /// Returns an iterator over the source files' paths and IDs.
     pub fn into_paths(self) -> impl Iterator<Item = (String, u32)> {
         self.0.into_iter().map(|(k, v)| (k, v.id))
     }

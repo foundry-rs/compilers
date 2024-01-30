@@ -95,14 +95,15 @@ impl VersionedContracts {
 
     /// Finds the _first_ contract with the given name
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().into_output();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile()?.into_output();
     /// let contract = output.find_first("Greeter").unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn find_first(&self, contract: impl AsRef<str>) -> Option<CompactContractRef> {
         let contract_name = contract.as_ref();
@@ -113,14 +114,15 @@ impl VersionedContracts {
 
     /// Finds the contract with matching path and name
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().into_output();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile()?.into_output();
     /// let contract = output.contracts.find("src/Greeter.sol", "Greeter").unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn find(
         &self,
@@ -137,14 +139,15 @@ impl VersionedContracts {
 
     /// Removes the _first_ contract with the given name from the set
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let (_, mut contracts) = project.compile().unwrap().into_output().split();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let (_, mut contracts) = project.compile()?.into_output().split();
     /// let contract = contracts.remove_first("Greeter").unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn remove_first(&mut self, contract: impl AsRef<str>) -> Option<Contract> {
         let contract_name = contract.as_ref();
@@ -164,14 +167,15 @@ impl VersionedContracts {
 
     ///  Removes the contract with matching path and name
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let (_, mut contracts) = project.compile().unwrap().into_output().split();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let (_, mut contracts) = project.compile()?.into_output().split();
     /// let contract = contracts.remove("src/Greeter.sol", "Greeter").unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn remove(&mut self, path: impl AsRef<str>, contract: impl AsRef<str>) -> Option<Contract> {
         let contract_name = contract.as_ref();
@@ -193,7 +197,7 @@ impl VersionedContracts {
     }
 
     /// Given the contract file's path and the contract's name, tries to return the contract's
-    /// bytecode, runtime bytecode, and abi
+    /// bytecode, runtime bytecode, and ABI.
     pub fn get(
         &self,
         path: impl AsRef<str>,
@@ -208,14 +212,14 @@ impl VersionedContracts {
             .map(CompactContractRef::from)
     }
 
-    /// Iterate over all contracts and their names
+    /// Returns an iterator over all contracts and their names.
     pub fn contracts(&self) -> impl Iterator<Item = (&String, &Contract)> {
         self.0
             .values()
             .flat_map(|c| c.iter().flat_map(|(name, c)| c.iter().map(move |c| (name, &c.contract))))
     }
 
-    /// Returns an iterator over (`file`, `name`, `Contract`)
+    /// Returns an iterator over (`file`, `name`, `Contract`).
     pub fn contracts_with_files(&self) -> impl Iterator<Item = (&String, &String, &Contract)> {
         self.0.iter().flat_map(|(file, contracts)| {
             contracts
@@ -224,7 +228,7 @@ impl VersionedContracts {
         })
     }
 
-    /// Returns an iterator over (`file`, `name`, `Contract`, `Version`)
+    /// Returns an iterator over (`file`, `name`, `Contract`, `Version`).
     pub fn contracts_with_files_and_version(
         &self,
     ) -> impl Iterator<Item = (&String, &String, &Contract, &Version)> {
@@ -236,18 +240,6 @@ impl VersionedContracts {
     }
 
     /// Returns an iterator over all contracts and their source names.
-    ///
-    /// ```
-    /// use foundry_compilers::{
-    ///     artifacts::{contract::CompactContractSome, *},
-    ///     Artifact,
-    /// };
-    /// use std::collections::BTreeMap;
-    /// # fn demo(contracts: OutputContracts) {
-    /// let contracts: BTreeMap<String, CompactContractSome> =
-    ///     contracts.into_contracts().map(|(k, c)| (k, c.into_compact_contract().unwrap())).collect();
-    /// # }
-    /// ```
     pub fn into_contracts(self) -> impl Iterator<Item = (String, Contract)> {
         self.0.into_values().flat_map(|c| {
             c.into_iter()

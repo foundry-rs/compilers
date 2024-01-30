@@ -72,7 +72,7 @@ where
 ///
 /// Panics if the initialization was unsuccessful, likely because a
 /// global reporter was already installed by another call to `try_init`.
-/// ```rust
+/// ```
 /// use foundry_compilers::report::BasicStdoutReporter;
 /// let subscriber = foundry_compilers::report::init(BasicStdoutReporter::default());
 /// ```

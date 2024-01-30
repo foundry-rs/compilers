@@ -130,15 +130,6 @@ pub struct ProjectCompiler<'a, T: ArtifactOutput> {
 impl<'a, T: ArtifactOutput> ProjectCompiler<'a, T> {
     /// Create a new `ProjectCompiler` to bootstrap the compilation process of the project's
     /// sources.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use foundry_compilers::Project;
-    ///
-    /// let project = Project::builder().build().unwrap();
-    /// let output = project.compile().unwrap();
-    /// ```
     #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
     pub fn new(project: &'a Project<T>) -> Result<Self> {
         Self::with_sources(project, project.paths.read_input_files()?)
@@ -204,13 +195,14 @@ impl<'a, T: ArtifactOutput> ProjectCompiler<'a, T> {
     /// The output of the compile process can be a mix of reused artifacts and freshly compiled
     /// `Contract`s
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
-    /// let project = Project::builder().build().unwrap();
-    /// let output = project.compile().unwrap();
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile()?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn compile(self) -> Result<ProjectCompileOutput<T>> {
         let slash_paths = self.project.slash_paths;

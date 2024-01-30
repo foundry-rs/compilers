@@ -151,8 +151,9 @@ pub struct ConfigurableArtifacts {
     /// PRIVATE: This structure may grow, As such, constructing this structure should
     /// _always_ be done using a public constructor or update syntax:
     ///
-    /// ```rust
+    /// ```
     /// use foundry_compilers::{ConfigurableArtifacts, ExtraOutputFiles};
+    ///
     /// let config = ConfigurableArtifacts {
     ///     additional_files: ExtraOutputFiles { metadata: true, ..Default::default() },
     ///     ..Default::default()
@@ -393,8 +394,9 @@ pub struct ExtraOutputValues {
     /// PRIVATE: This structure may grow, As such, constructing this structure should
     /// _always_ be done using a public constructor or update syntax:
     ///
-    /// ```rust
+    /// ```
     /// use foundry_compilers::ExtraOutputValues;
+    ///
     /// let config = ExtraOutputValues { ir: true, ..Default::default() };
     /// ```
     #[doc(hidden)]
@@ -510,8 +512,9 @@ pub struct ExtraOutputFiles {
     /// PRIVATE: This structure may grow, As such, constructing this structure should
     /// _always_ be done using a public constructor or update syntax:
     ///
-    /// ```rust
+    /// ```
     /// use foundry_compilers::ExtraOutputFiles;
+    ///
     /// let config = ExtraOutputFiles { metadata: true, ..Default::default() };
     /// ```
     #[doc(hidden)]

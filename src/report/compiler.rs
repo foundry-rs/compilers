@@ -12,7 +12,7 @@ use std::{env, path::PathBuf, str::FromStr};
 /// Debug Helper type that can be used to write the [crate::Solc] [CompilerInput] and
 /// [CompilerOutput] to disk if configured.
 ///
-/// # Example
+/// # Examples
 ///
 /// If `foundry_compilers_LOG=in=in.json,out=out.json` is then the reporter will be configured to
 /// write the compiler input as pretty formatted json to `in.{solc version}.json` and the compiler

@@ -180,15 +180,17 @@ impl ProjectPathsConfig {
     /// **Note:** this does not resolve remappings [`Self::resolve_import()`], instead this merely
     /// checks if a `library` is a parent of `file`
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::ProjectPathsConfig;
     /// use std::path::Path;
-    /// let config = ProjectPathsConfig::builder().lib("lib").build().unwrap();
-    /// assert_eq!(config.find_library_ancestor("lib/src/Greeter.sol").unwrap(), Path::new("lib"));
+    ///
+    /// let config = ProjectPathsConfig::builder().lib("lib").build()?;
+    /// assert_eq!(config.find_library_ancestor("lib/src/Greeter.sol"), Some(Path::new("lib")));
+    /// Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn find_library_ancestor(&self, file: impl AsRef<Path>) -> Option<&PathBuf> {
+    pub fn find_library_ancestor(&self, file: impl AsRef<Path>) -> Option<&Path> {
         let file = file.as_ref();
 
         for lib in &self.libraries {
@@ -280,7 +282,7 @@ impl ProjectPathsConfig {
     /// Attempts to find the path to the real solidity file that's imported via the given `import`
     /// path by applying the configured remappings and checking the library dirs
     ///
-    /// # Example
+    /// # Examples
     ///
     /// Following `@aave` dependency in the `lib` folder `node_modules`
     ///
@@ -741,12 +743,15 @@ pub struct SolcConfig {
 }
 
 impl SolcConfig {
-    /// # Example
+    /// Creates a new [`SolcConfig`] builder.
+    ///
+    /// # Examples
     ///
     /// Autodetect solc version and default settings
     ///
-    /// ```rust
+    /// ```
     /// use foundry_compilers::SolcConfig;
+    ///
     /// let config = SolcConfig::builder().build();
     /// ```
     pub fn builder() -> SolcConfigBuilder {
