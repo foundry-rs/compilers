@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: |
           cargo nextest run \
-          ${{ matrix.flags.flags }} \
+          ${{ matrix.flags }} \
           -E "!(kind(test))" \
           --retries 2
 
