@@ -51,9 +51,9 @@ pub enum SolcError {
     #[error("file cannot be resolved due to mismatch of file name case: {error}.\nFound existing file: {existing_file:?}\nPlease check the case of the import.")]
     ResolveCaseSensitiveFileName { error: SolcIoError, existing_file: PathBuf },
     #[error(
-        r#"{0}.
-    --> {1:?}
-        {2:?}"#
+        "{0}\n\t\
+         --> {1}\n\t\
+         {2}"
     )]
     FailedResolveImport(Box<SolcError>, PathBuf, PathBuf),
     #[cfg(feature = "svm-solc")]
@@ -61,8 +61,6 @@ pub enum SolcError {
     SvmError(#[from] svm::SolcVmError),
     #[error("no contracts found at \"{0}\"")]
     NoContracts(String),
-    #[error(transparent)]
-    PatternError(#[from] glob::PatternError),
     /// General purpose message.
     #[error("{0}")]
     Message(String),

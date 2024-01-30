@@ -1,6 +1,7 @@
 //! Utility functions
 
 use crate::{error::SolcError, SolcIoError};
+use alloy_primitives::{hex, keccak256};
 use cfg_if::cfg_if;
 use once_cell::sync::Lazy;
 use regex::{Match, Regex};
@@ -13,7 +14,6 @@ use std::{
     ops::Range,
     path::{Component, Path, PathBuf},
 };
-use tiny_keccak::{Hasher, Keccak};
 use walkdir::WalkDir;
 
 /// A regex that matches the import path and identifier of a solidity import
@@ -372,11 +372,8 @@ pub fn library_hash_placeholder(name: impl AsRef<[u8]>) -> String {
 ///
 /// See also <https://docs.soliditylang.org/en/develop/using-the-compiler.html#library-linking>
 pub fn library_hash(name: impl AsRef<[u8]>) -> [u8; 17] {
-    let mut output = [0u8; 17];
-    let mut hasher = Keccak::v256();
-    hasher.update(name.as_ref());
-    hasher.finalize(&mut output);
-    output
+    let hash = keccak256(name);
+    hash[..17].try_into().unwrap()
 }
 
 /// Find the common ancestor, if any, between the given paths

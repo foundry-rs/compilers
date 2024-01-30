@@ -12,9 +12,12 @@ use std::{
     process::{Command, Output, Stdio},
     str::FromStr,
 };
+
 pub mod many;
+
 pub mod output;
 pub use output::{contracts, info, sources};
+
 pub mod project;
 
 /// The name of the `solc` binary on the system
@@ -217,16 +220,13 @@ impl Solc {
     /// - `~/.svm` on unix, if it exists
     /// - $XDG_DATA_HOME (~/.local/share/svm) if the svm folder does not exist.
     pub fn svm_home() -> Option<PathBuf> {
-        match home::home_dir().map(|dir| dir.join(".svm")) {
-            Some(dir) => {
-                if !dir.exists() {
-                    dirs::data_dir().map(|dir| dir.join("svm"))
-                } else {
-                    Some(dir)
-                }
+        if let Some(home_dir) = home::home_dir() {
+            let home_dot_svm = home_dir.join(".svm");
+            if home_dot_svm.exists() {
+                return Some(home_dot_svm);
             }
-            None => dirs::data_dir().map(|dir| dir.join("svm")),
         }
+        dirs::data_dir().map(|dir| dir.join("svm"))
     }
 
     /// Returns the `semver::Version` [svm](https://github.com/roynalnaruto/svm-rs)'s `.global_version` is currently set to.
@@ -497,9 +497,10 @@ impl Solc {
         if checksum_calc == checksum_found {
             Ok(())
         } else {
+            use alloy_primitives::hex;
             let expected = hex::encode(checksum_found);
             let detected = hex::encode(checksum_calc);
-            warn!(target : "solc", "checksum mismatch for {:?}, expected {}, but found {} for file {:?}", version, expected, detected, version_path);
+            warn!(target: "solc", "checksum mismatch for {:?}, expected {}, but found {} for file {:?}", version, expected, detected, version_path);
             Err(SolcError::ChecksumMismatch { version, expected, detected, file: version_path })
         }
     }
