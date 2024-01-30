@@ -5,7 +5,7 @@ use crate::{
     sourcemap::{self, SourceMap, SyntaxError},
     utils,
 };
-use alloy_primitives::{Address, Bytes};
+use alloy_primitives::{hex, Address, Bytes};
 use serde::{Deserialize, Serialize, Serializer};
 use std::collections::BTreeMap;
 

@@ -845,7 +845,9 @@ impl<T: ArtifactOutput> ProjectBuilder<T> {
             compiler_severity_filter,
             allowed_paths,
             include_paths,
-            solc_jobs: solc_jobs.unwrap_or_else(num_cpus::get),
+            solc_jobs: solc_jobs
+                .or_else(|| std::thread::available_parallelism().ok().map(|n| n.get()))
+                .unwrap_or(1),
             offline,
             slash_paths,
         })

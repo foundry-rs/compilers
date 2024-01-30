@@ -23,6 +23,7 @@ use crate::{
     Artifact, ArtifactOutput, SolcConfig, SolcError, SourceFile,
 };
 use alloy_json_abi::JsonAbi;
+use alloy_primitives::hex;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::BTreeMap, fs, path::Path};
 

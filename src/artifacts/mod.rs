@@ -5,6 +5,7 @@
 use crate::{
     compile::*, error::SolcIoError, remappings::Remapping, utils, ProjectPathsConfig, SolcError,
 };
+use alloy_primitives::hex;
 use md5::Digest;
 use semver::Version;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};

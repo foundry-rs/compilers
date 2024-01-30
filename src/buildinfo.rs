@@ -1,6 +1,7 @@
 //! Represents an entire build
 
 use crate::{utils, CompilerInput, CompilerOutput, SolcError};
+use alloy_primitives::hex;
 use md5::Digest;
 use semver::Version;
 use serde::{ser::SerializeStruct, Deserialize, Serialize, Serializer};
