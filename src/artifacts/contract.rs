@@ -87,7 +87,7 @@ impl ContractBytecode {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let mut output = project.compile().unwrap().output();
+    /// let mut output = project.compile().unwrap().into_output();
     /// let contract: ContractBytecode = output.remove_first("Greeter").unwrap().into();
     /// let contract = contract.unwrap();
     /// # }
@@ -309,7 +309,7 @@ impl CompactContract {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let mut output = project.compile().unwrap().output();
+    /// let mut output = project.compile().unwrap().into_output();
     /// let contract: CompactContract = output.remove_first("Greeter").unwrap().into();
     /// let contract = contract.unwrap();
     /// # }
@@ -494,7 +494,7 @@ impl<'a> CompactContractRef<'a> {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().output();
+    /// let output = project.compile().unwrap().into_output();
     /// let contract = output.find_first("Greeter").unwrap();
     /// let contract = contract.unwrap();
     /// # }

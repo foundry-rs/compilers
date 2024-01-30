@@ -1017,7 +1017,7 @@ mod tests {
             .build()
             .unwrap();
         let project = Project::builder().paths(paths).no_artifacts().ephemeral().build().unwrap();
-        let contracts = project.compile().unwrap().succeeded().output().contracts;
+        let contracts = project.compile().unwrap().succeeded().into_output().contracts;
         // Contracts A to F
         assert_eq!(contracts.contracts().count(), 3);
     }
@@ -1045,7 +1045,7 @@ mod tests {
             .no_artifacts()
             .build()
             .unwrap();
-        let contracts = project.compile().unwrap().succeeded().output().contracts;
+        let contracts = project.compile().unwrap().succeeded().into_output().contracts;
         assert_eq!(contracts.contracts().count(), 3);
     }
 
@@ -1060,7 +1060,7 @@ mod tests {
             .build()
             .unwrap();
         let project = Project::builder().no_artifacts().paths(paths).ephemeral().build().unwrap();
-        let contracts = project.compile().unwrap().succeeded().output().contracts;
+        let contracts = project.compile().unwrap().succeeded().into_output().contracts;
         assert_eq!(contracts.contracts().count(), 2);
     }
 

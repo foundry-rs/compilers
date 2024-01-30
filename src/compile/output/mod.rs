@@ -201,16 +201,29 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
         self
     }
 
-    /// Get the (merged) solc compiler output
+    /// Returns a reference to the (merged) solc compiler output.
+    ///
+    /// # Examples
+    ///
     /// ```no_run
     /// use foundry_compilers::{artifacts::contract::Contract, Project};
     /// use std::collections::btree_map::BTreeMap;
     ///
     /// let project = Project::builder().build().unwrap();
     /// let contracts: BTreeMap<String, Contract> =
-    ///     project.compile().unwrap().output().contracts_into_iter().collect();
+    ///     project.compile().unwrap().into_output().contracts_into_iter().collect();
     /// ```
-    pub fn output(self) -> AggregatedCompilerOutput {
+    pub fn output(&self) -> &AggregatedCompilerOutput {
+        &self.compiler_output
+    }
+
+    /// Returns a mutable reference to the (merged) solc compiler output.
+    pub fn output_mut(&mut self) -> &mut AggregatedCompilerOutput {
+        &mut self.compiler_output
+    }
+
+    /// Consumes the output and returns the (merged) solc compiler output.
+    pub fn into_output(self) -> AggregatedCompilerOutput {
         self.compiler_output
     }
 
@@ -571,7 +584,7 @@ impl AggregatedCompilerOutput {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().output();
+    /// let output = project.compile().unwrap().into_output();
     /// let contract = output.find_first("Greeter").unwrap();
     /// # }
     /// ```
@@ -586,7 +599,7 @@ impl AggregatedCompilerOutput {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let mut output = project.compile().unwrap().output();
+    /// let mut output = project.compile().unwrap().into_output();
     /// let contract = output.remove_first("Greeter").unwrap();
     /// # }
     /// ```
@@ -601,7 +614,7 @@ impl AggregatedCompilerOutput {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let mut output = project.compile().unwrap().output();
+    /// let mut output = project.compile().unwrap().into_output();
     /// let contract = output.remove("src/Greeter.sol", "Greeter").unwrap();
     /// # }
     /// ```
@@ -622,7 +635,7 @@ impl AggregatedCompilerOutput {
     /// ```
     /// use foundry_compilers::{artifacts::*, info::ContractInfo, Project};
     /// # fn demo(project: Project) {
-    /// let mut output = project.compile().unwrap().output();
+    /// let mut output = project.compile().unwrap().into_output();
     /// let info = ContractInfo::new("src/Greeter.sol:Greeter");
     /// let contract = output.remove_contract(&info).unwrap();
     /// # }
@@ -682,7 +695,7 @@ impl AggregatedCompilerOutput {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().output();
+    /// let output = project.compile().unwrap().into_output();
     /// let contract = output.get("src/Greeter.sol", "Greeter").unwrap();
     /// # }
     /// ```
@@ -702,7 +715,7 @@ impl AggregatedCompilerOutput {
     /// ```
     /// use foundry_compilers::Project;
     /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().output();
+    /// let output = project.compile().unwrap().into_output();
     /// let (sources, contracts) = output.split();
     /// # }
     /// ```
@@ -731,7 +744,8 @@ impl AggregatedCompilerOutput {
     /// use foundry_compilers::Project;
     ///
     /// let project = Project::builder().build().unwrap();
-    /// let output = project.compile().unwrap().output().with_stripped_file_prefixes(project.root());
+    /// let output =
+    ///     project.compile().unwrap().into_output().with_stripped_file_prefixes(project.root());
     /// ```
     pub fn with_stripped_file_prefixes(mut self, base: impl AsRef<Path>) -> Self {
         let base = base.as_ref();
