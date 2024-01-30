@@ -130,7 +130,7 @@ pub struct ProjectCompiler<'a, T: ArtifactOutput> {
 impl<'a, T: ArtifactOutput> ProjectCompiler<'a, T> {
     /// Create a new `ProjectCompiler` to bootstrap the compilation process of the project's
     /// sources.
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     pub fn new(project: &'a Project<T>) -> Result<Self> {
         Self::with_sources(project, project.paths.read_input_files()?)
     }
@@ -141,7 +141,7 @@ impl<'a, T: ArtifactOutput> ProjectCompiler<'a, T> {
     ///
     /// Multiple (`Solc` -> `Sources`) pairs can be compiled in parallel if the `Project` allows
     /// multiple `jobs`, see [`crate::Project::set_solc_jobs()`].
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     pub fn with_sources(project: &'a Project<T>, sources: Sources) -> Result<Self> {
         let graph = Graph::resolve_sources(&project.paths, sources)?;
         let (versions, edges) = graph.into_sources_by_version(project.offline)?;
@@ -472,6 +472,7 @@ impl FilteredCompilerSources {
     }
 
     #[cfg(test)]
+    #[cfg(all(feature = "project-util", feature = "svm-solc"))]
     fn sources(&self) -> &VersionedFilteredSources {
         match self {
             FilteredCompilerSources::Sequential(v) => v,

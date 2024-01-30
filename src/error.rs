@@ -56,7 +56,7 @@ pub enum SolcError {
         {2:?}"#
     )]
     FailedResolveImport(Box<SolcError>, PathBuf, PathBuf),
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     #[error(transparent)]
     SvmError(#[from] svm::SolcVmError),
     #[error("no contracts found at \"{0}\"")]

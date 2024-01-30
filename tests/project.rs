@@ -2182,8 +2182,8 @@ fn remove_solc_if_exists(version: &Version) {
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn can_install_solc_and_compile_version() {
+#[test]
+fn can_install_solc_and_compile_version() {
     let project = TempProject::dapptools().unwrap();
     let version = Version::new(0, 8, 10);
 

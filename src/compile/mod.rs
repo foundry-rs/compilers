@@ -64,27 +64,23 @@ pub static SUPPORTS_BASE_PATH: Lazy<VersionReq> =
 pub static SUPPORTS_INCLUDE_PATH: Lazy<VersionReq> =
     Lazy::new(|| VersionReq::parse(">=0.8.8").unwrap());
 
-#[cfg(any(test, feature = "tests"))]
-use std::sync::Mutex;
-
-#[cfg(any(test, feature = "tests"))]
-static LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-
 /// take the lock in tests, we use this to enforce that
 /// a test does not run while a compiler version is being installed
 ///
 /// This ensures that only one thread installs a missing `solc` exe.
 /// Instead of taking this lock in `Solc::blocking_install`, the lock should be taken before
 /// installation is detected.
-#[cfg(any(test, feature = "tests"))]
-pub(crate) fn take_solc_installer_lock() -> std::sync::MutexGuard<'static, ()> {
+#[cfg(feature = "svm-solc")]
+#[cfg(test)]
+pub(crate) fn take_solc_installer_lock() -> impl Drop {
+    static LOCK: Lazy<std::sync::Mutex<()>> = Lazy::new(|| std::sync::Mutex::new(()));
     LOCK.lock().unwrap()
 }
 
 /// A list of upstream Solc releases, used to check which version
 /// we should download.
 /// The boolean value marks whether there was an error accessing the release list
-#[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+#[cfg(feature = "svm-solc")]
 pub static RELEASES: Lazy<(svm::Releases, Vec<Version>, bool)> =
     Lazy::new(|| match serde_json::from_str::<svm::Releases>(svm_builds::RELEASE_LIST_JSON) {
         Ok(releases) => {
@@ -159,14 +155,12 @@ impl Default for Solc {
         if let Ok(solc) = std::env::var("SOLC_PATH") {
             return Solc::new(solc);
         }
-        #[cfg(not(target_arch = "wasm32"))]
+
+        if let Some(solc) = Solc::svm_global_version()
+            .and_then(|vers| Solc::find_svm_installed_version(vers.to_string()).ok())
+            .flatten()
         {
-            if let Some(solc) = Solc::svm_global_version()
-                .and_then(|vers| Solc::find_svm_installed_version(vers.to_string()).ok())
-                .flatten()
-            {
-                return solc;
-            }
+            return solc;
         }
 
         Solc::new(SOLC)
@@ -220,9 +214,8 @@ impl Solc {
     /// Returns the directory in which [svm](https://github.com/roynalnaruto/svm-rs) stores all versions
     ///
     /// This will be:
-    ///  `~/.svm` on unix, if it exists
+    /// - `~/.svm` on unix, if it exists
     /// - $XDG_DATA_HOME (~/.local/share/svm) if the svm folder does not exist.
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn svm_home() -> Option<PathBuf> {
         match home::home_dir().map(|dir| dir.join(".svm")) {
             Some(dir) => {
@@ -241,7 +234,6 @@ impl Solc {
     ///
     /// This will read the version string (eg: "0.8.9") that the  `~/.svm/.global_version` file
     /// contains
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn svm_global_version() -> Option<Version> {
         let home = Self::svm_home()?;
         let version = std::fs::read_to_string(home.join(".global_version")).ok()?;
@@ -249,7 +241,6 @@ impl Solc {
     }
 
     /// Returns the list of all solc instances installed at `SVM_HOME`
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn installed_versions() -> Vec<SolcVersion> {
         Self::svm_home()
             .map(|home| {
@@ -264,7 +255,7 @@ impl Solc {
 
     /// Returns the list of all versions that are available to download and marking those which are
     /// already installed.
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     pub fn all_versions() -> Vec<SolcVersion> {
         let mut all_versions = Self::installed_versions();
         let mut uniques = all_versions
@@ -297,7 +288,6 @@ impl Solc {
     /// assert_eq!(solc, Some(Solc::new("~/.svm/0.8.9/solc-0.8.9")));
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn find_svm_installed_version(version: impl AsRef<str>) -> Result<Option<Self>> {
         let version = version.as_ref();
         let solc = Self::svm_home()
@@ -324,7 +314,7 @@ impl Solc {
     /// assert_eq!(solc, Solc::new("~/.svm/0.8.9/solc-0.8.9"));
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    #[cfg(all(not(target_arch = "wasm32"), feature = "svm-solc"))]
+    #[cfg(feature = "svm-solc")]
     pub fn find_or_install_svm_version(version: impl AsRef<str>) -> Result<Self> {
         let version = version.as_ref();
         if let Some(solc) = Solc::find_svm_installed_version(version)? {
@@ -348,7 +338,7 @@ impl Solc {
     /// to build it, and returns it.
     ///
     /// If the required compiler version is not installed, it also proceeds to install it.
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     pub fn detect_version(source: &Source) -> Result<Version> {
         // detects the required solc version
         let sol_version = Self::source_version_req(source)?;
@@ -359,9 +349,9 @@ impl Solc {
     /// used to build it, and returns it.
     ///
     /// If the required compiler version is not installed, it also proceeds to install it.
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     pub fn ensure_installed(sol_version: &VersionReq) -> Result<Version> {
-        #[cfg(any(test, feature = "tests"))]
+        #[cfg(test)]
         let _lock = take_solc_installer_lock();
 
         // load the local / remote versions
@@ -429,33 +419,33 @@ impl Solc {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     pub async fn install(version: &Version) -> std::result::Result<Self, svm::SolcVmError> {
         trace!("installing solc version \"{}\"", version);
         crate::report::solc_installation_start(version);
-        let result = svm::install(version).await;
-        crate::report::solc_installation_success(version);
-        result.map(Solc::new)
+        match svm::install(version).await {
+            Ok(path) => {
+                crate::report::solc_installation_success(version);
+                Ok(Solc::new(path))
+            }
+            Err(err) => {
+                crate::report::solc_installation_error(version, &err.to_string());
+                Err(err)
+            }
+        }
     }
 
     /// Blocking version of `Self::install`
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     pub fn blocking_install(version: &Version) -> std::result::Result<Self, svm::SolcVmError> {
         use crate::utils::RuntimeOrHandle;
 
         trace!("blocking installing solc version \"{}\"", version);
         crate::report::solc_installation_start(version);
-        // the async version `svm::install` is used instead of `svm::blocking_intsall`
+        // The async version `svm::install` is used instead of `svm::blocking_intsall`
         // because the underlying `reqwest::blocking::Client` does not behave well
-        // in tokio rt. see https://github.com/seanmonstar/reqwest/issues/1017
-        cfg_if::cfg_if! {
-            if #[cfg(target_arch = "wasm32")] {
-                let installation = svm::blocking_install(version);
-            } else {
-                let installation = RuntimeOrHandle::new().block_on(svm::install(version));
-            }
-        };
-        match installation {
+        // inside of a Tokio runtime. See: https://github.com/seanmonstar/reqwest/issues/1017
+        match RuntimeOrHandle::new().block_on(svm::install(version)) {
             Ok(path) => {
                 crate::report::solc_installation_success(version);
                 Ok(Solc::new(path))
@@ -469,7 +459,7 @@ impl Solc {
 
     /// Verify that the checksum for this version of solc is correct. We check against the SHA256
     /// checksum from the build information published by [binaries.soliditylang.org](https://binaries.soliditylang.org/)
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     pub fn verify_checksum(&self) -> Result<()> {
         let version = self.version_short()?;
         let mut version_path = svm::version_path(version.to_string().as_str());
@@ -876,8 +866,7 @@ mod tests {
     }
 
     #[test]
-    // This test might be a bit hard to maintain
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     fn test_detect_version() {
         for (pragma, expected) in [
             // pinned
@@ -901,9 +890,8 @@ mod tests {
     #[test]
     #[cfg(feature = "full")]
     fn test_find_installed_version_path() {
-        // this test does not take the lock by default, so we need to manually
-        // add it here.
-        let _lock = LOCK.lock();
+        // This test does not take the lock by default, so we need to manually add it here.
+        let _lock = take_solc_installer_lock();
         let ver = "0.8.6";
         let version = Version::from_str(ver).unwrap();
         if utils::installed_versions(svm::SVM_DATA_DIR.as_path())
@@ -918,7 +906,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     fn can_install_solc_in_tokio_rt() {
         let version = Version::from_str("0.8.6").unwrap();
         let rt = tokio::runtime::Runtime::new().unwrap();

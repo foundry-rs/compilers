@@ -479,36 +479,36 @@ pub(crate) fn find_case_sensitive_existing_file(non_existing: &Path) -> Option<P
         })
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-use tokio::runtime::{Handle, Runtime};
+cfg_if! {
+    if #[cfg(any(feature = "async", feature = "svm-solc"))] {
+        use tokio::runtime::{Handle, Runtime};
 
-#[cfg(not(target_arch = "wasm32"))]
-#[derive(Debug)]
-pub enum RuntimeOrHandle {
-    Runtime(Runtime),
-    Handle(Handle),
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl Default for RuntimeOrHandle {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl RuntimeOrHandle {
-    pub fn new() -> RuntimeOrHandle {
-        match Handle::try_current() {
-            Ok(handle) => RuntimeOrHandle::Handle(handle),
-            Err(_) => RuntimeOrHandle::Runtime(Runtime::new().expect("Failed to start runtime")),
+        #[derive(Debug)]
+        pub enum RuntimeOrHandle {
+            Runtime(Runtime),
+            Handle(Handle),
         }
-    }
 
-    pub fn block_on<F: std::future::Future>(&self, f: F) -> F::Output {
-        match &self {
-            RuntimeOrHandle::Runtime(runtime) => runtime.block_on(f),
-            RuntimeOrHandle::Handle(handle) => tokio::task::block_in_place(|| handle.block_on(f)),
+        impl Default for RuntimeOrHandle {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+
+        impl RuntimeOrHandle {
+            pub fn new() -> RuntimeOrHandle {
+                match Handle::try_current() {
+                    Ok(handle) => RuntimeOrHandle::Handle(handle),
+                    Err(_) => RuntimeOrHandle::Runtime(Runtime::new().expect("Failed to start runtime")),
+                }
+            }
+
+            pub fn block_on<F: std::future::Future>(&self, f: F) -> F::Output {
+                match &self {
+                    RuntimeOrHandle::Runtime(runtime) => runtime.block_on(f),
+                    RuntimeOrHandle::Handle(handle) => tokio::task::block_in_place(|| handle.block_on(f)),
+                }
+            }
         }
     }
 }

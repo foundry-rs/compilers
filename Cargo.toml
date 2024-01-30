@@ -21,12 +21,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
 
 [dependencies]
-alloy-primitives = { version = "0.6", default-features = false, features = [
-    "std",
-    "serde",
-    "rand",
-] }
-alloy-json-abi = { version = "0.6", default-features = false, features = ["std", "serde_json"] }
+alloy-primitives = { version = "0.6", features = ["serde", "rand"] }
+alloy-json-abi = { version = "0.6", features = ["serde_json"] }
 
 solang-parser = { version = "=0.3.3", default-features = false }
 
@@ -38,7 +34,6 @@ serde_json = "1.0"
 tracing = "0.1.37"
 
 tiny-keccak = { version = "2.0.2", default-features = false }
-sha2 = { version = "0.10.7", default-features = false, optional = true }
 md-5 = "0.10.5"
 
 semver = { version = "1.0", features = ["serde"] }
@@ -56,20 +51,22 @@ dunce = "1.0"
 rayon = "1.7"
 path-slash = "0.2.1"
 cfg-if = "1.0.0"
+memmap2 = "0.9.0"
 
+# async
+futures-util = { version = "0.3", optional = true }
+tokio = { version = "1.32", features = ["rt-multi-thread"], optional = true }
+
+# project-util
 tempfile = { version = "3.8.0", optional = true }
 fs_extra = { version = "1.3.0", optional = true }
 rand = { version = "0.8", optional = true }
-futures-util = { version = "0.3.28", optional = true }
-memmap2 = "0.9.0"
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# svm
 home = "0.5.5"
-svm = { package = "svm-rs", version = "0.3", default-features = false, features = [
-    "blocking",
-], optional = true }
-svm-builds = { package = "svm-rs-builds", version = "0.3", optional = true }
-tokio = { version = "1.32", features = ["rt-multi-thread"] }
+svm = { package = "svm-rs", version = "0.3", default-features = false, optional = true }
+svm-builds = { package = "svm-rs-builds", version = "0.3", default-features = false, optional = true }
+sha2 = { version = "0.10.7", default-features = false, optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async_tokio"] }
@@ -107,12 +104,11 @@ default = ["rustls"]
 
 full = ["async", "svm-solc"]
 
-async = ["tokio/process", "tokio/io-util", "tokio/fs", "tokio/time", "futures-util"]
-svm-solc = ["svm", "svm-builds", "sha2"]
+async = ["dep:futures-util", "dep:tokio", "tokio/fs", "tokio/process", "tokio/io-util"]
+svm-solc = ["dep:svm", "dep:svm-builds", "dep:sha2", "dep:tokio"]
 
-# Utilities for creating and testing project workspaces
-project-util = ["tempfile", "fs_extra", "rand"]
+# Utilities for creating and testing project workspaces.
+project-util = ["dep:tempfile", "dep:fs_extra", "dep:rand"]
 
-tests = []
 rustls = ["svm?/rustls"]
 openssl = ["svm?/openssl"]
