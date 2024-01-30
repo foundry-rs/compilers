@@ -50,6 +50,8 @@ pub trait Visitor {
     fn visit_return(&mut self, _return: &Return) {}
     fn visit_inheritance_specifier(&mut self, _specifier: &InheritanceSpecifier) {}
     fn visit_modifier_invocation(&mut self, _invocation: &ModifierInvocation) {}
+    fn visit_inline_assembly(&mut self, _assembly: &InlineAssembly) {}
+    fn visit_external_assembly_reference(&mut self, _ref: &ExternalInlineAssemblyReference) {}
 }
 
 pub trait Walk {
@@ -244,10 +246,10 @@ impl_walk!(Statement, visit_statement, |statement, visitor| {
         Statement::Return(statement) => {
             statement.walk(visitor);
         }
-        Statement::Break(_)
-        | Statement::Continue(_)
-        | Statement::InlineAssembly(_)
-        | Statement::PlaceholderStatement(_) => {}
+        Statement::InlineAssembly(assembly) => {
+            assembly.walk(visitor);
+        }
+        Statement::Break(_) | Statement::Continue(_) | Statement::PlaceholderStatement(_) => {}
     }
 });
 
@@ -525,6 +527,14 @@ impl_walk!(ModifierInvocation, visit_modifier_invocation, |invocation, visitor| 
     invocation.arguments.iter().for_each(|arg| arg.walk(visitor));
     invocation.modifier_name.walk(visitor);
 });
+
+impl_walk!(InlineAssembly, visit_inline_assembly, |assembly, visitor| {
+    assembly.external_references.iter().for_each(|reference| {
+        reference.walk(visitor);
+    });
+});
+
+impl_walk!(ExternalInlineAssemblyReference, visit_external_assembly_reference);
 
 impl_walk!(ElementaryTypeName, visit_elementary_type_name);
 impl_walk!(Literal, visit_literal);

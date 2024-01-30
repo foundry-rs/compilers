@@ -8,8 +8,8 @@ use crate::{
     artifacts::{
         ast::SourceLocation,
         visitor::{Visitor, Walk},
-        ContractDefinitionPart, Identifier, IdentifierPath, MemberAccess, Source, SourceUnit,
-        SourceUnitPart, Sources,
+        ContractDefinitionPart, ExternalInlineAssemblyReference, Identifier, IdentifierPath,
+        MemberAccess, Source, SourceUnit, SourceUnitPart, Sources,
     },
     error::SolcError,
     utils, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Result,
@@ -82,6 +82,10 @@ impl Visitor for ReferencesCollector {
                 path: self.path.to_path_buf(),
             });
         }
+    }
+
+    fn visit_external_assembly_reference(&mut self, reference: &ExternalInlineAssemblyReference) {
+        self.process_referenced_declaration(reference.declaration as isize, &reference.src);
     }
 }
 

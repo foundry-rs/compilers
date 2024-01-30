@@ -1598,6 +1598,67 @@ contract Foo {
 }
 
 #[test]
+fn can_flatten_rename_in_assembly() {
+    let project = TempProject::dapptools().unwrap();
+
+    project
+        .add_source(
+            "A",
+            r"pragma solidity ^0.8.10;
+
+uint256 constant a = 1;",
+        )
+        .unwrap();
+
+    project
+        .add_source(
+            "B",
+            r"pragma solidity ^0.8.10;
+
+uint256 constant a = 2;",
+        )
+        .unwrap();
+
+    let target = project
+        .add_source(
+            "Target",
+            r"pragma solidity ^0.8.10;
+
+import {a as a1} from './A.sol';
+import {a as a2} from './B.sol';
+
+contract Foo {
+    function test() public returns(uint256 x) {
+        assembly {
+            x := mul(a1, a2)
+        }
+    }
+}",
+        )
+        .unwrap();
+
+    let result =
+        Flattener::new(project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
+    assert_eq!(
+        result,
+        r"pragma solidity ^0.8.10;
+
+uint256 constant a_0 = 1;
+
+uint256 constant a_1 = 2;
+
+contract Foo {
+    function test() public returns(uint256 x) {
+        assembly {
+            x := mul(a_0, a_1)
+        }
+    }
+}
+"
+    );
+}
+
+#[test]
 fn can_compile_single_files() {
     let tmp = TempProject::dapptools().unwrap();
 
