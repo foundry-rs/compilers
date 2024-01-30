@@ -71,16 +71,18 @@ impl Visitor for ReferencesCollector {
 
     fn visit_member_access(&mut self, access: &MemberAccess) {
         if let Some(referenced_declaration) = access.referenced_declaration {
-            let length = access.member_name.len();
-            // Accessed member name is in the last name.len() symbols of the expression.
-            let start = access.src.start.unwrap() + access.src.length.unwrap() - length;
-            let end = start + length;
+            if let (Some(src_start), Some(src_length)) = (access.src.start, access.src.length) {
+                let name_length = access.member_name.len();
+                // Accessed member name is in the last name.len() symbols of the expression.
+                let start = src_start + src_length - name_length;
+                let end = start + name_length;
 
-            self.references.entry(referenced_declaration).or_default().insert(ItemLocation {
-                start,
-                end,
-                path: self.path.to_path_buf(),
-            });
+                self.references.entry(referenced_declaration).or_default().insert(ItemLocation {
+                    start,
+                    end,
+                    path: self.path.to_path_buf(),
+                });
+            }
         }
     }
 
