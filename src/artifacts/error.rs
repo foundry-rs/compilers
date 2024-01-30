@@ -196,7 +196,7 @@ impl Error {
     /// ```text
     /// Error (XXXX)
     /// ```
-    fn fmt_severity(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt_severity(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.severity.as_str())?;
         if let Some(code) = self.error_code {
             write!(f, " ({code})")?;
@@ -206,9 +206,9 @@ impl Error {
 }
 
 /// Calls `fun` in between [`Style::fmt_prefix`] and [`Style::fmt_suffix`].
-fn styled<F>(f: &mut fmt::Formatter, style: Style, fun: F) -> fmt::Result
+fn styled<F>(f: &mut fmt::Formatter<'_>, style: Style, fun: F) -> fmt::Result
 where
-    F: FnOnce(&mut fmt::Formatter) -> fmt::Result,
+    F: FnOnce(&mut fmt::Formatter<'_>) -> fmt::Result,
 {
     style.fmt_prefix(f)?;
     fun(f)?;
@@ -216,7 +216,7 @@ where
 }
 
 /// Formats the diagnostic message.
-fn fmt_msg(f: &mut fmt::Formatter, msg: &str) -> fmt::Result {
+fn fmt_msg(f: &mut fmt::Formatter<'_>, msg: &str) -> fmt::Result {
     styled(f, Error::message_style(), |f| {
         f.write_str(": ")?;
         f.write_str(msg.trim_start())
@@ -231,7 +231,7 @@ fn fmt_msg(f: &mut fmt::Formatter, msg: &str) -> fmt::Result {
 /// 420 |       bad_code()
 ///     |                ^
 /// ```
-fn fmt_source_location(f: &mut fmt::Formatter, lines: &mut std::str::Lines) -> fmt::Result {
+fn fmt_source_location(f: &mut fmt::Formatter<'_>, lines: &mut std::str::Lines<'_>) -> fmt::Result {
     // --> source
     if let Some(line) = lines.next() {
         f.write_str("\n")?;
@@ -292,7 +292,7 @@ fn fmt_source_location(f: &mut fmt::Formatter, lines: &mut std::str::Lines) -> f
 
 /// Colors a single Solidity framed source location line. Part of [`fmt_source_location`].
 fn fmt_framed_location(
-    f: &mut fmt::Formatter,
+    f: &mut fmt::Formatter<'_>,
     line: &str,
     highlight: Option<(Range<usize>, Style)>,
 ) -> fmt::Result {

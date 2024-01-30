@@ -259,7 +259,7 @@ impl Graph {
         &self.nodes[index]
     }
 
-    pub(crate) fn display_node(&self, index: usize) -> DisplayNode {
+    pub(crate) fn display_node(&self, index: usize) -> DisplayNode<'_> {
         DisplayNode { node: self.node(index), root: &self.root }
     }
 

@@ -523,7 +523,7 @@ impl AggregatedCompilerOutput {
         &'a self,
         ignored_error_codes: &'a [u64],
         compiler_severity_filter: Severity,
-    ) -> OutputDiagnostics {
+    ) -> OutputDiagnostics<'a> {
         OutputDiagnostics { compiler_output: self, ignored_error_codes, compiler_severity_filter }
     }
 
@@ -598,7 +598,7 @@ impl AggregatedCompilerOutput {
     /// let contract = output.find_first("Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn find_first(&self, contract: impl AsRef<str>) -> Option<CompactContractRef> {
+    pub fn find_first(&self, contract: impl AsRef<str>) -> Option<CompactContractRef<'_>> {
         self.contracts.find_first(contract)
     }
 
@@ -716,7 +716,7 @@ impl AggregatedCompilerOutput {
         &self,
         path: impl AsRef<str>,
         contract: impl AsRef<str>,
-    ) -> Option<CompactContractRef> {
+    ) -> Option<CompactContractRef<'_>> {
         self.contracts.get(path, contract)
     }
 

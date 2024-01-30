@@ -452,20 +452,20 @@ impl Settings {
             .insert(key.into(), values.into_iter().map(|s| s.to_string()).collect());
     }
 
-    /// Sets the ``viaIR` valu
+    /// Sets the `viaIR` value.
     #[must_use]
     pub fn set_via_ir(mut self, via_ir: bool) -> Self {
         self.via_ir = Some(via_ir);
         self
     }
 
-    /// Enables `viaIR`
+    /// Enables `viaIR`.
     #[must_use]
     pub fn with_via_ir(self) -> Self {
         self.set_via_ir(true)
     }
 
-    /// Enable `viaIR` and use the minimum optimization settings
+    /// Enable `viaIR` and use the minimum optimization settings.
     ///
     /// This is useful in the following scenarios:
     /// - When compiling for test coverage, this can resolve the "stack too deep" error while still
@@ -574,7 +574,7 @@ impl Default for Settings {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(transparent)]
 pub struct Libraries {
-    /// All libraries, `(file path -> (Lib name -> Address))
+    /// All libraries, `(file path -> (Lib name -> Address))`.
     pub libs: BTreeMap<PathBuf, BTreeMap<String, String>>,
 }
 
@@ -1581,7 +1581,7 @@ impl CompilerOutput {
     }
 
     /// Finds the _first_ contract with the given name
-    pub fn find(&self, contract: impl AsRef<str>) -> Option<CompactContractRef> {
+    pub fn find(&self, contract: impl AsRef<str>) -> Option<CompactContractRef<'_>> {
         let contract_name = contract.as_ref();
         self.contracts_iter().find_map(|(name, contract)| {
             (name == contract_name).then(|| CompactContractRef::from(contract))
@@ -1606,7 +1606,7 @@ impl CompilerOutput {
 
     /// Given the contract file's path and the contract's name, tries to return the contract's
     /// bytecode, runtime bytecode, and abi
-    pub fn get(&self, path: &str, contract: &str) -> Option<CompactContractRef> {
+    pub fn get(&self, path: &str, contract: &str) -> Option<CompactContractRef<'_>> {
         self.contracts
             .get(path)
             .and_then(|contracts| contracts.get(contract))
@@ -1656,7 +1656,7 @@ impl OutputContracts {
     }
 
     /// Finds the _first_ contract with the given name
-    pub fn find(&self, contract: impl AsRef<str>) -> Option<CompactContractRef> {
+    pub fn find(&self, contract: impl AsRef<str>) -> Option<CompactContractRef<'_>> {
         let contract_name = contract.as_ref();
         self.contracts_iter().find_map(|(name, contract)| {
             (name == contract_name).then(|| CompactContractRef::from(contract))
