@@ -458,7 +458,7 @@ impl Graph {
     }
 }
 
-#[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+#[cfg(feature = "svm-solc")]
 impl Graph {
     /// Consumes the nodes of the graph and returns all input files together with their appropriate
     /// version and the edges of the graph
@@ -782,7 +782,7 @@ impl<'a> Iterator for NodesIter<'a> {
 }
 
 /// Container type for solc versions and their compatible sources
-#[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+#[cfg(feature = "svm-solc")]
 #[derive(Debug)]
 pub struct VersionedSources {
     resolved_solc_include_paths: IncludePaths,
@@ -790,7 +790,7 @@ pub struct VersionedSources {
     offline: bool,
 }
 
-#[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+#[cfg(feature = "svm-solc")]
 impl VersionedSources {
     /// Resolves or installs the corresponding `Solc` installation.
     ///
@@ -803,7 +803,7 @@ impl VersionedSources {
     ) -> Result<std::collections::BTreeMap<crate::Solc, (semver::Version, Sources)>> {
         use crate::Solc;
         // we take the installer lock here to ensure installation checking is done in sync
-        #[cfg(any(test, feature = "tests"))]
+        #[cfg(test)]
         let _lock = crate::compile::take_solc_installer_lock();
 
         let mut sources_by_version = std::collections::BTreeMap::new();
@@ -913,7 +913,7 @@ impl Node {
     ///
     /// This returns an error if the file's version is invalid semver, or is not available such as
     /// 0.8.20, if the highest available version is `0.8.19`
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     fn check_available_version(
         &self,
         all_versions: &[crate::SolcVersion],

@@ -1,6 +1,15 @@
 #![doc = include_str!("../README.md")]
-#![deny(rustdoc::broken_intra_doc_links)]
-#![cfg_attr(docsrs, feature(doc_cfg))]
+// #![warn(
+//     missing_copy_implementations,
+//     missing_debug_implementations,
+//     missing_docs,
+//     unreachable_pub,
+//     clippy::missing_const_for_fn,
+//     rustdoc::all
+// )]
+// #![cfg_attr(not(test), warn(unused_crate_dependencies))]
+// #![deny(unused_must_use, rust_2018_idioms)]
+#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 #[macro_use]
 extern crate tracing;
@@ -282,7 +291,7 @@ impl<T: ArtifactOutput> Project<T> {
         let sources = self.paths.read_input_files()?;
         trace!("found {} sources to compile: {:?}", sources.len(), sources.keys());
 
-        #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+        #[cfg(feature = "svm-solc")]
         if self.auto_detect {
             trace!("using solc auto detection to compile sources");
             return self.svm_compile(sources);
@@ -314,7 +323,7 @@ impl<T: ArtifactOutput> Project<T> {
     /// let output = project.svm_compile(sources)?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     pub fn svm_compile(&self, sources: Sources) -> Result<ProjectCompileOutput<T>> {
         project::ProjectCompiler::with_sources(self, sources)?.compile()
     }
@@ -331,7 +340,7 @@ impl<T: ArtifactOutput> Project<T> {
     /// let output = project.compile_file("example/Greeter.sol")?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     pub fn compile_file(&self, file: impl Into<PathBuf>) -> Result<ProjectCompileOutput<T>> {
         let file = file.into();
         let source = Source::read(&file)?;
@@ -357,7 +366,7 @@ impl<T: ArtifactOutput> Project<T> {
     {
         let sources = Source::read_all(files)?;
 
-        #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+        #[cfg(feature = "svm-solc")]
         if self.auto_detect {
             return project::ProjectCompiler::with_sources(self, sources)?.compile();
         }
@@ -397,7 +406,7 @@ impl<T: ArtifactOutput> Project<T> {
         let sources =
             Source::read_all(self.paths.input_files().into_iter().filter(|p| filter.is_match(p)))?;
 
-        #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+        #[cfg(feature = "svm-solc")]
         if self.auto_detect {
             return project::ProjectCompiler::with_sources(self, sources)?
                 .with_sparse_output(filter)
@@ -1011,7 +1020,7 @@ fn rebase_path(base: impl AsRef<Path>, path: impl AsRef<Path>) -> PathBuf {
 }
 
 #[cfg(test)]
-#[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+#[cfg(feature = "svm-solc")]
 mod tests {
     use super::*;
     use crate::remappings::Remapping;

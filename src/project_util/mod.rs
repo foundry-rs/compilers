@@ -70,7 +70,7 @@ impl<T: ArtifactOutput> TempProject<T> {
     }
 
     /// Explicitly sets the solc version for the project
-    #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
+    #[cfg(feature = "svm-solc")]
     pub fn set_solc(&mut self, solc: impl AsRef<str>) -> &mut Self {
         self.inner.solc = crate::Solc::find_or_install_svm_version(solc).unwrap();
         self.inner.auto_detect = false;
