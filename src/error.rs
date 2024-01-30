@@ -25,6 +25,8 @@ pub enum SolcError {
     /// Errors related to the Solc executable itself.
     #[error("solc exited with {0}\n{1}")]
     SolcError(std::process::ExitStatus, String),
+    #[error("invalid UTF-8 in Solc output")]
+    InvalidUtf8,
     #[error("missing pragma from Solidity file")]
     PragmaNotFound,
     #[error("could not find Solc version locally or upstream")]

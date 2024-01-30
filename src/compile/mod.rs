@@ -546,66 +546,84 @@ impl Solc {
         Ok(out)
     }
 
-    /// Run `solc --stand-json` and return the `solc`'s output as
-    /// `CompilerOutput`
+    /// Compiles with `--standard-json` and deserializes the output as [`CompilerOutput`].
     ///
     /// # Example
     ///
     /// ```no_run
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use foundry_compilers::{CompilerInput, Solc};
+    ///
     /// let solc = Solc::default();
     /// let input = CompilerInput::new("./contracts")?;
     /// let output = solc.compile(&input)?;
-    /// # Ok(())
-    /// # }
+    /// # Ok::<_, foundry_compilers::error::SolcError>(())
     /// ```
-    pub fn compile<T: Serialize>(&self, input: &T) -> Result<CompilerOutput> {
+    pub fn compile<T: Serialize + std::fmt::Debug>(&self, input: &T) -> Result<CompilerOutput> {
         self.compile_as(input)
     }
 
-    /// Run `solc --stand-json` and return the `solc`'s output as the given json
-    /// output
-    pub fn compile_as<T: Serialize, D: DeserializeOwned>(&self, input: &T) -> Result<D> {
+    /// Compiles with `--standard-json` and deserializes the output as the given `D`.
+    pub fn compile_as<T: Serialize + std::fmt::Debug, D: DeserializeOwned>(
+        &self,
+        input: &T,
+    ) -> Result<D> {
         let output = self.compile_output(input)?;
-        Ok(serde_json::from_slice(&output)?)
+
+        // Only run UTF-8 validation once.
+        let output = std::str::from_utf8(&output).map_err(|_| SolcError::InvalidUtf8)?;
+
+        Ok(serde_json::from_str(output)?)
     }
 
-    pub fn compile_output<T: Serialize>(&self, input: &T) -> Result<Vec<u8>> {
+    /// Compiles with `--standard-json` and returns the raw `stdout` output.
+    #[instrument(name = "compile", level = "debug", skip_all)]
+    pub fn compile_output<T: Serialize + std::fmt::Debug>(&self, input: &T) -> Result<Vec<u8>> {
         let mut cmd = Command::new(&self.solc);
-        if let Some(ref base_path) = self.base_path {
+        if let Some(base_path) = &self.base_path {
             cmd.current_dir(base_path);
             cmd.arg("--base-path").arg(base_path);
         }
-        let mut child = cmd
-            .args(&self.args)
-            .arg("--standard-json")
-            .stdin(Stdio::piped())
-            .stderr(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .map_err(|err| SolcError::io(err, &self.solc))?;
-        let stdin = child.stdin.take().expect("Stdin exists.");
+        cmd.args(&self.args).arg("--standard-json");
+        cmd.stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
+
+        trace!(?input);
+        debug!(?cmd, "compiling");
+
+        let mut child = cmd.spawn().map_err(self.map_io_err())?;
+        debug!("spawned");
+
+        let stdin = child.stdin.as_mut().unwrap();
         serde_json::to_writer(stdin, input)?;
-        compile_output(child.wait_with_output().map_err(|err| SolcError::io(err, &self.solc))?)
+        debug!("wrote JSON input to stdin");
+
+        let output = child.wait_with_output().map_err(self.map_io_err())?;
+        debug!(%output.status, output.stderr = ?String::from_utf8_lossy(&output.stderr), "finished");
+
+        compile_output(output)
     }
 
+    /// Invokes `solc --version` and parses the output as a SemVer [`Version`], stripping the
+    /// pre-release and build metadata.
     pub fn version_short(&self) -> Result<Version> {
         let version = self.version()?;
         Ok(Version::new(version.major, version.minor, version.patch))
     }
 
-    /// Returns the version from the configured `solc`
+    /// Invokes `solc --version` and parses the output as a SemVer [`Version`].
+    #[instrument(level = "debug", skip_all)]
     pub fn version(&self) -> Result<Version> {
-        version_from_output(
-            Command::new(&self.solc)
-                .arg("--version")
-                .stdin(Stdio::piped())
-                .stderr(Stdio::piped())
-                .stdout(Stdio::piped())
-                .output()
-                .map_err(|err| SolcError::io(err, &self.solc))?,
-        )
+        let mut cmd = Command::new(&self.solc);
+        cmd.arg("--version").stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
+        debug!(?cmd, "getting Solc version");
+        let output = cmd.output().map_err(self.map_io_err())?;
+        trace!(?output);
+        let version = version_from_output(output)?;
+        debug!(%version);
+        Ok(version)
+    }
+
+    fn map_io_err(&self) -> impl FnOnce(std::io::Error) -> SolcError + '_ {
+        move |err| SolcError::io(err, &self.solc)
     }
 }
 
@@ -647,28 +665,21 @@ impl Solc {
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
-            .map_err(|err| SolcError::io(err, &self.solc))?;
+            .map_err(self.map_io_err())?;
         let stdin = child.stdin.as_mut().unwrap();
-        stdin.write_all(&content).await.map_err(|err| SolcError::io(err, &self.solc))?;
-        stdin.flush().await.map_err(|err| SolcError::io(err, &self.solc))?;
-        compile_output(
-            child.wait_with_output().await.map_err(|err| SolcError::io(err, &self.solc))?,
-        )
+        stdin.write_all(&content).await.map_err(self.map_io_err())?;
+        stdin.flush().await.map_err(self.map_io_err())?;
+        compile_output(child.wait_with_output().await.map_err(self.map_io_err())?)
     }
 
     pub async fn async_version(&self) -> Result<Version> {
-        version_from_output(
-            tokio::process::Command::new(&self.solc)
-                .arg("--version")
-                .stdin(Stdio::piped())
-                .stderr(Stdio::piped())
-                .stdout(Stdio::piped())
-                .spawn()
-                .map_err(|err| SolcError::io(err, &self.solc))?
-                .wait_with_output()
-                .await
-                .map_err(|err| SolcError::io(err, &self.solc))?,
-        )
+        let mut cmd = tokio::process::Command::new(&self.solc);
+        cmd.arg("--version").stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
+        debug!(?cmd, "getting version");
+        let output = cmd.output().await.map_err(self.map_io_err())?;
+        let version = version_from_output(output)?;
+        debug!(%version);
+        Ok(version)
     }
 
     /// Compiles all `CompilerInput`s with their associated `Solc`.
