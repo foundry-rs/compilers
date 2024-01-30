@@ -1019,6 +1019,7 @@ mod tests {
     use crate::remappings::Remapping;
 
     #[test]
+    #[cfg_attr(windows, ignore = "<0.7 solc is flaky")]
     fn test_build_all_versions() {
         let paths = ProjectPathsConfig::builder()
             .root("./test-data/test-contract-versions")
