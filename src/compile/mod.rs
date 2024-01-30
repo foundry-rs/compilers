@@ -288,14 +288,14 @@ impl Solc {
 
     /// Returns the path for a [svm](https://github.com/roynalnaruto/svm-rs) installed version.
     ///
-    /// # Example
+    /// # Examples
+    ///
     /// ```no_run
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use foundry_compilers::Solc;
-    /// let solc = Solc::find_svm_installed_version("0.8.9").unwrap();
+    ///
+    /// let solc = Solc::find_svm_installed_version("0.8.9")?;
     /// assert_eq!(solc, Some(Solc::new("~/.svm/0.8.9/solc-0.8.9")));
-    /// # Ok(())
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[cfg(not(target_arch = "wasm32"))]
     pub fn find_svm_installed_version(version: impl AsRef<str>) -> Result<Option<Self>> {
@@ -315,14 +315,14 @@ impl Solc {
     ///
     /// If the version is not installed yet, it will install it.
     ///
-    /// # Example
+    /// # Examples
+    ///
     /// ```no_run
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use foundry_compilers::Solc;
-    /// let solc = Solc::find_or_install_svm_version("0.8.9").unwrap();
+    ///
+    /// let solc = Solc::find_or_install_svm_version("0.8.9")?;
     /// assert_eq!(solc, Solc::new("~/.svm/0.8.9/solc-0.8.9"));
-    /// # Ok(())
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[cfg(all(not(target_arch = "wasm32"), feature = "svm-solc"))]
     pub fn find_or_install_svm_version(version: impl AsRef<str>) -> Result<Self> {
@@ -419,11 +419,13 @@ impl Solc {
     /// Installs the provided version of Solc in the machine under the svm dir and returns the
     /// [Solc] instance pointing to the installation.
     ///
-    /// # Example
+    /// # Examples
+    ///
     /// ```no_run
-    /// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
     /// use foundry_compilers::{Solc, ISTANBUL_SOLC};
-    /// let solc = Solc::install(&ISTANBUL_SOLC).await.unwrap();
+    ///
+    /// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    /// let solc = Solc::install(&ISTANBUL_SOLC).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -529,16 +531,15 @@ impl Solc {
     /// In other words, this removes those files from the `CompilerOutput` that are __not__ included
     /// in the provided `CompilerInput`.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```no_run
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use foundry_compilers::{CompilerInput, Solc};
+    ///
     /// let solc = Solc::default();
     /// let input = CompilerInput::new("./contracts")?[0].clone();
     /// let output = solc.compile_exact(&input)?;
-    /// # Ok(())
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn compile_exact(&self, input: &CompilerInput) -> Result<CompilerOutput> {
         let mut out = self.compile(input)?;
@@ -548,7 +549,7 @@ impl Solc {
 
     /// Compiles with `--standard-json` and deserializes the output as [`CompilerOutput`].
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```no_run
     /// use foundry_compilers::{CompilerInput, Solc};
@@ -556,7 +557,7 @@ impl Solc {
     /// let solc = Solc::default();
     /// let input = CompilerInput::new("./contracts")?;
     /// let output = solc.compile(&input)?;
-    /// # Ok::<_, foundry_compilers::error::SolcError>(())
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn compile<T: Serialize + std::fmt::Debug>(&self, input: &T) -> Result<CompilerOutput> {
         self.compile_as(input)
@@ -688,20 +689,21 @@ impl Solc {
     /// order in which they complete. No more than `n` futures will be buffered at any point in
     /// time, and less than `n` may also be buffered depending on the state of each future.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// Compile 2 `CompilerInput`s at once
     ///
     /// ```no_run
-    /// # async fn example() {
     /// use foundry_compilers::{CompilerInput, Solc};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let solc1 = Solc::default();
     /// let solc2 = Solc::default();
-    /// let input1 = CompilerInput::new("contracts").unwrap()[0].clone();
-    /// let input2 = CompilerInput::new("src").unwrap()[0].clone();
+    /// let input1 = CompilerInput::new("contracts")?[0].clone();
+    /// let input2 = CompilerInput::new("src")?[0].clone();
     ///
-    /// let outputs =
-    ///     Solc::compile_many([(solc1, input1), (solc2, input2)], 2).await.flattened().unwrap();
+    /// let outputs = Solc::compile_many([(solc1, input1), (solc2, input2)], 2).await.flattened()?;
+    /// # Ok(())
     /// # }
     /// ```
     pub async fn compile_many<I>(jobs: I, n: usize) -> crate::many::CompiledMany

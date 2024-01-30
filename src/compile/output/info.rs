@@ -26,10 +26,11 @@ impl ContractInfo {
     ///
     /// otherwise the `name` of the new object will be `info`.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```
     /// use foundry_compilers::info::ContractInfo;
+    ///
     /// let info = ContractInfo::new("src/Greeter.sol:Greeter");
     /// assert_eq!(
     ///     info,

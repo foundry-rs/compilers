@@ -84,16 +84,15 @@ impl SolFilesCache {
     ///
     /// If the cache file does not exist
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
-    /// # fn t() {
+    /// ```no_run
     /// use foundry_compilers::{cache::SolFilesCache, Project};
     ///
-    /// let project = Project::builder().build().unwrap();
-    /// let mut cache = SolFilesCache::read(project.cache_path()).unwrap();
+    /// let project = Project::builder().build()?;
+    /// let mut cache = SolFilesCache::read(project.cache_path())?;
     /// cache.join_artifacts_files(project.artifacts_path());
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[instrument(skip_all, name = "sol-files-cache::read")]
     pub fn read(path: impl AsRef<Path>) -> Result<Self> {
@@ -112,15 +111,14 @@ impl SolFilesCache {
     ///
     ///
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
-    /// # fn t() {
+    /// ```no_run
     /// use foundry_compilers::{cache::SolFilesCache, Project};
     ///
-    /// let project = Project::builder().build().unwrap();
-    /// let cache = SolFilesCache::read_joined(&project.paths).unwrap();
-    /// # }
+    /// let project = Project::builder().build()?;
+    /// let cache = SolFilesCache::read_joined(&project.paths)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn read_joined(paths: &ProjectPathsConfig) -> Result<Self> {
         let mut cache = SolFilesCache::read(&paths.cache)?;
@@ -198,17 +196,16 @@ impl SolFilesCache {
     /// argument, so that the key `/Users/me/project/src/Greeter.sol` will be changed to
     /// `src/Greeter.sol` if `base` is `/Users/me/project`
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
-    /// # fn t() {
+    /// ```no_run
     /// use foundry_compilers::{artifacts::contract::CompactContract, cache::SolFilesCache, Project};
-    /// let project = Project::builder().build().unwrap();
-    /// let cache = SolFilesCache::read(project.cache_path())
-    ///     .unwrap()
-    ///     .with_stripped_file_prefixes(project.root());
-    /// let artifact: CompactContract = cache.read_artifact("src/Greeter.sol", "Greeter").unwrap();
-    /// # }
+    ///
+    /// let project = Project::builder().build()?;
+    /// let cache =
+    ///     SolFilesCache::read(project.cache_path())?.with_stripped_file_prefixes(project.root());
+    /// let artifact: CompactContract = cache.read_artifact("src/Greeter.sol", "Greeter")?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     ///
     /// **Note:** this only affects the source files, see [`Self::strip_artifact_files_prefixes()`]
@@ -224,44 +221,42 @@ impl SolFilesCache {
 
     /// Returns the path to the artifact of the given `(file, contract)` pair
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
-    /// # fn t() {
+    /// ```no_run
     /// use foundry_compilers::{cache::SolFilesCache, Project};
     ///
-    /// let project = Project::builder().build().unwrap();
-    /// let cache = SolFilesCache::read_joined(&project.paths).unwrap();
+    /// let project = Project::builder().build()?;
+    /// let cache = SolFilesCache::read_joined(&project.paths)?;
     /// cache.find_artifact_path("/Users/git/myproject/src/Greeter.sol", "Greeter");
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn find_artifact_path(
         &self,
         contract_file: impl AsRef<Path>,
         contract_name: impl AsRef<str>,
-    ) -> Option<&PathBuf> {
+    ) -> Option<&Path> {
         let entry = self.entry(contract_file)?;
         entry.find_artifact_path(contract_name)
     }
 
-    /// Finds the path to the artifact of the given `(file, contract)` pair, see
-    /// [`Self::find_artifact_path()`], and reads the artifact as json file
-    /// # Example
+    /// Finds the path to the artifact of the given `(file, contract)` pair (see
+    /// [`Self::find_artifact_path()`]) and deserializes the artifact file as JSON.
     ///
-    /// ```
-    /// fn t() {
-    /// use foundry_compilers::cache::SolFilesCache;
-    /// use foundry_compilers::Project;
-    /// use foundry_compilers::artifacts::contract::CompactContract;
+    /// # Examples
     ///
-    /// let project = Project::builder().build().unwrap();
-    /// let cache = SolFilesCache::read_joined(&project.paths).unwrap();
-    /// let artifact: CompactContract = cache.read_artifact("/Users/git/myproject/src/Greeter.sol", "Greeter").unwrap();
-    /// # }
+    /// ```no_run
+    /// use foundry_compilers::{artifacts::contract::CompactContract, cache::SolFilesCache, Project};
+    ///
+    /// let project = Project::builder().build()?;
+    /// let cache = SolFilesCache::read_joined(&project.paths)?;
+    /// let artifact: CompactContract =
+    ///     cache.read_artifact("/Users/git/myproject/src/Greeter.sol", "Greeter")?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     ///
     /// **NOTE**: unless the cache's `files` keys were modified `contract_file` is expected to be
-    /// absolute, see [``]
+    /// absolute.
     pub fn read_artifact<Artifact: DeserializeOwned>(
         &self,
         contract_file: impl AsRef<Path>,
@@ -280,17 +275,17 @@ impl SolFilesCache {
 
     /// Reads all cached artifacts from disk using the given ArtifactOutput handler
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{
     ///     artifacts::contract::CompactContractBytecode, cache::SolFilesCache, Project,
     /// };
-    /// # fn t() {
-    /// let project = Project::builder().build().unwrap();
-    /// let cache = SolFilesCache::read_joined(&project.paths).unwrap();
-    /// let artifacts = cache.read_artifacts::<CompactContractBytecode>().unwrap();
-    /// # }
+    ///
+    /// let project = Project::builder().build()?;
+    /// let cache = SolFilesCache::read_joined(&project.paths)?;
+    /// let artifacts = cache.read_artifacts::<CompactContractBytecode>()?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn read_artifacts<Artifact: DeserializeOwned + Send + Sync>(
         &self,
@@ -440,15 +435,22 @@ impl CacheEntry {
         Duration::from_millis(self.last_modification_date)
     }
 
-    /// Returns the artifact path for the contract name
-    /// ```
+    /// Returns the artifact path for the contract name.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
     /// use foundry_compilers::cache::CacheEntry;
+    ///
     /// # fn t(entry: CacheEntry) {
+    /// # stringify!(
+    /// let entry: CacheEntry = ...;
+    /// # );
     /// entry.find_artifact_path("Greeter");
     /// # }
     /// ```
-    pub fn find_artifact_path(&self, contract_name: impl AsRef<str>) -> Option<&PathBuf> {
-        self.artifacts.get(contract_name.as_ref())?.iter().next().map(|(_, p)| p)
+    pub fn find_artifact_path(&self, contract_name: impl AsRef<str>) -> Option<&Path> {
+        self.artifacts.get(contract_name.as_ref())?.iter().next().map(|(_, p)| p.as_path())
     }
 
     /// Reads the last modification date from the file's metadata

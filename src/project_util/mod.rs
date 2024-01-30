@@ -292,14 +292,7 @@ contract {} {{}}
     /// Compiles the project and ensures that the output does not contain errors and no changes
     /// exists on recompiled.
     ///
-    /// This is a convenience function for
-    ///
-    /// ```no_run
-    /// use foundry_compilers::project_util::TempProject;
-    /// let project = TempProject::dapptools().unwrap();
-    //  project.ensure_no_errors().unwrap();
-    //  project.ensure_unchanged().unwrap();
-    /// ```
+    /// This is a convenience function for `ensure_no_errors` + `ensure_unchanged`.
     pub fn ensure_no_errors_recompile_unchanged(&self) -> Result<&Self> {
         self.ensure_no_errors()?.ensure_unchanged()
     }
@@ -307,14 +300,8 @@ contract {} {{}}
     /// Compiles the project and asserts that the output does not contain errors and no changes
     /// exists on recompiled.
     ///
-    /// This is a convenience function for
-    ///
-    /// ```no_run
-    /// use foundry_compilers::project_util::TempProject;
-    /// let project = TempProject::dapptools().unwrap();
-    //  project.assert_no_errors();
-    //  project.assert_unchanged();
-    /// ```
+    /// This is a convenience function for `assert_no_errors` + `assert_unchanged`.
+    #[track_caller]
     pub fn assert_no_errors_recompile_unchanged(&self) -> &Self {
         self.assert_no_errors().assert_unchanged()
     }
@@ -327,6 +314,7 @@ contract {} {{}}
     }
 
     /// Compiles the project and asserts that the output is unchanged
+    #[track_caller]
     pub fn assert_unchanged(&self) -> &Self {
         let compiled = self.compile().unwrap();
         assert!(compiled.is_unchanged());
@@ -425,15 +413,6 @@ impl TempProject<ConfigurableArtifacts> {
     }
 
     /// Clones the given repo into a temp dir, initializes it recursively and configures it.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use foundry_compilers::project_util::TempProject;
-    /// # fn t() {
-    /// let project = TempProject::checkout("transmissions11/solmate").unwrap();
-    /// # }
-    /// ```
     pub fn checkout(repo: impl AsRef<str>) -> Result<Self> {
         let tmp_dir = tempdir("tmp_checkout")?;
         clone_remote(&format!("https://github.com/{}", repo.as_ref()), tmp_dir.path())
@@ -444,12 +423,7 @@ impl TempProject<ConfigurableArtifacts> {
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 
-    /// Create a new temporary project and populate it with mock files
-    ///
-    /// ```no_run
-    /// use foundry_compilers::project_util::{mock::MockProjectSettings, TempProject};
-    /// let tmp = TempProject::mocked(&MockProjectSettings::default(), "^0.8.10").unwrap();
-    /// ```
+    /// Create a new temporary project and populate it with mock files.
     pub fn mocked(settings: &MockProjectSettings, version: impl AsRef<str>) -> Result<Self> {
         let mut tmp = Self::dapptools()?;
         let gen = MockProjectGenerator::new(settings);
@@ -459,19 +433,7 @@ impl TempProject<ConfigurableArtifacts> {
         Ok(tmp)
     }
 
-    /// Create a new temporary project and populate it with a random layout
-    ///
-    /// ```no_run
-    /// use foundry_compilers::project_util::TempProject;
-    /// let tmp = TempProject::mocked_random("^0.8.10").unwrap();
-    /// ```
-    ///
-    /// This is a convenience function for:
-    ///
-    /// ```no_run
-    /// use foundry_compilers::project_util::{mock::MockProjectSettings, TempProject};
-    /// let tmp = TempProject::mocked(&MockProjectSettings::random(), "^0.8.10").unwrap();
-    /// ```
+    /// Create a new temporary project and populate it with a random layout.
     pub fn mocked_random(version: impl AsRef<str>) -> Result<Self> {
         Self::mocked(&MockProjectSettings::random(), version)
     }

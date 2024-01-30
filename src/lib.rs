@@ -97,29 +97,35 @@ pub struct Project<T: ArtifactOutput = ConfigurableArtifacts> {
 }
 
 impl Project {
-    /// Convenience function to call `ProjectBuilder::default()`
+    /// Convenience function to call `ProjectBuilder::default()`.
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// Configure with `ConfigurableArtifacts` artifacts output
+    /// Configure with `ConfigurableArtifacts` artifacts output:
     ///
-    /// ```rust
+    /// ```
     /// use foundry_compilers::Project;
-    /// let config = Project::builder().build().unwrap();
+    ///
+    /// let config = Project::builder().build()?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     ///
-    /// To configure any a project with any `ArtifactOutput` use either
+    /// To configure any a project with any `ArtifactOutput` use either:
     ///
-    /// ```rust
+    /// ```
     /// use foundry_compilers::Project;
-    /// let config = Project::builder().build().unwrap();
+    ///
+    /// let config = Project::builder().build()?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     ///
-    /// or use the builder directly
+    /// or use the builder directly:
     ///
-    /// ```rust
+    /// ```
     /// use foundry_compilers::{ConfigurableArtifacts, ProjectBuilder};
-    /// let config = ProjectBuilder::<ConfigurableArtifacts>::default().build().unwrap();
+    ///
+    /// let config = ProjectBuilder::<ConfigurableArtifacts>::default().build()?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn builder() -> ProjectBuilder {
         ProjectBuilder::default()
@@ -227,25 +233,27 @@ impl<T: ArtifactOutput> Project<T> {
         self.paths.read_sources()
     }
 
-    /// This emits the cargo [`rerun-if-changed`](https://doc.rust-lang.org/cargo/reference/build-scripts.html#cargorerun-if-changedpath) instruction.
-    /// Which tells Cargo to re-run the build script if a file inside the project's sources
-    /// directory has changed.
+    /// Emit the cargo [`rerun-if-changed`](https://doc.rust-lang.org/cargo/reference/build-scripts.html#cargorerun-if-changedpath) instruction.
+    ///
+    /// This tells Cargo to re-run the build script if a file inside the project's sources directory
+    /// has changed.
     ///
     /// Use this if you compile a project in a `build.rs` file.
     ///
-    /// # Example `build.rs` file
-    ///
+    /// # Examples
     ///
     /// ```no_run
     /// use foundry_compilers::{Project, ProjectPathsConfig};
-    /// // configure the project with all its paths, solc, cache etc. where the root dir is the current rust project.
-    /// let project = Project::builder()
-    ///     .paths(ProjectPathsConfig::hardhat(env!("CARGO_MANIFEST_DIR")).unwrap())
-    ///     .build()
-    ///     .unwrap();
-    /// let output = project.compile().unwrap();
-    /// // Tell Cargo that if a source file changes, to rerun this build script.
+    ///
+    /// // Configure the project with all its paths, solc, cache etc.
+    /// // where the root dir is the current Rust project.
+    /// let paths = ProjectPathsConfig::hardhat(env!("CARGO_MANIFEST_DIR"))?;
+    /// let project = Project::builder().paths(paths).build()?;
+    /// let output = project.compile()?;
+    ///
+    /// // Tell Cargo to rerun this build script that if a source file changes.
     /// project.rerun_if_sources_changed();
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn rerun_if_sources_changed(&self) {
         println!("cargo:rerun-if-changed={}", self.paths.sources.display())
@@ -260,14 +268,14 @@ impl<T: ArtifactOutput> Project<T> {
     /// NB: If the `svm` feature is enabled, this function will automatically detect
     /// solc versions across files.
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::Project;
-    /// # fn demo(project: Project) {
-    /// let project = Project::builder().build().unwrap();
-    /// let output = project.compile().unwrap();
-    /// # }
+    ///
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile()?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[instrument(skip_all, name = "compile")]
     pub fn compile(&self) -> Result<ProjectCompileOutput<T>> {
@@ -295,16 +303,16 @@ impl<T: ArtifactOutput> Project<T> {
     /// rules) with their imports, for example source contract `A(=0.8.11)` imports dependency
     /// `C(<0.8.0)`, which are incompatible.
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::Source, utils, Project};
-    /// # fn demo(project: Project) {
-    /// let project = Project::builder().build().unwrap();
+    ///
+    /// let project = Project::builder().build()?;
     /// let files = utils::source_files("./src");
-    /// let sources = Source::read_all(files).unwrap();
-    /// let output = project.svm_compile(sources).unwrap();
-    /// # }
+    /// let sources = Source::read_all(files)?;
+    /// let output = project.svm_compile(sources)?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
     pub fn svm_compile(&self, sources: Sources) -> Result<ProjectCompileOutput<T>> {
@@ -314,14 +322,14 @@ impl<T: ArtifactOutput> Project<T> {
     /// Convenience function to compile a single solidity file with the project's settings.
     /// Same as [`Self::svm_compile()`] but with the given `file` as input.
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::Project;
-    /// # fn demo(project: Project) {
-    /// let project = Project::builder().build().unwrap();
-    /// let output = project.compile_file("example/Greeter.sol").unwrap();
-    /// # }
+    ///
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile_file("example/Greeter.sol")?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[cfg(all(feature = "svm-solc", not(target_arch = "wasm32")))]
     pub fn compile_file(&self, file: impl Into<PathBuf>) -> Result<ProjectCompileOutput<T>> {
@@ -333,14 +341,14 @@ impl<T: ArtifactOutput> Project<T> {
     /// Convenience function to compile a series of solidity files with the project's settings.
     /// Same as [`Self::compile()`] but with the given `files` as input.
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::Project;
-    /// # fn demo(project: Project) {
-    /// let project = Project::builder().build().unwrap();
-    /// let output = project.compile_files(vec!["examples/Foo.sol", "examples/Bar.sol"]).unwrap();
-    /// # }
+    ///
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile_files(["examples/Foo.sol", "examples/Bar.sol"])?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn compile_files<P, I>(&self, files: I) -> Result<ProjectCompileOutput<T>>
     where
@@ -358,29 +366,32 @@ impl<T: ArtifactOutput> Project<T> {
         self.compile_with_version(&solc, sources)
     }
 
-    /// Convenience function to compile only (re)compile files that match the provided [FileFilter].
-    /// Same as [`Self::compile()`] but with only with those files as input that match
-    /// [FileFilter::is_match()].
+    /// Convenience function to compile only files that match the provided [FileFilter].
     ///
-    /// # Example - Only compile Test files
+    /// Same as [`Self::compile()`] but with only with the input files that match
+    /// [`FileFilter::is_match()`].
     ///
-    /// ```
+    /// # Examples
+    ///
+    /// Only compile test files:
+    ///
+    /// ```no_run
     /// use foundry_compilers::{Project, TestFileFilter};
-    /// # fn demo(project: Project) {
-    /// let project = Project::builder().build().unwrap();
-    /// let output = project.compile_sparse(TestFileFilter::default()).unwrap();
-    /// # }
+    ///
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile_sparse(Box::new(TestFileFilter::default()))?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     ///
-    /// # Example - Apply a custom filter
+    /// Apply a custom filter:
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::Project;
     /// use std::path::Path;
-    /// # fn demo(project: Project) {
-    /// let project = Project::builder().build().unwrap();
-    /// let output = project.compile_sparse(|path: &Path| path.ends_with("Greeter.sol")).unwrap();
-    /// # }
+    ///
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile_sparse(Box::new(|path: &Path| path.ends_with("Greeter.sol")))?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn compile_sparse(&self, filter: Box<dyn FileFilter>) -> Result<ProjectCompileOutput<T>> {
         let sources =
@@ -406,20 +417,16 @@ impl<T: ArtifactOutput> Project<T> {
     /// file and cleans up entries for files which may have been removed. Unchanged files that
     /// for which an artifact exist, are not compiled again.
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{Project, Solc};
-    /// # fn demo(project: Project) {
-    /// let project = Project::builder().build().unwrap();
-    /// let sources = project.paths.read_sources().unwrap();
-    /// project
-    ///     .compile_with_version(
-    ///         &Solc::find_svm_installed_version("0.8.11").unwrap().unwrap(),
-    ///         sources,
-    ///     )
-    ///     .unwrap();
-    /// # }
+    ///
+    /// let project = Project::builder().build()?;
+    /// let sources = project.paths.read_sources()?;
+    /// let solc = Solc::find_svm_installed_version("0.8.11")?.unwrap();
+    /// project.compile_with_version(&solc, sources)?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn compile_with_version(
         &self,
@@ -433,20 +440,20 @@ impl<T: ArtifactOutput> Project<T> {
     ///
     /// If the cache file was the only file in the folder, this also removes the empty folder.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```
     /// use foundry_compilers::Project;
-    /// # fn demo(project: Project) {
-    /// let project = Project::builder().build().unwrap();
-    /// let _ = project.compile().unwrap();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let _ = project.compile()?;
     /// assert!(project.artifacts_path().exists());
     /// assert!(project.cache_path().exists());
     ///
     /// project.cleanup();
     /// assert!(!project.artifacts_path().exists());
     /// assert!(!project.cache_path().exists());
-    /// # }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn cleanup(&self) -> std::result::Result<(), SolcIoError> {
         trace!("clean up project");

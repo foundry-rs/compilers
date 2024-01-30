@@ -64,15 +64,16 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
     ///
     /// This returns a chained iterator of both cached and recompiled contract artifacts
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```no_run
     /// use foundry_compilers::{ArtifactId, ConfigurableContractArtifact, Project};
     /// use std::collections::btree_map::BTreeMap;
     ///
-    /// let project = Project::builder().build().unwrap();
+    /// let project = Project::builder().build()?;
     /// let contracts: BTreeMap<ArtifactId, ConfigurableContractArtifact> =
-    ///     project.compile().unwrap().into_artifacts().collect();
+    ///     project.compile()?.into_artifacts().collect();
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn into_artifacts(self) -> impl Iterator<Item = (ArtifactId, T::Artifact)> {
         let Self { cached_artifacts, compiled_artifacts, .. } = self;
@@ -82,15 +83,16 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
     /// This returns a chained iterator of both cached and recompiled contract artifacts that yields
     /// the contract name and the corresponding artifact
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```no_run
     /// use foundry_compilers::{ConfigurableContractArtifact, Project};
     /// use std::collections::btree_map::BTreeMap;
     ///
-    /// let project = Project::builder().build().unwrap();
+    /// let project = Project::builder().build()?;
     /// let artifacts: BTreeMap<String, &ConfigurableContractArtifact> =
-    ///     project.compile().unwrap().artifacts().collect();
+    ///     project.compile()?.artifacts().collect();
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn artifacts(&self) -> impl Iterator<Item = (String, &T::Artifact)> {
         self.versioned_artifacts().map(|(name, (artifact, _))| (name, artifact))
@@ -99,16 +101,17 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
     /// This returns a chained iterator of both cached and recompiled contract artifacts that yields
     /// the contract name and the corresponding artifact with its version
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```no_run
     /// use foundry_compilers::{ConfigurableContractArtifact, Project};
     /// use semver::Version;
     /// use std::collections::btree_map::BTreeMap;
     ///
-    /// let project = Project::builder().build().unwrap();
+    /// let project = Project::builder().build()?;
     /// let artifacts: BTreeMap<String, (&ConfigurableContractArtifact, &Version)> =
-    ///     project.compile().unwrap().versioned_artifacts().collect();
+    ///     project.compile()?.versioned_artifacts().collect();
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn versioned_artifacts(&self) -> impl Iterator<Item = (String, (&T::Artifact, &Version))> {
         self.cached_artifacts
@@ -141,15 +144,16 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
     ///
     /// This returns a chained iterator of both cached and recompiled contract artifacts
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```no_run
     /// use foundry_compilers::{ConfigurableContractArtifact, Project};
     /// use std::collections::btree_map::BTreeMap;
     ///
-    /// let project = Project::builder().build().unwrap();
+    /// let project = Project::builder().build()?;
     /// let contracts: Vec<(String, String, ConfigurableContractArtifact)> =
-    ///     project.compile().unwrap().into_artifacts_with_files().collect();
+    ///     project.compile()?.into_artifacts_with_files().collect();
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     ///
     /// **NOTE** the `file` will be returned as is, see also [`Self::with_stripped_file_prefixes()`]
@@ -183,15 +187,16 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
     /// Strips the given prefix from all artifact file paths to make them relative to the given
     /// `base` argument
     ///
-    /// # Example
+    /// # Examples
     ///
     /// Make all artifact files relative to the project's root directory
     ///
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
-    /// let project = Project::builder().build().unwrap();
-    /// let output = project.compile().unwrap().with_stripped_file_prefixes(project.root());
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile()?.with_stripped_file_prefixes(project.root());
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn with_stripped_file_prefixes(mut self, base: impl AsRef<Path>) -> Self {
         let base = base.as_ref();
@@ -209,9 +214,10 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
     /// use foundry_compilers::{artifacts::contract::Contract, Project};
     /// use std::collections::btree_map::BTreeMap;
     ///
-    /// let project = Project::builder().build().unwrap();
+    /// let project = Project::builder().build()?;
     /// let contracts: BTreeMap<String, Contract> =
-    ///     project.compile().unwrap().into_output().contracts_into_iter().collect();
+    ///     project.compile()?.into_output().contracts_into_iter().collect();
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn output(&self) -> &AggregatedCompilerOutput {
         &self.compiler_output
@@ -298,19 +304,18 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
     /// where `path` is optional.
     ///
     /// If the `path` segment is `None`, then the first matching `Contract` is returned, see
-    /// [Self::remove_first]
+    /// [`Self::remove_first`].
     ///
-    /// # Example
+    /// # Examples
     ///
-    ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, info::ContractInfo, Project};
     ///
-    /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap();
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile()?;
     /// let info = ContractInfo::new("src/Greeter.sol:Greeter");
     /// let contract = output.find_contract(&info).unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn find_contract<'a>(&self, info: impl Into<ContractInfoRef<'a>>) -> Option<&T::Artifact> {
         let ContractInfoRef { path, name } = info.into();
@@ -323,14 +328,15 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
 
     /// Finds the artifact with matching path and name
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile()?;
     /// let contract = output.find("src/Greeter.sol", "Greeter").unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn find(&self, path: impl AsRef<str>, contract: impl AsRef<str>) -> Option<&T::Artifact> {
         let contract_path = path.as_ref();
@@ -352,14 +358,15 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
 
     /// Finds the artifact with matching path and name
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile()?;
     /// let contract = output.find("src/Greeter.sol", "Greeter").unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn remove(
         &mut self,
@@ -376,14 +383,15 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
 
     /// Removes the _first_ contract with the given name from the set
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let mut output = project.compile().unwrap();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let mut output = project.compile()?;
     /// let contract = output.remove_first("Greeter").unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn remove_first(&mut self, contract_name: impl AsRef<str>) -> Option<T::Artifact> {
         let contract_name = contract_name.as_ref();
@@ -400,15 +408,16 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
     /// [Self::remove_first]
     ///
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, info::ContractInfo, Project};
-    /// # fn demo(project: Project) {
-    /// let mut output = project.compile().unwrap();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let mut output = project.compile()?;
     /// let info = ContractInfo::new("src/Greeter.sol:Greeter");
     /// let contract = output.remove_contract(&info).unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn remove_contract<'a>(
         &mut self,
@@ -427,7 +436,7 @@ impl ProjectCompileOutput<ConfigurableArtifacts> {
     /// A helper functions that extracts the underlying [`CompactContractBytecode`] from the
     /// [`crate::ConfigurableContractArtifact`]
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```no_run
     /// use foundry_compilers::{
@@ -436,9 +445,9 @@ impl ProjectCompileOutput<ConfigurableArtifacts> {
     /// };
     /// use std::collections::btree_map::BTreeMap;
     ///
-    /// let project = Project::builder().build().unwrap();
-    /// let contracts: ArtifactContracts =
-    ///     project.compile().unwrap().into_contract_bytecodes().collect();
+    /// let project = Project::builder().build()?;
+    /// let contracts: ArtifactContracts = project.compile()?.into_contract_bytecodes().collect();
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn into_contract_bytecodes(
         self,
@@ -579,14 +588,15 @@ impl AggregatedCompilerOutput {
 
     /// Finds the _first_ contract with the given name
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().into_output();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile()?.into_output();
     /// let contract = output.find_first("Greeter").unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn find_first(&self, contract: impl AsRef<str>) -> Option<CompactContractRef> {
         self.contracts.find_first(contract)
@@ -594,14 +604,15 @@ impl AggregatedCompilerOutput {
 
     /// Removes the _first_ contract with the given name from the set
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let mut output = project.compile().unwrap().into_output();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let mut output = project.compile()?.into_output();
     /// let contract = output.remove_first("Greeter").unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn remove_first(&mut self, contract: impl AsRef<str>) -> Option<Contract> {
         self.contracts.remove_first(contract)
@@ -609,14 +620,15 @@ impl AggregatedCompilerOutput {
 
     /// Removes the contract with matching path and name
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let mut output = project.compile().unwrap().into_output();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let mut output = project.compile()?.into_output();
     /// let contract = output.remove("src/Greeter.sol", "Greeter").unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn remove(&mut self, path: impl AsRef<str>, contract: impl AsRef<str>) -> Option<Contract> {
         self.contracts.remove(path, contract)
@@ -628,17 +640,16 @@ impl AggregatedCompilerOutput {
     /// If the `path` segment is `None`, then the first matching `Contract` is returned, see
     /// [Self::remove_first]
     ///
+    /// # Examples
     ///
-    ///
-    /// # Example
-    ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, info::ContractInfo, Project};
-    /// # fn demo(project: Project) {
-    /// let mut output = project.compile().unwrap().into_output();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let mut output = project.compile()?.into_output();
     /// let info = ContractInfo::new("src/Greeter.sol:Greeter");
     /// let contract = output.remove_contract(&info).unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn remove_contract<'a>(
         &mut self,
@@ -689,15 +700,17 @@ impl AggregatedCompilerOutput {
     }
 
     /// Given the contract file's path and the contract's name, tries to return the contract's
-    /// bytecode, runtime bytecode, and abi
-    /// # Example
+    /// bytecode, runtime bytecode, and ABI.
     ///
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().into_output();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile()?.into_output();
     /// let contract = output.get("src/Greeter.sol", "Greeter").unwrap();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn get(
         &self,
@@ -710,14 +723,15 @@ impl AggregatedCompilerOutput {
     /// Returns the output's source files and contracts separately, wrapped in helper types that
     /// provide several helper methods
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::Project;
-    /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().into_output();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile()?.into_output();
     /// let (sources, contracts) = output.split();
-    /// # }
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn split(self) -> (VersionedSourceFiles, VersionedContracts) {
         (self.sources, self.contracts)
@@ -736,16 +750,16 @@ impl AggregatedCompilerOutput {
     ///
     /// Convenience method for [Self::strip_prefix_all()] that consumes the type.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// Make all sources and contracts relative to the project's root directory
     ///
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
-    /// let project = Project::builder().build().unwrap();
-    /// let output =
-    ///     project.compile().unwrap().into_output().with_stripped_file_prefixes(project.root());
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile()?.into_output().with_stripped_file_prefixes(project.root());
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn with_stripped_file_prefixes(mut self, base: impl AsRef<Path>) -> Self {
         let base = base.as_ref();

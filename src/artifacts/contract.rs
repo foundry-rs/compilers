@@ -76,22 +76,24 @@ pub struct ContractBytecode {
 }
 
 impl ContractBytecode {
-    /// Returns the `ContractBytecodeSome` if all fields are `Some`
+    /// Unwraps `self` into `ContractBytecodeSome`.
     ///
     /// # Panics
     ///
-    /// Panics if any of the fields equal `None`
+    /// Panics if any field is `None`.
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let mut output = project.compile().unwrap().into_output();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let mut output = project.compile()?.into_output();
     /// let contract: ContractBytecode = output.remove_first("Greeter").unwrap().into();
-    /// let contract = contract.unwrap();
-    /// # }
+    /// let contract: ContractBytecodeSome = contract.unwrap();
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[track_caller]
     pub fn unwrap(self) -> ContractBytecodeSome {
         ContractBytecodeSome {
             abi: self.abi.unwrap(),
@@ -298,22 +300,24 @@ impl CompactContract {
         )
     }
 
-    /// Returns the `CompactContractSome` if all fields are `Some`
+    /// Unwraps `self` into `CompactContractSome`.
     ///
     /// # Panics
     ///
-    /// Panics if any of the fields euqal `None`
+    /// Panics if any field is `None`.
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let mut output = project.compile().unwrap().into_output();
+    ///
+    /// let project = Project::builder().build()?;
+    /// let mut output = project.compile()?.into_output();
     /// let contract: CompactContract = output.remove_first("Greeter").unwrap().into();
-    /// let contract = contract.unwrap();
-    /// # }
+    /// let contract: CompactContractSome = contract.unwrap();
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[track_caller]
     pub fn unwrap(self) -> CompactContractSome {
         CompactContractSome {
             abi: self.abi.unwrap(),
@@ -483,22 +487,24 @@ impl<'a> CompactContractRef<'a> {
         self.bin_runtime.as_ref().and_then(|bin| bin.as_bytes())
     }
 
-    /// Returns the `CompactContractRefSome` if all fields are `Some`
+    /// Unwraps `self` into `CompactContractRefSome`.
     ///
     /// # Panics
     ///
-    /// Panics if any of the fields equal `None`
+    /// Panics if any field is `None`.
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
-    /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().into_output();
-    /// let contract = output.find_first("Greeter").unwrap();
-    /// let contract = contract.unwrap();
-    /// # }
+    ///
+    /// let project = Project::builder().build()?;
+    /// let output = project.compile()?.into_output();
+    /// let contract: CompactContractRef<'_> = output.find_first("Greeter").unwrap();
+    /// let contract: CompactContractRefSome<'_> = contract.unwrap();
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[track_caller]
     pub fn unwrap(self) -> CompactContractRefSome<'a> {
         CompactContractRefSome {
             abi: self.abi.unwrap(),
