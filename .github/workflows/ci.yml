@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    name: test ${{ matrix.flags.name }} (${{ matrix.os }})
+    name: test ${{ matrix.rust }} ${{ matrix.flags }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -17,7 +17,7 @@ jobs:
         rust: ["stable", "1.65"]
         flags: ["", "--all-features"]
         exclude:
-          # Skip because some features have highest MSRV.
+          # Skip because some features have higher MSRV.
           - rust: "1.65" # MSRV
             flags: "--all-features"
     steps:
