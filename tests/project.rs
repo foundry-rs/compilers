@@ -1028,9 +1028,9 @@ contract Foo {
     }
 }
 
-contract Bar_1 is Foo {}
-
 contract Bar_0 is Foo {}
+
+contract Bar_1 is Foo {}
 "
     );
 }
@@ -1332,6 +1332,269 @@ contract B is A {}
 "
         );
     });
+}
+
+#[test]
+fn can_flatten_rename_inheritdocs() {
+    let project = TempProject::dapptools().unwrap();
+
+    project
+        .add_source(
+            "DuplicateA",
+            r#"pragma solidity ^0.8.10;
+contract A {}
+"#,
+        )
+        .unwrap();
+
+    project
+        .add_source(
+            "A",
+            r#"pragma solidity ^0.8.10;
+import {A as OtherName} from "./DuplicateA.sol";
+
+contract A {
+    /// Documentation
+    function foo() public virtual {}
+}
+"#,
+        )
+        .unwrap();
+
+    let target = project
+        .add_source(
+            "B",
+            r#"pragma solidity ^0.8.10;
+import {A} from "./A.sol";
+
+contract B is A {
+    /// @inheritdoc A
+    function foo() public override {}
+}"#,
+        )
+        .unwrap();
+
+    let result =
+        Flattener::new(project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
+    assert_eq!(
+        result,
+        r"pragma solidity ^0.8.10;
+
+contract A_0 {}
+
+contract A_1 {
+    /// Documentation
+    function foo() public virtual {}
+}
+
+contract B is A_1 {
+    /// @inheritdoc A_1
+    function foo() public override {}
+}
+"
+    );
+}
+
+#[test]
+fn can_flatten_rename_inheritdocs_alias() {
+    let project = TempProject::dapptools().unwrap();
+
+    project
+        .add_source(
+            "A",
+            r#"pragma solidity ^0.8.10;
+
+contract A {
+    /// Documentation
+    function foo() public virtual {}
+}
+"#,
+        )
+        .unwrap();
+
+    let target = project
+        .add_source(
+            "B",
+            r#"pragma solidity ^0.8.10;
+import {A as Alias} from "./A.sol";
+
+contract B is Alias {
+    /// @inheritdoc Alias
+    function foo() public override {}
+}"#,
+        )
+        .unwrap();
+
+    let result =
+        Flattener::new(project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
+    assert_eq!(
+        result,
+        r"pragma solidity ^0.8.10;
+
+contract A {
+    /// Documentation
+    function foo() public virtual {}
+}
+
+contract B is A {
+    /// @inheritdoc A
+    function foo() public override {}
+}
+"
+    );
+}
+
+#[test]
+fn can_flatten_rename_user_defined_functions() {
+    let project = TempProject::dapptools().unwrap();
+
+    project
+        .add_source(
+            "CustomUint",
+            r"
+pragma solidity ^0.8.10;
+
+type CustomUint is uint256;
+
+function mul(CustomUint a, CustomUint b) pure returns(CustomUint) {
+    return CustomUint.wrap(CustomUint.unwrap(a) * CustomUint.unwrap(b));
+}
+
+using {mul} for CustomUint global;",
+        )
+        .unwrap();
+
+    project
+        .add_source(
+            "CustomInt",
+            r"pragma solidity ^0.8.10;
+
+type CustomInt is int256;
+
+function mul(CustomInt a, CustomInt b) pure returns(CustomInt) {
+    return CustomInt.wrap(CustomInt.unwrap(a) * CustomInt.unwrap(b));
+}
+
+using {mul} for CustomInt global;",
+        )
+        .unwrap();
+
+    let target = project
+        .add_source(
+            "Target",
+            r"pragma solidity ^0.8.10;
+
+import {CustomInt} from './CustomInt.sol';
+import {CustomUint} from './CustomUint.sol';
+
+contract Foo {
+    function mul(CustomUint a, CustomUint b) public returns(CustomUint) {
+        return a.mul(b);
+    }
+
+    function mul(CustomInt a, CustomInt b) public returns(CustomInt) {
+        return a.mul(b);
+    }
+}",
+        )
+        .unwrap();
+
+    let result =
+        Flattener::new(project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
+    assert_eq!(
+        result,
+        r"pragma solidity ^0.8.10;
+
+type CustomInt is int256;
+
+function mul_0(CustomInt a, CustomInt b) pure returns(CustomInt) {
+    return CustomInt.wrap(CustomInt.unwrap(a) * CustomInt.unwrap(b));
+}
+
+using {mul_0} for CustomInt global;
+
+type CustomUint is uint256;
+
+function mul_1(CustomUint a, CustomUint b) pure returns(CustomUint) {
+    return CustomUint.wrap(CustomUint.unwrap(a) * CustomUint.unwrap(b));
+}
+
+using {mul_1} for CustomUint global;
+
+contract Foo {
+    function mul(CustomUint a, CustomUint b) public returns(CustomUint) {
+        return a.mul_1(b);
+    }
+
+    function mul(CustomInt a, CustomInt b) public returns(CustomInt) {
+        return a.mul_0(b);
+    }
+}
+"
+    );
+}
+
+#[test]
+fn can_flatten_rename_global_functions() {
+    let project = TempProject::dapptools().unwrap();
+
+    project
+        .add_source(
+            "func1",
+            r"pragma solidity ^0.8.10;
+
+function func() view {}",
+        )
+        .unwrap();
+
+    project
+        .add_source(
+            "func2",
+            r"pragma solidity ^0.8.10;
+
+function func(uint256 x) view returns(uint256) {
+    return x + 1;
+}",
+        )
+        .unwrap();
+
+    let target = project
+        .add_source(
+            "Target",
+            r"pragma solidity ^0.8.10;
+
+import {func as func1} from './func1.sol';
+import {func as func2} from './func2.sol';
+
+contract Foo {
+    constructor(uint256 x) {
+        func1();
+        func2(x);
+    }
+}",
+        )
+        .unwrap();
+
+    let result =
+        Flattener::new(project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
+    assert_eq!(
+        result,
+        r"pragma solidity ^0.8.10;
+
+function func_0() view {}
+
+function func_1(uint256 x) view returns(uint256) {
+    return x + 1;
+}
+
+contract Foo {
+    constructor(uint256 x) {
+        func_0();
+        func_1(x);
+    }
+}
+"
+    );
 }
 
 #[test]

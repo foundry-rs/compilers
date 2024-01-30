@@ -560,15 +560,12 @@ impl VariableDeclaration {
     }
 }
 
-/// Structured documentation (NatSpec).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum StructuredDocumentation {
-    /// The documentation is provided in the form of an AST node.
-    Parsed { text: String },
-    /// The documentation is provided in the form of a string literal.
-    Text(String),
-}
+ast_node!(
+    /// Structured documentation (NatSpec).
+    struct StructuredDocumentation {
+        text: String,
+    }
+);
 
 ast_node!(
     /// An override specifier.
