@@ -100,7 +100,7 @@ impl VersionedContracts {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().output();
+    /// let output = project.compile().unwrap().into_output();
     /// let contract = output.find_first("Greeter").unwrap();
     /// # }
     /// ```
@@ -118,7 +118,7 @@ impl VersionedContracts {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().output();
+    /// let output = project.compile().unwrap().into_output();
     /// let contract = output.contracts.find("src/Greeter.sol", "Greeter").unwrap();
     /// # }
     /// ```
@@ -142,7 +142,7 @@ impl VersionedContracts {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let (_, mut contracts) = project.compile().unwrap().output().split();
+    /// let (_, mut contracts) = project.compile().unwrap().into_output().split();
     /// let contract = contracts.remove_first("Greeter").unwrap();
     /// # }
     /// ```
@@ -169,7 +169,7 @@ impl VersionedContracts {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let (_, mut contracts) = project.compile().unwrap().output().split();
+    /// let (_, mut contracts) = project.compile().unwrap().into_output().split();
     /// let contract = contracts.remove("src/Greeter.sol", "Greeter").unwrap();
     /// # }
     /// ```

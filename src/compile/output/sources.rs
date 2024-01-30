@@ -84,7 +84,7 @@ impl VersionedSourceFiles {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().output();
+    /// let output = project.compile().unwrap().into_output();
     /// let source_file = output.sources.find_file("src/Greeter.sol").unwrap();
     /// # }
     /// ```
@@ -121,7 +121,7 @@ impl VersionedSourceFiles {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let output = project.compile().unwrap().output();
+    /// let output = project.compile().unwrap().into_output();
     /// let source_file = output.sources.find_id(0).unwrap();
     /// # }
     /// ```
@@ -144,7 +144,7 @@ impl VersionedSourceFiles {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let (mut sources, _) = project.compile().unwrap().output().split();
+    /// let (mut sources, _) = project.compile().unwrap().into_output().split();
     /// let source_file = sources.remove_by_path("src/Greeter.sol").unwrap();
     /// # }
     /// ```
@@ -166,7 +166,7 @@ impl VersionedSourceFiles {
     /// ```
     /// use foundry_compilers::{artifacts::*, Project};
     /// # fn demo(project: Project) {
-    /// let (mut sources, _) = project.compile().unwrap().output().split();
+    /// let (mut sources, _) = project.compile().unwrap().into_output().split();
     /// let source_file = sources.remove_by_id(0).unwrap();
     /// # }
     /// ```

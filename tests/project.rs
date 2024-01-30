@@ -1830,7 +1830,7 @@ fn can_detect_contract_def_source_files() {
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
 
-    let mut sources = compiled.output().sources;
+    let mut sources = compiled.into_output().sources;
     let myfunc = sources.remove_by_path(myfunc.to_string_lossy()).unwrap();
     assert!(!myfunc.contains_contract_definition());
 
@@ -1884,7 +1884,7 @@ fn can_compile_sparse_with_link_references() {
     let mut compiled = tmp.compile_sparse(Box::<TestFileFilter>::default()).unwrap();
     compiled.assert_success();
 
-    let mut output = compiled.clone().output();
+    let mut output = compiled.clone().into_output();
 
     assert!(compiled.find_first("ATest").is_some());
     assert!(compiled.find_first("MyLib").is_some());
