@@ -50,6 +50,8 @@ pub trait Visitor {
     fn visit_return(&mut self, _return: &Return) {}
     fn visit_inheritance_specifier(&mut self, _specifier: &InheritanceSpecifier) {}
     fn visit_modifier_invocation(&mut self, _invocation: &ModifierInvocation) {}
+    fn visit_inline_assembly(&mut self, _assembly: &InlineAssembly) {}
+    fn visit_external_assembly_reference(&mut self, _ref: &ExternalInlineAssemblyReference) {}
 }
 
 pub trait Walk {
@@ -244,10 +246,10 @@ impl_walk!(Statement, visit_statement, |statement, visitor| {
         Statement::Return(statement) => {
             statement.walk(visitor);
         }
-        Statement::Break(_)
-        | Statement::Continue(_)
-        | Statement::InlineAssembly(_)
-        | Statement::PlaceholderStatement(_) => {}
+        Statement::InlineAssembly(assembly) => {
+            assembly.walk(visitor);
+        }
+        Statement::Break(_) | Statement::Continue(_) | Statement::PlaceholderStatement(_) => {}
     }
 });
 
@@ -327,7 +329,7 @@ impl_walk!(UsingForDirective, visit_using_for, |directive, visitor| {
         library_name.walk(visitor);
     }
     for function in &directive.function_list {
-        function.function.walk(visitor);
+        function.walk(visitor);
     }
 });
 
@@ -526,6 +528,14 @@ impl_walk!(ModifierInvocation, visit_modifier_invocation, |invocation, visitor| 
     invocation.modifier_name.walk(visitor);
 });
 
+impl_walk!(InlineAssembly, visit_inline_assembly, |assembly, visitor| {
+    assembly.external_references.iter().for_each(|reference| {
+        reference.walk(visitor);
+    });
+});
+
+impl_walk!(ExternalInlineAssemblyReference, visit_external_assembly_reference);
+
 impl_walk!(ElementaryTypeName, visit_elementary_type_name);
 impl_walk!(Literal, visit_literal);
 impl_walk!(ImportDirective, visit_import_directive);
@@ -593,4 +603,19 @@ impl_walk!(ElementaryOrRawTypeName, |type_name, visitor| {
         }
         ElementaryOrRawTypeName::Raw(_) => {}
     }
+});
+
+impl_walk!(UsingForFunctionItem, |item, visitor| {
+    match item {
+        UsingForFunctionItem::Function(func) => {
+            func.function.walk(visitor);
+        }
+        UsingForFunctionItem::OverloadedOperator(operator) => {
+            operator.walk(visitor);
+        }
+    }
+});
+
+impl_walk!(OverloadedOperator, |operator, visitor| {
+    operator.definition.walk(visitor);
 });
