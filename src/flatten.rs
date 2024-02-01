@@ -436,8 +436,8 @@ impl Flattener {
                 let content: &str = &self.sources.get(path).unwrap().content[src_start..src_end];
                 let tag_len = "@inheritdoc".len();
 
-                trace!("processing doc with content {:?}", content);
                 if let Some(tag_start) = content.find("@inheritdoc") {
+                    trace!("processing doc with content {:?}", content);
                     if let Some(name_start) = content[tag_start + tag_len..]
                         .find(|c| c != ' ')
                         .map(|p| p + tag_start + tag_len)
