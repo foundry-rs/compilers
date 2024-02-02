@@ -382,6 +382,7 @@ impl Flattener {
     /// We will either replace contract name or remove @inheritdoc tag completely to avoid
     /// generating invalid source code.
     fn update_inheritdocs(&self, top_level_names: &HashMap<usize, String>, updates: &mut Updates) {
+        trace!("updating @inheritdoc tags");
         for (path, ast) in &self.asts {
             // Collect all exported symbols for this source unit
             // @inheritdoc value is either one of those or qualified import path which we don't
@@ -434,7 +435,9 @@ impl Flattener {
                 // slashes and we can't use if to find positions.
                 let content: &str = &self.sources.get(path).unwrap().content[src_start..src_end];
                 let tag_len = "@inheritdoc".len();
+
                 if let Some(tag_start) = content.find("@inheritdoc") {
+                    trace!("processing doc with content {:?}", content);
                     if let Some(name_start) = content[tag_start + tag_len..]
                         .find(|c| c != ' ')
                         .map(|p| p + tag_start + tag_len)
@@ -445,15 +448,27 @@ impl Flattener {
                             .unwrap_or(content.len());
 
                         let name = &content[name_start..name_end];
+                        trace!("found name {name}");
+
+                        let mut new_name = None;
 
                         if let Some(ast_id) = exported_symbols.get(name) {
-                            let new_name = top_level_names.get(ast_id).unwrap();
+                            if let Some(name) = top_level_names.get(ast_id) {
+                                new_name = Some(name);
+                            } else {
+                                trace!(identifiers=?top_level_names, "ast id {ast_id} cannot be matched to top-level identifier");
+                            }
+                        }
+
+                        if let Some(new_name) = new_name {
+                            trace!("updating tag value with {new_name}");
                             updates.entry(path.to_path_buf()).or_default().insert((
                                 src_start + name_start,
                                 src_start + name_end,
                                 new_name.to_string(),
                             ));
                         } else {
+                            trace!("name is unknown, removing @inheritdoc tag");
                             updates.entry(path.to_path_buf()).or_default().insert((
                                 src_start + tag_start,
                                 src_start + name_end,
