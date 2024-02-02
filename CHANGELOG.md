@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1](https://github.com/foundry-rs/compilers/releases/tag/v0.3.1) - 2024-02-02
+
+### Other
+
+- Flatten fix ([#68](https://github.com/foundry-rs/compilers/issues/68))
+
 ## [0.3.0](https://github.com/foundry-rs/compilers/releases/tag/v0.3.0) - 2024-01-31
 
 ### Dependencies
@@ -14,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.3.0
 - Enable some lints ([#64](https://github.com/foundry-rs/compilers/issues/64))
 - Remove wasm cfgs ([#61](https://github.com/foundry-rs/compilers/issues/61))
 - Add more tracing around spawning Solc ([#57](https://github.com/foundry-rs/compilers/issues/57))
