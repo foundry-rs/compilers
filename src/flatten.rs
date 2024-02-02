@@ -460,23 +460,20 @@ impl Flattener {
                             }
                         }
 
-                        match new_name {
-                            Some(new_name) => {
-                                trace!("updating tag value with {new_name}");
-                                updates.entry(path.to_path_buf()).or_default().insert((
-                                    src_start + name_start,
-                                    src_start + name_end,
-                                    new_name.to_string(),
-                                ));
-                            }
-                            None => {
-                                trace!("name is unknown, removing @inheritdoc tag");
-                                updates.entry(path.to_path_buf()).or_default().insert((
-                                    src_start + tag_start,
-                                    src_start + name_end,
-                                    "".to_string(),
-                                ));
-                            }
+                        if let Some(new_name) = new_name {
+                            trace!("updating tag value with {new_name}");
+                            updates.entry(path.to_path_buf()).or_default().insert((
+                                src_start + name_start,
+                                src_start + name_end,
+                                new_name.to_string(),
+                            ));
+                        } else {
+                            trace!("name is unknown, removing @inheritdoc tag");
+                            updates.entry(path.to_path_buf()).or_default().insert((
+                                src_start + tag_start,
+                                src_start + name_end,
+                                "".to_string(),
+                            ));
                         }
                     }
                 }
