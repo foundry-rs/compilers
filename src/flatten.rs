@@ -456,8 +456,7 @@ impl Flattener {
                             if let Some(name) = top_level_names.get(ast_id) {
                                 new_name = Some(name);
                             } else {
-                                trace!("ast id {ast_id} cannot be matched to top-level identifier");
-                                trace!("known top-level identifiers: {:?}", top_level_names);
+                                trace!(identifiers=?top_level_names, "ast id {ast_id} cannot be matched to top-level identifier");
                             }
                         }
 
