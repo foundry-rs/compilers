@@ -352,6 +352,7 @@ impl<'a, T: ArtifactOutput> ArtifactsState<'a, T> {
         let ArtifactsState { output, cache, compiled_artifacts } = self;
         let project = cache.project();
         let ignored_error_codes = project.ignored_error_codes.clone();
+        let ignored_file_paths = project.ignored_file_paths.clone();
         let compiler_severity_filter = project.compiler_severity_filter;
         let has_error = output.has_error(&ignored_error_codes, &compiler_severity_filter);
         let skip_write_to_disk = project.no_artifacts || has_error;
@@ -363,6 +364,7 @@ impl<'a, T: ArtifactOutput> ArtifactsState<'a, T> {
             compiled_artifacts,
             cached_artifacts,
             ignored_error_codes,
+            ignored_file_paths,
             compiler_severity_filter,
         })
     }

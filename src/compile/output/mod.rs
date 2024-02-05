@@ -8,7 +8,8 @@ use crate::{
     buildinfo::RawBuildInfo,
     info::ContractInfoRef,
     sources::{VersionedSourceFile, VersionedSourceFiles},
-    ArtifactId, ArtifactOutput, Artifacts, CompilerOutput, ConfigurableArtifacts, SolcIoError,
+    ArtifactId, ArtifactOutput, Artifacts, CompilerOutput, ConfigurableArtifacts, ProjectPaths,
+    SolcIoError,
 };
 use contracts::{VersionedContract, VersionedContracts};
 use semver::Version;
@@ -32,6 +33,8 @@ pub struct ProjectCompileOutput<T: ArtifactOutput = ConfigurableArtifacts> {
     pub(crate) cached_artifacts: Artifacts<T::Artifact>,
     /// errors that should be omitted
     pub(crate) ignored_error_codes: Vec<u64>,
+    /// paths that should be omitted
+    pub(crate) ignored_file_paths: ProjectPaths,
     /// set minimum level of severity that is treated as an error
     pub(crate) compiler_severity_filter: Severity,
 }
@@ -463,7 +466,11 @@ impl<T: ArtifactOutput> fmt::Display for ProjectCompileOutput<T> {
             f.write_str("Nothing to compile")
         } else {
             self.compiler_output
-                .diagnostics(&self.ignored_error_codes, self.compiler_severity_filter)
+                .diagnostics(
+                    &self.ignored_error_codes,
+                    &self.ignored_file_paths,
+                    self.compiler_severity_filter,
+                )
                 .fmt(f)
         }
     }
@@ -522,9 +529,15 @@ impl AggregatedCompilerOutput {
     pub fn diagnostics<'a>(
         &'a self,
         ignored_error_codes: &'a [u64],
+        ignored_file_paths: &'a ProjectPaths,
         compiler_severity_filter: Severity,
     ) -> OutputDiagnostics<'a> {
-        OutputDiagnostics { compiler_output: self, ignored_error_codes, compiler_severity_filter }
+        OutputDiagnostics {
+            compiler_output: self,
+            ignored_error_codes,
+            ignored_file_paths,
+            compiler_severity_filter,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -784,6 +797,8 @@ pub struct OutputDiagnostics<'a> {
     compiler_output: &'a AggregatedCompilerOutput,
     /// the error codes to ignore
     ignored_error_codes: &'a [u64],
+    /// the file paths to ignore
+    ignored_file_paths: &'a ProjectPaths,
     /// set minimum level of severity that is treated as an error
     compiler_severity_filter: Severity,
 }
