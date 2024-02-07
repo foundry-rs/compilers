@@ -481,6 +481,13 @@ impl<T: ArtifactOutput> Project<T> {
                 .map_err(|err| SolcIoError::new(err, self.artifacts_path().clone()))?;
             trace!("removed artifacts dir \"{}\"", self.artifacts_path().display());
         }
+
+        if self.build_info_path().exists() {
+            std::fs::remove_dir_all(self.build_info_path())
+                .map_err(|err| SolcIoError::new(err, self.build_info_path().clone()))?;
+            tracing::trace!("removed build-info dir \"{}\"", self.build_info_path().display());
+        }
+
         Ok(())
     }
 
