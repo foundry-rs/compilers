@@ -1571,10 +1571,22 @@ impl CompilerOutput {
     }
 
     /// Whether the output contains a compiler warning
-    pub fn has_warning(&self, ignored_error_codes: &[u64]) -> bool {
+    pub fn has_warning(&self, ignored_error_codes: &[u64], ignored_file_paths: &[PathBuf]) -> bool {
         self.errors.iter().any(|err| {
             if err.severity.is_warning() {
-                err.error_code.as_ref().map_or(false, |code| !ignored_error_codes.contains(code))
+                let is_code_not_ignored = err
+                    .error_code
+                    .as_ref()
+                    .map_or(false, |code| !ignored_error_codes.contains(code));
+
+                let is_file_not_ignored = err.source_location.as_ref().map_or(false, |location| {
+                    !ignored_file_paths.contains(&PathBuf::from(&location.file))
+                });
+
+                // Return true if the error code is not ignored and the file path is not ignored
+                // This means the error is considered a warning if it's not excluded by either the
+                // ignored codes or paths
+                is_code_not_ignored && is_file_not_ignored
             } else {
                 false
             }

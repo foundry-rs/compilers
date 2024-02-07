@@ -873,6 +873,10 @@ impl<'a> fmt::Display for OutputDiagnostics<'a> {
                         // from a test file we skip
                         ignored =
                             self.is_test(&source_location.file) && (code == 1878 || code == 5574);
+
+                        // we ignore warnings coming from ignored files
+                        ignored |=
+                            self.ignored_file_paths.contains(&PathBuf::from(&source_location.file));
                     }
 
                     ignored |= self.ignored_error_codes.contains(&code);
