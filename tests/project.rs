@@ -347,6 +347,51 @@ contract B { }
 }
 
 #[test]
+fn can_clean_build_info() {
+    let mut project = TempProject::dapptools().unwrap();
+
+    project.project_mut().build_info = true;
+    project.project_mut().paths.build_infos = project.project_mut().paths.root.join("build-info");
+    project
+        .add_source(
+            "A",
+            r#"
+pragma solidity ^0.8.10;
+import "./B.sol";
+contract A { }
+"#,
+        )
+        .unwrap();
+
+    project
+        .add_source(
+            "B",
+            r"
+pragma solidity ^0.8.10;
+contract B { }
+",
+        )
+        .unwrap();
+
+    let compiled = project.compile().unwrap();
+    compiled.assert_success();
+
+    let info_dir = project.project().build_info_path();
+    assert!(info_dir.exists());
+
+    let mut build_info_count = 0;
+    for entry in fs::read_dir(info_dir).unwrap() {
+        let _info = BuildInfo::read(entry.unwrap().path()).unwrap();
+        build_info_count += 1;
+    }
+    assert_eq!(build_info_count, 1);
+
+    project.project().cleanup().unwrap();
+
+    assert!(!project.project().build_info_path().exists());
+}
+
+#[test]
 fn can_compile_dapp_sample_with_cache() {
     let tmp_dir = tempfile::tempdir().unwrap();
     let root = tmp_dir.path();

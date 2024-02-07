@@ -476,11 +476,21 @@ impl<T: ArtifactOutput> Project<T> {
             }
             trace!("removed cache file \"{}\"", self.cache_path().display());
         }
-        if self.paths.artifacts.exists() {
+
+        // clean the artifacts dir
+        if self.artifacts_path().exists() {
             std::fs::remove_dir_all(self.artifacts_path())
                 .map_err(|err| SolcIoError::new(err, self.artifacts_path().clone()))?;
             trace!("removed artifacts dir \"{}\"", self.artifacts_path().display());
         }
+
+        // also clean the build-info dir, in case it's not nested in the artifacts dir
+        if self.build_info_path().exists() {
+            std::fs::remove_dir_all(self.build_info_path())
+                .map_err(|err| SolcIoError::new(err, self.build_info_path().clone()))?;
+            tracing::trace!("removed build-info dir \"{}\"", self.build_info_path().display());
+        }
+
         Ok(())
     }
 
