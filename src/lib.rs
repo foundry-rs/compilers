@@ -83,7 +83,7 @@ pub struct Project<T: ArtifactOutput = ConfigurableArtifacts> {
     /// Errors/Warnings which match these error codes are not going to be logged
     pub ignored_error_codes: Vec<u64>,
     /// Errors/Warnings which match these file paths are not going to be logged
-    pub ignored_file_paths: ProjectPaths,
+    pub ignored_file_paths: Vec<PathBuf>,
     /// The minimum severity level that is treated as a compiler error
     pub compiler_severity_filter: Severity,
     /// The paths which will be allowed for library inclusion
@@ -568,7 +568,7 @@ pub struct ProjectBuilder<T: ArtifactOutput = ConfigurableArtifacts> {
     /// Which error codes to ignore
     pub ignored_error_codes: Vec<u64>,
     /// Which file paths to ignore
-    pub ignored_file_paths: ProjectPaths,
+    pub ignored_file_paths: Vec<PathBuf>,
     /// The minimum severity level that is treated as a compiler error
     compiler_severity_filter: Severity,
     /// All allowed paths for solc's `--allowed-paths`
@@ -593,7 +593,7 @@ impl<T: ArtifactOutput> ProjectBuilder<T> {
             slash_paths: true,
             artifacts,
             ignored_error_codes: Vec::new(),
-            ignored_file_paths: ProjectPaths::default(),
+            ignored_file_paths: Vec::new(),
             compiler_severity_filter: Severity::Error,
             allowed_paths: Default::default(),
             include_paths: Default::default(),
@@ -633,7 +633,7 @@ impl<T: ArtifactOutput> ProjectBuilder<T> {
         self
     }
 
-    pub fn ignore_paths(mut self, paths: ProjectPaths) -> Self {
+    pub fn ignore_paths(mut self, paths: Vec<PathBuf>) -> Self {
         self.ignored_file_paths = paths;
         self
     }

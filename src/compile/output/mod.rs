@@ -8,13 +8,16 @@ use crate::{
     buildinfo::RawBuildInfo,
     info::ContractInfoRef,
     sources::{VersionedSourceFile, VersionedSourceFiles},
-    ArtifactId, ArtifactOutput, Artifacts, CompilerOutput, ConfigurableArtifacts, ProjectPaths,
-    SolcIoError,
+    ArtifactId, ArtifactOutput, Artifacts, CompilerOutput, ConfigurableArtifacts, SolcIoError,
 };
 use contracts::{VersionedContract, VersionedContracts};
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, fmt, path::Path};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    path::{Path, PathBuf},
+};
 use yansi::Paint;
 
 pub mod contracts;
@@ -34,7 +37,7 @@ pub struct ProjectCompileOutput<T: ArtifactOutput = ConfigurableArtifacts> {
     /// errors that should be omitted
     pub(crate) ignored_error_codes: Vec<u64>,
     /// paths that should be omitted
-    pub(crate) ignored_file_paths: ProjectPaths,
+    pub(crate) ignored_file_paths: Vec<PathBuf>,
     /// set minimum level of severity that is treated as an error
     pub(crate) compiler_severity_filter: Severity,
 }
@@ -248,12 +251,16 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
 
     /// Returns whether any errors were emitted by the compiler.
     pub fn has_compiler_errors(&self) -> bool {
-        self.compiler_output.has_error(&self.ignored_error_codes, &self.compiler_severity_filter)
+        self.compiler_output.has_error(
+            &self.ignored_error_codes,
+            &self.ignored_file_paths,
+            &self.compiler_severity_filter,
+        )
     }
 
     /// Returns whether any warnings were emitted by the compiler.
     pub fn has_compiler_warnings(&self) -> bool {
-        self.compiler_output.has_warning(&self.ignored_error_codes)
+        self.compiler_output.has_warning(&self.ignored_error_codes, &self.ignored_file_paths)
     }
 
     /// Panics if any errors were emitted by the compiler.
@@ -502,12 +509,14 @@ impl AggregatedCompilerOutput {
     pub fn has_error(
         &self,
         ignored_error_codes: &[u64],
+        ignored_file_paths: &[PathBuf],
         compiler_severity_filter: &Severity,
     ) -> bool {
         self.errors.iter().any(|err| {
             if compiler_severity_filter.ge(&err.severity) {
                 if compiler_severity_filter.is_warning() {
-                    return self.has_warning(ignored_error_codes);
+                    // skip ignored error codes and file path from warnings
+                    return self.has_warning(ignored_error_codes, ignored_file_paths);
                 }
                 return true;
             }
@@ -516,10 +525,22 @@ impl AggregatedCompilerOutput {
     }
 
     /// Whether the output contains a compiler warning
-    pub fn has_warning(&self, ignored_error_codes: &[u64]) -> bool {
+    pub fn has_warning(&self, ignored_error_codes: &[u64], ignored_file_paths: &[PathBuf]) -> bool {
         self.errors.iter().any(|err| {
             if err.severity.is_warning() {
-                err.error_code.as_ref().map_or(false, |code| !ignored_error_codes.contains(code))
+                let is_code_not_ignored = err
+                    .error_code
+                    .as_ref()
+                    .map_or(false, |code| !ignored_error_codes.contains(code));
+
+                let is_file_not_ignored = err.source_location.as_ref().map_or(false, |location| {
+                    !ignored_file_paths.contains(&PathBuf::from(&location.file))
+                });
+
+                // Return true if the error code is not ignored and the file path is not ignored
+                // This means the error is considered a warning if it's not excluded by either the
+                // ignored codes or paths
+                is_code_not_ignored && is_file_not_ignored
             } else {
                 false
             }
@@ -529,7 +550,7 @@ impl AggregatedCompilerOutput {
     pub fn diagnostics<'a>(
         &'a self,
         ignored_error_codes: &'a [u64],
-        ignored_file_paths: &'a ProjectPaths,
+        ignored_file_paths: &'a Vec<PathBuf>,
         compiler_severity_filter: Severity,
     ) -> OutputDiagnostics<'a> {
         OutputDiagnostics {
@@ -798,7 +819,7 @@ pub struct OutputDiagnostics<'a> {
     /// the error codes to ignore
     ignored_error_codes: &'a [u64],
     /// the file paths to ignore
-    ignored_file_paths: &'a ProjectPaths,
+    ignored_file_paths: &'a Vec<PathBuf>,
     /// set minimum level of severity that is treated as an error
     compiler_severity_filter: Severity,
 }
@@ -806,12 +827,16 @@ pub struct OutputDiagnostics<'a> {
 impl<'a> OutputDiagnostics<'a> {
     /// Returns true if there is at least one error of high severity
     pub fn has_error(&self) -> bool {
-        self.compiler_output.has_error(self.ignored_error_codes, &self.compiler_severity_filter)
+        self.compiler_output.has_error(
+            self.ignored_error_codes,
+            self.ignored_file_paths,
+            &self.compiler_severity_filter,
+        )
     }
 
     /// Returns true if there is at least one warning
     pub fn has_warning(&self) -> bool {
-        self.compiler_output.has_warning(self.ignored_error_codes)
+        self.compiler_output.has_warning(self.ignored_error_codes, self.ignored_file_paths)
     }
 
     /// Returns true if the contract is a expected to be a test
