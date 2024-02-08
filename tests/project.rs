@@ -17,7 +17,6 @@ use foundry_compilers::{
     ProjectCompileOutput, ProjectPathsConfig, Solc, TestFileFilter,
 };
 use pretty_assertions::assert_eq;
-use rayon::vec;
 use semver::Version;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -2535,7 +2534,7 @@ fn compile_project_with_options(
 }
 
 #[test]
-fn test_compiler_severity_filter_and_ignored_file_paths() {
+fn test_compiler_ignored_file_paths() {
     let compiled = compile_project_with_options(None, None, None);
     // no ignored paths set, so the warning should be present
     assert!(compiled.has_compiler_warnings());

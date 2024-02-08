@@ -17,6 +17,7 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
+
 pub mod error;
 pub use error::*;
 
@@ -1584,7 +1585,7 @@ impl CompilerOutput {
             let is_file_ignored = error
                 .source_location
                 .as_ref()
-                .map_or(false, |location| filter.is_file_ignored(&PathBuf::from(&location.file)));
+                .map_or(false, |location| filter.is_file_ignored(Path::new(&location.file)));
 
             // Only consider warnings that are not ignored by either code or file path.
             // Hence, return `true` for warnings that are not ignored, making the function
