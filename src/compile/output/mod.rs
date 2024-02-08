@@ -261,10 +261,8 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
 
     /// Returns whether any warnings were emitted by the compiler.
     pub fn has_compiler_warnings(&self) -> bool {
-        self.compiler_output.has_warning(ErrorFilter::from((
-            self.ignored_error_codes.as_slice(),
-            self.ignored_file_paths.as_slice(),
-        )))
+        self.compiler_output
+            .has_warning((self.ignored_error_codes.as_slice(), self.ignored_file_paths.as_slice()))
     }
 
     /// Panics if any errors were emitted by the compiler.
@@ -550,8 +548,7 @@ impl AggregatedCompilerOutput {
             if compiler_severity_filter.ge(&err.severity) {
                 if compiler_severity_filter.is_warning() {
                     // skip ignored error codes and file path from warnings
-                    return self
-                        .has_warning(ErrorFilter::from((ignored_error_codes, ignored_file_paths)));
+                    return self.has_warning((ignored_error_codes, ignored_file_paths));
                 }
                 return true;
             }
@@ -871,8 +868,7 @@ impl<'a> OutputDiagnostics<'a> {
 
     /// Returns true if there is at least one warning
     pub fn has_warning(&self) -> bool {
-        self.compiler_output
-            .has_warning(ErrorFilter::from((self.ignored_error_codes, self.ignored_file_paths)))
+        self.compiler_output.has_warning((self.ignored_error_codes, self.ignored_file_paths))
     }
 
     /// Returns true if the contract is a expected to be a test
