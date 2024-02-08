@@ -17,6 +17,7 @@ use foundry_compilers::{
     ProjectCompileOutput, ProjectPathsConfig, Solc, TestFileFilter,
 };
 use pretty_assertions::assert_eq;
+use rayon::vec;
 use semver::Version;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -1797,6 +1798,54 @@ library MyLib {
     assert!(!bytecode.is_unlinked());
 }
 
+#[test]
+fn can_ignore_warning_from_paths() {
+    let setup_and_compile = |ignore_paths: Option<Vec<PathBuf>>| {
+        let tmp = match ignore_paths {
+            Some(paths) => TempProject::dapptools_with_ignore_paths(paths).unwrap(),
+            None => TempProject::dapptools().unwrap(),
+        };
+
+        tmp.add_source(
+            "LinkTest",
+            r#"
+                // SPDX-License-Identifier: MIT
+                import "./MyLib.sol";
+                contract LinkTest {
+                    function foo() public returns (uint256) {
+                    }
+                }
+            "#,
+        )
+        .unwrap();
+
+        tmp.add_source(
+            "MyLib",
+            r"
+                // SPDX-License-Identifier: MIT
+                library MyLib {
+                    function foobar(uint256 a) public view returns (uint256) {
+                        return a * 100;
+                    }
+                }
+            ",
+        )
+        .unwrap();
+
+        tmp.compile().unwrap()
+    };
+
+    // Test without ignoring paths
+    let compiled_without_ignore = setup_and_compile(None);
+    compiled_without_ignore.assert_success();
+    assert!(compiled_without_ignore.has_compiler_warnings());
+
+    // Test with ignoring paths
+    let paths_to_ignore = vec![Path::new("src").to_path_buf()];
+    let compiled_with_ignore = setup_and_compile(Some(paths_to_ignore));
+    compiled_with_ignore.assert_success();
+    assert!(!compiled_with_ignore.has_compiler_warnings());
+}
 #[test]
 fn can_apply_libraries_with_remappings() {
     let mut tmp = TempProject::dapptools().unwrap();

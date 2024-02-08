@@ -402,6 +402,14 @@ impl TempProject<ConfigurableArtifacts> {
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 
+    pub fn dapptools_with_ignore_paths(paths_to_ignore: Vec<PathBuf>) -> Result<Self> {
+        let tmp_dir = tempdir("tmp_dapp")?;
+        let paths = ProjectPathsConfig::dapptools(tmp_dir.path())?;
+
+        let inner = Project::builder().paths(paths).ignore_paths(paths_to_ignore).build()?;
+        Ok(Self::create_new(tmp_dir, inner)?)
+    }
+
     /// Creates an initialized dapptools style workspace in a new temporary dir
     pub fn dapptools_init() -> Result<Self> {
         let mut project = Self::dapptools()?;
