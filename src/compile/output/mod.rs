@@ -524,7 +524,6 @@ impl AggregatedCompilerOutput {
         })
     }
 
-    /// Whether the output contains a compiler warning
     /// Checks if there are any compiler warnings that are not ignored by the specified error codes
     /// and file paths.
     pub fn has_warning(&self, ignored_error_codes: &[u64], ignored_file_paths: &[PathBuf]) -> bool {
