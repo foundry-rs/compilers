@@ -646,6 +646,18 @@ impl Libraries {
             .collect();
         self
     }
+
+    /// Strips the given prefix from all library file paths to make them relative to the given
+    /// `base` argument
+    pub fn with_stripped_file_prefixes(mut self, base: impl AsRef<Path>) -> Self {
+        let base = base.as_ref();
+        self.libs = self
+            .libs
+            .into_iter()
+            .map(|(f, l)| (utils::source_name(&f, base).to_path_buf(), l))
+            .collect();
+        self
+    }
 }
 
 impl From<BTreeMap<PathBuf, BTreeMap<String, String>>> for Libraries {
@@ -2178,6 +2190,63 @@ mod tests {
                 PathBuf::from("./src/lib/LibraryContract.sol"),
                 BTreeMap::from([("Library".to_string(), "0xaddress".to_string())])
             )])
+        );
+    }
+
+    #[test]
+    fn can_strip_libraries_path_prefixes() {
+        let libraries= [
+            "/global/root/src/FileInSrc.sol:Chainlink:0xffedba5e171c4f15abaaabc86e8bd01f9b54dae5".to_string(),
+            "src/deep/DeepFileInSrc.sol:ChainlinkTWAP:0x902f6cf364b8d9470d5793a9b2b2e86bddd21e0c".to_string(),
+            "/global/GlobalFile.sol:Math:0x902f6cf364b8d9470d5793a9b2b2e86bddd21e0c".to_string(),
+            "/global/root/test/ChainlinkTWAP.t.sol:ChainlinkTWAP:0xffedba5e171c4f15abaaabc86e8bd01f9b54dae5".to_string(),
+            "test/SizeAuctionDiscount.sol:Math:0x902f6cf364b8d9470d5793a9b2b2e86bddd21e0c".to_string(),
+        ];
+
+        let libs = Libraries::parse(&libraries[..])
+            .unwrap()
+            .with_stripped_file_prefixes("/global/root")
+            .libs;
+
+        pretty_assertions::assert_eq!(
+            libs,
+            BTreeMap::from([
+                (
+                    PathBuf::from("/global/GlobalFile.sol"),
+                    BTreeMap::from([(
+                        "Math".to_string(),
+                        "0x902f6cf364b8d9470d5793a9b2b2e86bddd21e0c".to_string()
+                    )])
+                ),
+                (
+                    PathBuf::from("src/FileInSrc.sol"),
+                    BTreeMap::from([(
+                        "Chainlink".to_string(),
+                        "0xffedba5e171c4f15abaaabc86e8bd01f9b54dae5".to_string()
+                    )])
+                ),
+                (
+                    PathBuf::from("src/deep/DeepFileInSrc.sol"),
+                    BTreeMap::from([(
+                        "ChainlinkTWAP".to_string(),
+                        "0x902f6cf364b8d9470d5793a9b2b2e86bddd21e0c".to_string()
+                    )])
+                ),
+                (
+                    PathBuf::from("test/SizeAuctionDiscount.sol"),
+                    BTreeMap::from([(
+                        "Math".to_string(),
+                        "0x902f6cf364b8d9470d5793a9b2b2e86bddd21e0c".to_string()
+                    )])
+                ),
+                (
+                    PathBuf::from("test/ChainlinkTWAP.t.sol"),
+                    BTreeMap::from([(
+                        "ChainlinkTWAP".to_string(),
+                        "0xffedba5e171c4f15abaaabc86e8bd01f9b54dae5".to_string()
+                    )])
+                ),
+            ])
         );
     }
 
