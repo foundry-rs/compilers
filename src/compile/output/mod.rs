@@ -530,6 +530,15 @@ impl<'a> From<(&'a [u64], &'a [PathBuf])> for ErrorFilter<'a> {
     }
 }
 
+impl<'a> From<&'a [u64]> for ErrorFilter<'a> {
+    fn from(error_codes: &'a [u64]) -> Self {
+        ErrorFilter {
+            error_codes: Cow::Borrowed(error_codes),
+            ignored_file_paths: Cow::Borrowed(&[]),
+        }
+    }
+}
+
 impl AggregatedCompilerOutput {
     /// Converts all `\\` separators in _all_ paths to `/`
     pub fn slash_paths(&mut self) {
@@ -567,10 +576,10 @@ impl AggregatedCompilerOutput {
 
             let is_code_ignored = filter.is_code_ignored(error.error_code);
 
-            let is_file_ignored = match &error.source_location {
-                Some(location) => filter.is_file_ignored(&PathBuf::from(&location.file)),
-                None => false,
-            };
+            let is_file_ignored = error
+                .source_location
+                .as_ref()
+                .map_or(false, |location| filter.is_file_ignored(&PathBuf::from(&location.file)));
 
             // Only consider warnings that are not ignored by either code or file path.
             // Hence, return `true` for warnings that are not ignored, making the function

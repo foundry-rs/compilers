@@ -1580,10 +1580,11 @@ impl CompilerOutput {
             }
 
             let is_code_ignored = filter.is_code_ignored(error.error_code);
-            let is_file_ignored = match &error.source_location {
-                Some(location) => filter.is_file_ignored(Path::new(&location.file)),
-                None => false,
-            };
+
+            let is_file_ignored = error
+                .source_location
+                .as_ref()
+                .map_or(false, |location| filter.is_file_ignored(&PathBuf::from(&location.file)));
 
             // Only consider warnings that are not ignored by either code or file path.
             // Hence, return `true` for warnings that are not ignored, making the function
