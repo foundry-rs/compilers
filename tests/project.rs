@@ -2456,46 +2456,68 @@ fn test_compiler_severity_filter() {
     assert!(compiled.has_compiler_errors());
 }
 
-#[test]
-fn test_compiler_severity_filter_and_ignored_error_codes() {
-    fn gen_test_data_licensing_warning() -> ProjectPathsConfig {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("test-data/test-contract-warnings/LicenseWarning.sol");
+fn gen_test_data_licensing_warning() -> ProjectPathsConfig {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test-data/test-contract-warnings/LicenseWarning.sol");
 
-        ProjectPathsConfig::builder().sources(root).build().unwrap()
+    ProjectPathsConfig::builder().sources(root).build().unwrap()
+}
+
+fn compile_project_with_options(
+    severity_filter: Option<foundry_compilers::artifacts::Severity>,
+    ignore_paths: Option<Vec<PathBuf>>,
+    ignore_error_code: Option<u64>,
+) -> ProjectCompileOutput {
+    let mut builder =
+        Project::builder().no_artifacts().paths(gen_test_data_licensing_warning()).ephemeral();
+
+    if let Some(paths) = ignore_paths {
+        builder = builder.ignore_paths(paths);
+    }
+    if let Some(code) = ignore_error_code {
+        builder = builder.ignore_error_code(code);
+    }
+    if let Some(severity) = severity_filter {
+        builder = builder.set_compiler_severity_filter(severity);
     }
 
+    let project = builder.build().unwrap();
+    project.compile().unwrap()
+}
+
+#[test]
+fn test_compiler_severity_filter_and_ignored_file_paths() {
+    let compiled = compile_project_with_options(None, None, None);
+    // no ignored paths set, so the warning should be present
+    assert!(compiled.has_compiler_warnings());
+    compiled.assert_success();
+
+    let compiled = compile_project_with_options(
+        Some(foundry_compilers::artifacts::Severity::Warning),
+        Some(vec![PathBuf::from("test-data")]),
+        None,
+    );
+    // ignored paths set, so the warning shouldnt be present
+    assert!(!compiled.has_compiler_warnings());
+    compiled.assert_success();
+}
+
+#[test]
+fn test_compiler_severity_filter_and_ignored_error_codes() {
     let missing_license_error_code = 1878;
 
-    let project = Project::builder()
-        .no_artifacts()
-        .paths(gen_test_data_licensing_warning())
-        .ephemeral()
-        .build()
-        .unwrap();
-    let compiled = project.compile().unwrap();
+    let compiled = compile_project_with_options(None, None, None);
     assert!(compiled.has_compiler_warnings());
 
-    let project = Project::builder()
-        .no_artifacts()
-        .paths(gen_test_data_licensing_warning())
-        .ephemeral()
-        .ignore_error_code(missing_license_error_code)
-        .build()
-        .unwrap();
-    let compiled = project.compile().unwrap();
+    let compiled = compile_project_with_options(None, None, Some(missing_license_error_code));
     assert!(!compiled.has_compiler_warnings());
     compiled.assert_success();
 
-    let project = Project::builder()
-        .no_artifacts()
-        .paths(gen_test_data_licensing_warning())
-        .ephemeral()
-        .ignore_error_code(missing_license_error_code)
-        .set_compiler_severity_filter(foundry_compilers::artifacts::Severity::Warning)
-        .build()
-        .unwrap();
-    let compiled = project.compile().unwrap();
+    let compiled = compile_project_with_options(
+        Some(foundry_compilers::artifacts::Severity::Warning),
+        None,
+        Some(missing_license_error_code),
+    );
     assert!(!compiled.has_compiler_warnings());
     compiled.assert_success();
 }

@@ -1580,7 +1580,16 @@ impl CompilerOutput {
                     .map_or(false, |code| !ignored_error_codes.contains(code));
 
                 let is_file_not_ignored = err.source_location.as_ref().map_or(false, |location| {
-                    !ignored_file_paths.contains(&PathBuf::from(&location.file))
+                    // Convert ignored_file_paths to a Vec<String> for easier comparison
+                    let ignored_paths_as_strings: Vec<String> = ignored_file_paths
+                        .iter()
+                        .map(|path| path.to_string_lossy().into_owned())
+                        .collect();
+
+                    // Check if location.file contains any of the ignored_file_paths elements
+                    !ignored_paths_as_strings
+                        .iter()
+                        .any(|ignored_path| location.file.contains(ignored_path))
                 });
 
                 // Return true if the error code is not ignored and the file path is not ignored
