@@ -14,6 +14,7 @@ use contracts::{VersionedContract, VersionedContracts};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
+    borrow::Cow,
     collections::BTreeMap,
     fmt,
     path::{Path, PathBuf},
@@ -260,7 +261,10 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
 
     /// Returns whether any warnings were emitted by the compiler.
     pub fn has_compiler_warnings(&self) -> bool {
-        self.compiler_output.has_warning(&self.ignored_error_codes, &self.ignored_file_paths)
+        self.compiler_output.has_warning(ErrorFilter::from((
+            self.ignored_error_codes.as_slice(),
+            self.ignored_file_paths.as_slice(),
+        )))
     }
 
     /// Panics if any errors were emitted by the compiler.
@@ -498,6 +502,36 @@ pub struct AggregatedCompilerOutput {
     pub build_infos: BTreeMap<Version, RawBuildInfo>,
 }
 
+pub struct ErrorFilter<'a> {
+    error_codes: Cow<'a, [u64]>,
+    ignored_file_paths: Cow<'a, [PathBuf]>,
+}
+
+impl<'a> ErrorFilter<'a> {
+    // Helper function to check if an error code is ignored
+    pub(crate) fn is_code_ignored(&self, code: Option<u64>) -> bool {
+        match code {
+            Some(code) => self.error_codes.contains(&code),
+            None => false,
+        }
+    }
+
+    // Helper function to check if an error's file path is ignored
+    pub(crate) fn is_file_ignored(&self, file_path: &Path) -> bool {
+        self.ignored_file_paths.iter().any(|ignored_path| file_path.starts_with(ignored_path))
+    }
+}
+
+impl<'a> From<(&'a [u64], &'a [PathBuf])> for ErrorFilter<'a> {
+    fn from(tuple: (&'a [u64], &'a [PathBuf])) -> Self {
+        let (error_codes, ignored_file_paths) = tuple;
+        ErrorFilter {
+            error_codes: Cow::Borrowed(error_codes),
+            ignored_file_paths: Cow::Borrowed(ignored_file_paths),
+        }
+    }
+}
+
 impl AggregatedCompilerOutput {
     /// Converts all `\\` separators in _all_ paths to `/`
     pub fn slash_paths(&mut self) {
@@ -516,7 +550,8 @@ impl AggregatedCompilerOutput {
             if compiler_severity_filter.ge(&err.severity) {
                 if compiler_severity_filter.is_warning() {
                     // skip ignored error codes and file path from warnings
-                    return self.has_warning(ignored_error_codes, ignored_file_paths);
+                    return self
+                        .has_warning(ErrorFilter::from((ignored_error_codes, ignored_file_paths)));
                 }
                 return true;
             }
@@ -526,30 +561,24 @@ impl AggregatedCompilerOutput {
 
     /// Checks if there are any compiler warnings that are not ignored by the specified error codes
     /// and file paths.
-    pub fn has_warning(&self, ignored_error_codes: &[u64], ignored_file_paths: &[PathBuf]) -> bool {
+    pub fn has_warning(&self, filter: ErrorFilter<'_>) -> bool {
         self.errors.iter().any(|error| {
             if !error.severity.is_warning() {
                 return false;
             }
-            let is_code_not_ignored =
-                error.error_code.map_or(false, |code| !ignored_error_codes.contains(&code));
 
-            let is_file_not_ignored = self.is_file_not_ignored(error, ignored_file_paths);
-            is_code_not_ignored && is_file_not_ignored
+            let is_code_ignored = filter.is_code_ignored(error.error_code);
+
+            let is_file_ignored = match &error.source_location {
+                Some(location) => filter.is_file_ignored(&PathBuf::from(&location.file)),
+                None => false,
+            };
+
+            // Only consider warnings that are not ignored by either code or file path.
+            // Hence, return `true` for warnings that are not ignored, making the function
+            // return `true` if any such warnings exist.
+            !(is_code_ignored || is_file_ignored)
         })
-    }
-
-    /// Determines if the error's file path is not ignored based on a list of ignored file paths.
-    fn is_file_not_ignored(&self, error: &Error, ignored_file_paths: &[PathBuf]) -> bool {
-        match &error.source_location {
-            Some(location) => {
-                // Convert the error's file location to a PathBuf for comparison
-                let error_path = PathBuf::from(&location.file);
-                // Check if the error path is not in the list of ignored paths
-                !ignored_file_paths.iter().any(|ignored_path| error_path.starts_with(ignored_path))
-            }
-            None => false,
-        }
     }
 
     pub fn diagnostics<'a>(
@@ -841,7 +870,8 @@ impl<'a> OutputDiagnostics<'a> {
 
     /// Returns true if there is at least one warning
     pub fn has_warning(&self) -> bool {
-        self.compiler_output.has_warning(self.ignored_error_codes, self.ignored_file_paths)
+        self.compiler_output
+            .has_warning(ErrorFilter::from((self.ignored_error_codes, self.ignored_file_paths)))
     }
 
     /// Returns true if the contract is a expected to be a test

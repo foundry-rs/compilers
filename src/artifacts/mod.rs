@@ -3,7 +3,8 @@
 #![allow(ambiguous_glob_reexports)]
 
 use crate::{
-    compile::*, error::SolcIoError, remappings::Remapping, utils, ProjectPathsConfig, SolcError,
+    compile::*, error::SolcIoError, output::ErrorFilter, remappings::Remapping, utils,
+    ProjectPathsConfig, SolcError,
 };
 use alloy_primitives::hex;
 use md5::Digest;
@@ -16,7 +17,6 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-
 pub mod error;
 pub use error::*;
 
@@ -1572,30 +1572,23 @@ impl CompilerOutput {
 
     /// Checks if there are any compiler warnings that are not ignored by the specified error codes
     /// and file paths.
-    pub fn has_warning(&self, ignored_error_codes: &[u64], ignored_file_paths: &[PathBuf]) -> bool {
+    pub fn has_warning(&self, filter: ErrorFilter<'_>) -> bool {
         self.errors.iter().any(|error| {
             if !error.severity.is_warning() {
                 return false;
             }
-            let is_code_ignored =
-                error.error_code.map_or(false, |code| ignored_error_codes.contains(&code));
 
-            let is_file_ignored = self.is_file_ignored(error, ignored_file_paths);
-            is_code_ignored || is_file_ignored
+            let is_code_ignored = filter.is_code_ignored(error.error_code);
+            let is_file_ignored = match &error.source_location {
+                Some(location) => filter.is_file_ignored(Path::new(&location.file)),
+                None => false,
+            };
+
+            // Only consider warnings that are not ignored by either code or file path.
+            // Hence, return `true` for warnings that are not ignored, making the function
+            // return `true` if any such warnings exist.
+            !(is_code_ignored || is_file_ignored)
         })
-    }
-
-    /// Determines if the error's file path is not ignored based on a list of ignored file paths.
-    fn is_file_ignored(&self, error: &Error, ignored_file_paths: &[PathBuf]) -> bool {
-        match &error.source_location {
-            Some(location) => {
-                // Convert the error's file location to a PathBuf for comparison
-                let error_path = PathBuf::from(&location.file);
-                // Check if the error path is not in the list of ignored paths
-                ignored_file_paths.iter().any(|ignored_path| error_path.starts_with(ignored_path))
-            }
-            None => false,
-        }
     }
 
     /// Finds the _first_ contract with the given name
