@@ -561,7 +561,8 @@ impl AggregatedCompilerOutput {
 
     /// Checks if there are any compiler warnings that are not ignored by the specified error codes
     /// and file paths.
-    pub fn has_warning(&self, filter: ErrorFilter<'_>) -> bool {
+    pub fn has_warning<'a>(&self, filter: impl Into<ErrorFilter<'a>>) -> bool {
+        let filter: ErrorFilter<'_> = filter.into();
         self.errors.iter().any(|error| {
             if !error.severity.is_warning() {
                 return false;
