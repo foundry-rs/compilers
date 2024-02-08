@@ -824,7 +824,7 @@ pub struct OutputDiagnostics<'a> {
     /// the error codes to ignore
     ignored_error_codes: &'a [u64],
     /// the file paths to ignore
-    ignored_file_paths: &'a Vec<PathBuf>,
+    ignored_file_paths: &'a [PathBuf],
     /// set minimum level of severity that is treated as an error
     compiler_severity_filter: Severity,
 }
@@ -880,8 +880,9 @@ impl<'a> fmt::Display for OutputDiagnostics<'a> {
                             self.is_test(&source_location.file) && (code == 1878 || code == 5574);
 
                         // we ignore warnings coming from ignored files
-                        ignored |=
-                            self.ignored_file_paths.contains(&PathBuf::from(&source_location.file));
+                        ignored |= self
+                            .ignored_file_paths
+                            .starts_with(&[PathBuf::from(&source_location.file)]);
                     }
 
                     ignored |= self.ignored_error_codes.contains(&code);
