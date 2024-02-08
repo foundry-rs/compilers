@@ -1577,22 +1577,22 @@ impl CompilerOutput {
             if !error.severity.is_warning() {
                 return false;
             }
-            let is_code_not_ignored =
-                error.error_code.map_or(false, |code| !ignored_error_codes.contains(&code));
+            let is_code_ignored =
+                error.error_code.map_or(false, |code| ignored_error_codes.contains(&code));
 
-            let is_file_not_ignored = self.is_file_not_ignored(error, ignored_file_paths);
-            is_code_not_ignored && is_file_not_ignored
+            let is_file_ignored = self.is_file_ignored(error, ignored_file_paths);
+            is_code_ignored || is_file_ignored
         })
     }
 
     /// Determines if the error's file path is not ignored based on a list of ignored file paths.
-    fn is_file_not_ignored(&self, error: &Error, ignored_file_paths: &[PathBuf]) -> bool {
+    fn is_file_ignored(&self, error: &Error, ignored_file_paths: &[PathBuf]) -> bool {
         match &error.source_location {
             Some(location) => {
                 // Convert the error's file location to a PathBuf for comparison
                 let error_path = PathBuf::from(&location.file);
                 // Check if the error path is not in the list of ignored paths
-                !ignored_file_paths.iter().any(|ignored_path| error_path.starts_with(ignored_path))
+                ignored_file_paths.iter().any(|ignored_path| error_path.starts_with(ignored_path))
             }
             None => false,
         }
