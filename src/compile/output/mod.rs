@@ -525,35 +525,32 @@ impl AggregatedCompilerOutput {
     }
 
     /// Whether the output contains a compiler warning
+    /// Checks if there are any compiler warnings that are not ignored by the specified error codes
+    /// and file paths.
     pub fn has_warning(&self, ignored_error_codes: &[u64], ignored_file_paths: &[PathBuf]) -> bool {
-        self.errors.iter().any(|err| {
-            if err.severity.is_warning() {
-                let is_code_not_ignored = err
-                    .error_code
-                    .as_ref()
-                    .map_or(false, |code| !ignored_error_codes.contains(code));
-
-                let is_file_not_ignored = err.source_location.as_ref().map_or(false, |location| {
-                    // Convert ignored_file_paths to a Vec<String> for easier comparison
-                    let ignored_paths_as_strings: Vec<String> = ignored_file_paths
-                        .iter()
-                        .map(|path| path.to_string_lossy().into_owned())
-                        .collect();
-
-                    // Check if location.file contains any of the ignored_file_paths elements
-                    !ignored_paths_as_strings
-                        .iter()
-                        .any(|ignored_path| location.file.contains(ignored_path))
-                });
-
-                // Return true if the error code is not ignored and the file path is not ignored
-                // This means the error is considered a warning if it's not excluded by either the
-                // ignored codes or paths
-                is_code_not_ignored && is_file_not_ignored
-            } else {
-                false
+        self.errors.iter().any(|error| {
+            if !error.severity.is_warning() {
+                return false;
             }
+            let is_code_not_ignored =
+                error.error_code.map_or(false, |code| !ignored_error_codes.contains(&code));
+
+            let is_file_not_ignored = self.is_file_not_ignored(error, ignored_file_paths);
+            is_code_not_ignored && is_file_not_ignored
         })
+    }
+
+    /// Determines if the error's file path is not ignored based on a list of ignored file paths.
+    fn is_file_not_ignored(&self, error: &Error, ignored_file_paths: &[PathBuf]) -> bool {
+        match &error.source_location {
+            Some(location) => {
+                // Convert the error's file location to a PathBuf for comparison
+                let error_path = PathBuf::from(&location.file);
+                // Check if the error path is not in the list of ignored paths
+                !ignored_file_paths.iter().any(|ignored_path| error_path.starts_with(ignored_path))
+            }
+            None => false,
+        }
     }
 
     pub fn diagnostics<'a>(
