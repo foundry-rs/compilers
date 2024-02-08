@@ -507,14 +507,14 @@ pub struct ErrorFilter<'a> {
 
 impl<'a> ErrorFilter<'a> {
     /// Creates a new `ErrorFilter` with the given error codes and ignored file paths
-    pub(crate) fn new(error_codes: &'a [u64], ignored_file_paths: &'a [PathBuf]) -> Self {
+    pub fn new(error_codes: &'a [u64], ignored_file_paths: &'a [PathBuf]) -> Self {
         ErrorFilter {
             error_codes: Cow::Borrowed(error_codes),
             ignored_file_paths: Cow::Borrowed(ignored_file_paths),
         }
     }
     /// Helper function to check if an error code is ignored
-    pub(crate) fn is_code_ignored(&self, code: Option<u64>) -> bool {
+    pub fn is_code_ignored(&self, code: Option<u64>) -> bool {
         match code {
             Some(code) => self.error_codes.contains(&code),
             None => false,
@@ -522,7 +522,7 @@ impl<'a> ErrorFilter<'a> {
     }
 
     /// Helper function to check if an error's file path is ignored
-    pub(crate) fn is_file_ignored(&self, file_path: &Path) -> bool {
+    pub fn is_file_ignored(&self, file_path: &Path) -> bool {
         self.ignored_file_paths.iter().any(|ignored_path| file_path.starts_with(ignored_path))
     }
 }
