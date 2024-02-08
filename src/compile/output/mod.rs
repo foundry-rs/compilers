@@ -841,7 +841,6 @@ impl<'a> OutputDiagnostics<'a> {
 
     /// Returns true if there is at least one warning
     pub fn has_warning(&self) -> bool {
-        println!("getting here");
         self.compiler_output.has_warning(self.ignored_error_codes, self.ignored_file_paths)
     }
 
