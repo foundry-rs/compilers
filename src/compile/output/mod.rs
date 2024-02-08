@@ -555,7 +555,7 @@ impl AggregatedCompilerOutput {
     pub fn diagnostics<'a>(
         &'a self,
         ignored_error_codes: &'a [u64],
-        ignored_file_paths: &'a Vec<PathBuf>,
+        ignored_file_paths: &'a [PathBuf],
         compiler_severity_filter: Severity,
     ) -> OutputDiagnostics<'a> {
         OutputDiagnostics {
