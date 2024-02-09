@@ -500,8 +500,12 @@ pub struct AggregatedCompilerOutput {
     pub build_infos: BTreeMap<Version, RawBuildInfo>,
 }
 
+/// How to filter errors/warnings
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ErrorFilter<'a> {
+    /// Ignore errors/warnings with these codes
     pub error_codes: Cow<'a, [u64]>,
+    /// Ignore errors/warnings from these file paths
     pub ignored_file_paths: Cow<'a, [PathBuf]>,
 }
 
