@@ -82,6 +82,8 @@ pub struct Project<T: ArtifactOutput = ConfigurableArtifacts> {
     pub artifacts: T,
     /// Errors/Warnings which match these error codes are not going to be logged
     pub ignored_error_codes: Vec<u64>,
+    /// Errors/Warnings which match these file paths are not going to be logged
+    pub ignored_file_paths: Vec<PathBuf>,
     /// The minimum severity level that is treated as a compiler error
     pub compiler_severity_filter: Severity,
     /// The paths which will be allowed for library inclusion
@@ -575,6 +577,8 @@ pub struct ProjectBuilder<T: ArtifactOutput = ConfigurableArtifacts> {
     artifacts: T,
     /// Which error codes to ignore
     pub ignored_error_codes: Vec<u64>,
+    /// Which file paths to ignore
+    pub ignored_file_paths: Vec<PathBuf>,
     /// The minimum severity level that is treated as a compiler error
     compiler_severity_filter: Severity,
     /// All allowed paths for solc's `--allowed-paths`
@@ -599,6 +603,7 @@ impl<T: ArtifactOutput> ProjectBuilder<T> {
             slash_paths: true,
             artifacts,
             ignored_error_codes: Vec::new(),
+            ignored_file_paths: Vec::new(),
             compiler_severity_filter: Severity::Error,
             allowed_paths: Default::default(),
             include_paths: Default::default(),
@@ -635,6 +640,11 @@ impl<T: ArtifactOutput> ProjectBuilder<T> {
         for code in codes {
             self = self.ignore_error_code(code);
         }
+        self
+    }
+
+    pub fn ignore_paths(mut self, paths: Vec<PathBuf>) -> Self {
+        self.ignored_file_paths = paths;
         self
     }
 
@@ -749,6 +759,7 @@ impl<T: ArtifactOutput> ProjectBuilder<T> {
             offline,
             build_info,
             slash_paths,
+            ignored_file_paths,
             ..
         } = self;
         ProjectBuilder {
@@ -762,6 +773,7 @@ impl<T: ArtifactOutput> ProjectBuilder<T> {
             slash_paths,
             artifacts,
             ignored_error_codes,
+            ignored_file_paths,
             compiler_severity_filter,
             allowed_paths,
             include_paths,
@@ -820,6 +832,7 @@ impl<T: ArtifactOutput> ProjectBuilder<T> {
             auto_detect,
             artifacts,
             ignored_error_codes,
+            ignored_file_paths,
             compiler_severity_filter,
             mut allowed_paths,
             include_paths,
@@ -852,6 +865,7 @@ impl<T: ArtifactOutput> ProjectBuilder<T> {
             auto_detect,
             artifacts,
             ignored_error_codes,
+            ignored_file_paths,
             compiler_severity_filter,
             allowed_paths,
             include_paths,

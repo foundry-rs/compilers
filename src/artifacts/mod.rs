@@ -3,7 +3,8 @@
 #![allow(ambiguous_glob_reexports)]
 
 use crate::{
-    compile::*, error::SolcIoError, remappings::Remapping, utils, ProjectPathsConfig, SolcError,
+    compile::*, error::SolcIoError, output::ErrorFilter, remappings::Remapping, utils,
+    ProjectPathsConfig, SolcError,
 };
 use alloy_primitives::hex;
 use md5::Digest;
@@ -1582,14 +1583,26 @@ impl CompilerOutput {
         self.errors.iter().any(|err| err.severity.is_error())
     }
 
-    /// Whether the output contains a compiler warning
-    pub fn has_warning(&self, ignored_error_codes: &[u64]) -> bool {
-        self.errors.iter().any(|err| {
-            if err.severity.is_warning() {
-                err.error_code.as_ref().map_or(false, |code| !ignored_error_codes.contains(code))
-            } else {
-                false
+    /// Checks if there are any compiler warnings that are not ignored by the specified error codes
+    /// and file paths.
+    pub fn has_warning<'a>(&self, filter: impl Into<ErrorFilter<'a>>) -> bool {
+        let filter: ErrorFilter<'_> = filter.into();
+        self.errors.iter().any(|error| {
+            if !error.severity.is_warning() {
+                return false;
             }
+
+            let is_code_ignored = filter.is_code_ignored(error.error_code);
+
+            let is_file_ignored = error
+                .source_location
+                .as_ref()
+                .map_or(false, |location| filter.is_file_ignored(Path::new(&location.file)));
+
+            // Only consider warnings that are not ignored by either code or file path.
+            // Hence, return `true` for warnings that are not ignored, making the function
+            // return `true` if any such warnings exist.
+            !(is_code_ignored || is_file_ignored)
         })
     }
 

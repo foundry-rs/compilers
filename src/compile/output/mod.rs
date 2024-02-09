@@ -13,7 +13,12 @@ use crate::{
 use contracts::{VersionedContract, VersionedContracts};
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, fmt, path::Path};
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+    fmt,
+    path::{Path, PathBuf},
+};
 use yansi::Paint;
 
 pub mod contracts;
@@ -32,6 +37,8 @@ pub struct ProjectCompileOutput<T: ArtifactOutput = ConfigurableArtifacts> {
     pub(crate) cached_artifacts: Artifacts<T::Artifact>,
     /// errors that should be omitted
     pub(crate) ignored_error_codes: Vec<u64>,
+    /// paths that should be omitted
+    pub(crate) ignored_file_paths: Vec<PathBuf>,
     /// set minimum level of severity that is treated as an error
     pub(crate) compiler_severity_filter: Severity,
 }
@@ -245,12 +252,17 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
 
     /// Returns whether any errors were emitted by the compiler.
     pub fn has_compiler_errors(&self) -> bool {
-        self.compiler_output.has_error(&self.ignored_error_codes, &self.compiler_severity_filter)
+        self.compiler_output.has_error(
+            &self.ignored_error_codes,
+            &self.ignored_file_paths,
+            &self.compiler_severity_filter,
+        )
     }
 
     /// Returns whether any warnings were emitted by the compiler.
     pub fn has_compiler_warnings(&self) -> bool {
-        self.compiler_output.has_warning(&self.ignored_error_codes)
+        let filter = ErrorFilter::new(&self.ignored_error_codes, &self.ignored_file_paths);
+        self.compiler_output.has_warning(filter)
     }
 
     /// Panics if any errors were emitted by the compiler.
@@ -463,7 +475,11 @@ impl<T: ArtifactOutput> fmt::Display for ProjectCompileOutput<T> {
             f.write_str("Nothing to compile")
         } else {
             self.compiler_output
-                .diagnostics(&self.ignored_error_codes, self.compiler_severity_filter)
+                .diagnostics(
+                    &self.ignored_error_codes,
+                    &self.ignored_file_paths,
+                    self.compiler_severity_filter,
+                )
                 .fmt(f)
         }
     }
@@ -484,6 +500,46 @@ pub struct AggregatedCompilerOutput {
     pub build_infos: BTreeMap<Version, RawBuildInfo>,
 }
 
+/// How to filter errors/warnings
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ErrorFilter<'a> {
+    /// Ignore errors/warnings with these codes
+    pub error_codes: Cow<'a, [u64]>,
+    /// Ignore errors/warnings from these file paths
+    pub ignored_file_paths: Cow<'a, [PathBuf]>,
+}
+
+impl<'a> ErrorFilter<'a> {
+    /// Creates a new `ErrorFilter` with the given error codes and ignored file paths
+    pub fn new(error_codes: &'a [u64], ignored_file_paths: &'a [PathBuf]) -> Self {
+        ErrorFilter {
+            error_codes: Cow::Borrowed(error_codes),
+            ignored_file_paths: Cow::Borrowed(ignored_file_paths),
+        }
+    }
+    /// Helper function to check if an error code is ignored
+    pub fn is_code_ignored(&self, code: Option<u64>) -> bool {
+        match code {
+            Some(code) => self.error_codes.contains(&code),
+            None => false,
+        }
+    }
+
+    /// Helper function to check if an error's file path is ignored
+    pub fn is_file_ignored(&self, file_path: &Path) -> bool {
+        self.ignored_file_paths.iter().any(|ignored_path| file_path.starts_with(ignored_path))
+    }
+}
+
+impl<'a> From<&'a [u64]> for ErrorFilter<'a> {
+    fn from(error_codes: &'a [u64]) -> Self {
+        ErrorFilter {
+            error_codes: Cow::Borrowed(error_codes),
+            ignored_file_paths: Cow::Borrowed(&[]),
+        }
+    }
+}
+
 impl AggregatedCompilerOutput {
     /// Converts all `\\` separators in _all_ paths to `/`
     pub fn slash_paths(&mut self) {
@@ -495,12 +551,15 @@ impl AggregatedCompilerOutput {
     pub fn has_error(
         &self,
         ignored_error_codes: &[u64],
+        ignored_file_paths: &[PathBuf],
         compiler_severity_filter: &Severity,
     ) -> bool {
         self.errors.iter().any(|err| {
             if compiler_severity_filter.ge(&err.severity) {
                 if compiler_severity_filter.is_warning() {
-                    return self.has_warning(ignored_error_codes);
+                    // skip ignored error codes and file path from warnings
+                    let filter = ErrorFilter::new(ignored_error_codes, ignored_file_paths);
+                    return self.has_warning(filter);
                 }
                 return true;
             }
@@ -508,23 +567,41 @@ impl AggregatedCompilerOutput {
         })
     }
 
-    /// Whether the output contains a compiler warning
-    pub fn has_warning(&self, ignored_error_codes: &[u64]) -> bool {
-        self.errors.iter().any(|err| {
-            if err.severity.is_warning() {
-                err.error_code.as_ref().map_or(false, |code| !ignored_error_codes.contains(code))
-            } else {
-                false
+    /// Checks if there are any compiler warnings that are not ignored by the specified error codes
+    /// and file paths.
+    pub fn has_warning<'a>(&self, filter: impl Into<ErrorFilter<'a>>) -> bool {
+        let filter: ErrorFilter<'_> = filter.into();
+        self.errors.iter().any(|error| {
+            if !error.severity.is_warning() {
+                return false;
             }
+
+            let is_code_ignored = filter.is_code_ignored(error.error_code);
+
+            let is_file_ignored = error
+                .source_location
+                .as_ref()
+                .map_or(false, |location| filter.is_file_ignored(Path::new(&location.file)));
+
+            // Only consider warnings that are not ignored by either code or file path.
+            // Hence, return `true` for warnings that are not ignored, making the function
+            // return `true` if any such warnings exist.
+            !(is_code_ignored || is_file_ignored)
         })
     }
 
     pub fn diagnostics<'a>(
         &'a self,
         ignored_error_codes: &'a [u64],
+        ignored_file_paths: &'a [PathBuf],
         compiler_severity_filter: Severity,
     ) -> OutputDiagnostics<'a> {
-        OutputDiagnostics { compiler_output: self, ignored_error_codes, compiler_severity_filter }
+        OutputDiagnostics {
+            compiler_output: self,
+            ignored_error_codes,
+            ignored_file_paths,
+            compiler_severity_filter,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -784,6 +861,8 @@ pub struct OutputDiagnostics<'a> {
     compiler_output: &'a AggregatedCompilerOutput,
     /// the error codes to ignore
     ignored_error_codes: &'a [u64],
+    /// the file paths to ignore
+    ignored_file_paths: &'a [PathBuf],
     /// set minimum level of severity that is treated as an error
     compiler_severity_filter: Severity,
 }
@@ -791,12 +870,17 @@ pub struct OutputDiagnostics<'a> {
 impl<'a> OutputDiagnostics<'a> {
     /// Returns true if there is at least one error of high severity
     pub fn has_error(&self) -> bool {
-        self.compiler_output.has_error(self.ignored_error_codes, &self.compiler_severity_filter)
+        self.compiler_output.has_error(
+            self.ignored_error_codes,
+            self.ignored_file_paths,
+            &self.compiler_severity_filter,
+        )
     }
 
     /// Returns true if there is at least one warning
     pub fn has_warning(&self) -> bool {
-        self.compiler_output.has_warning(self.ignored_error_codes)
+        let filter = ErrorFilter::new(self.ignored_error_codes, self.ignored_file_paths);
+        self.compiler_output.has_warning(filter)
     }
 
     /// Returns true if the contract is a expected to be a test
@@ -833,6 +917,13 @@ impl<'a> fmt::Display for OutputDiagnostics<'a> {
                         // from a test file we skip
                         ignored =
                             self.is_test(&source_location.file) && (code == 1878 || code == 5574);
+
+                        // we ignore warnings coming from ignored files
+                        let source_path = Path::new(&source_location.file);
+                        ignored |= self
+                            .ignored_file_paths
+                            .iter()
+                            .any(|ignored_path| source_path.starts_with(ignored_path));
                     }
 
                     ignored |= self.ignored_error_codes.contains(&code);
