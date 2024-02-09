@@ -810,7 +810,7 @@ stmt_node!(
 stmt_node!(
     /// A do while statement.
     struct DoWhileStatement {
-        block: Block,
+        body: Block,
         condition: Expression,
     }
 );

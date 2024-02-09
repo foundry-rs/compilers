@@ -411,7 +411,7 @@ impl_walk!(ForStatement, visit_for_statement, |for_statement, visitor| {
 });
 
 impl_walk!(DoWhileStatement, visit_do_while_statement, |do_while_statement, visitor| {
-    do_while_statement.block.walk(visitor);
+    do_while_statement.body.walk(visitor);
     do_while_statement.condition.walk(visitor);
 });
 
