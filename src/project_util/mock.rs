@@ -380,6 +380,7 @@ trait NamingStrategy {
     fn new_source_file_name(&mut self, id: usize) -> String;
 
     /// Return a new name for the given source file id
+    #[allow(unused)]
     fn new_lib_file_name(&mut self, id: usize) -> String;
 
     /// Return a new name for the given lib id
@@ -388,9 +389,8 @@ trait NamingStrategy {
 
 /// A primitive naming that simply uses ids to create unique names
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SimpleNamingStrategy {
-    _priv: (),
-}
+#[non_exhaustive]
+pub struct SimpleNamingStrategy;
 
 impl NamingStrategy for SimpleNamingStrategy {
     fn new_source_file_name(&mut self, id: usize) -> String {
