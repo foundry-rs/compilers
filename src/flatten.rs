@@ -129,7 +129,12 @@ impl<'a> FlatteningResult<'a> {
                     offset += new_value.len() as isize - (end - start) as isize;
                 }
             }
-            sources.push(String::from_utf8(content).unwrap());
+            let content = format!(
+                "// {}\n{}",
+                path.strip_prefix(&flattener.project_root).unwrap_or(path).display(),
+                String::from_utf8(content).unwrap()
+            );
+            sources.push(content);
         }
 
         Self { sources, pragmas, license }
@@ -145,7 +150,7 @@ impl<'a> FlatteningResult<'a> {
             result.push_str(&format!("{}\n", pragma));
         }
         for source in &self.sources {
-            result.push_str(&format!("{}\n\n", source));
+            result.push_str(&format!("\n\n{}", source));
         }
 
         format!("{}\n", utils::RE_THREE_OR_MORE_NEWLINES.replace_all(&result, "\n\n").trim())
@@ -162,6 +167,8 @@ pub struct Flattener {
     asts: Vec<(PathBuf, SourceUnit)>,
     /// Sources in the order they should be written to the output file.
     ordered_sources: Vec<PathBuf>,
+    /// Project root directory.
+    project_root: PathBuf,
 }
 
 impl Flattener {
@@ -199,7 +206,13 @@ impl Flattener {
             asts.push((PathBuf::from(path), serde_json::from_str(&serde_json::to_string(ast)?)?));
         }
 
-        Ok(Flattener { target: target.into(), sources, asts, ordered_sources })
+        Ok(Flattener {
+            target: target.into(),
+            sources,
+            asts,
+            ordered_sources,
+            project_root: project.root().clone(),
+        })
     }
 
     /// Flattens target file and returns the result as a string

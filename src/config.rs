@@ -488,6 +488,12 @@ impl ProjectPathsConfig {
                 }
             }
 
+            let content = format!(
+                "// {}\n{}",
+                path.strip_prefix(&self.root).unwrap_or(path).display(),
+                content
+            );
+
             sources.push(content);
         }
 
@@ -501,8 +507,8 @@ impl ProjectPathsConfig {
         }
 
         for source in sources {
-            result.push_str(&source);
             result.push_str("\n\n");
+            result.push_str(&source);
         }
 
         Ok(format!("{}\n", utils::RE_THREE_OR_MORE_NEWLINES.replace_all(&result, "\n\n").trim()))
