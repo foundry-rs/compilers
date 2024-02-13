@@ -504,7 +504,7 @@ fn can_flatten_file() {
     test_flatteners(&project, &target, |result| {
         assert_eq!(
             result,
-            r#"pragma solidity 0.8.6;
+            r#"pragma solidity =0.8.6 ^0.8.6;
 
 contract Bar {}
 
@@ -1311,7 +1311,7 @@ contract B is A {}
         Flattener::new(project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
     assert_eq!(
         result,
-        r"pragma solidity 0.6.12;
+        r"pragma solidity =0.6.12;
 pragma experimental ABIEncoderV2;
 
 contract A {}
@@ -1701,6 +1701,42 @@ contract Foo {
 }
 "
     );
+}
+
+#[test]
+fn can_flatten_combine_pragmas() {
+    let project = TempProject::dapptools().unwrap();
+
+    project
+        .add_source(
+            "A",
+            r"pragma solidity >=0.5.0;
+
+contract A {}",
+        )
+        .unwrap();
+
+    let target = project
+        .add_source(
+            "B",
+            r"pragma solidity <0.9.0;
+import './A.sol';
+
+contract B {}",
+        )
+        .unwrap();
+
+    test_flatteners(&project, &target, |result| {
+        assert_eq!(
+            result,
+            r"pragma solidity <0.9.0 >=0.5.0;
+
+contract A {}
+
+contract B {}
+"
+        );
+    });
 }
 
 #[test]

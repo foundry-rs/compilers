@@ -4,6 +4,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use itertools::Itertools;
+
 use crate::{
     artifacts::{
         ast::SourceLocation,
@@ -12,7 +14,7 @@ use crate::{
         MemberAccess, Source, SourceUnit, SourceUnitPart, Sources,
     },
     error::SolcError,
-    utils, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Result,
+    utils, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Result, Solc,
 };
 
 /// Alternative of `SourceLocation` which includes path of the file.
@@ -95,11 +97,11 @@ impl Visitor for ReferencesCollector {
 /// source_path -> (start, end, new_value)
 type Updates = HashMap<PathBuf, HashSet<(usize, usize, String)>>;
 
-struct FlatteningResult<'a> {
+pub struct FlatteningResult<'a> {
     /// Updated source in the order they shoud be written to the output file.
     sources: Vec<String>,
     /// Pragmas that should be present in the target file.
-    pragmas: Vec<&'a str>,
+    pragmas: Vec<String>,
     /// License identifier that should be present in the target file.
     license: Option<&'a str>,
 }
@@ -108,7 +110,7 @@ impl<'a> FlatteningResult<'a> {
     fn new(
         flattener: &Flattener,
         mut updates: Updates,
-        pragmas: Vec<&'a str>,
+        pragmas: Vec<String>,
         license: Option<&'a str>,
     ) -> Self {
         let mut sources = Vec::new();
@@ -177,9 +179,9 @@ impl Flattener {
         let sources = Source::read_all_files(input_files)?;
         let graph = Graph::resolve_sources(&project.paths, sources)?;
 
-        let ordered_deps = collect_ordered_deps(&target.to_path_buf(), &project.paths, &graph)?;
+        let ordered_sources = collect_ordered_deps(&target.to_path_buf(), &project.paths, &graph)?;
 
-        let sources = Source::read_all(&ordered_deps)?;
+        let sources = Source::read_all(&ordered_sources)?;
 
         // Convert all ASTs from artifacts to strongly typed ASTs
         let mut asts: Vec<(PathBuf, SourceUnit)> = Vec::new();
@@ -197,7 +199,7 @@ impl Flattener {
             asts.push((PathBuf::from(path), serde_json::from_str(&serde_json::to_string(ast)?)?));
         }
 
-        Ok(Flattener { target: target.into(), sources, asts, ordered_sources: ordered_deps })
+        Ok(Flattener { target: target.into(), sources, asts, ordered_sources })
     }
 
     /// Flattens target file and returns the result as a string
@@ -227,7 +229,7 @@ impl Flattener {
     fn flatten_result<'a>(
         &'a self,
         updates: Updates,
-        target_pragmas: Vec<&'a str>,
+        target_pragmas: Vec<String>,
         target_license: Option<&'a str>,
     ) -> FlatteningResult<'_> {
         FlatteningResult::new(self, updates, target_pragmas, target_license)
@@ -629,25 +631,22 @@ impl Flattener {
             .collect()
     }
 
-    /// Removes all pragma directives from all sources. Returns Vec of pragmas that were found in
-    /// target file.
-    fn process_pragmas(&self, updates: &mut Updates) -> Vec<&str> {
-        // Pragmas that will be used in the resulted file
-        let mut target_pragmas = Vec::new();
+    /// Removes all pragma directives from all sources. Returns Vec with experimental and combined
+    /// version pragmas (if present).
+    fn process_pragmas(&self, updates: &mut Updates) -> Vec<String> {
+        let mut experimental = None;
 
         let pragmas = self.collect_pragmas();
-
-        let mut seen_experimental = false;
+        let mut version_pragmas = Vec::new();
 
         for loc in &pragmas {
             let pragma_content = self.read_location(loc);
             if pragma_content.contains("experimental") {
-                if !seen_experimental {
-                    seen_experimental = true;
-                    target_pragmas.push(loc);
+                if experimental.is_none() {
+                    experimental = Some(self.read_location(loc).to_string());
                 }
-            } else if loc.path == self.target {
-                target_pragmas.push(loc);
+            } else if pragma_content.contains("solidity") {
+                version_pragmas.push(pragma_content);
             }
 
             updates.entry(loc.path.clone()).or_default().insert((
@@ -657,8 +656,17 @@ impl Flattener {
             ));
         }
 
-        target_pragmas.sort_by_key(|loc| loc.start);
-        target_pragmas.iter().map(|loc| self.read_location(loc)).collect::<Vec<_>>()
+        let mut pragmas = Vec::new();
+
+        if let Some(version_pragma) = combine_version_pragmas(version_pragmas) {
+            pragmas.push(version_pragma);
+        }
+
+        if let Some(pragma) = experimental {
+            pragmas.push(pragma);
+        }
+
+        pragmas
     }
 
     // Collects all pragma directives locations.
@@ -784,4 +792,28 @@ pub fn collect_ordered_deps(
     ordered_deps.push(path.clone());
 
     Ok(ordered_deps)
+}
+
+pub fn combine_version_pragmas(pragmas: Vec<&str>) -> Option<String> {
+    let mut versions = pragmas
+        .into_iter()
+        .filter_map(|p| {
+            Solc::version_req(
+                p.replace("pragma", "").replace("solidity", "").replace(';', "").trim(),
+            )
+            .ok()
+        })
+        .flat_map(|req| req.comparators)
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .map(|comp| comp.to_string())
+        .collect::<Vec<_>>();
+
+    versions.sort();
+
+    if !versions.is_empty() {
+        return Some(format!("pragma solidity {};", versions.iter().format(" ")));
+    }
+
+    None
 }
