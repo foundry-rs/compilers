@@ -151,7 +151,7 @@ impl GraphEdges {
     /// Returns all files that import the given file
     pub fn importers(&self, file: impl AsRef<Path>) -> HashSet<&PathBuf> {
         if let Some(start) = self.indices.get(file.as_ref()).copied() {
-            self.rev_edges[start].iter().map(move |idx| &self.rev_indices[&idx]).collect()
+            self.rev_edges[start].iter().map(move |idx| &self.rev_indices[idx]).collect()
         } else {
             HashSet::new()
         }

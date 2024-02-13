@@ -2,7 +2,7 @@ use crate::{
     artifacts::{output_selection::ContractOutputSelection, Settings},
     cache::SOLIDITY_FILES_CACHE_FILENAME,
     error::{Result, SolcError, SolcIoError},
-    flatten::collect_ordered_deps,
+    flatten::{collect_ordered_deps, combine_version_pragmas},
     remappings::Remapping,
     resolver::{Graph, SolImportAlias},
     utils, Source, Sources,
@@ -412,6 +412,8 @@ impl ProjectPathsConfig {
         let ordered_deps = collect_ordered_deps(&flatten_target, self, &graph)?;
 
         let mut sources = Vec::new();
+        let mut experimental_pragma = None;
+        let mut version_pragmas = Vec::new();
 
         let mut result = String::new();
 
@@ -420,7 +422,7 @@ impl ProjectPathsConfig {
                 SolcError::msg(format!("cannot resolve file at {}", path.display()))
             })?;
             let node = graph.node(*node_id);
-            let content = node.content().to_owned();
+            let content = node.content();
 
             // Firstly we strip all licesnses, verson pragmas
             // We keep target file pragma and license placing them in the beginning of the result.
@@ -434,17 +436,14 @@ impl ProjectPathsConfig {
                 }
             }
             if let Some(version) = node.version() {
+                let content = &content[version.loc()];
                 ranges_to_remove.push(version.loc());
-                if *path == flatten_target {
-                    result.push_str(&content[version.loc()]);
-                    result.push('\n');
-                }
+                version_pragmas.push(content);
             }
             if let Some(experimental) = node.experimental() {
                 ranges_to_remove.push(experimental.loc());
-                if *path == flatten_target {
-                    result.push_str(&content[experimental.loc()]);
-                    result.push('\n');
+                if experimental_pragma.is_none() {
+                    experimental_pragma = Some(content[experimental.loc()].to_owned());
                 }
             }
             for import in node.imports() {
@@ -489,12 +488,27 @@ impl ProjectPathsConfig {
                 }
             }
 
+            let content = format!(
+                "// {}\n{}",
+                path.strip_prefix(&self.root).unwrap_or(path).display(),
+                content
+            );
+
             sources.push(content);
         }
 
+        if let Some(version) = combine_version_pragmas(version_pragmas) {
+            result.push_str(&version);
+            result.push('\n');
+        }
+        if let Some(experimental) = experimental_pragma {
+            result.push_str(&experimental);
+            result.push('\n');
+        }
+
         for source in sources {
-            result.push_str(&source);
             result.push_str("\n\n");
+            result.push_str(&source);
         }
 
         Ok(format!("{}\n", utils::RE_THREE_OR_MORE_NEWLINES.replace_all(&result, "\n\n").trim()))

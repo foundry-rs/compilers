@@ -491,32 +491,6 @@ fn test_flatteners(project: &TempProject, target: &Path, additional_checks: fn(&
 }
 
 #[test]
-fn can_flatten_file() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/test-contract-libs");
-    let target = root.join("src").join("Foo.sol");
-    let paths = ProjectPathsConfig::builder()
-        .sources(root.join("src"))
-        .lib(root.join("lib1"))
-        .lib(root.join("lib2"));
-
-    let project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
-
-    test_flatteners(&project, &target, |result| {
-        assert_eq!(
-            result,
-            r#"pragma solidity 0.8.6;
-
-contract Bar {}
-
-contract Baz {}
-
-contract Foo is Bar, Baz {}
-"#
-        );
-    });
-}
-
-#[test]
 fn can_flatten_file_with_external_lib() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/hardhat-sample");
     let paths = ProjectPathsConfig::builder()
@@ -592,9 +566,15 @@ contract C { }
             result,
             r#"pragma solidity ^0.8.10;
 
+// src/B.sol
+
 contract B { }
 
+// src/C.sol
+
 contract C { }
+
+// src/A.sol
 
 contract A { }
 "#
@@ -649,9 +629,15 @@ contract C { }
             r"pragma solidity ^0.8.10;
 pragma experimental ABIEncoderV2;
 
+// src/B.sol
+
 contract B { }
 
+// src/C.sol
+
 contract C { }
+
+// src/A.sol
 
 contract A { }
 "
@@ -660,37 +646,35 @@ contract A { }
 }
 
 #[test]
-fn can_flatten_file_with_duplicates() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/test-flatten-duplicates");
-    let paths = ProjectPathsConfig::builder().sources(root.join("contracts"));
-    let project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
-
-    let target = root.join("contracts/FooBar.sol");
-
-    test_flatteners(&project, &target, |result| {
-        assert_eq!(
-            result,
-            r"//SPDX-License-Identifier: UNLICENSED
-pragma solidity >=0.6.0;
-
-contract Bar {}
-
-contract Foo {}
-
-contract FooBar {}
-"
-        );
-    });
-}
-
-#[test]
 fn can_flatten_on_solang_failure() {
-    let root =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/test-flatten-solang-failure");
-    let paths = ProjectPathsConfig::builder().sources(root.join("contracts"));
-    let project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::dapptools().unwrap();
 
-    let target = root.join("contracts/Contract.sol");
+    project
+        .add_source(
+            "Lib",
+            r#"// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.10;
+
+library Lib {}     
+"#,
+        )
+        .unwrap();
+
+    let target = project
+        .add_source(
+            "Contract",
+            r#"// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.10;
+
+import { Lib } from "./Lib.sol";
+
+// Intentionally erroneous code
+contract Contract {
+    failure();
+}
+"#,
+        )
+        .unwrap();
 
     let result = project.flatten(target.as_path());
     assert!(result.is_ok());
@@ -701,7 +685,11 @@ fn can_flatten_on_solang_failure() {
         r"// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.10;
 
-library Lib {}
+// src/Lib.sol
+
+library Lib {}     
+
+// src/Contract.sol
 
 // Intentionally erroneous code
 contract Contract {
@@ -756,10 +744,16 @@ contract C { }
             result,
             r"pragma solidity ^0.8.10;
 
+// src/C.sol
+
 contract C { }
+
+// src/Errors.sol
 
 error IllegalArgument();
 error IllegalState();
+
+// src/A.sol
 
 contract A { }
 "
@@ -809,11 +803,16 @@ contract C { }
             result,
             r"pragma solidity ^0.8.10;
 
+// src/C.sol
+
 contract C { }
 
+// src/B.sol
 // This is a B Contract
 
 contract B { }
+
+// src/A.sol
 
 contract A { }
 "
@@ -829,6 +828,7 @@ fn can_flatten_with_alias() {
         .add_source(
             "Contract",
             r#"pragma solidity ^0.8.10;
+
 import { ParentContract as Parent } from "./Parent.sol";
 import { AnotherParentContract as AnotherParent } from "./AnotherParent.sol";
 import { PeerContract as Peer } from "./Peer.sol";
@@ -860,6 +860,7 @@ contract Contract is Parent,
         .add_source(
             "Parent",
             r"pragma solidity ^0.8.10;
+
 contract ParentContract { }
 ",
         )
@@ -869,6 +870,7 @@ contract ParentContract { }
         .add_source(
             "AnotherParent",
             r"pragma solidity ^0.8.10;
+
 contract AnotherParentContract { }
 ",
         )
@@ -878,6 +880,7 @@ contract AnotherParentContract { }
         .add_source(
             "Peer",
             r"pragma solidity ^0.8.10;
+
 contract PeerContract { }
 ",
         )
@@ -887,6 +890,7 @@ contract PeerContract { }
         .add_source(
             "Math",
             r"pragma solidity ^0.8.10;
+
 library MathLibrary {
     function minusOne(uint256 val) internal returns (uint256) {
         return val - 1;
@@ -908,6 +912,7 @@ library MathLibrary {
         .add_source(
             "SomeLib",
             r"pragma solidity ^0.8.10;
+
 library SomeLib { }
 ",
         )
@@ -918,7 +923,11 @@ library SomeLib { }
             result,
             r#"pragma solidity ^0.8.10;
 
+// src/AnotherParent.sol
+
 contract AnotherParentContract { }
+
+// src/Math.sol
 
 library MathLibrary {
     function minusOne(uint256 val) internal returns (uint256) {
@@ -934,11 +943,19 @@ library MathLibrary {
     }
 }
 
+// src/Parent.sol
+
 contract ParentContract { }
+
+// src/Peer.sol
 
 contract PeerContract { }
 
+// src/SomeLib.sol
+
 library SomeLib { }
+
+// src/Contract.sol
 
 contract Contract is ParentContract,
     AnotherParentContract {
@@ -1016,11 +1033,19 @@ contract D { }
             result,
             r#"pragma solidity ^0.8.10;
 
+// src/C.sol
+
 contract C { }
+
+// src/D.sol
 
 contract D { }
 
+// src/B.sol
+
 contract B { }
+
+// src/A.sol
 
 contract A { }
 "#
@@ -1067,6 +1092,8 @@ contract Bar is Foo {}
         result,
         r"pragma solidity ^0.8.10;
 
+// src/Foo.sol
+
 contract Foo {
     function foo() public pure returns (uint256) {
         return 1;
@@ -1074,6 +1101,8 @@ contract Foo {
 }
 
 contract Bar_0 is Foo {}
+
+// src/Bar.sol
 
 contract Bar_1 is Foo {}
 "
@@ -1169,6 +1198,8 @@ contract D is C_File.B_File.A_File.A {
         result,
         r"pragma solidity ^0.8.10;
 
+// src/A.sol
+
 contract A_0 {
     type SomeCustomValue is uint256;
 
@@ -1183,9 +1214,15 @@ contract A_0 {
     }
 }
 
+// src/B.sol
+
 contract A_1 is A_0 {}
 
+// src/C.sol
+
 contract A_2 is A_0 {}
+
+// src/D.sol
 
 A_0.SomeCustomValue constant fileLevelValue = A_0.SomeCustomValue.wrap(1);
 
@@ -1257,6 +1294,8 @@ contract B {
         result,
         r#"pragma solidity ^0.8.10;
 
+// src/FileB.sol
+
 interface FooBar_0 {
     function bar() external;
 }
@@ -1265,6 +1304,8 @@ contract B {
         FooBar_0(address(0)).bar();
     }
 }
+
+// src/FlieA.sol
 
 interface FooBar_1 {
     function foo() external;
@@ -1311,10 +1352,14 @@ contract B is A {}
         Flattener::new(project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
     assert_eq!(
         result,
-        r"pragma solidity 0.6.12;
+        r"pragma solidity =0.6.12;
 pragma experimental ABIEncoderV2;
 
+// src/A.sol
+
 contract A {}
+
+// src/B.sol
 
 contract B is A {}
 "
@@ -1371,8 +1416,11 @@ pragma solidity ^0.8.10;"#,
             result,
             r"pragma solidity ^0.8.10;
 
+// src/A.sol
+
 contract A { }
 
+// src/B.sol
 contract B is A {}
 "
         );
@@ -1425,12 +1473,18 @@ contract B is A {
         result,
         r"pragma solidity ^0.8.10;
 
+// src/DuplicateA.sol
+
 contract A_0 {}
+
+// src/A.sol
 
 contract A_1 {
     /// Documentation
     function foo() public virtual {}
 }
+
+// src/B.sol
 
 contract B is A_1 {
     /// @inheritdoc A_1
@@ -1476,10 +1530,14 @@ contract B is Alias {
         result,
         r"pragma solidity ^0.8.10;
 
+// src/A.sol
+
 contract A {
     /// Documentation
     function foo() public virtual {}
 }
+
+// src/B.sol
 
 contract B is A {
     /// @inheritdoc A
@@ -1550,6 +1608,8 @@ contract Foo {
         result,
         r"pragma solidity ^0.8.10;
 
+// src/CustomInt.sol
+
 type CustomInt is int256;
 
 function mul_0(CustomInt a, CustomInt b) pure returns(CustomInt) {
@@ -1558,6 +1618,8 @@ function mul_0(CustomInt a, CustomInt b) pure returns(CustomInt) {
 
 using {mul_0} for CustomInt global;
 
+// src/CustomUint.sol
+
 type CustomUint is uint256;
 
 function mul_1(CustomUint a, CustomUint b) pure returns(CustomUint) {
@@ -1565,6 +1627,8 @@ function mul_1(CustomUint a, CustomUint b) pure returns(CustomUint) {
 }
 
 using {mul_1} for CustomUint global;
+
+// src/Target.sol
 
 contract Foo {
     function mul(CustomUint a, CustomUint b) public returns(CustomUint) {
@@ -1626,11 +1690,17 @@ contract Foo {
         result,
         r"pragma solidity ^0.8.10;
 
+// src/func1.sol
+
 function func_0() view {}
+
+// src/func2.sol
 
 function func_1(uint256 x) view returns(uint256) {
     return x + 1;
 }
+
+// src/Target.sol
 
 contract Foo {
     constructor(uint256 x) {
@@ -1688,9 +1758,15 @@ contract Foo {
         result,
         r"pragma solidity ^0.8.10;
 
+// src/A.sol
+
 uint256 constant a_0 = 1;
 
+// src/B.sol
+
 uint256 constant a_1 = 2;
+
+// src/Target.sol
 
 contract Foo {
     function test() public returns(uint256 x) {
@@ -1701,6 +1777,46 @@ contract Foo {
 }
 "
     );
+}
+
+#[test]
+fn can_flatten_combine_pragmas() {
+    let project = TempProject::dapptools().unwrap();
+
+    project
+        .add_source(
+            "A",
+            r"pragma solidity >=0.5.0;
+
+contract A {}",
+        )
+        .unwrap();
+
+    let target = project
+        .add_source(
+            "B",
+            r"pragma solidity <0.9.0;
+import './A.sol';
+
+contract B {}",
+        )
+        .unwrap();
+
+    test_flatteners(&project, &target, |result| {
+        assert_eq!(
+            result,
+            r"pragma solidity <0.9.0 >=0.5.0;
+
+// src/A.sol
+
+contract A {}
+
+// src/B.sol
+
+contract B {}
+"
+        );
+    });
 }
 
 #[test]
