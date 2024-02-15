@@ -121,39 +121,55 @@ impl Error {
 /// <https://github.com/ethereum/solidity/blob/a297a687261a1c634551b1dac0e36d4573c19afe/liblangutil/SourceReferenceFormatter.cpp#L105>
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut short_msg = self.message.trim();
+        let mut fmtd_msg = self.formatted_message.as_deref().unwrap_or("");
+        if short_msg.is_empty() {
+            // if the message is empty, try to extract the first line from the formatted message
+            if let Some(first_line) = fmtd_msg.lines().next() {
+                // this is something like `ParserError: <short_message>`
+                if let Some((_, s)) = first_line.split_once(':') {
+                    short_msg = s.trim_start();
+                } else {
+                    short_msg = first_line;
+                }
+            }
+        }
+        if !fmtd_msg.is_empty() {
+            if let Some(nl) = fmtd_msg.find('\n') {
+                fmtd_msg = &fmtd_msg[nl + 1..];
+            }
+        }
+
         if !Paint::is_enabled() {
-            let msg = self.formatted_message.as_ref().unwrap_or(&self.message);
             self.fmt_severity(f)?;
             f.write_str(": ")?;
-            return f.write_str(msg);
+            f.write_str(short_msg)?;
+            return f.write_str(fmtd_msg);
         }
 
         // Error (XXXX): Error Message
         styled(f, self.severity.color().style().bold(), |f| self.fmt_severity(f))?;
-        fmt_msg(f, &self.message)?;
+        fmt_msg(f, short_msg)?;
 
-        if let Some(msg) = &self.formatted_message {
-            let mut lines = msg.lines();
+        let mut lines = fmtd_msg.lines();
 
-            // skip first line, it should be similar to the error message we wrote above
-            lines.next();
+        // the first line has already been skipped above
 
-            // format the main source location
-            fmt_source_location(f, &mut lines)?;
+        // format the main source location
+        fmt_source_location(f, &mut lines)?;
 
-            // format remaining lines as secondary locations
-            while let Some(line) = lines.next() {
-                f.write_str("\n")?;
+        // format remaining lines as secondary locations
+        while let Some(line) = lines.next() {
+            f.write_str("\n")?;
 
-                if let Some((note, msg)) = line.split_once(':') {
-                    styled(f, Self::secondary_style(), |f| f.write_str(note))?;
-                    fmt_msg(f, msg)?;
-                } else {
-                    f.write_str(line)?;
-                }
-
-                fmt_source_location(f, &mut lines)?;
+            if let Some((note, msg)) = line.split_once(':') {
+                styled(f, Self::secondary_style(), |f| f.write_str(note))?;
+                fmt_msg(f, msg)?;
+            } else {
+                f.write_str(line)?;
             }
+
+            fmt_source_location(f, &mut lines)?;
         }
 
         Ok(())
@@ -334,6 +350,7 @@ mod tests {
 
     #[test]
     fn fmt_unicode() {
+        let msg = "Invalid character in string. If you are trying to use Unicode characters, use a unicode\"...\" string literal.";
         let e = Error {
             source_location: Some(SourceLocation { file: "test/Counter.t.sol".into(), start: 418, end: 462 }),
             secondary_source_locations: vec![],
@@ -341,11 +358,28 @@ mod tests {
             component: "general".into(),
             severity: Severity::Error,
             error_code: Some(8936),
-            message: "Invalid character in string. If you are trying to use Unicode characters, use a unicode\"...\" string literal.".into(),
+            message: msg.into(),
             formatted_message: Some("ParserError: Invalid character in string. If you are trying to use Unicode characters, use a unicode\"...\" string literal.\n  --> test/Counter.t.sol:17:21:\n   |\n17 |         console.log(\"1. ownership set correctly as governance: ✓\");\n   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n".into()),
         };
         let s = e.to_string();
         eprintln!("{s}");
-        assert!(!s.is_empty());
+        assert!(s.contains(msg), "\n{s}");
+    }
+
+    #[test]
+    fn only_formatted() {
+        let e = Error {
+            source_location: Some(SourceLocation { file: "test/Counter.t.sol".into(), start: 418, end: 462 }),
+            secondary_source_locations: vec![],
+            r#type: "ParserError".into(),
+            component: "general".into(),
+            severity: Severity::Error,
+            error_code: Some(8936),
+            message: String::new(),
+            formatted_message: Some("ParserError: Invalid character in string. If you are trying to use Unicode characters, use a unicode\"...\" string literal.\n  --> test/Counter.t.sol:17:21:\n   |\n17 |         console.log(\"1. ownership set correctly as governance: ✓\");\n   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n".into()),
+        };
+        let s = e.to_string();
+        eprintln!("{s}");
+        assert!(s.contains("Invalid character in string"), "\n{s}");
     }
 }
