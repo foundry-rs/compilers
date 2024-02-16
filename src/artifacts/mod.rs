@@ -1458,7 +1458,7 @@ impl Source {
     #[instrument(level = "debug", skip_all, err)]
     pub fn read(file: impl AsRef<Path>) -> Result<Self, SolcIoError> {
         let file = file.as_ref();
-        debug!(file=%file.display());
+        trace!(file=%file.display());
         let content = fs::read_to_string(file).map_err(|err| SolcIoError::new(err, file))?;
         Ok(Self::new(content))
     }
