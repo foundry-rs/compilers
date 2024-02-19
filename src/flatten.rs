@@ -1,11 +1,3 @@
-use std::{
-    collections::{HashMap, HashSet},
-    hash::Hash,
-    path::{Path, PathBuf},
-};
-
-use itertools::Itertools;
-
 use crate::{
     artifacts::{
         ast::SourceLocation,
@@ -15,6 +7,12 @@ use crate::{
     },
     error::SolcError,
     utils, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Result, Solc,
+};
+use itertools::Itertools;
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+    path::{Path, PathBuf},
 };
 
 /// Alternative of `SourceLocation` which includes path of the file.

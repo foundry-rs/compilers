@@ -1970,7 +1970,6 @@ mod tests {
     use super::*;
     use crate::AggregatedCompilerOutput;
     use alloy_primitives::Address;
-    use std::{fs, path::PathBuf};
 
     #[test]
     fn can_parse_declaration_error() {
