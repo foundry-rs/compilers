@@ -550,15 +550,12 @@ impl Solc {
     /// let output = solc.compile(&input)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn compile<T: Serialize + std::fmt::Debug>(&self, input: &T) -> Result<CompilerOutput> {
+    pub fn compile<T: Serialize>(&self, input: &T) -> Result<CompilerOutput> {
         self.compile_as(input)
     }
 
     /// Compiles with `--standard-json` and deserializes the output as the given `D`.
-    pub fn compile_as<T: Serialize + std::fmt::Debug, D: DeserializeOwned>(
-        &self,
-        input: &T,
-    ) -> Result<D> {
+    pub fn compile_as<T: Serialize, D: DeserializeOwned>(&self, input: &T) -> Result<D> {
         let output = self.compile_output(input)?;
 
         // Only run UTF-8 validation once.
@@ -569,7 +566,7 @@ impl Solc {
 
     /// Compiles with `--standard-json` and returns the raw `stdout` output.
     #[instrument(name = "compile", level = "debug", skip_all)]
-    pub fn compile_output<T: Serialize + std::fmt::Debug>(&self, input: &T) -> Result<Vec<u8>> {
+    pub fn compile_output<T: Serialize>(&self, input: &T) -> Result<Vec<u8>> {
         let mut cmd = Command::new(&self.solc);
         if let Some(base_path) = &self.base_path {
             cmd.current_dir(base_path);
@@ -578,7 +575,7 @@ impl Solc {
         cmd.args(&self.args).arg("--standard-json");
         cmd.stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
 
-        trace!(?input);
+        trace!(input=%serde_json::to_string(input).unwrap_or_else(|e| e.to_string()));
         debug!(?cmd, "compiling");
 
         let mut child = cmd.spawn().map_err(self.map_io_err())?;
