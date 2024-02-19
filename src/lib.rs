@@ -11,20 +11,23 @@ extern crate tracing;
 pub mod error;
 
 pub mod artifacts;
+pub use artifacts::{CompilerInput, CompilerOutput, EvmVersion};
+
 pub mod sourcemap;
 
-pub use artifacts::{CompilerInput, CompilerOutput, EvmVersion};
-use std::collections::{BTreeMap, HashSet};
-
 mod artifact_output;
-pub mod buildinfo;
-pub mod cache;
-pub mod flatten;
-pub mod hh;
 pub use artifact_output::*;
 
-pub mod resolver;
+pub mod buildinfo;
+
+pub mod cache;
+
+pub mod flatten;
+
+pub mod hh;
 pub use hh::{HardhatArtifact, HardhatArtifacts};
+
+pub mod resolver;
 pub use resolver::Graph;
 
 mod compile;
@@ -37,15 +40,16 @@ mod config;
 pub use config::{AllowedLibPaths, PathStyle, ProjectPaths, ProjectPathsConfig, SolcConfig};
 
 pub mod remappings;
-use crate::artifacts::{Source, SourceFile, StandardJsonCompilerInput};
 
 mod filter;
-pub mod report;
-pub mod utils;
 pub use filter::{FileFilter, TestFileFilter};
 
+pub mod report;
+
+pub mod utils;
+
 use crate::{
-    artifacts::Sources,
+    artifacts::{Source, SourceFile, Sources, StandardJsonCompilerInput},
     cache::SolFilesCache,
     config::IncludePaths,
     error::{SolcError, SolcIoError},
@@ -55,7 +59,10 @@ use artifacts::{contract::Contract, Severity};
 use compile::output::contracts::VersionedContracts;
 use error::Result;
 use semver::Version;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::{Path, PathBuf},
+};
 
 /// Utilities for creating, mocking and testing of (temporary) projects
 #[cfg(feature = "project-util")]
