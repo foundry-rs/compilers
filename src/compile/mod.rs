@@ -575,7 +575,7 @@ impl Solc {
         cmd.args(&self.args).arg("--standard-json");
         cmd.stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
 
-        trace!(input=?serde_json::to_string(input));
+        trace!(input=%serde_json::to_string(input).unwrap_or_else(|e| e.to_string()));
         debug!(?cmd, "compiling");
 
         let mut child = cmd.spawn().map_err(self.map_io_err())?;
