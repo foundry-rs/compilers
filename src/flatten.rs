@@ -192,14 +192,11 @@ impl Flattener {
         let mut asts: Vec<(PathBuf, SourceUnit)> = Vec::new();
         for (path, ast) in output.artifacts_with_files().filter_map(|(path, _, artifact)| {
             if let Some(ast) = artifact.ast.as_ref() {
-                if sources.contains_key(&PathBuf::from(path)) {
-                    Some((path, ast))
-                } else {
-                    None
+                if sources.contains_key(Path::new(path)) {
+                    return Some((path, ast));
                 }
-            } else {
-                None
             }
+            None
         }) {
             asts.push((PathBuf::from(path), serde_json::from_str(&serde_json::to_string(ast)?)?));
         }

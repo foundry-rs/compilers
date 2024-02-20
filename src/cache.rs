@@ -953,95 +953,94 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
         written_artifacts: &Artifacts<T::Artifact>,
         write_to_disk: bool,
     ) -> Result<Artifacts<T::Artifact>> {
-        match self {
-            ArtifactsCache::Ephemeral(_, _) => {
-                trace!("no cache configured, ephemeral");
-                Ok(Default::default())
+        let ArtifactsCache::Cached(cache) = self else {
+            trace!("no cache configured, ephemeral");
+            return Ok(Default::default());
+        };
+
+        let ArtifactsCacheInner {
+            mut cache,
+            mut cached_artifacts,
+            mut dirty_source_files,
+            filtered,
+            project,
+            ..
+        } = cache;
+
+        // keep only those files that were previously filtered (not dirty, reused)
+        cache.retain(filtered.iter().map(|(p, (_, v))| (p.as_path(), v)));
+
+        // add the written artifacts to the cache entries, this way we can keep a mapping
+        // from solidity file to its artifacts
+        // this step is necessary because the concrete artifacts are only known after solc
+        // was invoked and received as output, before that we merely know the file and
+        // the versions, so we add the artifacts on a file by file basis
+        for (file, written_artifacts) in written_artifacts.as_ref() {
+            let file_path = Path::new(file);
+            if let Some((cache_entry, versions)) = dirty_source_files.get_mut(file_path) {
+                cache_entry.insert_artifacts(written_artifacts.iter().map(|(name, artifacts)| {
+                    let artifacts = artifacts
+                        .iter()
+                        .filter(|artifact| versions.contains(&artifact.version))
+                        .collect::<Vec<_>>();
+                    (name, artifacts)
+                }));
             }
-            ArtifactsCache::Cached(cache) => {
-                let ArtifactsCacheInner {
-                    mut cache,
-                    mut cached_artifacts,
-                    mut dirty_source_files,
-                    filtered,
-                    project,
-                    ..
-                } = cache;
 
-                // keep only those files that were previously filtered (not dirty, reused)
-                cache.retain(filtered.iter().map(|(p, (_, v))| (p.as_path(), v)));
+            // cached artifacts that were overwritten also need to be removed from the
+            // `cached_artifacts` set
+            if let Some((f, mut cached)) = cached_artifacts.0.remove_entry(file) {
+                trace!(file, "checking for obsolete cached artifact entries");
+                cached.retain(|name, cached_artifacts| {
+                    let Some(written_files) = written_artifacts.get(name) else {
+                        return false;
+                    };
 
-                // add the written artifacts to the cache entries, this way we can keep a mapping
-                // from solidity file to its artifacts
-                // this step is necessary because the concrete artifacts are only known after solc
-                // was invoked and received as output, before that we merely know the file and
-                // the versions, so we add the artifacts on a file by file basis
-                for (file, written_artifacts) in written_artifacts.as_ref() {
-                    let file_path = Path::new(&file);
-                    if let Some((cache_entry, versions)) = dirty_source_files.get_mut(file_path) {
-                        cache_entry.insert_artifacts(written_artifacts.iter().map(
-                            |(name, artifacts)| {
-                                let artifacts = artifacts
-                                    .iter()
-                                    .filter(|artifact| versions.contains(&artifact.version))
-                                    .collect::<Vec<_>>();
-                                (name, artifacts)
-                            },
-                        ));
-                    }
-
-                    // cached artifacts that were overwritten also need to be removed from the
-                    // `cached_artifacts` set
-                    if let Some((f, mut cached)) = cached_artifacts.0.remove_entry(file) {
-                        trace!("checking {} for obsolete cached artifact entries", file);
-                        cached.retain(|name, cached_artifacts| {
-                            if let Some(written_files) = written_artifacts.get(name) {
-                                // written artifact clashes with a cached artifact, so we need to decide whether to keep or to remove the cached
-                                cached_artifacts.retain(|f| {
-                                    // we only keep those artifacts that don't conflict with written artifacts and which version was a compiler target
-                                    let retain = written_files
-                                        .iter()
-                                        .all(|other| other.version != f.version) && filtered.get(
-                                        &PathBuf::from(file)).map(|(_, versions)| {
-                                            versions.contains(&f.version)
-                                        }).unwrap_or_default();
-                                    if !retain {
-                                        trace!(
-                                            "purging obsolete cached artifact {:?} for contract {} and version {}",
-                                            f.file,
-                                            name,
-                                            f.version
-                                        );
-                                    }
-                                    retain
-                                });
-                                return !cached_artifacts.is_empty()
-                            }
-                            false
-                        });
-
-                        if !cached.is_empty() {
-                            cached_artifacts.0.insert(f, cached);
+                    // written artifact clashes with a cached artifact, so we need to decide whether
+                    // to keep or to remove the cached
+                    cached_artifacts.retain(|f| {
+                        // we only keep those artifacts that don't conflict with written artifacts
+                        // and which version was a compiler target
+                        let same_version =
+                            written_files.iter().all(|other| other.version != f.version);
+                        let is_filtered = filtered
+                            .get(file_path)
+                            .map(|(_, versions)| versions.contains(&f.version))
+                            .unwrap_or_default();
+                        let retain = same_version && is_filtered;
+                        if !retain {
+                            trace!(
+                                artifact=%f.file.display(),
+                                contract=%name,
+                                version=%f.version,
+                                "purging obsolete cached artifact",
+                            );
                         }
-                    }
+                        retain
+                    });
+
+                    !cached_artifacts.is_empty()
+                });
+
+                if !cached.is_empty() {
+                    cached_artifacts.0.insert(f, cached);
                 }
-
-                // add the new cache entries to the cache file
-                cache
-                    .extend(dirty_source_files.into_iter().map(|(file, (entry, _))| (file, entry)));
-
-                // write to disk
-                if write_to_disk {
-                    // make all `CacheEntry` paths relative to the project root and all artifact
-                    // paths relative to the artifact's directory
-                    cache
-                        .strip_entries_prefix(project.root())
-                        .strip_artifact_files_prefixes(project.artifacts_path());
-                    cache.write(project.cache_path())?;
-                }
-
-                Ok(cached_artifacts)
             }
         }
+
+        // add the new cache entries to the cache file
+        cache.extend(dirty_source_files.into_iter().map(|(file, (entry, _))| (file, entry)));
+
+        // write to disk
+        if write_to_disk {
+            // make all `CacheEntry` paths relative to the project root and all artifact
+            // paths relative to the artifact's directory
+            cache
+                .strip_entries_prefix(project.root())
+                .strip_artifact_files_prefixes(project.artifacts_path());
+            cache.write(project.cache_path())?;
+        }
+
+        Ok(cached_artifacts)
     }
 }
