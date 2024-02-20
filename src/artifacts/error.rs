@@ -122,7 +122,13 @@ impl Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut short_msg = self.message.trim();
-        let mut fmtd_msg = self.formatted_message.as_deref().unwrap_or("");
+        let fmtd_msg = self.formatted_message.as_deref().unwrap_or("");
+
+        // Don't bother with old solc messages which have a different format
+        if !Paint::is_enabled() || !fmtd_msg.contains(" | ") {
+            return f.write_str(self.formatted_message.as_deref().unwrap_or(&self.message));
+        }
+
         if short_msg.is_empty() {
             // if the message is empty, try to extract the first line from the formatted message
             if let Some(first_line) = fmtd_msg.lines().next() {
@@ -134,18 +140,6 @@ impl fmt::Display for Error {
                 }
             }
         }
-        if !fmtd_msg.is_empty() {
-            if let Some(nl) = fmtd_msg.find('\n') {
-                fmtd_msg = &fmtd_msg[nl + 1..];
-            }
-        }
-
-        if !Paint::is_enabled() {
-            self.fmt_severity(f)?;
-            f.write_str(": ")?;
-            f.write_str(short_msg)?;
-            return f.write_str(fmtd_msg);
-        }
 
         // Error (XXXX): Error Message
         styled(f, self.severity.color().style().bold(), |f| self.fmt_severity(f))?;
@@ -153,7 +147,8 @@ impl fmt::Display for Error {
 
         let mut lines = fmtd_msg.lines();
 
-        // the first line has already been skipped above
+        // skip the first line which contains the same message as the one we already printed
+        let _ = lines.next();
 
         // format the main source location
         fmt_source_location(f, &mut lines)?;
@@ -381,5 +376,16 @@ mod tests {
         let s = e.to_string();
         eprintln!("{s}");
         assert!(s.contains("Invalid character in string"), "\n{s}");
+    }
+
+    #[test]
+    fn solc_0_7() {
+        let output = r#"{"errors":[{"component":"general","errorCode":"6594","formattedMessage":"test/Counter.t.sol:7:1: TypeError: Contract \"CounterTest\" does not use ABI coder v2 but wants to inherit from a contract which uses types that require it. Use \"pragma abicoder v2;\" for the inheriting contract as well to enable the feature.\ncontract CounterTest is Test {\n^ (Relevant source part starts here and spans across multiple lines).\nlib/forge-std/src/StdInvariant.sol:72:5: Type only supported by ABIEncoderV2\n    function excludeArtifacts() public view returns (string[] memory excludedArtifacts_) {\n    ^ (Relevant source part starts here and spans across multiple lines).\nlib/forge-std/src/StdInvariant.sol:84:5: Type only supported by ABIEncoderV2\n    function targetArtifacts() public view returns (string[] memory targetedArtifacts_) {\n    ^ (Relevant source part starts here and spans across multiple lines).\nlib/forge-std/src/StdInvariant.sol:88:5: Type only supported by ABIEncoderV2\n    function targetArtifactSelectors() public view returns (FuzzSelector[] memory targetedArtifactSelectors_) {\n    ^ (Relevant source part starts here and spans across multiple lines).\nlib/forge-std/src/StdInvariant.sol:96:5: Type only supported by ABIEncoderV2\n    function targetSelectors() public view returns (FuzzSelector[] memory targetedSelectors_) {\n    ^ (Relevant source part starts here and spans across multiple lines).\nlib/forge-std/src/StdInvariant.sol:104:5: Type only supported by ABIEncoderV2\n    function targetInterfaces() public view returns (FuzzInterface[] memory targetedInterfaces_) {\n    ^ (Relevant source part starts here and spans across multiple lines).\n","message":"Contract \"CounterTest\" does not use ABI coder v2 but wants to inherit from a contract which uses types that require it. Use \"pragma abicoder v2;\" for the inheriting contract as well to enable the feature.","secondarySourceLocations":[{"end":2298,"file":"lib/forge-std/src/StdInvariant.sol","message":"Type only supported by ABIEncoderV2","start":2157},{"end":2732,"file":"lib/forge-std/src/StdInvariant.sol","message":"Type only supported by ABIEncoderV2","start":2592},{"end":2916,"file":"lib/forge-std/src/StdInvariant.sol","message":"Type only supported by ABIEncoderV2","start":2738},{"end":3215,"file":"lib/forge-std/src/StdInvariant.sol","message":"Type only supported by ABIEncoderV2","start":3069},{"end":3511,"file":"lib/forge-std/src/StdInvariant.sol","message":"Type only supported by ABIEncoderV2","start":3360}],"severity":"error","sourceLocation":{"end":558,"file":"test/Counter.t.sol","start":157},"type":"TypeError"}],"sources":{}}"#;
+        let crate::CompilerOutput { errors, .. } = serde_json::from_str(output).unwrap();
+        assert_eq!(errors.len(), 1);
+        let s = errors[0].to_string();
+        eprintln!("{s}");
+        assert!(s.contains("test/Counter.t.sol:7:1"), "{s}");
+        assert!(s.contains("ABI coder v2"), "{s}");
     }
 }
