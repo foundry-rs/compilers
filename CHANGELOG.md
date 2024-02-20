@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.7](https://github.com/foundry-rs/compilers/releases/tag/v0.3.7) - 2024-02-20
+
+### Bug Fixes
+
+- Don't bother formatting old solc errors ([#81](https://github.com/foundry-rs/compilers/issues/81))
+- Empty error message formatting ([#77](https://github.com/foundry-rs/compilers/issues/77))
+
+### Miscellaneous Tasks
+
+- Print compiler input as JSON in traces ([#79](https://github.com/foundry-rs/compilers/issues/79))
+- Remove unused imports ([#80](https://github.com/foundry-rs/compilers/issues/80))
+- Reduce trace output ([#78](https://github.com/foundry-rs/compilers/issues/78))
+
 ## [0.3.6](https://github.com/foundry-rs/compilers/releases/tag/v0.3.6) - 2024-02-13
+
+### Miscellaneous Tasks
+
+- Release 0.3.6
 
 ### Other
 
