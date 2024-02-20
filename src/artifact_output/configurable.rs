@@ -185,7 +185,7 @@ impl ConfigurableArtifacts {
     pub fn output_selection(&self) -> Vec<ContractOutputSelection> {
         let mut selection = ContractOutputSelection::basic();
 
-        if self.additional_values.ir {
+        if self.additional_values.ir || self.additional_files.ir {
             selection.push(ContractOutputSelection::Ir);
         }
         if self.additional_values.ir_optimized || self.additional_files.ir_optimized {
@@ -305,7 +305,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
                 deployed_bytecode,
                 method_identifiers,
                 gas_estimates,
-                ..
+                legacy_assembly: _,
             } = evm;
 
             if self.additional_values.function_debug_data {
