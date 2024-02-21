@@ -4,7 +4,7 @@ use alloy_primitives::Address;
 use foundry_compilers::{
     artifacts::{
         BytecodeHash, DevDoc, ErrorDoc, EventDoc, Libraries, MethodDoc, ModelCheckerEngine::CHC,
-        ModelCheckerSettings, UserDoc, UserDocNotice,
+        ModelCheckerSettings, Severity, UserDoc, UserDocNotice,
     },
     buildinfo::BuildInfo,
     cache::{SolFilesCache, SOLIDITY_FILES_CACHE_FILENAME},
@@ -2081,6 +2081,46 @@ fn can_detect_invalid_version() {
             unreachable!()
         }
     }
+}
+
+#[test]
+fn test_severity_warnings() {
+    let mut tmp = TempProject::dapptools().unwrap();
+    // also treat warnings as error
+    tmp.project_mut().compiler_severity_filter = Severity::Warning;
+
+    let content = r"
+    pragma solidity =0.8.13;
+    contract A {}
+   ";
+    tmp.add_source("A", content).unwrap();
+
+    let out = tmp.compile().unwrap();
+    assert!(out.output().has_error(&[], &[], &Severity::Warning));
+
+    let content = r"
+    // SPDX-License-Identifier: MIT OR Apache-2.0
+    pragma solidity =0.8.13;
+    contract A {}
+   ";
+    tmp.add_source("A", content).unwrap();
+
+    let out = tmp.compile().unwrap();
+    assert!(!out.output().has_error(&[], &[], &Severity::Warning));
+
+    let content = r"
+    // SPDX-License-Identifier: MIT OR Apache-2.0
+    pragma solidity =0.8.13;
+    contract A {
+      function id(uint111 value) external pure returns (uint256) {
+        return 0;
+      }
+    }
+   ";
+    tmp.add_source("A", content).unwrap();
+
+    let out = tmp.compile().unwrap();
+    assert!(out.output().has_error(&[], &[], &Severity::Warning));
 }
 
 #[test]

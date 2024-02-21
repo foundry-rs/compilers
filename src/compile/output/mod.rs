@@ -548,6 +548,10 @@ impl AggregatedCompilerOutput {
     }
 
     /// Whether the output contains a compiler error
+    ///
+    /// This adheres to the given `compiler_severity_filter` and also considers [Error] with the
+    /// given [Severity] as errors. For example [Severity::Warning] will consider [Error]s with
+    /// [Severity::Warning] and [Severity::Error] as errors.
     pub fn has_error(
         &self,
         ignored_error_codes: &[u64],
@@ -555,6 +559,11 @@ impl AggregatedCompilerOutput {
         compiler_severity_filter: &Severity,
     ) -> bool {
         self.errors.iter().any(|err| {
+            if err.is_error() {
+                // [Severity::Error] is always treated as an error
+                return true;
+            }
+            // check if the filter is set to something higher than the error's severity
             if compiler_severity_filter.ge(&err.severity) {
                 if compiler_severity_filter.is_warning() {
                     // skip ignored error codes and file path from warnings

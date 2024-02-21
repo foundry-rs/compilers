@@ -18,14 +18,18 @@ pub struct SecondarySourceLocation {
     pub message: Option<String>,
 }
 
+/// The severity of the error.
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
+    /// Solc `Error`
     #[default]
     Error,
+    /// Solc `Warning`
     Warning,
+    /// Solc `Info`
     Info,
 }
 
