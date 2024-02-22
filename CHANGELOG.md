@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.8](https://github.com/foundry-rs/compilers/releases/tag/v0.3.8) - 2024-02-22
+
+### Bug Fixes
+
+- Always treat errors as error ([#84](https://github.com/foundry-rs/compilers/issues/84))
+- Make solc emit ir with extra_output_files=ir ([#82](https://github.com/foundry-rs/compilers/issues/82))
+
+### Miscellaneous Tasks
+
+- Use Path::new instead of PathBuf::from ([#83](https://github.com/foundry-rs/compilers/issues/83))
+
 ## [0.3.7](https://github.com/foundry-rs/compilers/releases/tag/v0.3.7) - 2024-02-20
 
 ### Bug Fixes
@@ -14,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.3.7
 - Print compiler input as JSON in traces ([#79](https://github.com/foundry-rs/compilers/issues/79))
 - Remove unused imports ([#80](https://github.com/foundry-rs/compilers/issues/80))
 - Reduce trace output ([#78](https://github.com/foundry-rs/compilers/issues/78))
