@@ -128,11 +128,6 @@ impl fmt::Display for Error {
         let mut short_msg = self.message.trim();
         let fmtd_msg = self.formatted_message.as_deref().unwrap_or("");
 
-        // Don't bother with old solc messages which have a different format
-        if !Paint::is_enabled() || !fmtd_msg.contains(" | ") {
-            return f.write_str(self.formatted_message.as_deref().unwrap_or(&self.message));
-        }
-
         if short_msg.is_empty() {
             // if the message is empty, try to extract the first line from the formatted message
             if let Some(first_line) = fmtd_msg.lines().next() {
@@ -151,8 +146,15 @@ impl fmt::Display for Error {
 
         let mut lines = fmtd_msg.lines();
 
-        // skip the first line which contains the same message as the one we already printed
-        let _ = lines.next();
+        // skip the first line if it contains the same message as the one we just formatted,
+        // unless it also contains a source location, in which case the entire error message is an
+        // old style error message, like:
+        //     path/to/file:line:column: ErrorType: message
+        if lines.clone().next().map_or(false, |l| {
+            l.contains(short_msg) && l.bytes().filter(|b| *b == b':').count() < 3
+        }) {
+            let _ = lines.next();
+        }
 
         // format the main source location
         fmt_source_location(f, &mut lines)?;
@@ -225,9 +227,15 @@ fn styled<F>(f: &mut fmt::Formatter<'_>, style: Style, fun: F) -> fmt::Result
 where
     F: FnOnce(&mut fmt::Formatter<'_>) -> fmt::Result,
 {
-    style.fmt_prefix(f)?;
+    let enabled = Paint::is_enabled();
+    if enabled {
+        style.fmt_prefix(f)?;
+    }
     fun(f)?;
-    style.fmt_suffix(f)
+    if enabled {
+        style.fmt_suffix(f)?;
+    }
+    Ok(())
 }
 
 /// Formats the diagnostic message.
@@ -389,7 +397,27 @@ mod tests {
         assert_eq!(errors.len(), 1);
         let s = errors[0].to_string();
         eprintln!("{s}");
-        assert!(s.contains("test/Counter.t.sol:7:1"), "{s}");
-        assert!(s.contains("ABI coder v2"), "{s}");
+        assert!(s.contains("test/Counter.t.sol:7:1"), "\n{s}");
+        assert!(s.contains("ABI coder v2"), "\n{s}");
+    }
+
+    #[test]
+    fn solc_not_formatting_the_message1() {
+        let error = r#"{"component":"general","errorCode":"6553","formattedMessage":"SyntaxError: The msize instruction cannot be used when the Yul optimizer is activated because it can change its semantics. Either disable the Yul optimizer or do not use the instruction.\n\n","message":"The msize instruction cannot be used when the Yul optimizer is activated because it can change its semantics. Either disable the Yul optimizer or do not use the instruction.","severity":"error","sourceLocation":{"end":173,"file":"","start":114},"type":"SyntaxError"}"#;
+        let error = serde_json::from_str::<Error>(error).unwrap();
+        let s = error.to_string();
+        eprintln!("{s}");
+        assert!(s.contains("Error (6553)"), "\n{s}");
+        assert!(s.contains("The msize instruction cannot be used"), "\n{s}");
+    }
+
+    #[test]
+    fn solc_not_formatting_the_message2() {
+        let error = r#"{"component":"general","errorCode":"5667","formattedMessage":"Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.\n\n","message":"Unused function parameter. Remove or comment out the variable name to silence this warning.","severity":"warning","sourceLocation":{"end":104,"file":"","start":95},"type":"Warning"}"#;
+        let error = serde_json::from_str::<Error>(error).unwrap();
+        let s = error.to_string();
+        eprintln!("{s}");
+        assert!(s.contains("Warning (5667)"), "\n{s}");
+        assert!(s.contains("Unused function parameter. Remove or comment out the variable name to silence this warning."), "\n{s}");
     }
 }
