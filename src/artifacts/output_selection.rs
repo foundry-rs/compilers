@@ -119,6 +119,19 @@ impl OutputSelection {
     pub fn empty_file_output_select() -> FileOutputSelection {
         Default::default()
     }
+
+    /// Returns true if this output selection is a subset of the other output selection.
+    pub fn is_subset_of(&self, other: &Self) -> bool {
+        self.0.iter().all(|(file, selection)| {
+            other.0.get(file).map_or(false, |other_selection| {
+                selection.iter().all(|(contract, outputs)| {
+                    other_selection.get(contract).map_or(false, |other_outputs| {
+                        outputs.iter().all(|output| other_outputs.contains(output))
+                    })
+                })
+            })
+        })
+    }
 }
 
 // this will make sure that if the `FileOutputSelection` for a certain file is empty will be

@@ -771,6 +771,38 @@ impl SolcConfig {
     pub fn builder() -> SolcConfigBuilder {
         SolcConfigBuilder::default()
     }
+
+    /// Returns true if artifacts compiled with given `cached` config are compatible with this
+    /// config and if compilation can be skipped.
+    ///
+    /// Ensures that all settings fields are equal except for `output_selection` which is required
+    /// to be a subset of `cached.output_selection`.
+    pub fn can_use_cached(&self, cached: &SolcConfig) -> bool {
+        let SolcConfig { settings } = self;
+        let Settings {
+            stop_after,
+            remappings,
+            optimizer,
+            model_checker,
+            metadata,
+            output_selection,
+            evm_version,
+            via_ir,
+            debug,
+            libraries,
+        } = settings;
+
+        *stop_after == cached.settings.stop_after
+            && *remappings == cached.settings.remappings
+            && *optimizer == cached.settings.optimizer
+            && *model_checker == cached.settings.model_checker
+            && *metadata == cached.settings.metadata
+            && *evm_version == cached.settings.evm_version
+            && *via_ir == cached.settings.via_ir
+            && *debug == cached.settings.debug
+            && *libraries == cached.settings.libraries
+            && output_selection.is_subset_of(&cached.settings.output_selection)
+    }
 }
 
 impl From<SolcConfig> for Settings {
