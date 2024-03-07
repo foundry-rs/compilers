@@ -776,8 +776,8 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
             return true;
         }
 
-        if self.project.solc_config != entry.solc_config {
-            trace!("solc config changed");
+        if !self.project.solc_config.can_use_cached(&entry.solc_config) {
+            trace!("solc config not compatible");
             return true;
         }
 
