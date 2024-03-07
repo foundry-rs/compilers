@@ -121,6 +121,7 @@ impl OutputSelection {
     }
 
     /// Returns true if this output selection is a subset of the other output selection.
+    /// TODO: correctly process wildcard keys to reduce false negatives
     pub fn is_subset_of(&self, other: &Self) -> bool {
         self.0.iter().all(|(file, selection)| {
             other.0.get(file).map_or(false, |other_selection| {
@@ -595,6 +596,49 @@ mod tests {
         empty.0.insert("contract.sol".to_string(), OutputSelection::empty_file_output_select());
         let s = serde_json::to_string(&empty).unwrap();
         assert_eq!(s, r#"{"contract.sol":{"*":[]}}"#);
+    }
+
+    #[test]
+    fn outputselection_subset_of() {
+        let output_selection = OutputSelection::from(BTreeMap::from([(
+            "*".to_string(),
+            BTreeMap::from([(
+                "*".to_string(),
+                vec!["abi".to_string(), "evm.bytecode".to_string()],
+            )]),
+        )]));
+
+        let output_selection_abi = OutputSelection::from(BTreeMap::from([(
+            "*".to_string(),
+            BTreeMap::from([("*".to_string(), vec!["abi".to_string()])]),
+        )]));
+
+        assert!(output_selection_abi.is_subset_of(&output_selection));
+        assert!(!output_selection.is_subset_of(&output_selection_abi));
+
+        let output_selection_empty = OutputSelection::from(BTreeMap::from([(
+            "*".to_string(),
+            BTreeMap::from([("*".to_string(), vec![])]),
+        )]));
+
+        assert!(output_selection_empty.is_subset_of(&output_selection));
+        assert!(output_selection_empty.is_subset_of(&output_selection_abi));
+        assert!(!output_selection.is_subset_of(&output_selection_empty));
+        assert!(!output_selection_abi.is_subset_of(&output_selection_empty));
+
+        let output_selecttion_specific = OutputSelection::from(BTreeMap::from([(
+            "Contract.sol".to_string(),
+            BTreeMap::from([(
+                "Contract".to_string(),
+                vec![
+                    "abi".to_string(),
+                    "evm.bytecode".to_string(),
+                    "evm.deployedBytecode".to_string(),
+                ],
+            )]),
+        )]));
+
+        assert!(!output_selecttion_specific.is_subset_of(&output_selection));
     }
 
     #[test]
