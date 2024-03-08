@@ -2,9 +2,7 @@
 
 use crate::{
     artifacts::{
-        contract::{CompactContract, CompactContractBytecode, Contract},
-        BytecodeObject, CompactBytecode, CompactContractBytecodeCow, CompactDeployedBytecode,
-        FileToContractsMap, SourceFile,
+        contract::{CompactContract, CompactContractBytecode, Contract}, BytecodeObject, CompactBytecode, CompactContractBytecodeCow, CompactDeployedBytecode, FileToContractsMap, SourceFile
     },
     compile::output::{contracts::VersionedContracts, sources::VersionedSourceFiles},
     error::Result,
@@ -985,6 +983,14 @@ pub trait ArtifactOutput {
         _path: &str,
         _file: &VersionedSourceFile,
     ) -> Option<Self::Artifact>;
+
+    fn can_write_extras_from_artifact(&self) -> bool {
+        false
+    }
+
+    fn try_write_extras_from_artifact(&self, _artifact_file: &ArtifactFile<Self::Artifact>) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// Additional context to use during [`ArtifactOutput::on_output()`]

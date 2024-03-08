@@ -804,6 +804,10 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
             return true;
         }
 
+        if !self.project.artifacts_handler().can_write_extras_from_artifact() {
+            return true
+        }
+
         // all things match, can be reused
         false
     }

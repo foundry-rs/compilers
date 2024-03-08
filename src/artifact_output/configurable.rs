@@ -10,20 +10,14 @@
 
 use crate::{
     artifacts::{
-        bytecode::{CompactBytecode, CompactDeployedBytecode},
-        contract::{CompactContract, CompactContractBytecode, Contract},
-        output_selection::{
+        bytecode::{CompactBytecode, CompactDeployedBytecode}, contract::{CompactContract, CompactContractBytecode, Contract}, output_selection::{
             BytecodeOutputSelection, ContractOutputSelection, DeployedBytecodeOutputSelection,
             EvmOutputSelection, EwasmOutputSelection,
-        },
-        Ast, CompactContractBytecodeCow, DevDoc, Evm, Ewasm, FunctionDebugData, GasEstimates,
-        GeneratedSource, LosslessMetadata, Metadata, Offsets, Settings, StorageLayout, UserDoc,
-    },
-    sources::VersionedSourceFile,
-    Artifact, ArtifactOutput, SolcConfig, SolcError, SourceFile,
+        }, Ast, BytecodeObject, CompactContractBytecodeCow, DevDoc, Evm, Ewasm, FunctionDebugData, GasEstimates, GeneratedSource, LosslessMetadata, Metadata, Offsets, Settings, StorageLayout, UserDoc
+    }, sources::VersionedSourceFile, ArtifactFile, ArtifactOutput, SolcConfig, SolcError, SourceFile
 };
 use alloy_json_abi::JsonAbi;
-use alloy_primitives::hex;
+use alloy_primitives::{hex};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::BTreeMap, fs, path::Path};
 
@@ -178,7 +172,7 @@ impl ConfigurableArtifacts {
 
     /// Returns the `Settings` this configuration corresponds to
     pub fn settings(&self) -> Settings {
-        SolcConfig::builder().additional_outputs(self.output_selection()).build().into()
+            SolcConfig::builder().additional_outputs(self.output_selection()).build().into()
     }
 
     /// Returns the output selection corresponding to this configuration
@@ -369,6 +363,48 @@ impl ArtifactOutput for ConfigurableArtifacts {
             deployed_bytecode: Some(CompactDeployedBytecode::empty()),
             ..Default::default()
         })
+    }
+
+    fn can_write_extras_from_artifact(&self) -> bool {
+        if self.additional_files.ir && !self.additional_values.ir {
+            return false;
+        }
+        if self.additional_files.ir_optimized && !self.additional_values.ir_optimized {
+            return false;
+        }
+        if self.additional_files.metadata && !self.additional_values.metadata {
+            return false;
+        }
+        if self.additional_files.ewasm && !self.additional_values.ewasm {
+            return false;
+        }
+        if self.additional_files.assembly && !self.additional_values.assembly {
+            return false;
+        }
+        if self.additional_files.source_map && !self.additional_values.source_map {
+            return false;
+        }
+        if self.additional_files.generated_sources && !self.additional_values.generated_sources {
+            return false;
+        }
+        return true;
+    }
+
+    fn try_write_extras_from_artifact(&self, artifact_file: &ArtifactFile<Self::Artifact>) -> Result<(), SolcError> {
+        let file = &artifact_file.file;
+        let artifact = &artifact_file.artifact;
+        self.additional_files.process_abi(artifact.abi.as_ref(), &file)?;
+        self.additional_files.process_assembly(artifact.assembly.as_deref(), &file)?;
+        self.additional_files.process_bytecode(artifact.bytecode.as_ref().map(|b| &b.object), &file)?;
+        self.additional_files.process_deployed_bytecode(artifact.deployed_bytecode.as_ref().and_then(|d| d.bytecode.as_ref()).map(|b| &b.object), &file)?;
+        self.additional_files.process_generated_sources(Some(&artifact.generated_sources), &file)?;
+        self.additional_files.process_ir(artifact.ir.as_deref(), &file)?;
+        self.additional_files.process_ir_optimized(artifact.ir_optimized.as_deref(), &file)?;
+        self.additional_files.process_ewasm(artifact.ewasm.as_ref(), &file)?;
+        self.additional_files.process_metadata(artifact.metadata.as_ref(), &file)?;
+        self.additional_files.process_source_map(artifact.bytecode.as_ref().and_then(|b| b.source_map.as_deref()), &file)?;
+
+        Ok(())
     }
 }
 
@@ -596,90 +632,130 @@ impl ExtraOutputFiles {
         config
     }
 
-    /// Write the set values as separate files
-    pub fn write_extras(&self, contract: &Contract, file: &Path) -> Result<(), SolcError> {
+    fn process_abi(&self, abi: Option<&JsonAbi>, file: &Path) -> Result<(), SolcError> {
         if self.abi {
-            if let Some(ref abi) = contract.abi {
+            if let Some(abi) = abi {
                 let file = file.with_extension("abi.json");
                 fs::write(&file, serde_json::to_string_pretty(abi)?)
                     .map_err(|err| SolcError::io(err, file))?
             }
         }
+        Ok(())
+    }
 
+    fn process_metadata(&self, metadata: Option<&Metadata>, file: &Path) -> Result<(), SolcError> {
         if self.metadata {
-            if let Some(ref metadata) = contract.metadata {
+            if let Some(metadata) = metadata {
                 let file = file.with_extension("metadata.json");
-                fs::write(&file, serde_json::to_string_pretty(&metadata.raw_json()?)?)
+                fs::write(&file, serde_json::to_string_pretty(metadata)?)
                     .map_err(|err| SolcError::io(err, file))?
             }
         }
+        Ok(())
+    }
 
-        if self.ir_optimized {
-            if let Some(ref iropt) = contract.ir_optimized {
-                let file = file.with_extension("iropt");
-                fs::write(&file, iropt).map_err(|err| SolcError::io(err, file))?
-            }
-        }
-
+    fn process_ir(&self, ir: Option<&str>, file: &Path) -> Result<(), SolcError> {
         if self.ir {
-            if let Some(ref ir) = contract.ir {
+            if let Some(ir) = ir {
                 let file = file.with_extension("ir");
                 fs::write(&file, ir).map_err(|err| SolcError::io(err, file))?
             }
         }
+        Ok(())
+    }
 
+    fn process_ir_optimized(&self, ir_optimized: Option<&str>, file: &Path) -> Result<(), SolcError> {
+        if self.ir_optimized {
+            if let Some(ir_optimized) = ir_optimized {
+                let file = file.with_extension("iropt");
+                fs::write(&file, ir_optimized).map_err(|err| SolcError::io(err, file))?
+            }
+        }
+        Ok(())
+    }
+
+    fn process_ewasm(&self, ewasm: Option<&Ewasm>, file: &Path) -> Result<(), SolcError> {
         if self.ewasm {
-            if let Some(ref ewasm) = contract.ewasm {
+            if let Some(ewasm) = ewasm {
                 let file = file.with_extension("ewasm");
                 fs::write(&file, serde_json::to_vec_pretty(ewasm)?)
                     .map_err(|err| SolcError::io(err, file))?;
             }
         }
+        Ok(())
+    }
 
+    fn process_assembly(&self, asm: Option<&str>, file: &Path) -> Result<(), SolcError> {
         if self.assembly {
-            if let Some(ref evm) = contract.evm {
-                if let Some(ref asm) = evm.assembly {
-                    let file = file.with_extension("asm");
-                    fs::write(&file, asm).map_err(|err| SolcError::io(err, file))?
-                }
+            if let Some(asm) = asm {
+                let file = file.with_extension("asm");
+                fs::write(&file, asm).map_err(|err| SolcError::io(err, file))?
             }
         }
+        Ok(())
+    }
 
+    fn process_generated_sources(&self, generated_sources: Option<&Vec<GeneratedSource>>, file: &Path) -> Result<(), SolcError> {
         if self.generated_sources {
-            if let Some(ref evm) = contract.evm {
-                if let Some(ref bytecode) = evm.bytecode {
-                    let file = file.with_extension("gensources");
-                    fs::write(&file, serde_json::to_vec_pretty(&bytecode.generated_sources)?)
-                        .map_err(|err| SolcError::io(err, file))?;
-                }
+            if let Some(generated_sources) = generated_sources {
+                let file = file.with_extension("gensources");
+                fs::write(&file, serde_json::to_vec_pretty(generated_sources)?)
+                    .map_err(|err| SolcError::io(err, file))?;
             }
         }
+        Ok(())
+    }
 
+    fn process_source_map(&self, source_map: Option<&str>, file: &Path) -> Result<(), SolcError> {
         if self.source_map {
-            if let Some(ref evm) = contract.evm {
-                if let Some(ref bytecode) = evm.bytecode {
-                    if let Some(ref sourcemap) = bytecode.source_map {
-                        let file = file.with_extension("sourcemap");
-                        fs::write(&file, sourcemap).map_err(|err| SolcError::io(err, file))?
-                    }
-                }
+            if let Some(source_map) = source_map {
+                let file = file.with_extension("sourcemap");
+                fs::write(&file, source_map).map_err(|err| SolcError::io(err, file))?
             }
         }
+        Ok(())
+    }
 
+    fn process_bytecode(&self, bytecode: Option<&BytecodeObject>, file: &Path) -> Result<(), SolcError> {
         if self.bytecode {
-            if let Some(ref code) = contract.get_bytecode_bytes() {
-                let code = hex::encode(code.as_ref());
+            if let Some(bytecode) = bytecode {
+                let code = hex::encode(bytecode.as_ref());
                 let file = file.with_extension("bin");
                 fs::write(&file, code).map_err(|err| SolcError::io(err, file))?
             }
         }
+        Ok(())
+    }
+
+    fn process_deployed_bytecode(&self, deployed: Option<&BytecodeObject>, file: &Path) -> Result<(), SolcError> {
         if self.deployed_bytecode {
-            if let Some(ref code) = contract.get_deployed_bytecode_bytes() {
-                let code = hex::encode(code.as_ref());
+            if let Some(deployed) = deployed {
+                let code = hex::encode(deployed.as_ref());
                 let file = file.with_extension("deployed-bin");
                 fs::write(&file, code).map_err(|err| SolcError::io(err, file))?
             }
         }
+        Ok(())
+    }
+
+    /// Write the set values as separate files
+    pub fn write_extras(&self, contract: &Contract, file: &Path) -> Result<(), SolcError> {
+        self.process_abi(contract.abi.as_ref(), file)?;
+        self.process_metadata(contract.metadata.as_ref().map(|m| &m.metadata), file)?;
+        self.process_ir(contract.ir.as_deref(), file)?;
+        self.process_ir_optimized(contract.ir_optimized.as_deref(), file)?;
+        self.process_ewasm(contract.ewasm.as_ref(), file)?;
+
+        let evm = contract.evm.as_ref();
+        self.process_assembly(evm.and_then(|evm| evm.assembly.as_deref()), file)?;
+
+        let bytecode = evm.and_then(|evm| evm.bytecode.as_ref());
+        self.process_generated_sources(bytecode.map(|b| &b.generated_sources), file)?;
+
+        let deployed_bytecode = evm.and_then(|evm| evm.deployed_bytecode.as_ref());
+        self.process_source_map(bytecode.and_then(|b| b.source_map.as_deref()), file)?;
+        self.process_bytecode(bytecode.map(|b| &b.object), file)?;
+        self.process_deployed_bytecode(deployed_bytecode.and_then(|d| d.bytecode.as_ref()).map(|b| &b.object), file)?;
 
         Ok(())
     }
