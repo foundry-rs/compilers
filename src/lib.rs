@@ -987,6 +987,17 @@ impl<T: ArtifactOutput> ArtifactOutput for Project<T> {
     ) -> Option<Self::Artifact> {
         self.artifacts_handler().standalone_source_file_to_artifact(path, file)
     }
+
+    fn can_write_extras_from_artifact(&self) -> bool {
+        self.artifacts_handler().can_write_extras_from_artifact()
+    }
+
+    fn try_write_extras_from_artifact(
+        &self,
+        artifact_file: &ArtifactFile<Self::Artifact>,
+    ) -> Result<()> {
+        self.artifacts_handler().try_write_extras_from_artifact(artifact_file)
+    }
 }
 
 // Rebases the given path to the base directory lexically.
