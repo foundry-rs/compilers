@@ -10,14 +10,21 @@
 
 use crate::{
     artifacts::{
-        bytecode::{CompactBytecode, CompactDeployedBytecode}, contract::{CompactContract, CompactContractBytecode, Contract}, output_selection::{
+        bytecode::{CompactBytecode, CompactDeployedBytecode},
+        contract::{CompactContract, CompactContractBytecode, Contract},
+        output_selection::{
             BytecodeOutputSelection, ContractOutputSelection, DeployedBytecodeOutputSelection,
             EvmOutputSelection, EwasmOutputSelection,
-        }, Ast, BytecodeObject, CompactContractBytecodeCow, DevDoc, Evm, Ewasm, FunctionDebugData, GasEstimates, GeneratedSource, LosslessMetadata, Metadata, Offsets, Settings, StorageLayout, UserDoc
-    }, sources::VersionedSourceFile, ArtifactFile, ArtifactOutput, SolcConfig, SolcError, SourceFile
+        },
+        Ast, BytecodeObject, CompactContractBytecodeCow, DevDoc, Evm, Ewasm, FunctionDebugData,
+        GasEstimates, GeneratedSource, LosslessMetadata, Metadata, Offsets, Settings,
+        StorageLayout, UserDoc,
+    },
+    sources::VersionedSourceFile,
+    ArtifactFile, ArtifactOutput, SolcConfig, SolcError, SourceFile,
 };
 use alloy_json_abi::JsonAbi;
-use alloy_primitives::{hex};
+use alloy_primitives::hex;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::BTreeMap, fs, path::Path};
 
@@ -172,7 +179,7 @@ impl ConfigurableArtifacts {
 
     /// Returns the `Settings` this configuration corresponds to
     pub fn settings(&self) -> Settings {
-            SolcConfig::builder().additional_outputs(self.output_selection()).build().into()
+        SolcConfig::builder().additional_outputs(self.output_selection()).build().into()
     }
 
     /// Returns the output selection corresponding to this configuration
@@ -387,22 +394,36 @@ impl ArtifactOutput for ConfigurableArtifacts {
         if self.additional_files.generated_sources && !self.additional_values.generated_sources {
             return false;
         }
-        return true;
+        true
     }
 
-    fn try_write_extras_from_artifact(&self, artifact_file: &ArtifactFile<Self::Artifact>) -> Result<(), SolcError> {
+    fn try_write_extras_from_artifact(
+        &self,
+        artifact_file: &ArtifactFile<Self::Artifact>,
+    ) -> Result<(), SolcError> {
         let file = &artifact_file.file;
         let artifact = &artifact_file.artifact;
-        self.additional_files.process_abi(artifact.abi.as_ref(), &file)?;
-        self.additional_files.process_assembly(artifact.assembly.as_deref(), &file)?;
-        self.additional_files.process_bytecode(artifact.bytecode.as_ref().map(|b| &b.object), &file)?;
-        self.additional_files.process_deployed_bytecode(artifact.deployed_bytecode.as_ref().and_then(|d| d.bytecode.as_ref()).map(|b| &b.object), &file)?;
-        self.additional_files.process_generated_sources(Some(&artifact.generated_sources), &file)?;
-        self.additional_files.process_ir(artifact.ir.as_deref(), &file)?;
-        self.additional_files.process_ir_optimized(artifact.ir_optimized.as_deref(), &file)?;
-        self.additional_files.process_ewasm(artifact.ewasm.as_ref(), &file)?;
-        self.additional_files.process_metadata(artifact.metadata.as_ref(), &file)?;
-        self.additional_files.process_source_map(artifact.bytecode.as_ref().and_then(|b| b.source_map.as_deref()), &file)?;
+        self.additional_files.process_abi(artifact.abi.as_ref(), file)?;
+        self.additional_files.process_assembly(artifact.assembly.as_deref(), file)?;
+        self.additional_files
+            .process_bytecode(artifact.bytecode.as_ref().map(|b| &b.object), file)?;
+        self.additional_files.process_deployed_bytecode(
+            artifact
+                .deployed_bytecode
+                .as_ref()
+                .and_then(|d| d.bytecode.as_ref())
+                .map(|b| &b.object),
+            file,
+        )?;
+        self.additional_files.process_generated_sources(Some(&artifact.generated_sources), file)?;
+        self.additional_files.process_ir(artifact.ir.as_deref(), file)?;
+        self.additional_files.process_ir_optimized(artifact.ir_optimized.as_deref(), file)?;
+        self.additional_files.process_ewasm(artifact.ewasm.as_ref(), file)?;
+        self.additional_files.process_metadata(artifact.metadata.as_ref(), file)?;
+        self.additional_files.process_source_map(
+            artifact.bytecode.as_ref().and_then(|b| b.source_map.as_deref()),
+            file,
+        )?;
 
         Ok(())
     }
@@ -664,7 +685,11 @@ impl ExtraOutputFiles {
         Ok(())
     }
 
-    fn process_ir_optimized(&self, ir_optimized: Option<&str>, file: &Path) -> Result<(), SolcError> {
+    fn process_ir_optimized(
+        &self,
+        ir_optimized: Option<&str>,
+        file: &Path,
+    ) -> Result<(), SolcError> {
         if self.ir_optimized {
             if let Some(ir_optimized) = ir_optimized {
                 let file = file.with_extension("iropt");
@@ -695,7 +720,11 @@ impl ExtraOutputFiles {
         Ok(())
     }
 
-    fn process_generated_sources(&self, generated_sources: Option<&Vec<GeneratedSource>>, file: &Path) -> Result<(), SolcError> {
+    fn process_generated_sources(
+        &self,
+        generated_sources: Option<&Vec<GeneratedSource>>,
+        file: &Path,
+    ) -> Result<(), SolcError> {
         if self.generated_sources {
             if let Some(generated_sources) = generated_sources {
                 let file = file.with_extension("gensources");
@@ -716,7 +745,11 @@ impl ExtraOutputFiles {
         Ok(())
     }
 
-    fn process_bytecode(&self, bytecode: Option<&BytecodeObject>, file: &Path) -> Result<(), SolcError> {
+    fn process_bytecode(
+        &self,
+        bytecode: Option<&BytecodeObject>,
+        file: &Path,
+    ) -> Result<(), SolcError> {
         if self.bytecode {
             if let Some(bytecode) = bytecode {
                 let code = hex::encode(bytecode.as_ref());
@@ -727,7 +760,11 @@ impl ExtraOutputFiles {
         Ok(())
     }
 
-    fn process_deployed_bytecode(&self, deployed: Option<&BytecodeObject>, file: &Path) -> Result<(), SolcError> {
+    fn process_deployed_bytecode(
+        &self,
+        deployed: Option<&BytecodeObject>,
+        file: &Path,
+    ) -> Result<(), SolcError> {
         if self.deployed_bytecode {
             if let Some(deployed) = deployed {
                 let code = hex::encode(deployed.as_ref());
@@ -755,7 +792,10 @@ impl ExtraOutputFiles {
         let deployed_bytecode = evm.and_then(|evm| evm.deployed_bytecode.as_ref());
         self.process_source_map(bytecode.and_then(|b| b.source_map.as_deref()), file)?;
         self.process_bytecode(bytecode.map(|b| &b.object), file)?;
-        self.process_deployed_bytecode(deployed_bytecode.and_then(|d| d.bytecode.as_ref()).map(|b| &b.object), file)?;
+        self.process_deployed_bytecode(
+            deployed_bytecode.and_then(|d| d.bytecode.as_ref()).map(|b| &b.object),
+            file,
+        )?;
 
         Ok(())
     }
