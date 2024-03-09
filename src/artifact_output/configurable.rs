@@ -784,7 +784,6 @@ impl ExtraOutputFiles {
     /// Write the set values as separate files
     pub fn write_extras(&self, contract: &Contract, file: &Path) -> Result<(), SolcError> {
         self.process_abi(contract.abi.as_ref(), file)?;
-        println!("METADATA IN CONTRACT {:?}", contract.metadata);
         self.process_metadata(contract.metadata.as_ref().map(|m| &m.metadata), file)?;
         self.process_ir(contract.ir.as_deref(), file)?;
         self.process_ir_optimized(contract.ir_optimized.as_deref(), file)?;
