@@ -809,9 +809,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
         for artifacts in self.cached_artifacts.values() {
             for artifacts in artifacts.values() {
                 for artifact_file in artifacts {
-                    println!("{:?}", artifact_file.file);
                     if self.project.artifacts_handler().is_dirty(artifact_file).unwrap_or(true) {
-                        println!("HERE");
                         return true;
                     }
                 }
