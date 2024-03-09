@@ -21,7 +21,7 @@ use crate::{
         StorageLayout, UserDoc,
     },
     sources::VersionedSourceFile,
-    utils, ArtifactFile, ArtifactOutput, SolcConfig, SolcError, SourceFile,
+    utils, Artifact, ArtifactFile, ArtifactOutput, SolcConfig, SolcError, SourceFile,
 };
 use alloy_json_abi::JsonAbi;
 use alloy_primitives::hex;
@@ -388,9 +388,47 @@ impl ArtifactOutput for ConfigurableArtifacts {
         })
     }
 
-    /// We want to enforce recompilation if we are missing any extra files.
+    /// We want to enforce recompilation if artifact is missing data we need for writing extra
+    /// files.
     fn is_dirty(&self, artifact_file: &ArtifactFile<Self::Artifact>) -> Result<bool, SolcError> {
-        self.additional_files.is_missing_extras(&artifact_file.file)
+        let artifact = &artifact_file.artifact;
+        let ExtraOutputFiles {
+            abi: _,
+            metadata,
+            ir,
+            ir_optimized,
+            ewasm,
+            assembly,
+            source_map,
+            generated_sources,
+            bytecode: _,
+            deployed_bytecode: _,
+            __non_exhaustive: _,
+        } = self.additional_files;
+
+        if metadata && artifact.metadata.is_none() {
+            return Ok(true);
+        }
+        if ir && artifact.ir.is_none() {
+            return Ok(true);
+        }
+        if ir_optimized && artifact.ir_optimized.is_none() {
+            return Ok(true);
+        }
+        if ewasm && artifact.ewasm.is_none() {
+            return Ok(true);
+        }
+        if assembly && artifact.assembly.is_none() {
+            return Ok(true);
+        }
+        if source_map && artifact.get_source_map_str().is_none() {
+            return Ok(true);
+        }
+        if generated_sources {
+            // We can't check if generated sources are missing or just empty.
+            return Ok(true);
+        }
+        Ok(false)
     }
 
     /// Writes extra files for cached artifacts based on [Self::additional_files].
@@ -403,7 +441,6 @@ impl ArtifactOutput for ConfigurableArtifacts {
                 for artifact_file in artifacts {
                     let file = &artifact_file.file;
                     let artifact = &artifact_file.artifact;
-
                     self.additional_files.process_abi(artifact.abi.as_ref(), file)?;
                     self.additional_files.process_assembly(artifact.assembly.as_deref(), file)?;
                     self.additional_files
@@ -416,15 +453,15 @@ impl ArtifactOutput for ConfigurableArtifacts {
                             .map(|b| &b.object),
                         file,
                     )?;
-                    self.additional_files.process_generated_sources(Some(&artifact.generated_sources), file)?;
+                    self.additional_files
+                        .process_generated_sources(Some(&artifact.generated_sources), file)?;
                     self.additional_files.process_ir(artifact.ir.as_deref(), file)?;
-                    self.additional_files.process_ir_optimized(artifact.ir_optimized.as_deref(), file)?;
+                    self.additional_files
+                        .process_ir_optimized(artifact.ir_optimized.as_deref(), file)?;
                     self.additional_files.process_ewasm(artifact.ewasm.as_ref(), file)?;
                     self.additional_files.process_metadata(artifact.metadata.as_ref(), file)?;
-                    self.additional_files.process_source_map(
-                        artifact.bytecode.as_ref().and_then(|b| b.source_map.as_deref()),
-                        file,
-                    )?;
+                    self.additional_files
+                        .process_source_map(artifact.get_source_map_str().as_deref(), file)?;
                 }
             }
         }
@@ -661,7 +698,6 @@ impl ExtraOutputFiles {
         if self.abi {
             if let Some(abi) = abi {
                 let file = file.with_extension("abi.json");
-                println!("WRITING EXTRA ABI to {:?}", file);
                 fs::write(&file, serde_json::to_string_pretty(abi)?)
                     .map_err(|err| SolcError::io(err, file))?
             }
@@ -670,7 +706,6 @@ impl ExtraOutputFiles {
     }
 
     fn process_metadata(&self, metadata: Option<&Metadata>, file: &Path) -> Result<(), SolcError> {
-        println!("PROCESSING METADATA {:?}", metadata);
         if self.metadata {
             if let Some(metadata) = metadata {
                 let file = file.with_extension("metadata.json");
@@ -804,69 +839,5 @@ impl ExtraOutputFiles {
         )?;
 
         Ok(())
-    }
-
-    pub fn is_missing_extras(&self, file: &Path) -> Result<bool, SolcError> {
-        if self.abi {
-            let file = file.with_extension("abi.json");
-            if !file.try_exists().map_err(|err| SolcError::io(err, file))? {
-                return Ok(true);
-            }
-        }
-        if self.metadata {
-            let file = file.with_extension("metadata.json");
-            if !file.try_exists().map_err(|err| SolcError::io(err, file))? {
-                return Ok(true);
-            }
-        }
-        if self.ir {
-            let file = file.with_extension("ir");
-            if !file.try_exists().map_err(|err| SolcError::io(err, file))? {
-                return Ok(true);
-            }
-        }
-        if self.ir_optimized {
-            let file = file.with_extension("iropt");
-            if !file.try_exists().map_err(|err| SolcError::io(err, file))? {
-                return Ok(true);
-            }
-        }
-        if self.ewasm {
-            let file = file.with_extension("ewasm");
-            if !file.try_exists().map_err(|err| SolcError::io(err, file))? {
-                return Ok(true);
-            }
-        }
-        if self.assembly {
-            let file = file.with_extension("asm");
-            if !file.try_exists().map_err(|err| SolcError::io(err, file))? {
-                return Ok(true);
-            }
-        }
-        if self.generated_sources {
-            let file = file.with_extension("gensources");
-            if !file.try_exists().map_err(|err| SolcError::io(err, file))? {
-                return Ok(true);
-            }
-        }
-        if self.source_map {
-            let file = file.with_extension("sourcemap");
-            if !file.try_exists().map_err(|err| SolcError::io(err, file))? {
-                return Ok(true);
-            }
-        }
-        if self.bytecode {
-            let file = file.with_extension("bin");
-            if !file.try_exists().map_err(|err| SolcError::io(err, file))? {
-                return Ok(true);
-            }
-        }
-        if self.deployed_bytecode {
-            let file = file.with_extension("deployed-bin");
-            if !file.try_exists().map_err(|err| SolcError::io(err, file))? {
-                return Ok(true);
-            }
-        }
-        Ok(false)
     }
 }
