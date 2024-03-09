@@ -331,17 +331,7 @@ impl<'a, T: ArtifactOutput> CompiledState<'a, T> {
 
             match cache {
                 ArtifactsCache::Cached(ref cache) => {
-                    trace!("writing extra output files for cached artifacts");
-
-                    for artifacts in cache.cached_artifacts.values() {
-                        for artifacts in artifacts.values() {
-                            for artifact_file in artifacts {
-                                project
-                                    .artifacts_handler()
-                                    .try_write_extras_from_artifact(artifact_file)?;
-                            }
-                        }
-                    }
+                    project.artifacts_handler().handle_cached_artifacts(&cache.cached_artifacts)?;
                 }
                 ArtifactsCache::Ephemeral(..) => {}
             }

@@ -904,16 +904,12 @@ impl<T: ArtifactOutput> ArtifactOutput for Project<T> {
         self.artifacts_handler().on_output(contracts, sources, layout, ctx)
     }
 
-    fn write_contract_extras(&self, contract: &Contract, file: &Path) -> Result<()> {
-        self.artifacts_handler().write_contract_extras(contract, file)
-    }
-
-    fn write_extras(
+    fn handle_artifacts(
         &self,
         contracts: &VersionedContracts,
         artifacts: &Artifacts<Self::Artifact>,
     ) -> Result<()> {
-        self.artifacts_handler().write_extras(contracts, artifacts)
+        self.artifacts_handler().handle_artifacts(contracts, artifacts)
     }
 
     fn output_file_name(name: impl AsRef<str>) -> PathBuf {
@@ -988,15 +984,12 @@ impl<T: ArtifactOutput> ArtifactOutput for Project<T> {
         self.artifacts_handler().standalone_source_file_to_artifact(path, file)
     }
 
-    fn can_write_extras_from_artifact(&self) -> bool {
-        self.artifacts_handler().can_write_extras_from_artifact()
+    fn is_dirty(&self, artifact_file: &ArtifactFile<Self::Artifact>) -> Result<bool> {
+        self.artifacts_handler().is_dirty(artifact_file)
     }
 
-    fn try_write_extras_from_artifact(
-        &self,
-        artifact_file: &ArtifactFile<Self::Artifact>,
-    ) -> Result<()> {
-        self.artifacts_handler().try_write_extras_from_artifact(artifact_file)
+    fn handle_cached_artifacts(&self, artifacts: &Artifacts<Self::Artifact>) -> Result<()> {
+        self.artifacts_handler().handle_cached_artifacts(artifacts)
     }
 }
 
