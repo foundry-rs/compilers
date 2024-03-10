@@ -115,6 +115,16 @@ impl OutputSelection {
         )])
     }
 
+    /// Returns output selection configuration which enables the same provided outputs for each
+    /// contract of each source.
+    pub fn common_output_selection(outputs: impl IntoIterator<Item = String>) -> Self {
+        BTreeMap::from([(
+            "*".to_string(),
+            BTreeMap::from([("*".to_string(), outputs.into_iter().collect())]),
+        )])
+        .into()
+    }
+
     /// Returns an empty output selection which corresponds to an empty map `{}`
     pub fn empty_file_output_select() -> FileOutputSelection {
         Default::default()
