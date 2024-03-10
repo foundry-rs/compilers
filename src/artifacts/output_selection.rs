@@ -115,7 +115,8 @@ impl OutputSelection {
         )])
     }
 
-    /// Returns output selection configuration which enables the same provided outputs for each contract of each source.
+    /// Returns output selection configuration which enables the same provided outputs for each
+    /// contract of each source.
     pub fn common_output_selection(outputs: impl IntoIterator<Item = String>) -> Self {
         BTreeMap::from([(
             "*".to_string(),
