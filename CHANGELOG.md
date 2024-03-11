@@ -5,11 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.10](https://github.com/foundry-rs/compilers/releases/tag/v0.3.10) - 2024-03-11
+
+### Features
+
+- Use cached artifacts if solc config is almost the same ([#87](https://github.com/foundry-rs/compilers/issues/87))
+
+### Other
+
+- Helper for `OutputSelection` ([#89](https://github.com/foundry-rs/compilers/issues/89))
+- Add `CARGO_TERM_COLOR` env ([#86](https://github.com/foundry-rs/compilers/issues/86))
+
+### Refactor
+
+- Extra files logic ([#88](https://github.com/foundry-rs/compilers/issues/88))
+
 ## [0.3.9](https://github.com/foundry-rs/compilers/releases/tag/v0.3.9) - 2024-02-22
 
 ### Bug Fixes
 
 - Account for Solc inexplicably not formatting the message ([#85](https://github.com/foundry-rs/compilers/issues/85))
+
+### Miscellaneous Tasks
+
+- Release 0.3.9
 
 ## [0.3.8](https://github.com/foundry-rs/compilers/releases/tag/v0.3.8) - 2024-02-22
 
