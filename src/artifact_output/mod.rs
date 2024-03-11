@@ -623,41 +623,17 @@ pub trait ArtifactOutput {
         artifacts.join_all(&layout.artifacts);
         artifacts.write_all()?;
 
-        self.write_extras(contracts, &artifacts)?;
+        self.handle_artifacts(contracts, &artifacts)?;
 
         Ok(artifacts)
     }
 
-    /// Write additional files for the contract
-    fn write_contract_extras(&self, contract: &Contract, file: &Path) -> Result<()> {
-        ExtraOutputFiles::all().write_extras(contract, file)
-    }
-
-    /// Writes additional files for the contracts if the included in the `Contract`, such as `ir`,
-    /// `ewasm`, `iropt`.
-    ///
-    /// By default, these fields are _not_ enabled in the [`crate::artifacts::Settings`], see
-    /// [`crate::artifacts::output_selection::OutputSelection::default_output_selection()`], and the
-    /// respective fields of the [`Contract`] will `None`. If they'll be manually added to the
-    /// `output_selection`, then we're also creating individual files for this output, such as
-    /// `Greeter.iropt`, `Gretter.ewasm`
-    fn write_extras(
+    /// Invoked after artifacts has been written to disk for additional processing.
+    fn handle_artifacts(
         &self,
-        contracts: &VersionedContracts,
-        artifacts: &Artifacts<Self::Artifact>,
+        _contracts: &VersionedContracts,
+        _artifacts: &Artifacts<Self::Artifact>,
     ) -> Result<()> {
-        for (file, contracts) in contracts.as_ref().iter() {
-            for (name, versioned_contracts) in contracts {
-                for c in versioned_contracts {
-                    if let Some(artifact) = artifacts.find_artifact(file, name, &c.version) {
-                        let file = &artifact.file;
-                        utils::create_parent_dir_all(file)?;
-                        self.write_contract_extras(&c.contract, file)?;
-                    }
-                }
-            }
-        }
-
         Ok(())
     }
 
@@ -985,6 +961,16 @@ pub trait ArtifactOutput {
         _path: &str,
         _file: &VersionedSourceFile,
     ) -> Option<Self::Artifact>;
+
+    /// Handler allowing artifacts handler to enforce artifact recompilation.
+    fn is_dirty(&self, _artifact_file: &ArtifactFile<Self::Artifact>) -> Result<bool> {
+        Ok(false)
+    }
+
+    /// Invoked with all artifacts that were not recompiled.
+    fn handle_cached_artifacts(&self, _artifacts: &Artifacts<Self::Artifact>) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// Additional context to use during [`ArtifactOutput::on_output()`]

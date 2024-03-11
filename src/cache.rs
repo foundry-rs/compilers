@@ -804,6 +804,18 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
             return true;
         }
 
+        // If any requested extra files are missing for any artifact, mark source as dirty to
+        // generate them
+        for artifacts in self.cached_artifacts.values() {
+            for artifacts in artifacts.values() {
+                for artifact_file in artifacts {
+                    if self.project.artifacts_handler().is_dirty(artifact_file).unwrap_or(true) {
+                        return true;
+                    }
+                }
+            }
+        }
+
         // all things match, can be reused
         false
     }

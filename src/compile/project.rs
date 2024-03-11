@@ -329,6 +329,13 @@ impl<'a, T: ArtifactOutput> CompiledState<'a, T> {
                 ctx,
             )?;
 
+            match cache {
+                ArtifactsCache::Cached(ref cache) => {
+                    project.artifacts_handler().handle_cached_artifacts(&cache.cached_artifacts)?;
+                }
+                ArtifactsCache::Ephemeral(..) => {}
+            }
+
             // emits all the build infos, if they exist
             output.write_build_infos(project.build_info_path())?;
 
@@ -679,7 +686,10 @@ fn compile_parallel(
 #[cfg(all(feature = "project-util", feature = "svm-solc"))]
 mod tests {
     use super::*;
-    use crate::{project_util::TempProject, MinimalCombinedArtifacts};
+    use crate::{
+        artifacts::output_selection::ContractOutputSelection, project_util::TempProject,
+        ConfigurableArtifacts, MinimalCombinedArtifacts,
+    };
 
     fn init_tracing() {
         let _ = tracing_subscriber::fmt()
@@ -831,5 +841,26 @@ mod tests {
         let project = Project::builder().paths(paths).build().unwrap();
         let compiler = ProjectCompiler::new(&project).unwrap();
         let _out = compiler.compile().unwrap();
+    }
+
+    #[test]
+    fn extra_output_cached() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+        let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
+        let mut project = TempProject::<ConfigurableArtifacts>::new(paths.clone()).unwrap();
+
+        // Compile once without enabled extra output
+        project.compile().unwrap();
+
+        // Enable extra output of abi
+        project.project_mut().artifacts =
+            ConfigurableArtifacts::new([], [ContractOutputSelection::Abi]);
+
+        // Ensure that abi appears after compilation and that we didn't recompile anything
+        let abi_path = project.project().paths.artifacts.join("Dapp.sol/Dapp.abi.json");
+        assert!(!abi_path.exists());
+        let output = project.compile().unwrap();
+        assert!(output.compiler_output.is_empty());
+        assert!(abi_path.exists());
     }
 }
