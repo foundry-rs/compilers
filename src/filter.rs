@@ -80,7 +80,7 @@ impl SparseOutputFilter {
     ) -> Sources {
         match self {
             SparseOutputFilter::Optimized => {
-                if !sources.all_complete() {
+                if !sources.all_dirty() {
                     Self::optimize(&sources, settings)
                 }
             }
@@ -141,7 +141,7 @@ impl SparseOutputFilter {
         // settings can be optimized
         trace!(
             "optimizing output selection for {}/{} sources",
-            sources.optimized().count(),
+            sources.clean().count(),
             sources.len()
         );
 
@@ -200,22 +200,22 @@ impl FilteredSources {
     }
 
     /// Returns `true` if no sources should have optimized output selection.
-    pub fn all_complete(&self) -> bool {
+    pub fn all_dirty(&self) -> bool {
         self.0.values().all(|s| s.is_complete())
     }
 
     /// Returns all entries that should not be optimized.
-    pub fn complete(&self) -> impl Iterator<Item = (&PathBuf, &SourceCompilationKind)> + '_ {
+    pub fn dirty(&self) -> impl Iterator<Item = (&PathBuf, &SourceCompilationKind)> + '_ {
         self.0.iter().filter(|(_, s)| s.is_complete())
     }
 
     /// Returns all entries that should be optimized.
-    pub fn optimized(&self) -> impl Iterator<Item = (&PathBuf, &SourceCompilationKind)> + '_ {
+    pub fn clean(&self) -> impl Iterator<Item = (&PathBuf, &SourceCompilationKind)> + '_ {
         self.0.iter().filter(|(_, s)| !s.is_complete())
     }
 
     /// Returns all files that should not be optimized.
-    pub fn complete_files(&self) -> impl Iterator<Item = &PathBuf> + fmt::Debug + '_ {
+    pub fn dirty_files(&self) -> impl Iterator<Item = &PathBuf> + fmt::Debug + '_ {
         self.0.iter().filter_map(|(k, s)| s.is_complete().then_some(k))
     }
 }

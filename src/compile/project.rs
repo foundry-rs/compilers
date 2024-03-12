@@ -436,8 +436,8 @@ impl CompilerSources {
                     let sources_to_compile = cache.filter(sources, &version);
                     trace!(
                         "Detected {} sources to compile {:?}",
-                        sources_to_compile.complete().count(),
-                        sources_to_compile.complete_files().collect::<Vec<_>>()
+                        sources_to_compile.dirty().count(),
+                        sources_to_compile.dirty_files().collect::<Vec<_>>()
                     );
                     (solc, (version, sources_to_compile))
                 })
@@ -518,7 +518,7 @@ fn compile_sequential(
             solc.args
         );
 
-        let dirty_files: Vec<PathBuf> = filtered_sources.complete_files().cloned().collect();
+        let dirty_files: Vec<PathBuf> = filtered_sources.dirty_files().cloned().collect();
 
         // depending on the composition of the filtered sources, the output selection can be
         // optimized
@@ -597,7 +597,7 @@ fn compile_parallel(
             continue;
         }
 
-        let dirty_files: Vec<PathBuf> = filtered_sources.complete_files().cloned().collect();
+        let dirty_files: Vec<PathBuf> = filtered_sources.dirty_files().cloned().collect();
 
         // depending on the composition of the filtered sources, the output selection can be
         // optimized
@@ -791,8 +791,8 @@ mod tests {
         // 3 contracts total
         assert_eq!(filtered.0.len(), 3);
         // A is modified
-        assert_eq!(filtered.complete().count(), 1);
-        assert!(filtered.complete_files().next().unwrap().ends_with("A.sol"));
+        assert_eq!(filtered.dirty().count(), 1);
+        assert!(filtered.dirty_files().next().unwrap().ends_with("A.sol"));
 
         let state = state.compile().unwrap();
         assert_eq!(state.output.sources.len(), 3);
