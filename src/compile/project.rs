@@ -329,13 +329,6 @@ impl<'a, T: ArtifactOutput> CompiledState<'a, T> {
                 ctx,
             )?;
 
-            match cache {
-                ArtifactsCache::Cached(ref cache) => {
-                    project.artifacts_handler().handle_cached_artifacts(&cache.cached_artifacts)?;
-                }
-                ArtifactsCache::Ephemeral(..) => {}
-            }
-
             // emits all the build infos, if they exist
             output.write_build_infos(project.build_info_path())?;
 
@@ -370,6 +363,9 @@ impl<'a, T: ArtifactOutput> ArtifactsState<'a, T> {
         trace!(has_error, project.no_artifacts, skip_write_to_disk, cache_path=?project.cache_path(),"prepare writing cache file");
 
         let cached_artifacts = cache.consume(&compiled_artifacts, !skip_write_to_disk)?;
+
+        project.artifacts_handler().handle_cached_artifacts(&cached_artifacts)?;
+
         Ok(ProjectCompileOutput {
             compiler_output: output,
             compiled_artifacts,
@@ -708,8 +704,8 @@ mod tests {
         let prep = compiler.preprocess().unwrap();
         let cache = prep.cache.as_cached().unwrap();
         // 3 contracts
-        assert_eq!(cache.dirty_source_files.len(), 3);
-        assert!(cache.filtered.is_empty());
+        assert_eq!(cache.dirty_sources.len(), 3);
+        assert!(cache.clean_sources.is_empty());
         assert!(cache.cache.is_empty());
 
         let compiled = prep.compile().unwrap();
@@ -728,7 +724,7 @@ mod tests {
         let inner = project.project();
         let compiler = ProjectCompiler::new(inner).unwrap();
         let prep = compiler.preprocess().unwrap();
-        assert!(prep.cache.as_cached().unwrap().dirty_source_files.is_empty())
+        assert!(prep.cache.as_cached().unwrap().dirty_sources.is_empty())
     }
 
     #[test]
