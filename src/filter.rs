@@ -186,7 +186,7 @@ impl fmt::Debug for SparseOutputFilter {
     }
 }
 
-/// Container type for a set of [FilteredSource]
+/// Container type for a mapping from source path to [SourceCompilationKind]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct FilteredSources(pub BTreeMap<PathBuf, SourceCompilationKind>);
 
