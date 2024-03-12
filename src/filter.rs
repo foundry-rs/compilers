@@ -114,7 +114,7 @@ impl SparseOutputFilter {
 
         for (file, source) in sources.0.iter() {
             let key = format!("{}", file.display());
-            if source.is_complete() && f.is_match(file) {
+            if source.is_dirty() && f.is_match(file) {
                 settings.output_selection.as_mut().insert(key, selection.clone());
 
                 // the filter might not cover link references that will be required by the file, so
@@ -201,22 +201,22 @@ impl FilteredSources {
 
     /// Returns `true` if no sources should have optimized output selection.
     pub fn all_dirty(&self) -> bool {
-        self.0.values().all(|s| s.is_complete())
+        self.0.values().all(|s| s.is_dirty())
     }
 
     /// Returns all entries that should not be optimized.
     pub fn dirty(&self) -> impl Iterator<Item = (&PathBuf, &SourceCompilationKind)> + '_ {
-        self.0.iter().filter(|(_, s)| s.is_complete())
+        self.0.iter().filter(|(_, s)| s.is_dirty())
     }
 
     /// Returns all entries that should be optimized.
     pub fn clean(&self) -> impl Iterator<Item = (&PathBuf, &SourceCompilationKind)> + '_ {
-        self.0.iter().filter(|(_, s)| !s.is_complete())
+        self.0.iter().filter(|(_, s)| !s.is_dirty())
     }
 
     /// Returns all files that should not be optimized.
     pub fn dirty_files(&self) -> impl Iterator<Item = &PathBuf> + fmt::Debug + '_ {
-        self.0.iter().filter_map(|(k, s)| s.is_complete().then_some(k))
+        self.0.iter().filter_map(|(k, s)| s.is_dirty().then_some(k))
     }
 }
 
@@ -280,7 +280,7 @@ impl SourceCompilationKind {
     }
 
     /// Whether this file should be compiled with full output selection
-    pub fn is_complete(&self) -> bool {
+    pub fn is_dirty(&self) -> bool {
         matches!(self, SourceCompilationKind::Complete(_))
     }
 }
