@@ -553,12 +553,14 @@ impl CacheEntry {
     }
 }
 
+/// Collection of source file paths mapped to versions.
 #[derive(Debug, Clone, Default)]
 pub struct GroupedSources {
     pub inner: HashMap<PathBuf, HashSet<Version>>,
 }
 
 impl GroupedSources {
+    /// Inserts provided source and version into the collection.
     pub fn insert(&mut self, file: PathBuf, version: Version) {
         match self.inner.entry(file) {
             hash_map::Entry::Occupied(mut entry) => {
@@ -570,6 +572,7 @@ impl GroupedSources {
         }
     }
 
+    /// Returns true if the file was included with the given version.
     pub fn contains(&self, file: &Path, version: &Version) -> bool {
         self.inner.get(file).map_or(false, |versions| versions.contains(version))
     }
