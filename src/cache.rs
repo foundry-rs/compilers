@@ -699,6 +699,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
 
     fn mark_dirty(&mut self, file: &Path, source: &Source, version: &Version) {
         self.dirty_sources.insert(file.to_path_buf(), version.clone());
+        // We always create and insert a new entry to overwrite solc settings, content hash, etc.
         let entry = self.create_cache_entry(file, source);
         self.cache.files.insert(file.to_path_buf(), entry);
     }
