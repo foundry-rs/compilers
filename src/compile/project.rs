@@ -433,13 +433,13 @@ impl CompilerSources {
                 .into_iter()
                 .map(|(solc, (version, sources))| {
                     trace!("Filtering {} sources for {}", sources.len(), version);
-                    let sources = cache.filter(sources, &version);
+                    let sources_to_compile = cache.filter(sources, &version);
                     trace!(
-                        "Detected {} dirty sources {:?}",
-                        sources.dirty().count(),
-                        sources.dirty_files().collect::<Vec<_>>()
+                        "Detected {} sources to compile {:?}",
+                        sources_to_compile.complete().count(),
+                        sources_to_compile.complete_files().collect::<Vec<_>>()
                     );
-                    (solc, (version, sources))
+                    (solc, (version, sources_to_compile))
                 })
                 .collect()
         }
@@ -518,7 +518,7 @@ fn compile_sequential(
             solc.args
         );
 
-        let dirty_files: Vec<PathBuf> = filtered_sources.dirty_files().cloned().collect();
+        let dirty_files: Vec<PathBuf> = filtered_sources.complete_files().cloned().collect();
 
         // depending on the composition of the filtered sources, the output selection can be
         // optimized
@@ -597,7 +597,7 @@ fn compile_parallel(
             continue;
         }
 
-        let dirty_files: Vec<PathBuf> = filtered_sources.dirty_files().cloned().collect();
+        let dirty_files: Vec<PathBuf> = filtered_sources.complete_files().cloned().collect();
 
         // depending on the composition of the filtered sources, the output selection can be
         // optimized
@@ -704,8 +704,7 @@ mod tests {
         let prep = compiler.preprocess().unwrap();
         let cache = prep.cache.as_cached().unwrap();
         // 3 contracts
-        assert_eq!(cache.dirty_sources.inner.len(), 3);
-        assert!(cache.clean_sources.inner.is_empty());
+        assert_eq!(cache.dirty_sources.len(), 3);
 
         let compiled = prep.compile().unwrap();
         assert_eq!(compiled.output.contracts.files().count(), 3);
@@ -723,7 +722,7 @@ mod tests {
         let inner = project.project();
         let compiler = ProjectCompiler::new(inner).unwrap();
         let prep = compiler.preprocess().unwrap();
-        assert!(prep.cache.as_cached().unwrap().dirty_sources.inner.is_empty())
+        assert!(prep.cache.as_cached().unwrap().dirty_sources.is_empty())
     }
 
     #[test]
@@ -792,8 +791,8 @@ mod tests {
         // 3 contracts total
         assert_eq!(filtered.0.len(), 3);
         // A is modified
-        assert_eq!(filtered.dirty().count(), 1);
-        assert!(filtered.dirty_files().next().unwrap().ends_with("A.sol"));
+        assert_eq!(filtered.complete().count(), 1);
+        assert!(filtered.complete_files().next().unwrap().ends_with("A.sol"));
 
         let state = state.compile().unwrap();
         assert_eq!(state.output.sources.len(), 3);
