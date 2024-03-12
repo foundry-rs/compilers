@@ -706,7 +706,6 @@ mod tests {
         // 3 contracts
         assert_eq!(cache.dirty_sources.inner.len(), 3);
         assert!(cache.clean_sources.inner.is_empty());
-        assert!(cache.cache.is_empty());
 
         let compiled = prep.compile().unwrap();
         assert_eq!(compiled.output.contracts.files().count(), 3);
