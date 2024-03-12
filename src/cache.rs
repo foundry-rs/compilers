@@ -975,17 +975,18 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
                     let version = &artifact.version;
 
                     if out_of_scope_sources.contains(file, version) {
-                        false
-                    } else if dirty_sources.contains(file, version) {
-                        false
-                    } else if written_artifacts
+                        return false
+                    }
+                    if dirty_sources.contains(file, version) {
+                        return false
+                    } 
+                    if written_artifacts
                         .find_artifact(&file.to_string_lossy(), name, version)
                         .is_some()
                     {
-                        false
-                    } else {
-                        true
+                        return false
                     }
+                    true
                 });
                 !artifacts.is_empty()
             });

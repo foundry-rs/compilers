@@ -704,8 +704,8 @@ mod tests {
         let prep = compiler.preprocess().unwrap();
         let cache = prep.cache.as_cached().unwrap();
         // 3 contracts
-        assert_eq!(cache.dirty_sources.len(), 3);
-        assert!(cache.clean_sources.is_empty());
+        assert_eq!(cache.dirty_sources.inner.len(), 3);
+        assert!(cache.clean_sources.inner.is_empty());
         assert!(cache.cache.is_empty());
 
         let compiled = prep.compile().unwrap();
@@ -724,7 +724,7 @@ mod tests {
         let inner = project.project();
         let compiler = ProjectCompiler::new(inner).unwrap();
         let prep = compiler.preprocess().unwrap();
-        assert!(prep.cache.as_cached().unwrap().dirty_sources.is_empty())
+        assert!(prep.cache.as_cached().unwrap().dirty_sources.inner.is_empty())
     }
 
     #[test]
