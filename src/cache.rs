@@ -638,7 +638,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
     /// Returns the set of [Source]s that need to be compiled to produce artifacts for requested
     /// input.
     ///
-    /// Source file may have two [SourceCompilationKind]s:
+    /// Source file may have one of the two [SourceCompilationKind]s:
     /// 1. [SourceCompilationKind::Complete] - the file has been modified or compiled with different
     ///    settings and its cache is invalidated. For such sources we request full data needed for
     ///    artifact construction.
