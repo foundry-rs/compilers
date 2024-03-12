@@ -699,10 +699,8 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
 
     fn mark_dirty(&mut self, file: &Path, source: &Source, version: &Version) {
         self.dirty_sources.insert(file.to_path_buf(), version.clone());
-        if !self.cache.files.contains_key(file) {
-            let entry = self.create_cache_entry(file, source);
-            self.cache.files.insert(file.to_path_buf(), entry);
-        }
+        let entry = self.create_cache_entry(file, source);
+        self.cache.files.insert(file.to_path_buf(), entry);
     }
 
     /// Returns the state of the given source file.
