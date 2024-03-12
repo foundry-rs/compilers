@@ -791,6 +791,7 @@ mod tests {
         // 3 contracts total
         assert_eq!(filtered.0.len(), 3);
         // A is modified
+        assert_eq!(state.cache.as_cached().unwrap().dirty_sources.len(), 1);
         assert_eq!(filtered.dirty().count(), 1);
         assert!(filtered.dirty_files().next().unwrap().ends_with("A.sol"));
 
