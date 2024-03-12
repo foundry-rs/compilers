@@ -600,11 +600,10 @@ pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput> {
     /// from compilation.
     pub missing_sources: GroupedSources,
 
-    /// Files that appear in cache but are not in scope of the current compiler invocation.
+    /// Artifact+version pairs which are in scope for each solc version.
     ///
-    /// Those files should be kept in the cache, but should not be returned in the compilation
-    /// result.
-    pub out_of_scope_sources: GroupedSources,
+    /// Only those files will be included into cached artifacts list for each version.
+    pub sources_in_scope: GroupedSources,
 
     /// The file hashes.
     pub content_hashes: HashMap<PathBuf, String>,
@@ -654,6 +653,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
         self.dirty_sources.extend(self.get_dirty_files(&sources));
 
         for (file, source) in sources.iter() {
+            self.sources_in_scope.insert(file.clone(), version.clone());
             if self.dirty_sources.contains(file) {
                 compile_complete.insert(file.clone());
 
@@ -678,14 +678,6 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
             // Ensure that we have a cache entry for all sources.
             if !self.cache.files.contains_key(file) {
                 self.create_cache_entry(file.clone(), source);
-            }
-        }
-
-        // Mark sources which appear in cache but are not in scope of the current compiler run as
-        // out of scope.
-        for source in self.cache.files.keys().cloned().collect::<Vec<_>>() {
-            if !sources.contains_key(&source) {
-                self.out_of_scope_sources.insert(source, version.clone());
             }
         }
 
@@ -859,7 +851,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
                 project,
                 dirty_sources: Default::default(),
                 content_hashes: Default::default(),
-                out_of_scope_sources: Default::default(),
+                sources_in_scope: Default::default(),
                 missing_sources: Default::default(),
             };
 
@@ -940,7 +932,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
             mut cache,
             mut cached_artifacts,
             dirty_sources,
-            out_of_scope_sources,
+            sources_in_scope,
             project,
             ..
         } = cache;
@@ -952,7 +944,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
                 artifacts.retain(|artifact| {
                     let version = &artifact.version;
 
-                    if out_of_scope_sources.contains(file, version) {
+                    if !sources_in_scope.contains(file, version) {
                         return false;
                     }
                     if dirty_sources.contains(file) {
