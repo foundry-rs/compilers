@@ -476,7 +476,7 @@ impl CacheEntry {
             for artifact in artifacts {
                 self.artifacts
                     .entry(name.clone())
-                    .or_insert_with(BTreeMap::new)
+                    .or_default()
                     .insert(artifact.version.clone(), artifact.file.clone());
             }
         }
@@ -596,7 +596,7 @@ pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput> {
     /// Those are not grouped by version and purged completely.
     pub dirty_sources: HashSet<PathBuf>,
 
-    /// Artifact+version pairs for which we were missing artifacts and are expect to receive them
+    /// Artifact+version pairs for which we were missing artifacts and expecting to receive them
     /// from compilation.
     pub missing_sources: GroupedSources,
 
@@ -650,20 +650,26 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
         let mut compile_complete = BTreeSet::new();
         let mut compile_optimized = BTreeSet::new();
 
-        // Files which cache is invalidated.
-        self.dirty_sources = self.get_dirty_files(&sources);
+        // Collect files which cache is invalidated.
+        self.dirty_sources.extend(self.get_dirty_files(&sources));
 
         for (file, source) in sources.iter() {
             if self.dirty_sources.contains(file) {
                 compile_complete.insert(file.clone());
 
-                // If file is dirty, its data should invalidated and all artifacts for all versions
-                // should be removed.
+                // If file is dirty, its data should be invalidated and all artifacts for all
+                // versions should be removed.
                 self.cache.remove(file.as_path());
             } else {
-                // If source is not dirty, but we are missing artifact for this version, we
+                // If source is not dirty, but we are missing artifacts for this version, we
                 // should compile it to populate the cache.
-                if self.cache.entry(file).map_or(true, |e| !e.contains_version(version)) {
+                let missing = self
+                    .cached_artifacts
+                    .get(file.to_string_lossy().as_ref())
+                    .map_or(true, |artifacts| {
+                        artifacts.values().flatten().all(|a| a.version != *version)
+                    });
+                if missing {
                     compile_complete.insert(file.clone());
                     self.missing_sources.insert(file.clone(), version.clone());
                 }
@@ -761,6 +767,18 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
         if !self.project.solc_config.can_use_cached(&entry.solc_config) {
             trace!("solc config not compatible");
             return true;
+        }
+
+        // If any requested extra files are missing for any artifact, mark source as dirty to
+        // generate them
+        for artifacts in self.cached_artifacts.values() {
+            for artifacts in artifacts.values() {
+                for artifact_file in artifacts {
+                    if self.project.artifacts_handler().is_dirty(artifact_file).unwrap_or(true) {
+                        return true;
+                    }
+                }
+            }
         }
 
         // all things match, can be reused

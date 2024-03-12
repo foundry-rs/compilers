@@ -161,10 +161,10 @@ impl SparseOutputFilter {
                 }
                 SourceCompilationKind::Optimized(_) => {
                     trace!("using pruned output selection for {}", file.display());
-                    settings
-                        .output_selection
-                        .as_mut()
-                        .insert(format!("{}", file.display()), OutputSelection::empty_file_output_select());
+                    settings.output_selection.as_mut().insert(
+                        format!("{}", file.display()),
+                        OutputSelection::empty_file_output_select(),
+                    );
                 }
             }
         }
