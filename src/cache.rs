@@ -665,7 +665,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
                 // should compile it to populate the cache.
                 let missing = self
                     .cached_artifacts
-                    .get(file.to_string_lossy().as_ref())
+                    .get(&format!("{}", file.display()))
                     .map_or(true, |artifacts| {
                         artifacts.values().flatten().all(|a| a.version != *version)
                     });
