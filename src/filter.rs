@@ -180,7 +180,7 @@ impl From<Box<dyn FileFilter>> for SparseOutputFilter {
 impl fmt::Debug for SparseOutputFilter {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            SparseOutputFilter::Optimized => f.write_str("AllDirty"),
+            SparseOutputFilter::Optimized => f.write_str("Optimized"),
             SparseOutputFilter::Custom(_) => f.write_str("Custom"),
         }
     }
