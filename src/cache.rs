@@ -660,19 +660,11 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
                 // If file is dirty, its data should be invalidated and all artifacts for all
                 // versions should be removed.
                 self.cache.remove(file.as_path());
-            } else {
+            } else if self.is_missing_artifacts(file, version) {
                 // If source is not dirty, but we are missing artifacts for this version, we
                 // should compile it to populate the cache.
-                let missing = self
-                    .cached_artifacts
-                    .get(&format!("{}", file.display()))
-                    .map_or(true, |artifacts| {
-                        artifacts.values().flatten().all(|a| a.version != *version)
-                    });
-                if missing {
-                    compile_complete.insert(file.clone());
-                    self.missing_sources.insert(file.clone(), version.clone());
-                }
+                compile_complete.insert(file.clone());
+                self.missing_sources.insert(file.clone(), version.clone());
             }
 
             // Ensure that we have a cache entry for all sources.
@@ -705,6 +697,39 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
             .collect();
 
         FilteredSources(filtered)
+    }
+
+    /// Returns whether we are missing artifacts for the given file and version.
+    fn is_missing_artifacts(&self, file: &Path, version: &Version) -> bool {
+        let Some(entry) = self.cache.entry(file) else {
+            trace!("missing cache entry");
+            return true;
+        };
+
+        // only check artifact's existence if the file generated artifacts.
+        // e.g. a solidity file consisting only of import statements (like interfaces that
+        // re-export) do not create artifacts
+        if entry.artifacts.is_empty() {
+            trace!("no artifacts");
+            return false;
+        }
+
+        if !entry.contains_version(version) {
+            trace!("missing linked artifacts",);
+            return true;
+        }
+
+        if entry.artifacts_for_version(version).any(|artifact_path| {
+            let missing_artifact = !self.cached_artifacts.has_artifact(artifact_path);
+            if missing_artifact {
+                trace!("missing artifact \"{}\"", artifact_path.display());
+            }
+            missing_artifact
+        }) {
+            return true;
+        }
+
+        false
     }
 
     /// Returns a set of files that are dirty itself or import dirty file directly or indirectly.
