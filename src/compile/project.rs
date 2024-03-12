@@ -783,6 +783,13 @@ mod tests {
         let state = compiler.preprocess().unwrap();
         let sources = state.sources.sources();
 
+        let cache = state.cache.as_cached().unwrap();
+
+        // 2 clean sources
+        assert_eq!(cache.cache.artifacts_len(), 2);
+        assert!(cache.cache.all_artifacts_exist());
+        assert_eq!(cache.dirty_sources.len(), 1);
+
         // single solc
         assert_eq!(sources.len(), 1);
 
@@ -791,7 +798,6 @@ mod tests {
         // 3 contracts total
         assert_eq!(filtered.0.len(), 3);
         // A is modified
-        assert_eq!(state.cache.as_cached().unwrap().dirty_sources.len(), 1);
         assert_eq!(filtered.dirty().count(), 1);
         assert!(filtered.dirty_files().next().unwrap().ends_with("A.sol"));
 
