@@ -106,11 +106,18 @@ impl ProjectPathsConfig {
 
     /// Creates artifacts output related directories.
     pub fn create_artifacts(&self) -> std::result::Result<(), SolcIoError> {
-        fs::create_dir_all(&self.artifacts)
-            .map_err(|err| SolcIoError::new(err, &self.artifacts))?;
+        fs::create_dir_all(&self.artifacts).map_err(|err| {
+            error!(dir=?self.artifacts, "Failed to create artifacts folder");
+            SolcIoError::new(err, &self.artifacts)
+        })?;
+
         if let Some(artifacts_symlink) = &self.artifacts_symlink {
-            create_symlink(&self.artifacts, artifacts_symlink)?;
+            create_symlink(&self.artifacts, artifacts_symlink).map_err(|err| {
+                error!(dir=?artifacts_symlink, "Failed to create symlink to artifacts");
+                SolcIoError::new(err, artifacts_symlink)
+            })?;
         }
+
         Ok(())
     }
 

@@ -10,7 +10,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::{
     collections::HashSet,
     fs,
-    io::Write,
+    io::{self, Write},
     ops::Range,
     path::{Component, Path, PathBuf},
 };
@@ -556,25 +556,23 @@ pub fn create_parent_dir_all(file: impl AsRef<Path>) -> Result<(), SolcError> {
 }
 
 /// Creates symlink, removing the destination if it exists and is not the needed symlink.
-pub fn create_symlink(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), SolcIoError> {
+pub fn create_symlink(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
     let dst = dst.as_ref();
     if dst.exists() {
-        let metadata = dst.symlink_metadata().map_err(|err| SolcIoError::new(err, dst))?;
+        let metadata = dst.symlink_metadata()?;
         if !metadata.is_symlink() {
-            fs::remove_dir_all(dst).map_err(|err| SolcIoError::new(err, dst))?;
+            fs::remove_dir_all(dst)?;
         } else {
-            let location = fs::read_link(dst).map_err(|err| SolcIoError::new(err, dst))?;
+            let location = fs::read_link(dst)?;
             if location != src.as_ref() {
-                fs::remove_dir_all(dst).map_err(|err| SolcIoError::new(err, dst))?;
+                fs::remove_dir_all(dst)?;
             } else {
                 return Ok(());
             }
         }
     }
 
-    symlink::symlink_dir(src, dst).map_err(|err| SolcIoError::new(err, dst))?;
-
-    Ok(())
+    symlink::symlink_dir(src, dst)
 }
 
 /// Normalize a path, removing things like `.` and `..`.
