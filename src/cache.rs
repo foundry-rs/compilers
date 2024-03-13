@@ -596,10 +596,6 @@ pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput> {
     /// Those are not grouped by version and purged completely.
     pub dirty_sources: HashSet<PathBuf>,
 
-    /// Artifact+version pairs for which we were missing artifacts and expecting to receive them
-    /// from compilation.
-    pub missing_sources: GroupedSources,
-
     /// Artifact+version pairs which are in scope for each solc version.
     ///
     /// Only those files will be included into cached artifacts list for each version.
@@ -664,7 +660,6 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
                 // If source is not dirty, but we are missing artifacts for this version, we
                 // should compile it to populate the cache.
                 compile_complete.insert(file.clone());
-                self.missing_sources.insert(file.clone(), version.clone());
             }
 
             // Ensure that we have a cache entry for all sources.
@@ -869,7 +864,6 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
                 dirty_sources: Default::default(),
                 content_hashes: Default::default(),
                 sources_in_scope: Default::default(),
-                missing_sources: Default::default(),
             };
 
             ArtifactsCache::Cached(cache)
