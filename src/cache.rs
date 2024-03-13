@@ -666,6 +666,14 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
             return true;
         };
 
+        // only check artifact's existence if the file generated artifacts.
+        // e.g. a solidity file consisting only of import statements (like interfaces that
+        // re-export) do not create artifacts
+        if entry.artifacts.is_empty() {
+            trace!("no artifacts");
+            return false;
+        }
+
         if !entry.contains_version(version) {
             trace!("missing linked artifacts",);
             return true;
