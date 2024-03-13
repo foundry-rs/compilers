@@ -57,7 +57,7 @@ pub enum SparseOutputFilter {
     /// In other words, we request the output of solc only for files that have been detected as
     /// _dirty_.
     #[default]
-    AllDirty,
+    Optimized,
     /// Apply an additional filter to [FilteredSources] to
     Custom(Box<dyn FileFilter>),
 }
@@ -79,9 +79,9 @@ impl SparseOutputFilter {
         graph: &GraphEdges,
     ) -> Sources {
         match self {
-            SparseOutputFilter::AllDirty => {
+            SparseOutputFilter::Optimized => {
                 if !sources.all_dirty() {
-                    Self::all_dirty(&sources, settings)
+                    Self::optimize(&sources, settings)
                 }
             }
             SparseOutputFilter::Custom(f) => {
@@ -137,7 +137,7 @@ impl SparseOutputFilter {
     }
 
     /// prunes all clean sources and only selects an output for dirty sources
-    fn all_dirty(sources: &FilteredSources, settings: &mut Settings) {
+    fn optimize(sources: &FilteredSources, settings: &mut Settings) {
         // settings can be optimized
         trace!(
             "optimizing output selection for {}/{} sources",
@@ -151,18 +151,21 @@ impl SparseOutputFilter {
             .remove("*")
             .unwrap_or_else(OutputSelection::default_file_output_selection);
 
-        for (file, source) in sources.0.iter() {
-            if source.is_dirty() {
-                settings
-                    .output_selection
-                    .as_mut()
-                    .insert(format!("{}", file.display()), selection.clone());
-            } else {
-                trace!("using pruned output selection for {}", file.display());
-                settings.output_selection.as_mut().insert(
-                    format!("{}", file.display()),
-                    OutputSelection::empty_file_output_select(),
-                );
+        for (file, kind) in sources.0.iter() {
+            match kind {
+                SourceCompilationKind::Complete(_) => {
+                    settings
+                        .output_selection
+                        .as_mut()
+                        .insert(format!("{}", file.display()), selection.clone());
+                }
+                SourceCompilationKind::Optimized(_) => {
+                    trace!("using pruned output selection for {}", file.display());
+                    settings.output_selection.as_mut().insert(
+                        format!("{}", file.display()),
+                        OutputSelection::empty_file_output_select(),
+                    );
+                }
             }
         }
     }
@@ -177,15 +180,15 @@ impl From<Box<dyn FileFilter>> for SparseOutputFilter {
 impl fmt::Debug for SparseOutputFilter {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            SparseOutputFilter::AllDirty => f.write_str("AllDirty"),
+            SparseOutputFilter::Optimized => f.write_str("Optimized"),
             SparseOutputFilter::Custom(_) => f.write_str("Custom"),
         }
     }
 }
 
-/// Container type for a set of [FilteredSource]
+/// Container type for a mapping from source path to [SourceCompilationKind]
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct FilteredSources(pub BTreeMap<PathBuf, FilteredSource>);
+pub struct FilteredSources(pub BTreeMap<PathBuf, SourceCompilationKind>);
 
 impl FilteredSources {
     pub fn is_empty(&self) -> bool {
@@ -196,22 +199,22 @@ impl FilteredSources {
         self.0.len()
     }
 
-    /// Returns `true` if all files are dirty
+    /// Returns `true` if no sources should have optimized output selection.
     pub fn all_dirty(&self) -> bool {
         self.0.values().all(|s| s.is_dirty())
     }
 
-    /// Returns all entries that are dirty
-    pub fn dirty(&self) -> impl Iterator<Item = (&PathBuf, &FilteredSource)> + '_ {
+    /// Returns all entries that should not be optimized.
+    pub fn dirty(&self) -> impl Iterator<Item = (&PathBuf, &SourceCompilationKind)> + '_ {
         self.0.iter().filter(|(_, s)| s.is_dirty())
     }
 
-    /// Returns all entries that are clean
-    pub fn clean(&self) -> impl Iterator<Item = (&PathBuf, &FilteredSource)> + '_ {
+    /// Returns all entries that should be optimized.
+    pub fn clean(&self) -> impl Iterator<Item = (&PathBuf, &SourceCompilationKind)> + '_ {
         self.0.iter().filter(|(_, s)| !s.is_dirty())
     }
 
-    /// Returns all dirty files
+    /// Returns all files that should not be optimized.
     pub fn dirty_files(&self) -> impl Iterator<Item = &PathBuf> + fmt::Debug + '_ {
         self.0.iter().filter_map(|(k, s)| s.is_dirty().then_some(k))
     }
@@ -225,75 +228,59 @@ impl From<FilteredSources> for Sources {
 
 impl From<Sources> for FilteredSources {
     fn from(s: Sources) -> Self {
-        FilteredSources(s.into_iter().map(|(key, val)| (key, FilteredSource::Dirty(val))).collect())
+        FilteredSources(
+            s.into_iter().map(|(key, val)| (key, SourceCompilationKind::Complete(val))).collect(),
+        )
     }
 }
 
-impl From<BTreeMap<PathBuf, FilteredSource>> for FilteredSources {
-    fn from(s: BTreeMap<PathBuf, FilteredSource>) -> Self {
+impl From<BTreeMap<PathBuf, SourceCompilationKind>> for FilteredSources {
+    fn from(s: BTreeMap<PathBuf, SourceCompilationKind>) -> Self {
         FilteredSources(s)
     }
 }
 
-impl AsRef<BTreeMap<PathBuf, FilteredSource>> for FilteredSources {
-    fn as_ref(&self) -> &BTreeMap<PathBuf, FilteredSource> {
+impl AsRef<BTreeMap<PathBuf, SourceCompilationKind>> for FilteredSources {
+    fn as_ref(&self) -> &BTreeMap<PathBuf, SourceCompilationKind> {
         &self.0
     }
 }
 
-impl AsMut<BTreeMap<PathBuf, FilteredSource>> for FilteredSources {
-    fn as_mut(&mut self) -> &mut BTreeMap<PathBuf, FilteredSource> {
+impl AsMut<BTreeMap<PathBuf, SourceCompilationKind>> for FilteredSources {
+    fn as_mut(&mut self) -> &mut BTreeMap<PathBuf, SourceCompilationKind> {
         &mut self.0
     }
 }
 
 /// Represents the state of a filtered [Source]
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum FilteredSource {
-    /// A source that fits the _dirty_ criteria
-    Dirty(Source),
-    /// A source that does _not_ fit the _dirty_ criteria but is included in the filtered set
-    /// because a _dirty_ file pulls it in, either directly on indirectly.
-    Clean(Source),
+pub enum SourceCompilationKind {
+    /// We need a complete compilation output for the source.
+    Complete(Source),
+    /// A source for which we don't need a complete output and want to optimize its compilation by
+    /// reducing output selection.
+    Optimized(Source),
 }
 
-impl FilteredSource {
+impl SourceCompilationKind {
     /// Returns the underlying source
     pub fn source(&self) -> &Source {
         match self {
-            FilteredSource::Dirty(s) => s,
-            FilteredSource::Clean(s) => s,
+            SourceCompilationKind::Complete(s) => s,
+            SourceCompilationKind::Optimized(s) => s,
         }
     }
 
     /// Consumes the type and returns the underlying source
     pub fn into_source(self) -> Source {
         match self {
-            FilteredSource::Dirty(s) => s,
-            FilteredSource::Clean(s) => s,
+            SourceCompilationKind::Complete(s) => s,
+            SourceCompilationKind::Optimized(s) => s,
         }
     }
 
-    /// Whether this file is actually dirt
+    /// Whether this file should be compiled with full output selection
     pub fn is_dirty(&self) -> bool {
-        matches!(self, FilteredSource::Dirty(_))
+        matches!(self, SourceCompilationKind::Complete(_))
     }
-}
-
-/// Helper type that determines the state of a source file
-#[derive(Debug)]
-pub struct FilteredSourceInfo {
-    /// Path to the source file.
-    pub file: PathBuf,
-
-    /// Contents of the file.
-    pub source: Source,
-
-    /// Index in the [GraphEdges].
-    pub idx: usize,
-
-    /// Whether this file is actually dirty.
-    ///
-    /// See also `ArtifactsCacheInner::is_dirty`
-    pub dirty: bool,
 }

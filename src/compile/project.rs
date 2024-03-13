@@ -329,13 +329,6 @@ impl<'a, T: ArtifactOutput> CompiledState<'a, T> {
                 ctx,
             )?;
 
-            match cache {
-                ArtifactsCache::Cached(ref cache) => {
-                    project.artifacts_handler().handle_cached_artifacts(&cache.cached_artifacts)?;
-                }
-                ArtifactsCache::Ephemeral(..) => {}
-            }
-
             // emits all the build infos, if they exist
             output.write_build_infos(project.build_info_path())?;
 
@@ -370,6 +363,9 @@ impl<'a, T: ArtifactOutput> ArtifactsState<'a, T> {
         trace!(has_error, project.no_artifacts, skip_write_to_disk, cache_path=?project.cache_path(),"prepare writing cache file");
 
         let cached_artifacts = cache.consume(&compiled_artifacts, !skip_write_to_disk)?;
+
+        project.artifacts_handler().handle_cached_artifacts(&cached_artifacts)?;
+
         Ok(ProjectCompileOutput {
             compiler_output: output,
             compiled_artifacts,
@@ -437,13 +433,13 @@ impl CompilerSources {
                 .into_iter()
                 .map(|(solc, (version, sources))| {
                     trace!("Filtering {} sources for {}", sources.len(), version);
-                    let sources = cache.filter(sources, &version);
+                    let sources_to_compile = cache.filter(sources, &version);
                     trace!(
-                        "Detected {} dirty sources {:?}",
-                        sources.dirty().count(),
-                        sources.dirty_files().collect::<Vec<_>>()
+                        "Detected {} sources to compile {:?}",
+                        sources_to_compile.dirty().count(),
+                        sources_to_compile.dirty_files().collect::<Vec<_>>()
                     );
-                    (solc, (version, sources))
+                    (solc, (version, sources_to_compile))
                 })
                 .collect()
         }
@@ -708,9 +704,7 @@ mod tests {
         let prep = compiler.preprocess().unwrap();
         let cache = prep.cache.as_cached().unwrap();
         // 3 contracts
-        assert_eq!(cache.dirty_source_files.len(), 3);
-        assert!(cache.filtered.is_empty());
-        assert!(cache.cache.is_empty());
+        assert_eq!(cache.dirty_sources.len(), 3);
 
         let compiled = prep.compile().unwrap();
         assert_eq!(compiled.output.contracts.files().count(), 3);
@@ -728,7 +722,7 @@ mod tests {
         let inner = project.project();
         let compiler = ProjectCompiler::new(inner).unwrap();
         let prep = compiler.preprocess().unwrap();
-        assert!(prep.cache.as_cached().unwrap().dirty_source_files.is_empty())
+        assert!(prep.cache.as_cached().unwrap().dirty_sources.is_empty())
     }
 
     #[test]
@@ -788,6 +782,13 @@ mod tests {
         let compiler = ProjectCompiler::new(tmp.project()).unwrap();
         let state = compiler.preprocess().unwrap();
         let sources = state.sources.sources();
+
+        let cache = state.cache.as_cached().unwrap();
+
+        // 2 clean sources
+        assert_eq!(cache.cache.artifacts_len(), 2);
+        assert!(cache.cache.all_artifacts_exist());
+        assert_eq!(cache.dirty_sources.len(), 1);
 
         // single solc
         assert_eq!(sources.len(), 1);

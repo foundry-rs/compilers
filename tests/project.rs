@@ -3519,8 +3519,8 @@ fn can_detect_config_changes() {
     let compiled = project.compile().unwrap();
     compiled.assert_success();
 
-    let cache = SolFilesCache::read(&project.paths().cache).unwrap();
-    assert_eq!(cache.files.len(), 2);
+    let cache_before = SolFilesCache::read(&project.paths().cache).unwrap();
+    assert_eq!(cache_before.files.len(), 2);
 
     // nothing to compile
     let compiled = project.compile().unwrap();
@@ -3531,6 +3531,9 @@ fn can_detect_config_changes() {
     let compiled = project.compile().unwrap();
     compiled.assert_success();
     assert!(!compiled.is_unchanged());
+
+    let cache_after = SolFilesCache::read(&project.paths().cache).unwrap();
+    assert_ne!(cache_before, cache_after);
 }
 
 #[test]
