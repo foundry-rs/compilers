@@ -3726,7 +3726,7 @@ fn test_symlink_to_artifacts() {
     let artifacts = project.root().join("cache/profile/artifacts");
     let symlink = project.root().join("out");
 
-    project.project_mut().paths.artifacts = artifacts.clone();
+    project.project_mut().paths.artifacts.clone_from(&artifacts);
     project.project_mut().paths.artifacts_symlink = Some(symlink.clone());
 
     let compiled = project.compile().unwrap();
