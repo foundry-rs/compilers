@@ -3716,3 +3716,24 @@ contract D {
     // Check that all contracts were recompiled
     assert_eq!(output.compiled_artifacts().len(), 4);
 }
+
+#[test]
+fn test_symlink_to_artifacts() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+    let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
+    let mut project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+
+    let artifacts = project.root().join("cache/profile/artifacts");
+    let symlink = project.root().join("out");
+
+    project.project_mut().paths.artifacts = artifacts.clone();
+    project.project_mut().paths.artifacts_symlink = Some(symlink.clone());
+
+    let compiled = project.compile().unwrap();
+
+    compiled.assert_success();
+
+    for (id, _) in compiled.artifact_ids() {
+        assert!(symlink.join(id.path.strip_prefix(&artifacts).unwrap()).exists());
+    }
+}

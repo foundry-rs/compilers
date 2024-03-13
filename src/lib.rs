@@ -149,6 +149,11 @@ impl<T: ArtifactOutput> Project<T> {
         &self.paths.artifacts
     }
 
+    /// Returns the path to the artifacts symlink directory
+    pub fn artifacts_symlink_path(&self) -> Option<&PathBuf> {
+        self.paths.artifacts_symlink.as_ref()
+    }
+
     /// Returns the path to the sources directory
     pub fn sources_path(&self) -> &PathBuf {
         &self.paths.sources
@@ -498,6 +503,13 @@ impl<T: ArtifactOutput> Project<T> {
             std::fs::remove_dir_all(self.build_info_path())
                 .map_err(|err| SolcIoError::new(err, self.build_info_path().clone()))?;
             tracing::trace!("removed build-info dir \"{}\"", self.build_info_path().display());
+        }
+
+        if let Some(artifacts_symlink) = self.artifacts_symlink_path() {
+            if std::fs::read_link(artifacts_symlink).is_ok() {
+                std::fs::remove_dir_all(artifacts_symlink)
+                    .map_err(|err| SolcIoError::new(err, artifacts_symlink))?;
+            }
         }
 
         Ok(())

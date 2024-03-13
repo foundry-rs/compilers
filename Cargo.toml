@@ -58,6 +58,7 @@ svm = { package = "svm-rs", version = "0.3", default-features = false, optional 
 svm-builds = { package = "svm-rs-builds", version = "0.3", default-features = false, optional = true }
 sha2 = { version = "0.10", default-features = false, optional = true }
 itertools = "0.12"
+symlink = "0.1.0"
 
 [dev-dependencies]
 alloy-primitives = { version = "0.6", features = ["serde", "rand"] }

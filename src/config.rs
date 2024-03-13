@@ -5,7 +5,8 @@ use crate::{
     flatten::{collect_ordered_deps, combine_version_pragmas},
     remappings::Remapping,
     resolver::{Graph, SolImportAlias},
-    utils, Source, Sources,
+    utils::{self, create_symlink},
+    Source, Sources,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -25,6 +26,8 @@ pub struct ProjectPathsConfig {
     pub cache: PathBuf,
     /// Where to store build artifacts
     pub artifacts: PathBuf,
+    /// Optional location of a symlink to the artifacts.
+    pub artifacts_symlink: Option<PathBuf>,
     /// Where to store the build info files
     pub build_infos: PathBuf,
     /// Where to find sources
@@ -91,13 +94,22 @@ impl ProjectPathsConfig {
         if let Some(parent) = self.cache.parent() {
             fs::create_dir_all(parent).map_err(|err| SolcIoError::new(err, parent))?;
         }
-        fs::create_dir_all(&self.artifacts)
-            .map_err(|err| SolcIoError::new(err, &self.artifacts))?;
         fs::create_dir_all(&self.sources).map_err(|err| SolcIoError::new(err, &self.sources))?;
         fs::create_dir_all(&self.tests).map_err(|err| SolcIoError::new(err, &self.tests))?;
         fs::create_dir_all(&self.scripts).map_err(|err| SolcIoError::new(err, &self.scripts))?;
         for lib in &self.libraries {
             fs::create_dir_all(lib).map_err(|err| SolcIoError::new(err, lib))?;
+        }
+        self.create_artifacts()?;
+        Ok(())
+    }
+
+    /// Creates artifacts output related directories.
+    pub fn create_artifacts(&self) -> std::result::Result<(), SolcIoError> {
+        fs::create_dir_all(&self.artifacts)
+            .map_err(|err| SolcIoError::new(err, &self.artifacts))?;
+        if let Some(artifacts_symlink) = &self.artifacts_symlink {
+            create_symlink(&self.artifacts, artifacts_symlink)?;
         }
         Ok(())
     }
@@ -638,6 +650,7 @@ pub struct ProjectPathsConfigBuilder {
     root: Option<PathBuf>,
     cache: Option<PathBuf>,
     artifacts: Option<PathBuf>,
+    artifacts_symlink: Option<PathBuf>,
     build_infos: Option<PathBuf>,
     sources: Option<PathBuf>,
     tests: Option<PathBuf>,
@@ -659,6 +672,11 @@ impl ProjectPathsConfigBuilder {
 
     pub fn artifacts(mut self, artifacts: impl Into<PathBuf>) -> Self {
         self.artifacts = Some(utils::canonicalized(artifacts));
+        self
+    }
+
+    pub fn artifacts_symlink(mut self, artifacts_symlink: impl Into<PathBuf>) -> Self {
+        self.artifacts_symlink = Some(utils::normalize_path(artifacts_symlink));
         self
     }
 
@@ -727,6 +745,7 @@ impl ProjectPathsConfigBuilder {
                 .unwrap_or_else(|| root.join("cache").join(SOLIDITY_FILES_CACHE_FILENAME)),
             build_infos: self.build_infos.unwrap_or_else(|| artifacts.join("build-info")),
             artifacts,
+            artifacts_symlink: self.artifacts_symlink,
             sources: self.sources.unwrap_or_else(|| ProjectPathsConfig::find_source_dir(&root)),
             tests: self.tests.unwrap_or_else(|| root.join("test")),
             scripts: self.scripts.unwrap_or_else(|| root.join("script")),
