@@ -12,10 +12,7 @@ use crate::{
 use semver::Version;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
-    collections::{
-        btree_map::{BTreeMap, Entry},
-        hash_map, BTreeSet, HashMap, HashSet,
-    },
+    collections::{btree_map::BTreeMap, hash_map, BTreeSet, HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
     time::{Duration, UNIX_EPOCH},
@@ -312,24 +309,6 @@ impl SolFilesCache {
             .collect::<Result<ArtifactsMap<_>>>()?;
         Ok(Artifacts(artifacts))
     }
-
-    /// Inserts the provided cache entries, if there is an existing `CacheEntry` it will be updated
-    /// but versions will be merged.
-    pub fn extend<I>(&mut self, entries: I)
-    where
-        I: IntoIterator<Item = (PathBuf, CacheEntry)>,
-    {
-        for (file, entry) in entries.into_iter() {
-            match self.files.entry(file) {
-                Entry::Vacant(e) => {
-                    e.insert(entry);
-                }
-                Entry::Occupied(mut other) => {
-                    other.get_mut().merge_artifacts(entry);
-                }
-            }
-        }
-    }
 }
 
 // async variants for read and write
@@ -467,7 +446,7 @@ impl CacheEntry {
         Ok(artifacts)
     }
 
-    pub(crate) fn extend_artifacts<'a, A, I, T: 'a>(&mut self, artifacts: I)
+    pub(crate) fn merge_artifacts<'a, A, I, T: 'a>(&mut self, artifacts: I)
     where
         I: IntoIterator<Item = (&'a String, A)>,
         A: IntoIterator<Item = &'a ArtifactFile<T>>,
@@ -478,20 +457,6 @@ impl CacheEntry {
                     .entry(name.clone())
                     .or_default()
                     .insert(artifact.version.clone(), artifact.file.clone());
-            }
-        }
-    }
-
-    /// Merges another `CacheEntries` artifacts into the existing set
-    fn merge_artifacts(&mut self, other: CacheEntry) {
-        for (name, artifacts) in other.artifacts {
-            match self.artifacts.entry(name) {
-                Entry::Vacant(entry) => {
-                    entry.insert(artifacts);
-                }
-                Entry::Occupied(mut entry) => {
-                    entry.get_mut().extend(artifacts);
-                }
             }
         }
     }
@@ -981,7 +946,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
             // Only update data for existing entries, we should have entries for all in-scope files
             // by now.
             if let Some(entry) = cache.files.get_mut(file_path) {
-                entry.extend_artifacts(artifacts);
+                entry.merge_artifacts(artifacts);
             }
         }
 
