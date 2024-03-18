@@ -58,7 +58,7 @@ pub enum SolcError {
     FailedResolveImport(Box<SolcError>, PathBuf, PathBuf),
     #[cfg(feature = "svm-solc")]
     #[error(transparent)]
-    SvmError(#[from] svm::SolcVmError),
+    SvmError(#[from] svm::SvmError),
     #[error("no contracts found at \"{0}\"")]
     NoContracts(String),
     /// General purpose message.
