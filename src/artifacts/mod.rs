@@ -793,6 +793,8 @@ impl YulDetails {
 
 /// EVM versions.
 ///
+/// Default is `Cancun`, since 0.8.25
+///
 /// Kept in sync with: <https://github.com/ethereum/solidity/blob/develop/liblangutil/EVMVersion.h>
 // When adding new EVM versions (see a previous attempt at https://github.com/foundry-rs/compilers/pull/51):
 // - add the version to the end of the enum
@@ -800,7 +802,7 @@ impl YulDetails {
 // - create a constant for the Solc version that introduced it in `../compile/mod.rs`
 // - add the version to the top of `normalize_version` and wherever else the compiler complains
 // - update `FromStr` impl
-// - write a test case in `test_evm_version_normalization` at the bottom of this file
+// - write a test case in `test_evm_version_normalization` at the bottom of this file.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum EvmVersion {
     Homestead,
@@ -813,8 +815,8 @@ pub enum EvmVersion {
     Berlin,
     London,
     Paris,
-    #[default]
     Shanghai,
+    #[default]
     Cancun,
 }
 
