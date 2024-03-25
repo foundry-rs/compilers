@@ -10,7 +10,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::{
     collections::HashSet,
     fs,
-    io::Write,
+    io::{self, Write},
     ops::Range,
     path::{Component, Path, PathBuf},
 };
@@ -553,6 +553,61 @@ pub fn create_parent_dir_all(file: impl AsRef<Path>) -> Result<(), SolcError> {
         })?;
     }
     Ok(())
+}
+
+/// Creates symlink, removing the destination if it exists and is not the needed symlink.
+pub fn create_symlink(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
+    let dst = dst.as_ref();
+    if dst.exists() {
+        let metadata = dst.symlink_metadata()?;
+        if !metadata.is_symlink() {
+            fs::remove_dir_all(dst)?;
+        } else {
+            let location = fs::read_link(dst)?;
+            if location != src.as_ref() {
+                fs::remove_dir_all(dst)?;
+            } else {
+                return Ok(());
+            }
+        }
+    }
+
+    symlink::symlink_dir(src, dst)
+}
+
+/// Normalize a path, removing things like `.` and `..`.
+///
+/// NOTE: This does not return symlinks and does not touch the filesystem at all (unlike
+/// [`std::fs::canonicalize`])
+///
+/// ref: <https://github.com/rust-lang/cargo/blob/9ded34a558a900563b0acf3730e223c649cf859d/crates/cargo-util/src/paths.rs#L81>
+pub fn normalize_path(path: impl Into<PathBuf>) -> PathBuf {
+    let path = path.into();
+
+    let mut components = path.as_path().components().peekable();
+    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
+        components.next();
+        PathBuf::from(c.as_os_str())
+    } else {
+        PathBuf::new()
+    };
+
+    for component in components {
+        match component {
+            Component::Prefix(..) => unreachable!(),
+            Component::RootDir => {
+                ret.push(component.as_os_str());
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                ret.pop();
+            }
+            Component::Normal(c) => {
+                ret.push(c);
+            }
+        }
+    }
+    ret
 }
 
 #[cfg(test)]

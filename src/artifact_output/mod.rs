@@ -10,7 +10,7 @@ use crate::{
     error::Result,
     sourcemap::{SourceMap, SyntaxError},
     sources::VersionedSourceFile,
-    utils, HardhatArtifact, ProjectPathsConfig, SolFilesCache, SolcError, SolcIoError,
+    utils, HardhatArtifact, ProjectPathsConfig, SolFilesCache, SolcError,
 };
 use alloy_json_abi::JsonAbi;
 use alloy_primitives::Bytes;
@@ -615,10 +615,7 @@ pub trait ArtifactOutput {
         ctx: OutputContext<'_>,
     ) -> Result<Artifacts<Self::Artifact>> {
         let mut artifacts = self.output_to_artifacts(contracts, sources, ctx, layout);
-        fs::create_dir_all(&layout.artifacts).map_err(|err| {
-            error!(dir=?layout.artifacts, "Failed to create artifacts folder");
-            SolcIoError::new(err, &layout.artifacts)
-        })?;
+        layout.create_artifacts()?;
 
         artifacts.join_all(&layout.artifacts);
         artifacts.write_all()?;
