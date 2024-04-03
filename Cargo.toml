@@ -21,8 +21,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
 
 [dependencies]
-alloy-primitives = { version = "0.6", features = ["serde"] }
-alloy-json-abi = { version = "0.6", features = ["serde_json"] }
+alloy-primitives = { version = "0.7", features = ["serde", "rand"] }
+alloy-json-abi = { version = "0.7", features = ["serde_json"] }
 
 solang-parser = { version = "=0.3.3", default-features = false }
 
@@ -60,7 +60,7 @@ sha2 = { version = "0.10", default-features = false, optional = true }
 itertools = "0.12"
 
 [dev-dependencies]
-alloy-primitives = { version = "0.6", features = ["serde", "rand"] }
+alloy-primitives = { version = "0.7", features = ["serde", "rand"] }
 criterion = { version = "0.5", features = ["async_tokio"] }
 pretty_assertions = "1"
 rand = "0.8"

@@ -18,7 +18,6 @@ pub struct SolData {
     pub imports: Vec<SolDataUnit<SolImport>>,
     pub version_req: Option<VersionReq>,
     pub libraries: Vec<SolLibrary>,
-    pub contracts: Vec<SolContract>,
 }
 
 impl SolData {
@@ -42,7 +41,6 @@ impl SolData {
         let mut experimental = None;
         let mut imports = Vec::<SolDataUnit<SolImport>>::new();
         let mut libraries = Vec::new();
-        let mut contracts = Vec::new();
 
         match solang_parser::parse(content, 0) {
             Ok((units, _)) => {
@@ -87,16 +85,8 @@ impl SolData {
                                     _ => None,
                                 })
                                 .collect();
-                            if let Some(name) = def.name {
-                                match def.ty {
-                                    ContractTy::Contract(_) => {
-                                        contracts.push(SolContract { name: name.name, functions });
-                                    }
-                                    ContractTy::Library(_) => {
-                                        libraries.push(SolLibrary { name: name.name, functions });
-                                    }
-                                    _ => {}
-                                }
+                            if let ContractTy::Library(_) = def.ty {
+                                libraries.push(SolLibrary { functions });
                             }
                         }
                         _ => {}
@@ -123,7 +113,7 @@ impl SolData {
         });
         let version_req = version.as_ref().and_then(|v| Solc::version_req(v.data()).ok());
 
-        Self { version_req, version, experimental, imports, license, libraries, contracts }
+        Self { version_req, version, experimental, imports, license, libraries }
     }
 
     /// Returns `true` if the solidity file associated with this type contains a solidity library
@@ -131,13 +121,6 @@ impl SolData {
     pub fn has_link_references(&self) -> bool {
         self.libraries.iter().any(|lib| !lib.is_inlined())
     }
-}
-
-/// Minimal representation of a contract inside a solidity file
-#[derive(Debug)]
-pub struct SolContract {
-    pub name: String,
-    pub functions: Vec<FunctionDefinition>,
 }
 
 #[derive(Debug, Clone)]
@@ -174,7 +157,6 @@ impl SolImport {
 /// Minimal representation of a contract inside a solidity file
 #[derive(Debug)]
 pub struct SolLibrary {
-    pub name: String,
     pub functions: Vec<FunctionDefinition>,
 }
 
