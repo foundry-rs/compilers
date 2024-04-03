@@ -5,10 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.14](https://github.com/foundry-rs/compilers/releases/tag/v0.3.14) - 2024-04-03
+
+### Bug Fixes
+
+- Set evmversion::cancun as default ([#94](https://github.com/foundry-rs/compilers/issues/94))
+
+### Dependencies
+
+- Bump alloy-core ([#96](https://github.com/foundry-rs/compilers/issues/96))
+
 ## [0.3.13](https://github.com/foundry-rs/compilers/releases/tag/v0.3.13) - 2024-03-18
 
 ### Miscellaneous Tasks
 
+- Release 0.3.13
 - Svm04 ([#93](https://github.com/foundry-rs/compilers/issues/93))
 
 ## [0.3.12](https://github.com/foundry-rs/compilers/releases/tag/v0.3.12) - 2024-03-18
