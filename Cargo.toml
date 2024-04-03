@@ -21,7 +21,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
 
 [dependencies]
-alloy-primitives = { version = "0.6", features = ["serde"] }
+alloy-primitives = { version = "0.6", features = ["serde", "rand"] }
 alloy-json-abi = { version = "0.6", features = ["serde_json"] }
 
 solang-parser = { version = "=0.3.3", default-features = false }
