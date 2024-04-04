@@ -54,8 +54,8 @@ rand = { version = "0.8", optional = true }
 
 # svm
 home = "0.5"
-svm = { package = "svm-rs", version = "0.4", default-features = false, optional = true }
-svm-builds = { package = "svm-rs-builds", version = "0.4", default-features = false, optional = true }
+svm = { package = "svm-rs", version = "0.5", default-features = false, optional = true }
+svm-builds = { package = "svm-rs-builds", version = "0.5", default-features = false, optional = true }
 sha2 = { version = "0.10", default-features = false, optional = true }
 itertools = "0.12"
 
