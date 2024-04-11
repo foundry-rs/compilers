@@ -69,7 +69,7 @@ use std::{
 pub mod project_util;
 
 /// Represents a project workspace and handles `solc` compiling of all contracts in that workspace.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Project<T: ArtifactOutput = ConfigurableArtifacts> {
     /// The layout of the project
     pub paths: ProjectPathsConfig,
