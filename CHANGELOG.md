@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.15](https://github.com/foundry-rs/compilers/releases/tag/v0.3.15) - 2024-04-12
+
+### Dependencies
+
+- [deps] Bump svm to 0.5 ([#97](https://github.com/foundry-rs/compilers/issues/97))
+
+### Miscellaneous Tasks
+
+- Derive `Clone` for `Project` ([#98](https://github.com/foundry-rs/compilers/issues/98))
+
 ## [0.3.14](https://github.com/foundry-rs/compilers/releases/tag/v0.3.14) - 2024-04-03
 
 ### Bug Fixes
@@ -14,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Dependencies
 
 - Bump alloy-core ([#96](https://github.com/foundry-rs/compilers/issues/96))
+
+### Miscellaneous Tasks
+
+- Release 0.3.14
 
 ## [0.3.13](https://github.com/foundry-rs/compilers/releases/tag/v0.3.13) - 2024-03-18
 
