@@ -491,6 +491,7 @@ impl Settings {
                 // with only unused prunner step
                 optimizer_steps: Some("u".to_string()),
             }),
+            simple_counter_for_loop_unchecked_increment: Some(true),
         });
         self
     }
@@ -750,6 +751,10 @@ pub struct OptimizerDetails {
     /// Tuning options for the Yul optimizer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub yul_details: Option<YulDetails>,
+    /// Use unchecked arithmetic when incrementing the counter of for loops
+    /// under certain circumstances. It is always on if no details are given.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub simple_counter_for_loop_unchecked_increment: Option<bool>,
 }
 
 // === impl OptimizerDetails ===
@@ -766,6 +771,7 @@ impl OptimizerDetails {
             && self.constant_optimizer.is_none()
             && self.yul.is_none()
             && self.yul_details.as_ref().map(|yul| yul.is_empty()).unwrap_or(true)
+            && self.simple_counter_for_loop_unchecked_increment.is_none()
     }
 }
 
