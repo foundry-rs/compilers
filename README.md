@@ -53,15 +53,13 @@ Example usage:
 ```rust
 use foundry_compilers::{Project, ProjectPathsConfig};
 
-fn main() {
-    // configure the project with all its paths, solc, cache etc.
-    let project = Project::builder()
-        .paths(ProjectPathsConfig::hardhat(env!("CARGO_MANIFEST_DIR")).unwrap())
-        .build()
-        .unwrap();
-    let output = project.compile().unwrap();
+// configure the project with all its paths, solc, cache etc.
+let project = Project::builder()
+    .paths(ProjectPathsConfig::hardhat(env!("CARGO_MANIFEST_DIR")).unwrap())
+    .build()
+    .unwrap();
+let output = project.compile().unwrap();
 
-    // Tell Cargo that if a source file changes, to rerun this build script.
-    project.rerun_if_sources_changed();
-}
+// Tell Cargo that if a source file changes, to rerun this build script.
+project.rerun_if_sources_changed();
 ```
