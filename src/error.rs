@@ -4,7 +4,6 @@ use std::{
     path::{Path, PathBuf},
 };
 use thiserror::Error;
-
 use crate::ProjectCompileOutput;
 
 pub type Result<T> = std::result::Result<T, SolcError>;
