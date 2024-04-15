@@ -5,6 +5,8 @@ use std::{
 };
 use thiserror::Error;
 
+use crate::ProjectCompileOutput;
+
 pub type Result<T> = std::result::Result<T, SolcError>;
 
 #[allow(unused_macros)]
@@ -67,6 +69,9 @@ pub enum SolcError {
 
     #[error("no artifact found for `{}:{}`", .0.display(), .1)]
     ArtifactNotFound(PathBuf, String),
+
+    #[error("{0}")]
+    CompilationFailed(ProjectCompileOutput),
 
     #[cfg(feature = "project-util")]
     #[error(transparent)]
