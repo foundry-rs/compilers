@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.16](https://github.com/foundry-rs/compilers/releases/tag/v0.3.16) - 2024-04-17
+
+### Bug Fixes
+
+- Invalidate cache for out-of-scope entries ([#104](https://github.com/foundry-rs/compilers/issues/104))
+
+### Features
+
+- Optimization field (simpleCounterForLoopUncheckedIncrement) ([#100](https://github.com/foundry-rs/compilers/issues/100))
+
+### Miscellaneous Tasks
+
+- Remove main fn ([#101](https://github.com/foundry-rs/compilers/issues/101))
+
 ## [0.3.15](https://github.com/foundry-rs/compilers/releases/tag/v0.3.15) - 2024-04-12
 
 ### Dependencies
@@ -13,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.3.15
 - Derive `Clone` for `Project` ([#98](https://github.com/foundry-rs/compilers/issues/98))
 
 ## [0.3.14](https://github.com/foundry-rs/compilers/releases/tag/v0.3.14) - 2024-04-03
