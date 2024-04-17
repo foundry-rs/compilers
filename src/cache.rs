@@ -707,7 +707,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
 
         // Read all sources, removing entries on I/O errors.
         for file in &files {
-            let Ok(source) = Source::read(&file) else {
+            let Ok(source) = Source::read(file) else {
                 self.dirty_sources.insert(file.clone());
                 continue;
             };
@@ -729,7 +729,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
 
         // Pre-add all sources that are guaranteed to be dirty
         for file in sources.keys() {
-            if self.is_dirty_impl(&file) {
+            if self.is_dirty_impl(file) {
                 self.dirty_sources.insert(file.clone());
             }
         }
@@ -741,7 +741,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
 
         // Remove all dirty files from cache.
         for file in &self.dirty_sources {
-            self.cache.remove(&file);
+            self.cache.remove(file);
         }
     }
 
