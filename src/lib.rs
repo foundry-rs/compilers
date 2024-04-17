@@ -592,7 +592,7 @@ impl<T: ArtifactOutput> Project<T> {
 
     /// Parses project sources via solang parser, collecting mapping from contract name to source
     /// files containing artifact with given name. On parser failure, fallbacks to
-    /// [collect_contract_names_solc].
+    /// [Self::collect_contract_names_solc].
     fn collect_contract_names(&self) -> Result<HashMap<String, Vec<PathBuf>>>
     where
         T: Clone,
