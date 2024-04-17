@@ -713,20 +713,21 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
             sources.insert(file.clone(), source);
         }
 
-        // Calculate content hashes for later comparison.
-        self.fill_hashes(&sources);
-
         // Build a temporary graph for walking imports. We need this because `self.edges`
         // only contains graph data for in-scope sources but we are operating on cache entries.
         let Ok(graph) = Graph::resolve_sources(&self.project.paths, sources) else {
+            // Purge all sources on graph resolution error.
             self.dirty_sources.extend(files);
             return;
         };
 
-        let (_, edges) = graph.into_sources();
+        let (sources, edges) = graph.into_sources();
+
+        // Calculate content hashes for later comparison.
+        self.fill_hashes(&sources);
 
         // Pre-add all sources that are guaranteed to be dirty
-        for file in &files {
+        for file in sources.keys() {
             if self.is_dirty_impl(&file) {
                 self.dirty_sources.insert(file.clone());
             }
