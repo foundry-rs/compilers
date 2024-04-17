@@ -683,6 +683,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
         false
     }
 
+    // Walks over all cache entires, detects dirty files and removes them from cache.
     fn find_and_remove_dirty(&mut self) {
         fn populate_dirty_files(
             file: &Path,
