@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.17](https://github.com/foundry-rs/compilers/releases/tag/v0.3.17) - 2024-04-17
+
+### Bug Fixes
+
+- Dirty files detection ([#105](https://github.com/foundry-rs/compilers/issues/105))
+
+### Features
+
+- Additional helpers for contract name -> path lookup ([#103](https://github.com/foundry-rs/compilers/issues/103))
+
 ## [0.3.16](https://github.com/foundry-rs/compilers/releases/tag/v0.3.16) - 2024-04-17
 
 ### Bug Fixes
@@ -17,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.3.16
 - Remove main fn ([#101](https://github.com/foundry-rs/compilers/issues/101))
 
 ## [0.3.15](https://github.com/foundry-rs/compilers/releases/tag/v0.3.15) - 2024-04-12
