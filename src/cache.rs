@@ -610,15 +610,6 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
         let mut compile_complete = BTreeSet::new();
         let mut compile_optimized = BTreeSet::new();
 
-        // Collect files which cache is invalidated.
-        self.dirty_sources.extend(self.get_dirty_files(&sources));
-
-        for file in &self.dirty_sources {
-            // If file is dirty, its data should be invalidated and all artifacts for all
-            // versions should be removed.
-            self.cache.remove(file.as_path());
-        }
-
         for (file, source) in sources.iter() {
             self.sources_in_scope.insert(file.clone(), version.clone());
 
@@ -692,72 +683,63 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
         false
     }
 
-    /// Returns a set of files that are dirty itself or import dirty file directly or indirectly.
-    fn get_dirty_files(&self, sources: &Sources) -> HashSet<PathBuf> {
-        let mut dirty_files = HashSet::new();
-
-        // Pre-add all sources that are guaranteed to be dirty
-        for file in sources.keys() {
-            if self.is_dirty_impl(file) {
-                dirty_files.insert(file.to_path_buf());
+    fn find_and_remove_dirty(&mut self) {
+        fn populate_dirty_files(
+            file: &Path,
+            dirty_files: &mut HashSet<PathBuf>,
+            edges: &GraphEdges,
+        ) {
+            for file in edges.importers(file) {
+                // If file is marked as dirty we either have already visited it or it was marked as
+                // dirty initially and will be visited at some point later.
+                if !dirty_files.contains(file) {
+                    dirty_files.insert(file.to_path_buf());
+                    populate_dirty_files(file, dirty_files, edges);
+                }
             }
         }
 
-        // Perform DFS to find direct/indirect importers of dirty files
-        for file in dirty_files.clone().iter() {
-            self.populate_dirty_files(file, &mut dirty_files, &self.edges);
-        }
+        // Iterate over existing cache entries.
+        let files = self.cache.files.keys().cloned().collect::<HashSet<_>>();
 
-        // Now we should also iterate over files out of scope of the current compiler run.
-        let mut sources_out_of_scope = BTreeMap::new();
+        let mut sources = BTreeMap::new();
 
-        for cache_file in self.cache.files.keys() {
-            // Skip files in scope.
-            if sources.contains_key(cache_file) {
-                continue;
-            }
-            // Invalidate cache on I/O errors. This probably means that file is deleted.
-            let Ok(source) = Source::read(cache_file) else {
-                dirty_files.insert(cache_file.clone());
+        // Read all sources, removing entries on I/O errors.
+        for file in &files {
+            let Ok(source) = Source::read(&file) else {
+                self.dirty_sources.insert(file.clone());
                 continue;
             };
-            sources_out_of_scope.insert(cache_file.clone(), source);
+            sources.insert(file.clone(), source);
         }
 
-        let files = sources_out_of_scope.keys().cloned().collect::<Vec<_>>();
+        // Calculate content hashes for later comparison.
+        self.fill_hashes(&sources);
 
-        // Build a temporary graph to repeat the process above. We need this because `self.edges`
-        // only contains graph data for in-scope sources.
-        let Ok(graph) = Graph::resolve_sources(&self.project.paths, sources_out_of_scope) else {
-            dirty_files.extend(files);
-            return dirty_files;
+        // Build a temporary graph for walking imports. We need this because `self.edges`
+        // only contains graph data for in-scope sources but we are operating on cache entries.
+        let Ok(graph) = Graph::resolve_sources(&self.project.paths, sources) else {
+            self.dirty_sources.extend(files);
+            return;
         };
 
         let (_, edges) = graph.into_sources();
 
-        for file in dirty_files.clone().iter() {
-            self.populate_dirty_files(file, &mut dirty_files, &edges);
+        // Pre-add all sources that are guaranteed to be dirty
+        for file in &files {
+            if self.is_dirty_impl(&file) {
+                self.dirty_sources.insert(file.clone());
+            }
         }
 
-        dirty_files
-    }
+        // Perform DFS to find direct/indirect importers of dirty files.
+        for file in self.dirty_sources.clone().iter() {
+            populate_dirty_files(file, &mut self.dirty_sources, &edges);
+        }
 
-    /// Accepts known dirty file and performs DFS over it's importers marking all visited files as
-    /// dirty.
-    #[instrument(level = "trace", skip_all, fields(file = %file.display()))]
-    fn populate_dirty_files(
-        &self,
-        file: &Path,
-        dirty_files: &mut HashSet<PathBuf>,
-        edges: &GraphEdges,
-    ) {
-        for file in edges.importers(file) {
-            // If file is marked as dirty we either have already visited it or it was marked as
-            // dirty initially and will be visited at some point later.
-            if !dirty_files.contains(file) {
-                dirty_files.insert(file.to_path_buf());
-                self.populate_dirty_files(file, dirty_files, edges);
-            }
+        // Remove all dirty files from cache.
+        for file in &self.dirty_sources {
+            self.cache.remove(&file);
         }
     }
 
@@ -918,10 +900,10 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
     }
 
     /// Adds the file's hashes to the set if not set yet
-    pub fn fill_content_hashes(&mut self, sources: &Sources) {
+    pub fn remove_dirty_sources(&mut self) {
         match self {
             ArtifactsCache::Ephemeral(_, _) => {}
-            ArtifactsCache::Cached(cache) => cache.fill_hashes(sources),
+            ArtifactsCache::Cached(cache) => cache.find_and_remove_dirty(),
         }
     }
 
