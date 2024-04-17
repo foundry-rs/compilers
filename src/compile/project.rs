@@ -700,8 +700,9 @@ mod tests {
         let compiler = ProjectCompiler::new(&project).unwrap();
         let prep = compiler.preprocess().unwrap();
         let cache = prep.cache.as_cached().unwrap();
-        // ensure that cache is cleared
-        assert_eq!(cache.cache.files.len(), 0);
+        // ensure that we have exactly 3 empty entries which will be filled on compilation.
+        assert_eq!(cache.cache.files.len(), 3);
+        assert!(cache.cache.files.values().all(|v| v.artifacts.is_empty()));
 
         let compiled = prep.compile().unwrap();
         assert_eq!(compiled.output.contracts.files().count(), 3);
