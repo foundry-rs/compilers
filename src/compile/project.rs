@@ -424,10 +424,7 @@ impl CompilerSources {
             sources: VersionedSources,
             cache: &mut ArtifactsCache<'_, T>,
         ) -> VersionedFilteredSources {
-            // fill all content hashes first so they're available for all source sets
-            sources.iter().for_each(|(_, (_, sources))| {
-                cache.fill_content_hashes(sources);
-            });
+            cache.remove_dirty_sources();
 
             sources
                 .into_iter()
@@ -703,8 +700,9 @@ mod tests {
         let compiler = ProjectCompiler::new(&project).unwrap();
         let prep = compiler.preprocess().unwrap();
         let cache = prep.cache.as_cached().unwrap();
-        // 3 contracts
-        assert_eq!(cache.dirty_sources.len(), 3);
+        // ensure that we have exactly 3 empty entries which will be filled on compilation.
+        assert_eq!(cache.cache.files.len(), 3);
+        assert!(cache.cache.files.values().all(|v| v.artifacts.is_empty()));
 
         let compiled = prep.compile().unwrap();
         assert_eq!(compiled.output.contracts.files().count(), 3);
