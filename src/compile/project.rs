@@ -700,8 +700,8 @@ mod tests {
         let compiler = ProjectCompiler::new(&project).unwrap();
         let prep = compiler.preprocess().unwrap();
         let cache = prep.cache.as_cached().unwrap();
-        // 3 contracts
-        assert_eq!(cache.dirty_sources.len(), 3);
+        // ensure that cache is cleared
+        assert_eq!(cache.cache.files.len(), 0);
 
         let compiled = prep.compile().unwrap();
         assert_eq!(compiled.output.contracts.files().count(), 3);
