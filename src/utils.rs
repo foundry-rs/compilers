@@ -1,17 +1,14 @@
 //! Utility functions
 
-use crate::{
-    artifacts::output_selection::OutputSelection, error::SolcError, Graph, Project, SolcIoError,
-};
+use crate::{error::SolcError, SolcIoError};
 use alloy_primitives::{hex, keccak256};
 use cfg_if::cfg_if;
 use once_cell::sync::Lazy;
 use regex::{Match, Regex};
 use semver::Version;
 use serde::{de::DeserializeOwned, Serialize};
-use solang_parser::pt::SourceUnitPart;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     fs,
     io::Write,
     ops::Range,
@@ -556,77 +553,6 @@ pub fn create_parent_dir_all(file: impl AsRef<Path>) -> Result<(), SolcError> {
         })?;
     }
     Ok(())
-}
-
-/// Runs solc compiler without requesting any output and collects a mapping from contract names to
-/// source files containing artifact with given name.
-fn collect_contract_names_solc(
-    project: &Project,
-) -> Result<HashMap<String, Vec<PathBuf>>, SolcError> {
-    let mut temp_project = (*project).clone();
-    temp_project.no_artifacts = true;
-    temp_project.solc_config.settings.output_selection =
-        OutputSelection::common_output_selection([]);
-
-    let output = temp_project.compile()?;
-
-    if output.has_compiler_errors() {
-        return Err(SolcError::CompilationFailed(output));
-    }
-
-    let contracts = output.into_artifacts().fold(
-        HashMap::new(),
-        |mut contracts: HashMap<_, Vec<_>>, (id, _)| {
-            contracts.entry(id.name).or_default().push(id.source);
-            contracts
-        },
-    );
-
-    Ok(contracts)
-}
-
-/// Parses project sources via solang parser, collecting mapping from contract name to source files
-/// containing artifact with given name. On parser failure, fallbacks to
-/// [collect_contract_names_solc].
-fn collect_contract_names(project: &Project) -> Result<HashMap<String, Vec<PathBuf>>, SolcError> {
-    let graph = Graph::resolve(&project.paths)?;
-    let mut contracts: HashMap<String, Vec<PathBuf>> = HashMap::new();
-
-    for file in graph.files().keys() {
-        let src = fs::read_to_string(file).map_err(|e| SolcError::io(e, file))?;
-        let Ok((parsed, _)) = solang_parser::parse(&src, 0) else {
-            return collect_contract_names_solc(project);
-        };
-
-        for part in parsed.0 {
-            if let SourceUnitPart::ContractDefinition(contract) = part {
-                if let Some(name) = contract.name {
-                    contracts.entry(name.name).or_default().push(file.clone());
-                }
-            }
-        }
-    }
-
-    Ok(contracts)
-}
-
-/// Finds the path of the contract with the given name.
-/// Throws error if multiple or no contracts with the same name are found.
-pub fn find_contract_path(project: &Project, target_name: &str) -> Result<PathBuf, SolcError> {
-    let mut contracts = collect_contract_names(project)?;
-
-    if contracts.get(target_name).map_or(true, |paths| paths.is_empty()) {
-        return Err(SolcError::msg(format!("No contract found with the name `{}`", target_name)));
-    }
-    let mut paths = contracts.remove(target_name).unwrap();
-    if paths.len() > 1 {
-        return Err(SolcError::msg(format!(
-            "Multiple contracts found with the name `{}`",
-            target_name
-        )));
-    }
-
-    Ok(paths.remove(0))
 }
 
 #[cfg(test)]
