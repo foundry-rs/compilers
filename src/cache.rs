@@ -6,7 +6,7 @@ use crate::{
     error::{Result, SolcError},
     filter::{FilteredSources, SourceCompilationKind},
     resolver::GraphEdges,
-    utils, ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, OutputContext, Project,
+    utils, ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
     ProjectPathsConfig, Source,
 };
 use semver::Version;
@@ -613,17 +613,17 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
         // Collect files which cache is invalidated.
         self.dirty_sources.extend(self.get_dirty_files(&sources));
 
+        for file in &self.dirty_sources {
+            // If file is dirty, its data should be invalidated and all artifacts for all
+            // versions should be removed.
+            self.cache.remove(file.as_path());
+        }
+
         for (file, source) in sources.iter() {
             self.sources_in_scope.insert(file.clone(), version.clone());
-            if self.dirty_sources.contains(file) {
-                compile_complete.insert(file.clone());
 
-                // If file is dirty, its data should be invalidated and all artifacts for all
-                // versions should be removed.
-                self.cache.remove(file.as_path());
-            } else if self.is_missing_artifacts(file, version) {
-                // If source is not dirty, but we are missing artifacts for this version, we
-                // should compile it to populate the cache.
+            // If we are missing artifact for file, compile it.
+            if self.is_missing_artifacts(file, version) {
                 compile_complete.insert(file.clone());
             }
 
@@ -705,7 +705,38 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
 
         // Perform DFS to find direct/indirect importers of dirty files
         for file in dirty_files.clone().iter() {
-            self.populate_dirty_files(file, &mut dirty_files);
+            self.populate_dirty_files(file, &mut dirty_files, &self.edges);
+        }
+
+        // Now we should also iterate over files out of scope of the current compiler run.
+        let mut sources_out_of_scope = BTreeMap::new();
+
+        for cache_file in self.cache.files.keys() {
+            // Skip files in scope.
+            if sources.contains_key(cache_file) {
+                continue;
+            }
+            // Invalidate cache on I/O errors. This probably means that file is deleted.
+            let Ok(source) = Source::read(cache_file) else {
+                dirty_files.insert(cache_file.clone());
+                continue;
+            };
+            sources_out_of_scope.insert(cache_file.clone(), source);
+        }
+
+        let files = sources_out_of_scope.keys().cloned().collect::<Vec<_>>();
+
+        // Build a temporary graph to repeat the process above. We need this because `self.edges`
+        // only contains graph data for in-scope sources.
+        let Ok(graph) = Graph::resolve_sources(&self.project.paths, sources_out_of_scope) else {
+            dirty_files.extend(files);
+            return dirty_files;
+        };
+
+        let (_, edges) = graph.into_sources();
+
+        for file in dirty_files.clone().iter() {
+            self.populate_dirty_files(file, &mut dirty_files, &edges);
         }
 
         dirty_files
@@ -714,13 +745,18 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
     /// Accepts known dirty file and performs DFS over it's importers marking all visited files as
     /// dirty.
     #[instrument(level = "trace", skip_all, fields(file = %file.display()))]
-    fn populate_dirty_files(&self, file: &Path, dirty_files: &mut HashSet<PathBuf>) {
-        for file in self.edges.importers(file) {
+    fn populate_dirty_files(
+        &self,
+        file: &Path,
+        dirty_files: &mut HashSet<PathBuf>,
+        edges: &GraphEdges,
+    ) {
+        for file in edges.importers(file) {
             // If file is marked as dirty we either have already visited it or it was marked as
             // dirty initially and will be visited at some point later.
             if !dirty_files.contains(file) {
                 dirty_files.insert(file.to_path_buf());
-                self.populate_dirty_files(file, dirty_files);
+                self.populate_dirty_files(file, dirty_files, edges);
             }
         }
     }
