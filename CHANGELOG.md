@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.18](https://github.com/foundry-rs/compilers/releases/tag/v0.3.18) - 2024-04-19
+
+### Miscellaneous Tasks
+
+- Warn unused ([#106](https://github.com/foundry-rs/compilers/issues/106))
+
+### Other
+
+- Update yansi to 1.0 ([#107](https://github.com/foundry-rs/compilers/issues/107))
+
 ## [0.3.17](https://github.com/foundry-rs/compilers/releases/tag/v0.3.17) - 2024-04-17
 
 ### Bug Fixes
@@ -14,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 - Additional helpers for contract name -> path lookup ([#103](https://github.com/foundry-rs/compilers/issues/103))
+
+### Miscellaneous Tasks
+
+- Release 0.3.17
 
 ## [0.3.16](https://github.com/foundry-rs/compilers/releases/tag/v0.3.16) - 2024-04-17
 
