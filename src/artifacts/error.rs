@@ -141,7 +141,7 @@ impl fmt::Display for Error {
         }
 
         // Error (XXXX): Error Message
-        styled(f, self.severity.color().foreground().bold(), |f| self.fmt_severity(f))?;
+        styled(f, self.severity.color().bold(), |f| self.fmt_severity(f))?;
         fmt_msg(f, short_msg)?;
 
         let mut lines = fmtd_msg.lines();
@@ -180,32 +180,32 @@ impl fmt::Display for Error {
 impl Error {
     /// The style of the diagnostic severity.
     pub fn error_style(&self) -> Style {
-        self.severity.color().foreground().bold()
+        self.severity.color().bold()
     }
 
     /// The style of the diagnostic message.
     pub fn message_style() -> Style {
-        Color::White.foreground().bold()
+        Color::White.bold()
     }
 
     /// The style of the secondary source location.
     pub fn secondary_style() -> Style {
-        Color::Cyan.foreground().bold()
+        Color::Cyan.bold()
     }
 
     /// The style of the source location highlight.
     pub fn highlight_style() -> Style {
-        Color::Yellow.foreground()
+        Style::new().fg(Color::Yellow)
     }
 
     /// The style of the diagnostics.
     pub fn diag_style() -> Style {
-        Color::Yellow.foreground().bold()
+        Color::Yellow.bold()
     }
 
     /// The style of the source location frame.
     pub fn frame_style() -> Style {
-        Color::Blue.foreground()
+        Style::new().fg(Color::Blue)
     }
 
     /// Formats the diagnostic severity:
