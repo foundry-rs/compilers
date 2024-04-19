@@ -1,7 +1,7 @@
 use super::serde_helpers;
 use serde::{Deserialize, Serialize};
 use std::{fmt, ops::Range, str::FromStr};
-use yansi::{Color, Paint, Style};
+use yansi::{Color, Style};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct SourceLocation {
@@ -141,7 +141,7 @@ impl fmt::Display for Error {
         }
 
         // Error (XXXX): Error Message
-        styled(f, self.severity.color().style().bold(), |f| self.fmt_severity(f))?;
+        styled(f, self.severity.color().bold(), |f| self.fmt_severity(f))?;
         fmt_msg(f, short_msg)?;
 
         let mut lines = fmtd_msg.lines();
@@ -180,32 +180,32 @@ impl fmt::Display for Error {
 impl Error {
     /// The style of the diagnostic severity.
     pub fn error_style(&self) -> Style {
-        self.severity.color().style().bold()
+        self.severity.color().bold()
     }
 
     /// The style of the diagnostic message.
     pub fn message_style() -> Style {
-        Color::White.style().bold()
+        Color::White.bold()
     }
 
     /// The style of the secondary source location.
     pub fn secondary_style() -> Style {
-        Color::Cyan.style().bold()
+        Color::Cyan.bold()
     }
 
     /// The style of the source location highlight.
     pub fn highlight_style() -> Style {
-        Color::Yellow.style()
+        Style::new().fg(Color::Yellow)
     }
 
     /// The style of the diagnostics.
     pub fn diag_style() -> Style {
-        Color::Yellow.style().bold()
+        Color::Yellow.bold()
     }
 
     /// The style of the source location frame.
     pub fn frame_style() -> Style {
-        Color::Blue.style()
+        Style::new().fg(Color::Blue)
     }
 
     /// Formats the diagnostic severity:
@@ -227,7 +227,7 @@ fn styled<F>(f: &mut fmt::Formatter<'_>, style: Style, fun: F) -> fmt::Result
 where
     F: FnOnce(&mut fmt::Formatter<'_>) -> fmt::Result,
 {
-    let enabled = Paint::is_enabled();
+    let enabled = yansi::is_enabled();
     if enabled {
         style.fmt_prefix(f)?;
     }

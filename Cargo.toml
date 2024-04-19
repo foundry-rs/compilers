@@ -41,7 +41,7 @@ serde_json = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
 walkdir = "2.4"
-yansi = "0.5"
+yansi = "1.0.1"
 
 # async
 futures-util = { version = "0.3", optional = true }
