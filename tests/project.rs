@@ -1,6 +1,6 @@
 //! project tests
 
-use alloy_primitives::Address;
+use alloy_primitives::{Address, Bytes};
 use foundry_compilers::{
     artifacts::{
         BytecodeHash, DevDoc, ErrorDoc, EventDoc, Libraries, MethodDoc, ModelCheckerEngine::CHC,
@@ -3718,4 +3718,27 @@ contract D {
 
     // Check that all contracts were recompiled
     assert_eq!(output.compiled_artifacts().len(), 4);
+}
+
+#[test]
+fn test_deterministic_metadata() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+    let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
+    let mut project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+
+    project.set_solc("0.8.18");
+
+    let compiled = project.compile().unwrap();
+    compiled.assert_success();
+    let artifact = compiled.find_first("DappTest").unwrap();
+
+    let bytecode = artifact.bytecode.as_ref().unwrap().bytes().unwrap().clone();
+    let expected_bytecode = Bytes::from_str(
+        &std::fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-test-bytecode.txt"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(bytecode, expected_bytecode);
 }
