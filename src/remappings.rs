@@ -12,6 +12,18 @@ const DAPPTOOLS_LIB_DIR: &str = "lib";
 const JS_CONTRACTS_DIR: &str = "contracts";
 const JS_LIB_DIR: &str = "node_modules";
 
+/// Convert all `\\` to `/` in a string path on Windows.
+#[cfg(target_os = "windows")]
+fn to_slash_path_preserve_trailing_slash(path: &str) -> String {
+    use path_slash::PathExt;
+    let has_trailing_slash = path.ends_with('/') || path.ends_with('\\');
+    let mut p = Path::new(path).to_slash_lossy().into_owned();
+    if has_trailing_slash {
+        p.push('/');
+    }
+    p
+}
+
 /// The solidity compiler can only reference files that exist locally on your computer.
 /// So importing directly from GitHub (as an example) is not possible.
 ///
@@ -67,8 +79,14 @@ impl Remapping {
 
     /// Removes the `base` path from the remapping
     pub fn strip_prefix(&mut self, base: impl AsRef<Path>) -> &mut Self {
+        // converting a string path to Path and back will lose the trailing slash,
+        // so we need to remember if the path had a trailing slash.
+        let has_trailing_slash = self.path.ends_with('/');
         if let Ok(stripped) = Path::new(&self.path).strip_prefix(base.as_ref()) {
             self.path = format!("{}", stripped.display());
+            if has_trailing_slash {
+                self.path.push('/');
+            }
         }
         self
     }
@@ -134,8 +152,7 @@ impl fmt::Display for Remapping {
             #[cfg(target_os = "windows")]
             {
                 // ensure we have `/` slashes on windows
-                use path_slash::PathExt;
-                s.push_str(&std::path::Path::new(context).to_slash_lossy());
+                s.push_str(&to_slash_path_preserve_trailing_slash(context));
             }
             #[cfg(not(target_os = "windows"))]
             {
@@ -147,8 +164,7 @@ impl fmt::Display for Remapping {
             #[cfg(target_os = "windows")]
             {
                 // ensure we have `/` slashes on windows
-                use path_slash::PathExt;
-                format!("{}={}", self.name, std::path::Path::new(&self.path).to_slash_lossy())
+                format!("{}={}", self.name, to_slash_path_preserve_trailing_slash(&self.path))
             }
             #[cfg(not(target_os = "windows"))]
             {
@@ -156,9 +172,6 @@ impl fmt::Display for Remapping {
             }
         });
 
-        if !s.ends_with('/') {
-            s.push('/');
-        }
         f.write_str(&s)
     }
 }
@@ -267,10 +280,9 @@ impl Remapping {
     pub fn slash_path(&mut self) {
         #[cfg(windows)]
         {
-            use path_slash::PathExt;
-            self.path = Path::new(&self.path).to_slash_lossy().to_string();
+            self.path = to_slash_path_preserve_trailing_slash(&self.path);
             if let Some(context) = self.context.as_mut() {
-                *context = Path::new(&context).to_slash_lossy().to_string();
+                *context = to_slash_path_preserve_trailing_slash(context);
             }
         }
     }
@@ -324,8 +336,7 @@ impl fmt::Display for RelativeRemapping {
             #[cfg(target_os = "windows")]
             {
                 // ensure we have `/` slashes on windows
-                use path_slash::PathExt;
-                s.push_str(&std::path::Path::new(context).to_slash_lossy());
+                s.push_str(&to_slash_path_preserve_trailing_slash(context));
             }
             #[cfg(not(target_os = "windows"))]
             {
@@ -346,9 +357,6 @@ impl fmt::Display for RelativeRemapping {
             }
         });
 
-        if !s.ends_with('/') {
-            s.push('/');
-        }
         f.write_str(&s)
     }
 }
@@ -1213,7 +1221,7 @@ mod tests {
                 path: "a/b/c/d".to_string(),
             }
         );
-        assert_eq!(remapping.to_string(), "context:oz=a/b/c/d/".to_string());
+        assert_eq!(remapping.to_string(), "context:oz=a/b/c/d".to_string());
 
         let remapping = "context:foo=C:/bar/src/";
         let remapping = Remapping::from_str(remapping).unwrap();

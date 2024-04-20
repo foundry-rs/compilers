@@ -530,7 +530,7 @@ mod tests {
 Unable to resolve imports:
       "./src/Import.sol" in "src/File.col"
 with remappings:
-      oz=a/b/c/d/"#
+      oz=a/b/c/d"#
                 .trim()
         )
     }
