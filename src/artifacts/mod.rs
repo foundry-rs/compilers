@@ -1468,6 +1468,11 @@ impl Source {
         let file = file.as_ref();
         trace!(file=%file.display());
         let content = fs::read_to_string(file).map_err(|err| SolcIoError::new(err, file))?;
+
+        // Normalize line endings to ensure deterministic metadata.
+        #[cfg(windows)]
+        let content = content.replace("\r\n", "\n");
+
         Ok(Self::new(content))
     }
 
@@ -1534,9 +1539,14 @@ impl Source {
     /// async version of `Self::read`
     pub async fn async_read(file: impl AsRef<Path>) -> Result<Self, SolcIoError> {
         let file = file.as_ref();
-        Ok(Self::new(
-            tokio::fs::read_to_string(file).await.map_err(|err| SolcIoError::new(err, file))?,
-        ))
+        let content =
+            tokio::fs::read_to_string(file).await.map_err(|err| SolcIoError::new(err, file))?;
+
+        // Normalize line endings to ensure deterministic metadata.
+        #[cfg(windows)]
+        let content = content.replace("\r\n", "\n");
+
+        Ok(Self::new(content))
     }
 
     /// Finds all source files under the given dir path and reads them all
