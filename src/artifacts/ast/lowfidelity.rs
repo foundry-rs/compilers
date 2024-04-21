@@ -159,6 +159,7 @@ pub enum NodeType {
     YulAssignment,
     YulBlock,
     YulBreak,
+    YulCase,
     YulContinue,
     YulExpressionStatement,
     YulLeave,
@@ -176,6 +177,7 @@ pub enum NodeType {
     // Yul literals
     YulLiteralValue,
     YulHexValue,
+    YulTypedName,
 
     // Definitions
     ContractDefinition,
