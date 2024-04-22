@@ -5,10 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.19](https://github.com/foundry-rs/compilers/releases/tag/v0.3.19) - 2024-04-22
+
+### Bug Fixes
+
+- Remove `simpleCounterForLoopUncheckedIncrement` from `--ir-minimum` ([#114](https://github.com/foundry-rs/compilers/issues/114))
+- Add YulCase and YulTypedName to NodeType ([#111](https://github.com/foundry-rs/compilers/issues/111))
+- Use serde default for optimizer ([#109](https://github.com/foundry-rs/compilers/issues/109))
+- Replace line endings on Windows to enforce deterministic metadata ([#108](https://github.com/foundry-rs/compilers/issues/108))
+
 ## [0.3.18](https://github.com/foundry-rs/compilers/releases/tag/v0.3.18) - 2024-04-19
 
 ### Miscellaneous Tasks
 
+- Release 0.3.18
 - Warn unused ([#106](https://github.com/foundry-rs/compilers/issues/106))
 
 ### Other
