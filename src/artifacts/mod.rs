@@ -493,7 +493,8 @@ impl Settings {
                 // with only unused prunner step
                 optimizer_steps: Some("u".to_string()),
             }),
-            simple_counter_for_loop_unchecked_increment: Some(true),
+            // Set to None as it is only supported for solc starting from 0.8.22.
+            simple_counter_for_loop_unchecked_increment: None,
         });
         self
     }
