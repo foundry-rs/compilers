@@ -2,7 +2,8 @@
 
 use crate::{
     artifacts::Sources,
-    config::{ProjectPaths, SolcConfig},
+    compilers::{CompilerSettings, ParsedSource},
+    config::ProjectPaths,
     error::{Result, SolcError},
     filter::{FilteredSources, SourceCompilationKind},
     resolver::GraphEdges,
@@ -30,20 +31,21 @@ pub const SOLIDITY_FILES_CACHE_FILENAME: &str = "solidity-files-cache.json";
 
 /// A multi version cache file
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SolFilesCache {
+pub struct CompilerCache<S> {
     #[serde(rename = "_format")]
     pub format: String,
     /// contains all directories used for the project
     pub paths: ProjectPaths,
-    pub files: BTreeMap<PathBuf, CacheEntry>,
+    pub files: BTreeMap<PathBuf, CacheEntry<S>>,
 }
 
-impl SolFilesCache {
-    /// Create a new cache instance with the given files
-    pub fn new(files: BTreeMap<PathBuf, CacheEntry>, paths: ProjectPaths) -> Self {
-        Self { format: ETHERS_FORMAT_VERSION.to_string(), files, paths }
+impl<S> CompilerCache<S> {
+    pub fn new(format: String, paths: ProjectPaths) -> Self {
+        CompilerCache { format, paths, files: Default::default() }
     }
+}
 
+impl<S: CompilerSettings> CompilerCache<S> {
     pub fn is_empty(&self) -> bool {
         self.files.is_empty()
     }
@@ -54,7 +56,7 @@ impl SolFilesCache {
     }
 
     /// Removes entry for the given file
-    pub fn remove(&mut self, file: &Path) -> Option<CacheEntry> {
+    pub fn remove(&mut self, file: &Path) -> Option<CacheEntry<S>> {
         self.files.remove(file)
     }
 
@@ -69,17 +71,17 @@ impl SolFilesCache {
     }
 
     /// Returns an iterator over all `CacheEntry` this cache contains
-    pub fn entries(&self) -> impl Iterator<Item = &CacheEntry> {
+    pub fn entries(&self) -> impl Iterator<Item = &CacheEntry<S>> {
         self.files.values()
     }
 
     /// Returns the corresponding `CacheEntry` for the file if it exists
-    pub fn entry(&self, file: impl AsRef<Path>) -> Option<&CacheEntry> {
+    pub fn entry(&self, file: impl AsRef<Path>) -> Option<&CacheEntry<S>> {
         self.files.get(file.as_ref())
     }
 
     /// Returns the corresponding `CacheEntry` for the file if it exists
-    pub fn entry_mut(&mut self, file: impl AsRef<Path>) -> Option<&mut CacheEntry> {
+    pub fn entry_mut(&mut self, file: impl AsRef<Path>) -> Option<&mut CacheEntry<S>> {
         self.files.get_mut(file.as_ref())
     }
 
@@ -105,7 +107,7 @@ impl SolFilesCache {
     pub fn read(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         trace!("reading solfiles cache at {}", path.display());
-        let cache: SolFilesCache = utils::read_json_file(path)?;
+        let cache: Self = utils::read_json_file(path)?;
         trace!("read cache \"{}\" with {} entries", cache.format, cache.files.len());
         Ok(cache)
     }
@@ -128,7 +130,7 @@ impl SolFilesCache {
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn read_joined(paths: &ProjectPathsConfig) -> Result<Self> {
-        let mut cache = SolFilesCache::read(&paths.cache)?;
+        let mut cache = CompilerCache::read(&paths.cache)?;
         cache.join_entries(&paths.root).join_artifacts_files(&paths.artifacts);
         Ok(cache)
     }
@@ -302,18 +304,15 @@ impl SolFilesCache {
         let artifacts = self
             .files
             .par_iter()
-            .map(|(file, entry)| {
-                let file_name = format!("{}", file.display());
-                entry.read_artifact_files().map(|files| (file_name, files))
-            })
+            .map(|(file, entry)| entry.read_artifact_files().map(|files| (file.clone(), files)))
             .collect::<Result<ArtifactsMap<_>>>()?;
         Ok(Artifacts(artifacts))
     }
 }
 
 // async variants for read and write
-#[cfg(feature = "async")]
-impl SolFilesCache {
+/*#[cfg(feature = "async")]
+impl<S: CompilerSettings> CompilerCache<S> {
     pub async fn async_read(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref().to_owned();
         Self::asyncify(move || Self::read(path)).await
@@ -338,11 +337,11 @@ impl SolFilesCache {
             )),
         }
     }
-}
+}*/
 
-impl Default for SolFilesCache {
+impl<S> Default for CompilerCache<S> {
     fn default() -> Self {
-        SolFilesCache {
+        CompilerCache {
             format: ETHERS_FORMAT_VERSION.to_string(),
             files: Default::default(),
             paths: Default::default(),
@@ -350,10 +349,10 @@ impl Default for SolFilesCache {
     }
 }
 
-impl<'a> From<&'a ProjectPathsConfig> for SolFilesCache {
+impl<'a, S: CompilerSettings> From<&'a ProjectPathsConfig> for CompilerCache<S> {
     fn from(config: &'a ProjectPathsConfig) -> Self {
         let paths = config.paths_relative();
-        SolFilesCache::new(Default::default(), paths)
+        CompilerCache::new(Default::default(), paths)
     }
 }
 
@@ -364,7 +363,7 @@ impl<'a> From<&'a ProjectPathsConfig> for SolFilesCache {
 /// `solc` versions generating version specific artifacts.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CacheEntry {
+pub struct CacheEntry<S> {
     /// the last modification time of this file
     pub last_modification_date: u64,
     /// hash to identify whether the content of the file changed
@@ -372,7 +371,7 @@ pub struct CacheEntry {
     /// identifier name see [`crate::utils::source_name()`]
     pub source_name: PathBuf,
     /// what config was set when compiling this file
-    pub solc_config: SolcConfig,
+    pub compiler_settings: S,
     /// fully resolved imports of the file
     ///
     /// all paths start relative from the project's root: `src/importedFile.sol`
@@ -391,7 +390,7 @@ pub struct CacheEntry {
     pub artifacts: BTreeMap<String, BTreeMap<Version, PathBuf>>,
 }
 
-impl CacheEntry {
+impl<S> CacheEntry<S> {
     /// Returns the last modified timestamp `Duration`
     pub fn last_modified(&self) -> Duration {
         Duration::from_millis(self.last_modification_date)
@@ -544,18 +543,18 @@ impl GroupedSources {
 /// A helper abstraction over the [`SolFilesCache`] used to determine what files need to compiled
 /// and which `Artifacts` can be reused.
 #[derive(Debug)]
-pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput> {
+pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput, D, S> {
     /// The preexisting cache file.
-    pub cache: SolFilesCache,
+    pub cache: CompilerCache<S>,
 
     /// All already existing artifacts.
     pub cached_artifacts: Artifacts<T::Artifact>,
 
     /// Relationship between all the files.
-    pub edges: GraphEdges,
+    pub edges: GraphEdges<D>,
 
     /// The project.
-    pub project: &'a Project<T>,
+    pub project: &'a Project<T, S>,
 
     /// Files that were invalidated and removed from cache.
     /// Those are not grouped by version and purged completely.
@@ -570,7 +569,7 @@ pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput> {
     pub content_hashes: HashMap<PathBuf, String>,
 }
 
-impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
+impl<'a, T: ArtifactOutput, D: ParsedSource, S: CompilerSettings> ArtifactsCacheInner<'a, T, D, S> {
     /// Creates a new cache entry for the file
     fn create_cache_entry(&mut self, file: PathBuf, source: &Source) {
         let imports = self
@@ -581,11 +580,11 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
             .collect();
 
         let entry = CacheEntry {
-            last_modification_date: CacheEntry::read_last_modification_date(&file)
+            last_modification_date: CacheEntry::<S>::read_last_modification_date(&file)
                 .unwrap_or_default(),
             content_hash: source.content_hash(),
             source_name: utils::source_name(&file, self.project.root()).into(),
-            solc_config: self.project.solc_config.clone(),
+            compiler_settings: self.project.settings.clone(),
             imports,
             version_requirement: self.edges.version_requirement(&file).map(|v| v.to_string()),
             // artifacts remain empty until we received the compiler output
@@ -685,10 +684,10 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
 
     // Walks over all cache entires, detects dirty files and removes them from cache.
     fn find_and_remove_dirty(&mut self) {
-        fn populate_dirty_files(
+        fn populate_dirty_files<D>(
             file: &Path,
             dirty_files: &mut HashSet<PathBuf>,
-            edges: &GraphEdges,
+            edges: &GraphEdges<D>,
         ) {
             for file in edges.importers(file) {
                 // If file is marked as dirty we either have already visited it or it was marked as
@@ -716,7 +715,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
 
         // Build a temporary graph for walking imports. We need this because `self.edges`
         // only contains graph data for in-scope sources but we are operating on cache entries.
-        let Ok(graph) = Graph::resolve_sources(&self.project.paths, sources) else {
+        let Ok(graph) = Graph::<D>::resolve_sources(&self.project.paths, sources) else {
             // Purge all sources on graph resolution error.
             self.dirty_sources.extend(files);
             return;
@@ -761,7 +760,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
             return true;
         }
 
-        if !self.project.solc_config.can_use_cached(&entry.solc_config) {
+        if !self.project.settings.can_use_cached(&entry.compiler_settings) {
             trace!("solc config not compatible");
             return true;
         }
@@ -795,27 +794,27 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
 /// Abstraction over configured caching which can be either non-existent or an already loaded cache
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
-pub(crate) enum ArtifactsCache<'a, T: ArtifactOutput> {
+pub(crate) enum ArtifactsCache<'a, T: ArtifactOutput, D, S> {
     /// Cache nothing on disk
-    Ephemeral(GraphEdges, &'a Project<T>),
+    Ephemeral(GraphEdges<D>, &'a Project<T, S>),
     /// Handles the actual cached artifacts, detects artifacts that can be reused
-    Cached(ArtifactsCacheInner<'a, T>),
+    Cached(ArtifactsCacheInner<'a, T, D, S>),
 }
 
-impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
-    pub fn new(project: &'a Project<T>, edges: GraphEdges) -> Result<Self> {
+impl<'a, T: ArtifactOutput, D: ParsedSource, S: CompilerSettings> ArtifactsCache<'a, T, D, S> {
+    pub fn new(project: &'a Project<T, S>, edges: GraphEdges<D>) -> Result<Self> {
         /// Returns the [SolFilesCache] to use
         ///
         /// Returns a new empty cache if the cache does not exist or `invalidate_cache` is set.
-        fn get_cache<T: ArtifactOutput>(
-            project: &Project<T>,
+        fn get_cache<T: ArtifactOutput, S: CompilerSettings>(
+            project: &Project<T, S>,
             invalidate_cache: bool,
-        ) -> SolFilesCache {
+        ) -> CompilerCache<S> {
             // the currently configured paths
             let paths = project.paths.paths_relative();
 
             if !invalidate_cache && project.cache_path().exists() {
-                if let Ok(cache) = SolFilesCache::read_joined(&project.paths) {
+                if let Ok(cache) = CompilerCache::read_joined(&project.paths) {
                     if cache.paths == paths {
                         // unchanged project paths
                         return cache;
@@ -824,7 +823,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
             }
 
             // new empty cache
-            SolFilesCache::new(Default::default(), paths)
+            CompilerCache::new(Default::default(), paths)
         }
 
         let cache = if project.cached {
@@ -869,7 +868,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
     }
 
     /// Returns the graph data for this project
-    pub fn graph(&self) -> &GraphEdges {
+    pub fn graph(&self) -> &GraphEdges<D> {
         match self {
             ArtifactsCache::Ephemeral(graph, _) => graph,
             ArtifactsCache::Cached(inner) => &inner.edges,
@@ -880,7 +879,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
     #[allow(unused)]
     #[doc(hidden)]
     // only useful for debugging for debugging purposes
-    pub fn as_cached(&self) -> Option<&ArtifactsCacheInner<'a, T>> {
+    pub fn as_cached(&self) -> Option<&ArtifactsCacheInner<'a, T, D, S>> {
         match self {
             ArtifactsCache::Ephemeral(_, _) => None,
             ArtifactsCache::Cached(cached) => Some(cached),
@@ -894,7 +893,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
         }
     }
 
-    pub fn project(&self) -> &'a Project<T> {
+    pub fn project(&self) -> &'a Project<T, S> {
         match self {
             ArtifactsCache::Ephemeral(_, project) => project,
             ArtifactsCache::Cached(cache) => cache.project,
@@ -954,10 +953,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
                     if dirty_sources.contains(file) {
                         return false;
                     }
-                    if written_artifacts
-                        .find_artifact(&file.to_string_lossy(), name, version)
-                        .is_some()
-                    {
+                    if written_artifacts.find_artifact(&file, name, version).is_some() {
                         return false;
                     }
                     true

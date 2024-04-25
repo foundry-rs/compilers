@@ -1,12 +1,15 @@
 use crate::SourceFile;
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 /// (source_file path  -> `SourceFile` + solc version)
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct VersionedSourceFiles(pub BTreeMap<String, Vec<VersionedSourceFile>>);
+pub struct VersionedSourceFiles(pub BTreeMap<PathBuf, Vec<VersionedSourceFile>>);
 
 impl VersionedSourceFiles {
     /// Converts all `\\` separators in _all_ paths to `/`
@@ -30,22 +33,22 @@ impl VersionedSourceFiles {
     }
 
     /// Returns an iterator over all files
-    pub fn files(&self) -> impl Iterator<Item = &String> {
+    pub fn files(&self) -> impl Iterator<Item = &PathBuf> {
         self.0.keys()
     }
 
     /// Returns an iterator over the source files' IDs and path.
-    pub fn into_ids(self) -> impl Iterator<Item = (u32, String)> {
+    pub fn into_ids(self) -> impl Iterator<Item = (u32, PathBuf)> {
         self.into_sources().map(|(path, source)| (source.id, path))
     }
 
     /// Returns an iterator over the source files' paths and IDs.
-    pub fn into_paths(self) -> impl Iterator<Item = (String, u32)> {
+    pub fn into_paths(self) -> impl Iterator<Item = (PathBuf, u32)> {
         self.into_ids().map(|(id, path)| (path, id))
     }
 
     /// Returns an iterator over the source files' IDs and path.
-    pub fn into_ids_with_version(self) -> impl Iterator<Item = (u32, String, Version)> {
+    pub fn into_ids_with_version(self) -> impl Iterator<Item = (u32, PathBuf, Version)> {
         self.into_sources_with_version().map(|(path, source, version)| (source.id, path, version))
     }
 
@@ -61,7 +64,7 @@ impl VersionedSourceFiles {
     /// let source_file = output.sources.find_file("src/Greeter.sol").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn find_file(&self, source_file: impl AsRef<str>) -> Option<&SourceFile> {
+    pub fn find_file(&self, source_file: impl AsRef<Path>) -> Option<&SourceFile> {
         let source_file_name = source_file.as_ref();
         self.sources().find_map(
             |(path, source_file)| {
@@ -75,7 +78,7 @@ impl VersionedSourceFiles {
     }
 
     /// Same as [Self::find_file] but also checks for version
-    pub fn find_file_and_version(&self, path: &str, version: &Version) -> Option<&SourceFile> {
+    pub fn find_file_and_version(&self, path: &Path, version: &Version) -> Option<&SourceFile> {
         self.0.get(path).and_then(|contracts| {
             contracts.iter().find_map(|source| {
                 if source.version == *version {
@@ -123,7 +126,7 @@ impl VersionedSourceFiles {
     /// let source_file = sources.remove_by_path("src/Greeter.sol").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn remove_by_path(&mut self, source_file: impl AsRef<str>) -> Option<SourceFile> {
+    pub fn remove_by_path(&mut self, source_file: impl AsRef<Path>) -> Option<SourceFile> {
         let source_file_path = source_file.as_ref();
         self.0.get_mut(source_file_path).and_then(|all_sources| {
             if !all_sources.is_empty() {
@@ -159,28 +162,28 @@ impl VersionedSourceFiles {
     }
 
     /// Returns an iterator over all contracts and their names.
-    pub fn sources(&self) -> impl Iterator<Item = (&String, &SourceFile)> {
+    pub fn sources(&self) -> impl Iterator<Item = (&PathBuf, &SourceFile)> {
         self.0.iter().flat_map(|(path, sources)| {
             sources.iter().map(move |source| (path, &source.source_file))
         })
     }
 
     /// Returns an iterator over (`file`,  `SourceFile`, `Version`)
-    pub fn sources_with_version(&self) -> impl Iterator<Item = (&String, &SourceFile, &Version)> {
+    pub fn sources_with_version(&self) -> impl Iterator<Item = (&PathBuf, &SourceFile, &Version)> {
         self.0.iter().flat_map(|(file, sources)| {
             sources.iter().map(move |c| (file, &c.source_file, &c.version))
         })
     }
 
     /// Returns an iterator over all contracts and their source names.
-    pub fn into_sources(self) -> impl Iterator<Item = (String, SourceFile)> {
+    pub fn into_sources(self) -> impl Iterator<Item = (PathBuf, SourceFile)> {
         self.0.into_iter().flat_map(|(path, sources)| {
             sources.into_iter().map(move |source| (path.clone(), source.source_file))
         })
     }
 
     /// Returns an iterator over all contracts and their source names.
-    pub fn into_sources_with_version(self) -> impl Iterator<Item = (String, SourceFile, Version)> {
+    pub fn into_sources_with_version(self) -> impl Iterator<Item = (PathBuf, SourceFile, Version)> {
         self.0.into_iter().flat_map(|(path, sources)| {
             sources
                 .into_iter()
@@ -193,9 +196,7 @@ impl VersionedSourceFiles {
         let root = root.as_ref();
         self.0 = std::mem::take(&mut self.0)
             .into_iter()
-            .map(|(file_path, sources)| {
-                (root.join(file_path).to_string_lossy().to_string(), sources)
-            })
+            .map(|(file_path, sources)| (root.join(file_path), sources))
             .collect();
         self
     }
@@ -206,34 +207,28 @@ impl VersionedSourceFiles {
         self.0 = std::mem::take(&mut self.0)
             .into_iter()
             .map(|(file_path, sources)| {
-                let p = Path::new(&file_path);
-                (
-                    p.strip_prefix(base)
-                        .map(|p| p.to_string_lossy().to_string())
-                        .unwrap_or(file_path),
-                    sources,
-                )
+                (file_path.strip_prefix(base).unwrap_or(&file_path).to_path_buf(), sources)
             })
             .collect();
         self
     }
 }
 
-impl AsRef<BTreeMap<String, Vec<VersionedSourceFile>>> for VersionedSourceFiles {
-    fn as_ref(&self) -> &BTreeMap<String, Vec<VersionedSourceFile>> {
+impl AsRef<BTreeMap<PathBuf, Vec<VersionedSourceFile>>> for VersionedSourceFiles {
+    fn as_ref(&self) -> &BTreeMap<PathBuf, Vec<VersionedSourceFile>> {
         &self.0
     }
 }
 
-impl AsMut<BTreeMap<String, Vec<VersionedSourceFile>>> for VersionedSourceFiles {
-    fn as_mut(&mut self) -> &mut BTreeMap<String, Vec<VersionedSourceFile>> {
+impl AsMut<BTreeMap<PathBuf, Vec<VersionedSourceFile>>> for VersionedSourceFiles {
+    fn as_mut(&mut self) -> &mut BTreeMap<PathBuf, Vec<VersionedSourceFile>> {
         &mut self.0
     }
 }
 
 impl IntoIterator for VersionedSourceFiles {
-    type Item = (String, Vec<VersionedSourceFile>);
-    type IntoIter = std::collections::btree_map::IntoIter<String, Vec<VersionedSourceFile>>;
+    type Item = (PathBuf, Vec<VersionedSourceFile>);
+    type IntoIter = std::collections::btree_map::IntoIter<PathBuf, Vec<VersionedSourceFile>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()

@@ -3,12 +3,13 @@
 use crate::{
     artifacts::{
         contract::{CompactContractBytecode, CompactContractRef, Contract},
-        Error, Severity,
+        Severity,
     },
     buildinfo::RawBuildInfo,
+    compilers::{CompilationError, CompilerOutput},
     info::ContractInfoRef,
     sources::{VersionedSourceFile, VersionedSourceFiles},
-    ArtifactId, ArtifactOutput, Artifacts, CompilerOutput, ConfigurableArtifacts, SolcIoError,
+    ArtifactId, ArtifactOutput, Artifacts, ConfigurableArtifacts, SolcIoError,
 };
 use contracts::{VersionedContract, VersionedContracts};
 use semver::Version;
@@ -28,9 +29,9 @@ pub mod sources;
 /// Contains a mixture of already compiled/cached artifacts and the input set of sources that still
 /// need to be compiled.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct ProjectCompileOutput<T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct ProjectCompileOutput<E, T: ArtifactOutput = ConfigurableArtifacts> {
     /// contains the aggregated `CompilerOutput`
-    pub(crate) compiler_output: AggregatedCompilerOutput,
+    pub(crate) compiler_output: AggregatedCompilerOutput<E>,
     /// all artifact files from `output` that were freshly compiled and written
     pub(crate) compiled_artifacts: Artifacts<T::Artifact>,
     /// All artifacts that were read from cache
@@ -43,7 +44,7 @@ pub struct ProjectCompileOutput<T: ArtifactOutput = ConfigurableArtifacts> {
     pub(crate) compiler_severity_filter: Severity,
 }
 
-impl<T: ArtifactOutput> ProjectCompileOutput<T> {
+impl<T: ArtifactOutput, E: CompilationError> ProjectCompileOutput<E, T> {
     /// Converts all `\\` separators in _all_ paths to `/`
     pub fn slash_paths(&mut self) {
         self.compiler_output.slash_paths();
@@ -141,7 +142,7 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
     /// [`Self::with_stripped_file_prefixes()`].
     pub fn artifacts_with_files(
         &self,
-    ) -> impl Iterator<Item = (&String, &String, &T::Artifact)> + '_ {
+    ) -> impl Iterator<Item = (&PathBuf, &String, &T::Artifact)> + '_ {
         let Self { cached_artifacts, compiled_artifacts, .. } = self;
         cached_artifacts.artifacts_with_files().chain(compiled_artifacts.artifacts_with_files())
     }
@@ -164,7 +165,7 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
     /// ```
     ///
     /// **NOTE** the `file` will be returned as is, see also [`Self::with_stripped_file_prefixes()`]
-    pub fn into_artifacts_with_files(self) -> impl Iterator<Item = (String, String, T::Artifact)> {
+    pub fn into_artifacts_with_files(self) -> impl Iterator<Item = (PathBuf, String, T::Artifact)> {
         let Self { cached_artifacts, compiled_artifacts, .. } = self;
         cached_artifacts
             .into_artifacts_with_files()
@@ -226,17 +227,17 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
     ///     project.compile()?.into_output().contracts_into_iter().collect();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn output(&self) -> &AggregatedCompilerOutput {
+    pub fn output(&self) -> &AggregatedCompilerOutput<E> {
         &self.compiler_output
     }
 
     /// Returns a mutable reference to the (merged) solc compiler output.
-    pub fn output_mut(&mut self) -> &mut AggregatedCompilerOutput {
+    pub fn output_mut(&mut self) -> &mut AggregatedCompilerOutput<E> {
         &mut self.compiler_output
     }
 
     /// Consumes the output and returns the (merged) solc compiler output.
-    pub fn into_output(self) -> AggregatedCompilerOutput {
+    pub fn into_output(self) -> AggregatedCompilerOutput<E> {
         self.compiler_output
     }
 
@@ -444,7 +445,7 @@ impl<T: ArtifactOutput> ProjectCompileOutput<T> {
     }
 }
 
-impl ProjectCompileOutput<ConfigurableArtifacts> {
+impl<E: CompilationError> ProjectCompileOutput<E, ConfigurableArtifacts> {
     /// A helper functions that extracts the underlying [`CompactContractBytecode`] from the
     /// [`crate::ConfigurableContractArtifact`]
     ///
@@ -469,7 +470,7 @@ impl ProjectCompileOutput<ConfigurableArtifacts> {
     }
 }
 
-impl<T: ArtifactOutput> fmt::Display for ProjectCompileOutput<T> {
+impl<E: CompilationError, T: ArtifactOutput> fmt::Display for ProjectCompileOutput<E, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.compiler_output.is_unchanged() {
             f.write_str("Nothing to compile")
@@ -488,16 +489,27 @@ impl<T: ArtifactOutput> fmt::Display for ProjectCompileOutput<T> {
 /// The aggregated output of (multiple) compile jobs
 ///
 /// This is effectively a solc version aware `CompilerOutput`
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct AggregatedCompilerOutput {
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AggregatedCompilerOutput<E> {
     /// all errors from all `CompilerOutput`
-    pub errors: Vec<Error>,
+    pub errors: Vec<E>,
     /// All source files combined with the solc version used to compile them
     pub sources: VersionedSourceFiles,
     /// All compiled contracts combined with the solc version used to compile them
     pub contracts: VersionedContracts,
     // All the `BuildInfo`s of solc invocations.
     pub build_infos: BTreeMap<Version, RawBuildInfo>,
+}
+
+impl<E> Default for AggregatedCompilerOutput<E> {
+    fn default() -> Self {
+        Self {
+            errors: Vec::new(),
+            sources: Default::default(),
+            contracts: Default::default(),
+            build_infos: Default::default(),
+        }
+    }
 }
 
 /// How to filter errors/warnings
@@ -540,7 +552,7 @@ impl<'a> From<&'a [u64]> for ErrorFilter<'a> {
     }
 }
 
-impl AggregatedCompilerOutput {
+impl<E: CompilationError> AggregatedCompilerOutput<E> {
     /// Converts all `\\` separators in _all_ paths to `/`
     pub fn slash_paths(&mut self) {
         self.sources.slash_paths();
@@ -564,7 +576,7 @@ impl AggregatedCompilerOutput {
                 return true;
             }
             // check if the filter is set to something higher than the error's severity
-            if compiler_severity_filter.ge(&err.severity) {
+            if compiler_severity_filter.ge(&err.severity()) {
                 if compiler_severity_filter.is_warning() {
                     // skip ignored error codes and file path from warnings
                     let filter = ErrorFilter::new(ignored_error_codes, ignored_file_paths);
@@ -581,14 +593,14 @@ impl AggregatedCompilerOutput {
     pub fn has_warning<'a>(&self, filter: impl Into<ErrorFilter<'a>>) -> bool {
         let filter: ErrorFilter<'_> = filter.into();
         self.errors.iter().any(|error| {
-            if !error.severity.is_warning() {
+            if !error.is_warning() {
                 return false;
             }
 
-            let is_code_ignored = filter.is_code_ignored(error.error_code);
+            let is_code_ignored = filter.is_code_ignored(error.error_code());
 
             let is_file_ignored = error
-                .source_location
+                .source_location()
                 .as_ref()
                 .map_or(false, |location| filter.is_file_ignored(Path::new(&location.file)));
 
@@ -604,7 +616,7 @@ impl AggregatedCompilerOutput {
         ignored_error_codes: &'a [u64],
         ignored_file_paths: &'a [PathBuf],
         compiler_severity_filter: Severity,
-    ) -> OutputDiagnostics<'a> {
+    ) -> OutputDiagnostics<'a, E> {
         OutputDiagnostics {
             compiler_output: self,
             ignored_error_codes,
@@ -623,7 +635,7 @@ impl AggregatedCompilerOutput {
 
     pub fn extend_all<I>(&mut self, out: I)
     where
-        I: IntoIterator<Item = (Version, CompilerOutput)>,
+        I: IntoIterator<Item = (Version, CompilerOutput<E>)>,
     {
         for (v, o) in out {
             self.extend(v, o)
@@ -631,7 +643,7 @@ impl AggregatedCompilerOutput {
     }
 
     /// adds a new `CompilerOutput` to the aggregated output
-    pub fn extend(&mut self, version: Version, output: CompilerOutput) {
+    pub fn extend(&mut self, version: Version, output: CompilerOutput<E>) {
         let CompilerOutput { errors, sources, contracts } = output;
         self.errors.extend(errors);
 
@@ -716,7 +728,11 @@ impl AggregatedCompilerOutput {
     /// let contract = output.remove("src/Greeter.sol", "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn remove(&mut self, path: impl AsRef<str>, contract: impl AsRef<str>) -> Option<Contract> {
+    pub fn remove(
+        &mut self,
+        path: impl AsRef<Path>,
+        contract: impl AsRef<str>,
+    ) -> Option<Contract> {
         self.contracts.remove(path, contract)
     }
 
@@ -743,7 +759,7 @@ impl AggregatedCompilerOutput {
     ) -> Option<Contract> {
         let ContractInfoRef { path, name } = info.into();
         if let Some(path) = path {
-            self.remove(path, name)
+            self.remove(Path::new(path.as_ref()), name)
         } else {
             self.remove_first(name)
         }
@@ -760,28 +776,30 @@ impl AggregatedCompilerOutput {
     }
 
     /// Returns an iterator over (`file`, `name`, `Contract`)
-    pub fn contracts_with_files_iter(&self) -> impl Iterator<Item = (&String, &String, &Contract)> {
+    pub fn contracts_with_files_iter(
+        &self,
+    ) -> impl Iterator<Item = (&PathBuf, &String, &Contract)> {
         self.contracts.contracts_with_files()
     }
 
     /// Returns an iterator over (`file`, `name`, `Contract`)
     pub fn contracts_with_files_into_iter(
         self,
-    ) -> impl Iterator<Item = (String, String, Contract)> {
+    ) -> impl Iterator<Item = (PathBuf, String, Contract)> {
         self.contracts.into_contracts_with_files()
     }
 
     /// Returns an iterator over (`file`, `name`, `Contract`, `Version`)
     pub fn contracts_with_files_and_version_iter(
         &self,
-    ) -> impl Iterator<Item = (&String, &String, &Contract, &Version)> {
+    ) -> impl Iterator<Item = (&PathBuf, &String, &Contract, &Version)> {
         self.contracts.contracts_with_files_and_version()
     }
 
     /// Returns an iterator over (`file`, `name`, `Contract`, `Version`)
     pub fn contracts_with_files_and_version_into_iter(
         self,
-    ) -> impl Iterator<Item = (String, String, Contract, Version)> {
+    ) -> impl Iterator<Item = (PathBuf, String, Contract, Version)> {
         self.contracts.into_contracts_with_files_and_version()
     }
 
@@ -800,7 +818,7 @@ impl AggregatedCompilerOutput {
     /// ```
     pub fn get(
         &self,
-        path: impl AsRef<str>,
+        path: impl AsRef<Path>,
         contract: impl AsRef<str>,
     ) -> Option<CompactContractRef<'_>> {
         self.contracts.get(path, contract)
@@ -865,9 +883,9 @@ impl AggregatedCompilerOutput {
 
 /// Helper type to implement display for solc errors
 #[derive(Clone, Debug)]
-pub struct OutputDiagnostics<'a> {
+pub struct OutputDiagnostics<'a, E> {
     /// output of the compiled project
-    compiler_output: &'a AggregatedCompilerOutput,
+    compiler_output: &'a AggregatedCompilerOutput<E>,
     /// the error codes to ignore
     ignored_error_codes: &'a [u64],
     /// the file paths to ignore
@@ -876,7 +894,7 @@ pub struct OutputDiagnostics<'a> {
     compiler_severity_filter: Severity,
 }
 
-impl<'a> OutputDiagnostics<'a> {
+impl<'a, E: CompilationError> OutputDiagnostics<'a, E> {
     /// Returns true if there is at least one error of high severity
     pub fn has_error(&self) -> bool {
         self.compiler_output.has_error(
@@ -904,7 +922,7 @@ impl<'a> OutputDiagnostics<'a> {
     }
 }
 
-impl<'a> fmt::Display for OutputDiagnostics<'a> {
+impl<'a, E: CompilationError> fmt::Display for OutputDiagnostics<'a, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Compiler run ")?;
         if self.has_error() {
@@ -918,9 +936,9 @@ impl<'a> fmt::Display for OutputDiagnostics<'a> {
 
         for err in &self.compiler_output.errors {
             let mut ignored = false;
-            if err.severity.is_warning() {
-                if let Some(code) = err.error_code {
-                    if let Some(source_location) = &err.source_location {
+            if err.is_warning() {
+                if let Some(code) = err.error_code() {
+                    if let Some(source_location) = &err.source_location() {
                         // we ignore spdx and contract size warnings in test
                         // files. if we are looking at one of these warnings
                         // from a test file we skip

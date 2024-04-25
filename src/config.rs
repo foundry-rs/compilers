@@ -37,6 +37,10 @@ pub struct ProjectPathsConfig {
     pub libraries: Vec<PathBuf>,
     /// The compiler remappings
     pub remappings: Vec<Remapping>,
+    /// Paths to use for solc's `--include-path`
+    pub include_paths: BTreeSet<PathBuf>,
+    /// The paths which will be allowed for library inclusion
+    pub allowed_paths: BTreeSet<PathBuf>,
 }
 
 impl ProjectPathsConfig {
@@ -165,6 +169,9 @@ impl ProjectPathsConfig {
 
             self.libraries.iter_mut().for_each(slashed);
             self.remappings.iter_mut().for_each(Remapping::slash_path);
+
+            self.include_paths.iter_mut().for_each(slashed);
+            self.allowed_paths.iter_mut().for_each(slashed);
         }
     }
 
@@ -223,7 +230,7 @@ impl ProjectPathsConfig {
         &self,
         cwd: &Path,
         import: &Path,
-        include_paths: &mut IncludePaths,
+        include_paths: &mut BTreeSet<PathBuf>,
     ) -> Result<PathBuf> {
         let component = import
             .components()
@@ -428,25 +435,25 @@ impl ProjectPathsConfig {
             // We keep target file pragma and license placing them in the beginning of the result.
             let mut ranges_to_remove = Vec::new();
 
-            if let Some(license) = node.license() {
+            if let Some(license) = &node.data.license {
                 ranges_to_remove.push(license.loc());
                 if *path == flatten_target {
                     result.push_str(&content[license.loc()]);
                     result.push('\n');
                 }
             }
-            if let Some(version) = node.version() {
+            if let Some(version) = &node.data.version {
                 let content = &content[version.loc()];
                 ranges_to_remove.push(version.loc());
                 version_pragmas.push(content);
             }
-            if let Some(experimental) = node.experimental() {
+            if let Some(experimental) = &node.data.experimental {
                 ranges_to_remove.push(experimental.loc());
                 if experimental_pragma.is_none() {
                     experimental_pragma = Some(content[experimental.loc()].to_owned());
                 }
             }
-            for import in node.imports() {
+            for import in &node.data.imports {
                 ranges_to_remove.push(import.loc());
             }
             ranges_to_remove.sort_by_key(|loc| loc.start);
@@ -465,7 +472,7 @@ impl ProjectPathsConfig {
             })?;
 
             // Iterate over all aliased imports, and replace alias with real name via regexes
-            for alias in node.imports().iter().flat_map(|i| i.data().aliases()) {
+            for alias in node.data.imports.iter().flat_map(|i| i.data().aliases()) {
                 let (alias, target) = match alias {
                     SolImportAlias::Contract(alias, target) => (alias.clone(), target.clone()),
                     _ => continue,
@@ -644,6 +651,8 @@ pub struct ProjectPathsConfigBuilder {
     scripts: Option<PathBuf>,
     libraries: Option<Vec<PathBuf>>,
     remappings: Option<Vec<Remapping>>,
+    include_paths: BTreeSet<PathBuf>,
+    allowed_paths: BTreeSet<PathBuf>,
 }
 
 impl ProjectPathsConfigBuilder {
@@ -714,12 +723,52 @@ impl ProjectPathsConfigBuilder {
         self
     }
 
+    /// Adds an allowed-path to the solc executable
+    pub fn allowed_path<P: Into<PathBuf>>(mut self, path: P) -> Self {
+        self.allowed_paths.insert(path.into());
+        self
+    }
+
+    /// Adds multiple allowed-path to the solc executable
+    pub fn allowed_paths<I, S>(mut self, args: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<PathBuf>,
+    {
+        for arg in args {
+            self = self.allowed_path(arg);
+        }
+        self
+    }
+
+    /// Adds an `--include-path` to the solc executable
+    pub fn include_path<P: Into<PathBuf>>(mut self, path: P) -> Self {
+        self.include_paths.insert(path.into());
+        self
+    }
+
+    /// Adds multiple include-path to the solc executable
+    pub fn include_paths<I, S>(mut self, args: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<PathBuf>,
+    {
+        for arg in args {
+            self = self.include_path(arg);
+        }
+        self
+    }
+
     pub fn build_with_root(self, root: impl Into<PathBuf>) -> ProjectPathsConfig {
         let root = utils::canonicalized(root);
 
         let libraries = self.libraries.unwrap_or_else(|| ProjectPathsConfig::find_libs(&root));
         let artifacts =
             self.artifacts.unwrap_or_else(|| ProjectPathsConfig::find_artifacts_dir(&root));
+
+        let mut allowed_paths = self.allowed_paths;
+        // allow every contract under root by default
+        allowed_paths.insert(root.clone());
 
         ProjectPathsConfig {
             cache: self
@@ -735,6 +784,8 @@ impl ProjectPathsConfigBuilder {
                 .unwrap_or_else(|| libraries.iter().flat_map(Remapping::find_many).collect()),
             libraries,
             root,
+            include_paths: self.include_paths,
+            allowed_paths,
         }
     }
 
@@ -770,38 +821,6 @@ impl SolcConfig {
     /// ```
     pub fn builder() -> SolcConfigBuilder {
         SolcConfigBuilder::default()
-    }
-
-    /// Returns true if artifacts compiled with given `cached` config are compatible with this
-    /// config and if compilation can be skipped.
-    ///
-    /// Ensures that all settings fields are equal except for `output_selection` which is required
-    /// to be a subset of `cached.output_selection`.
-    pub fn can_use_cached(&self, cached: &SolcConfig) -> bool {
-        let SolcConfig { settings } = self;
-        let Settings {
-            stop_after,
-            remappings,
-            optimizer,
-            model_checker,
-            metadata,
-            output_selection,
-            evm_version,
-            via_ir,
-            debug,
-            libraries,
-        } = settings;
-
-        *stop_after == cached.settings.stop_after
-            && *remappings == cached.settings.remappings
-            && *optimizer == cached.settings.optimizer
-            && *model_checker == cached.settings.model_checker
-            && *metadata == cached.settings.metadata
-            && *evm_version == cached.settings.evm_version
-            && *via_ir == cached.settings.via_ir
-            && *debug == cached.settings.debug
-            && *libraries == cached.settings.libraries
-            && output_selection.is_subset_of(&cached.settings.output_selection)
     }
 }
 

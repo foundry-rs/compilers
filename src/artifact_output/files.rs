@@ -53,7 +53,7 @@ impl MappedArtifactFile {
 }
 
 pub struct MappedContract<'a> {
-    pub file: &'a str,
+    pub file: &'a Path,
     pub name: &'a str,
     pub contract: &'a VersionedContract,
     pub artifact_path: PathBuf,

@@ -2,11 +2,12 @@ use crate::{
     artifacts::{
         ast::SourceLocation,
         visitor::{Visitor, Walk},
-        ContractDefinitionPart, ExternalInlineAssemblyReference, Identifier, IdentifierPath,
+        ContractDefinitionPart, Error, ExternalInlineAssemblyReference, Identifier, IdentifierPath,
         MemberAccess, Source, SourceUnit, SourceUnitPart, Sources,
     },
     error::SolcError,
-    utils, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Result, Solc,
+    utils, ConfigurableArtifacts, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Result,
+    Solc,
 };
 use itertools::Itertools;
 use std::{
@@ -173,7 +174,11 @@ impl Flattener {
     /// Compilation output is expected to contain all artifacts for all sources.
     /// Flattener caller is expected to resolve all imports of target file, compile them and pass
     /// into this function.
-    pub fn new(project: &Project, output: &ProjectCompileOutput, target: &Path) -> Result<Self> {
+    pub fn new(
+        project: &Project,
+        output: &ProjectCompileOutput<Error, ConfigurableArtifacts>,
+        target: &Path,
+    ) -> Result<Self> {
         let input_files = output
             .artifacts_with_files()
             .map(|(file, _, _)| PathBuf::from(file))
@@ -755,7 +760,7 @@ fn collect_deps(
             .get(path)
             .ok_or_else(|| SolcError::msg(format!("cannot resolve file at {}", path.display())))?;
 
-        for import in graph.node(*node_id).imports() {
+        for import in &graph.node(*node_id).data.imports {
             let path = paths.resolve_import(target_dir, import.data().path())?;
             collect_deps(&path, paths, graph, deps)?;
         }

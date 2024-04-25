@@ -1,8 +1,7 @@
 //! Helpers to generate mock projects
 
 use crate::{
-    error::Result, remappings::Remapping, resolver::GraphEdges, Graph, ProjectPathsConfig,
-    SolcError,
+    compilers::ParsedSource, error::Result, remappings::Remapping, resolver::GraphEdges, Graph, ProjectPathsConfig, SolcError
 };
 use rand::{
     distributions::{Distribution, Uniform},
@@ -51,8 +50,8 @@ impl MockProjectGenerator {
     }
 
     /// Create a skeleton of a real project
-    pub fn create(paths: &ProjectPathsConfig) -> Result<Self> {
-        fn get_libs(edges: &GraphEdges, lib_folder: &Path) -> Option<HashMap<PathBuf, Vec<usize>>> {
+    pub fn create<D: ParsedSource>(paths: &ProjectPathsConfig) -> Result<Self> {
+        fn get_libs<D: ParsedSource>(edges: &GraphEdges<D>, lib_folder: &Path) -> Option<HashMap<PathBuf, Vec<usize>>> {
             let mut libs: HashMap<_, Vec<_>> = HashMap::new();
             for lib_file in edges.library_files() {
                 let component =

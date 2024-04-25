@@ -1,17 +1,7 @@
 //! Utilities for mocking project workspaces.
 
 use crate::{
-    artifacts::Settings,
-    config::ProjectPathsConfigBuilder,
-    error::{Result, SolcError},
-    hh::HardhatArtifacts,
-    project_util::mock::{MockProjectGenerator, MockProjectSettings},
-    remappings::Remapping,
-    utils,
-    utils::tempdir,
-    Artifact, ArtifactOutput, Artifacts, ConfigurableArtifacts, ConfigurableContractArtifact,
-    FileFilter, PathStyle, Project, ProjectCompileOutput, ProjectPathsConfig, SolFilesCache,
-    SolcIoError,
+    artifacts::{Error, Settings}, compilers::{solc::SolcVersionManager, CompilerSettings}, config::ProjectPathsConfigBuilder, error::{Result, SolcError}, hh::HardhatArtifacts, project::MaybeCompilerResult, project_util::mock::{MockProjectGenerator, MockProjectSettings}, remappings::Remapping, utils::{self, tempdir}, Artifact, ArtifactOutput, Artifacts, CompilerCache, ConfigurableArtifacts, ConfigurableContractArtifact, FileFilter, PathStyle, Project, ProjectCompileOutput, ProjectPathsConfig, Solc, SolcIoError
 };
 use fs_extra::{dir, file};
 use std::{
@@ -27,11 +17,11 @@ pub mod mock;
 /// A [`Project`] wrapper that lives in a new temporary directory
 ///
 /// Once `TempProject` is dropped, the temp dir is automatically removed, see [`TempDir::drop()`]
-pub struct TempProject<T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct TempProject<T: ArtifactOutput = ConfigurableArtifacts, S = Settings> {
     /// temporary workspace root
     _root: TempDir,
     /// actual project workspace with the `root` tempdir as its root
-    inner: Project<T>,
+    inner: Project<T, S>,
 }
 
 impl<T: ArtifactOutput> TempProject<T> {
@@ -65,7 +55,7 @@ impl<T: ArtifactOutput> TempProject<T> {
 
     /// Overwrites the settings to pass to `solc`
     pub fn with_settings(mut self, settings: impl Into<Settings>) -> Self {
-        self.inner.solc_config.settings = settings.into();
+        self.inner.settings = settings.into();
         self
     }
 
@@ -79,14 +69,6 @@ impl<T: ArtifactOutput> TempProject<T> {
 
     pub fn project(&self) -> &Project<T> {
         &self.inner
-    }
-
-    pub fn compile(&self) -> Result<ProjectCompileOutput<T>> {
-        self.project().compile()
-    }
-
-    pub fn compile_sparse(&self, filter: Box<dyn FileFilter>) -> Result<ProjectCompileOutput<T>> {
-        self.project().compile_sparse(filter)
     }
 
     pub fn flatten(&self, target: &Path) -> Result<String> {
@@ -251,7 +233,7 @@ contract {} {{}}
     }
 
     /// Returns a snapshot of all cached artifacts
-    pub fn artifacts_snapshot(&self) -> Result<ArtifactsSnapshot<T::Artifact>> {
+    pub fn artifacts_snapshot(&self) -> Result<ArtifactsSnapshot<T::Artifact, Settings>> {
         let cache = self.project().read_cache_file()?;
         let artifacts = cache.read_artifacts::<T::Artifact>()?;
         Ok(ArtifactsSnapshot { cache, artifacts })
@@ -281,7 +263,7 @@ contract {} {{}}
     }
 
     /// Compiles the project and ensures that the output has __changed__
-    pub fn ensure_changed(&self) -> Result<&Self> {
+    pub fn ensure_changed(&self) -> MaybeCompilerResult<&Self, Solc> {
         let compiled = self.compile().unwrap();
         if compiled.is_unchanged() {
             bail!("Compiled without detecting changes {}", compiled)
@@ -331,6 +313,14 @@ contract {} {{}}
     /// Returns a list of all source files in the project's `src` directory
     pub fn list_source_files(&self) -> Vec<PathBuf> {
         utils::source_files(self.project().sources_path())
+    }
+
+    pub fn compile(&self) -> MaybeCompilerResult<ProjectCompileOutput<Error, T>, Solc> {
+        self.project().compile_auto_detect(SolcVersionManager)
+    }
+
+    pub fn compile_sparse(&self, filter: Box<dyn FileFilter>) -> MaybeCompilerResult<ProjectCompileOutput<Error, T>, Solc> {
+        self.project().compile_sparse(filter, SolcVersionManager)
     }
 }
 
@@ -392,7 +382,7 @@ impl TempProject<HardhatArtifacts> {
     }
 }
 
-impl TempProject<ConfigurableArtifacts> {
+impl TempProject<ConfigurableArtifacts, Settings> {
     /// Creates an empty new dapptools style workspace in a new temporary dir
     pub fn dapptools() -> Result<Self> {
         let tmp_dir = tempdir("tmp_dapp")?;
@@ -455,12 +445,12 @@ impl<T: ArtifactOutput> AsRef<Project<T>> for TempProject<T> {
 
 /// The cache file and all the artifacts it references
 #[derive(Debug, Clone)]
-pub struct ArtifactsSnapshot<T> {
-    pub cache: SolFilesCache,
+pub struct ArtifactsSnapshot<T, S> {
+    pub cache: CompilerCache<S>,
     pub artifacts: Artifacts<T>,
 }
 
-impl ArtifactsSnapshot<ConfigurableContractArtifact> {
+impl ArtifactsSnapshot<ConfigurableContractArtifact, Settings> {
     /// Ensures that all artifacts have abi, bytecode, deployedbytecode
     pub fn assert_artifacts_essentials_present(&self) {
         for artifact in self.artifacts.artifact_files() {

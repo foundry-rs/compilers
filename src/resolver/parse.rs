@@ -1,4 +1,4 @@
-use crate::{utils, Solc};
+use crate::utils;
 use semver::VersionReq;
 use solang_parser::pt::{
     ContractPart, ContractTy, FunctionAttribute, FunctionDefinition, Import, ImportPath, Loc,
@@ -111,15 +111,28 @@ impl SolData {
                 .first()
                 .map(|(cap, l)| SolDataUnit::new(l.as_str().to_owned(), cap.range()))
         });
-        let version_req = version.as_ref().and_then(|v| Solc::version_req(v.data()).ok());
+        let version_req = version.as_ref().and_then(|v| Self::parse_version_req(v.data()).ok());
 
         Self { version_req, version, experimental, imports, license, libraries }
     }
 
-    /// Returns `true` if the solidity file associated with this type contains a solidity library
-    /// that won't be inlined
-    pub fn has_link_references(&self) -> bool {
-        self.libraries.iter().any(|lib| !lib.is_inlined())
+    /// Returns the corresponding SemVer version requirement for the solidity version.
+    ///
+    /// Note: This is a workaround for the fact that `VersionReq::parse` does not support whitespace
+    /// separators and requires comma separated operators. See [VersionReq].
+    pub fn parse_version_req(version: &str) -> Result<VersionReq, semver::Error> {
+        let version = version.replace(' ', ",");
+
+        // Somehow, Solidity semver without an operator is considered to be "exact",
+        // but lack of operator automatically marks the operator as Caret, so we need
+        // to manually patch it? :shrug:
+        let exact = !matches!(&version[0..1], "*" | "^" | "=" | ">" | "<" | "~");
+        let mut version = VersionReq::parse(&version)?;
+        if exact {
+            version.comparators[0].op = semver::Op::Exact;
+        }
+
+        Ok(version)
     }
 }
 

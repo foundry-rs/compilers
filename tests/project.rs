@@ -7,7 +7,7 @@ use foundry_compilers::{
         ModelCheckerSettings, Severity, UserDoc, UserDocNotice,
     },
     buildinfo::BuildInfo,
-    cache::{SolFilesCache, SOLIDITY_FILES_CACHE_FILENAME},
+    cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
     error::SolcError,
     flatten::Flattener,
     info::ContractInfo,
@@ -80,7 +80,7 @@ fn can_compile_dapp_sample() {
     assert!(compiled.find_first("Dapp").is_some());
     assert!(compiled.is_unchanged());
 
-    let cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::read(project.cache_path()).unwrap();
 
     // delete artifacts
     std::fs::remove_dir_all(&project.paths().artifacts).unwrap();
@@ -88,7 +88,7 @@ fn can_compile_dapp_sample() {
     assert!(compiled.find_first("Dapp").is_some());
     assert!(!compiled.is_unchanged());
 
-    let updated_cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let updated_cache = CompilerCache::read(project.cache_path()).unwrap();
     assert_eq!(cache, updated_cache);
 }
 
@@ -109,7 +109,7 @@ fn can_compile_yul_sample() {
     assert!(compiled.find_first("SimpleStore").is_some());
     assert!(compiled.is_unchanged());
 
-    let cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::read(project.cache_path()).unwrap();
 
     // delete artifacts
     std::fs::remove_dir_all(&project.paths().artifacts).unwrap();
@@ -118,7 +118,7 @@ fn can_compile_yul_sample() {
     assert!(compiled.find_first("SimpleStore").is_some());
     assert!(!compiled.is_unchanged());
 
-    let updated_cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let updated_cache = CompilerCache::read(project.cache_path()).unwrap();
     assert_eq!(cache, updated_cache);
 }
 
@@ -196,7 +196,7 @@ fn can_compile_dapp_detect_changes_in_libs() {
     assert!(compiled.find_first("Foo").is_some());
     assert!(compiled.is_unchanged());
 
-    let cache = SolFilesCache::read(&project.paths().cache).unwrap();
+    let cache = CompilerCache::read(&project.paths().cache).unwrap();
     assert_eq!(cache.files.len(), 2);
 
     // overwrite lib
@@ -270,7 +270,7 @@ fn can_compile_dapp_detect_changes_in_sources() {
     assert!(compiled.find_first("DssSpellTest").is_some());
     assert!(compiled.find_first("DssSpellTestBase").is_some());
 
-    let cache = SolFilesCache::read(&project.paths().cache).unwrap();
+    let cache = CompilerCache::read(&project.paths().cache).unwrap();
     assert_eq!(cache.files.len(), 2);
 
     let mut artifacts = compiled.into_artifacts().collect::<HashMap<_, _>>();
@@ -3156,7 +3156,7 @@ contract D { }
     let compiled = project.compile().unwrap();
     compiled.assert_success();
 
-    let cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::read(project.cache_path()).unwrap();
 
     let entries = vec![
         PathBuf::from("src/A.sol"),
@@ -3166,7 +3166,7 @@ contract D { }
     ];
     assert_eq!(entries, cache.files.keys().cloned().collect::<Vec<_>>());
 
-    let cache = SolFilesCache::read_joined(project.paths()).unwrap();
+    let cache = CompilerCache::read_joined(project.paths()).unwrap();
 
     assert_eq!(
         entries.into_iter().map(|p| project.root().join(p)).collect::<Vec<_>>(),
@@ -3255,7 +3255,7 @@ fn can_handle_conflicting_files() {
     let artifacts = compiled.artifacts().count();
     assert_eq!(artifacts, 2);
 
-    let cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::read(project.cache_path()).unwrap();
 
     let mut source_files = cache.files.keys().cloned().collect::<Vec<_>>();
     source_files.sort_unstable();
@@ -3324,7 +3324,7 @@ fn can_handle_conflicting_files_recompile() {
     let artifacts = compiled.artifacts().count();
     assert_eq!(artifacts, 2);
 
-    let cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::read(project.cache_path()).unwrap();
 
     let mut source_files = cache.files.keys().cloned().collect::<Vec<_>>();
     source_files.sort_unstable();
@@ -3421,7 +3421,7 @@ fn can_handle_conflicting_files_case_sensitive_recompile() {
     let artifacts = compiled.artifacts().count();
     assert_eq!(artifacts, 2);
 
-    let cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::read(project.cache_path()).unwrap();
 
     let mut source_files = cache.files.keys().cloned().collect::<Vec<_>>();
     source_files.sort_unstable();
@@ -3519,7 +3519,7 @@ fn can_detect_config_changes() {
     let compiled = project.compile().unwrap();
     compiled.assert_success();
 
-    let cache_before = SolFilesCache::read(&project.paths().cache).unwrap();
+    let cache_before = CompilerCache::read(&project.paths().cache).unwrap();
     assert_eq!(cache_before.files.len(), 2);
 
     // nothing to compile
@@ -3532,7 +3532,7 @@ fn can_detect_config_changes() {
     compiled.assert_success();
     assert!(!compiled.is_unchanged());
 
-    let cache_after = SolFilesCache::read(&project.paths().cache).unwrap();
+    let cache_after = CompilerCache::read(&project.paths().cache).unwrap();
     assert_ne!(cache_before, cache_after);
 }
 

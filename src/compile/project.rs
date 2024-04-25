@@ -102,37 +102,59 @@
 
 use crate::{
     artifact_output::Artifacts,
-    artifacts::{Settings, VersionedFilteredSources, VersionedSources},
-    buildinfo::RawBuildInfo,
+    artifacts::{VersionedFilteredSources, VersionedSources},
     cache::ArtifactsCache,
-    error::Result,
+    compilers::{Compiler, CompilerInput, CompilerVersionManager},
+    error::{Result, SolcError},
     filter::SparseOutputFilter,
     output::AggregatedCompilerOutput,
     report,
     resolver::GraphEdges,
-    ArtifactOutput, CompilerInput, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Solc,
-    Sources,
+    ArtifactOutput, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Sources,
 };
 use rayon::prelude::*;
-use std::{collections::btree_map::BTreeMap, path::PathBuf, time::Instant};
+use std::{path::PathBuf, sync::Arc, time::Instant};
+
+#[derive(Debug, thiserror::Error)]
+pub enum MaybeCompilerError<E> {
+    #[error(transparent)]
+    SolcError(SolcError),
+    #[error(transparent)]
+    CompilerError(E),
+}
+
+impl<T, E> From<T> for MaybeCompilerError<E>
+where
+    T: Into<SolcError>,
+{
+    fn from(e: T) -> Self {
+        MaybeCompilerError::SolcError(e.into())
+    }
+}
+
+pub type MaybeCompilerResult<T, C> =
+    core::result::Result<T, MaybeCompilerError<<C as Compiler>::Error>>;
 
 #[derive(Debug)]
-pub struct ProjectCompiler<'a, T: ArtifactOutput> {
+pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
     /// Contains the relationship of the source files and their imports
-    edges: GraphEdges,
-    project: &'a Project<T>,
+    edges: GraphEdges<C::ParsedSource>,
+    project: &'a Project<T, C::Settings>,
     /// how to compile all the sources
-    sources: CompilerSources,
+    sources: CompilerSources<C>,
     /// How to select solc [`crate::artifacts::CompilerOutput`] for files
     sparse_output: SparseOutputFilter,
 }
 
-impl<'a, T: ArtifactOutput> ProjectCompiler<'a, T> {
+impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     /// Create a new `ProjectCompiler` to bootstrap the compilation process of the project's
     /// sources.
     #[cfg(feature = "svm-solc")]
-    pub fn new(project: &'a Project<T>) -> Result<Self> {
-        Self::with_sources(project, project.paths.read_input_files()?)
+    pub fn new<VM: CompilerVersionManager<Compiler = C>>(
+        project: &'a Project<T, C::Settings>,
+        version_manager: VM,
+    ) -> Result<Self> {
+        Self::with_sources(project, project.paths.read_input_files()?, version_manager)
     }
 
     /// Bootstraps the compilation process by resolving the dependency graph of all sources and the
@@ -142,11 +164,15 @@ impl<'a, T: ArtifactOutput> ProjectCompiler<'a, T> {
     /// Multiple (`Solc` -> `Sources`) pairs can be compiled in parallel if the `Project` allows
     /// multiple `jobs`, see [`crate::Project::set_solc_jobs()`].
     #[cfg(feature = "svm-solc")]
-    pub fn with_sources(project: &'a Project<T>, sources: Sources) -> Result<Self> {
+    pub fn with_sources<VM: CompilerVersionManager<Compiler = C>>(
+        project: &'a Project<T, C::Settings>,
+        sources: Sources,
+        version_manager: VM,
+    ) -> Result<Self> {
         let graph = Graph::resolve_sources(&project.paths, sources)?;
-        let (versions, edges) = graph.into_sources_by_version(project.offline)?;
+        let (versions, edges) = graph.into_sources_by_version(project.offline, &version_manager)?;
 
-        let sources_by_version = versions.get(project)?;
+        let sources_by_version = versions.get(&version_manager)?;
 
         let sources = if project.solc_jobs > 1 && sources_by_version.len() > 1 {
             // if there are multiple different versions, and we can use multiple jobs we can compile
@@ -160,22 +186,15 @@ impl<'a, T: ArtifactOutput> ProjectCompiler<'a, T> {
     }
 
     /// Compiles the sources with a pinned `Solc` instance
-    pub fn with_sources_and_solc(
-        project: &'a Project<T>,
+    pub fn with_sources_and_compiler(
+        project: &'a Project<T, C::Settings>,
         sources: Sources,
-        solc: Solc,
+        compiler: C,
     ) -> Result<Self> {
-        let version = solc.version()?;
+        let version = compiler.version().clone();
         let (sources, edges) = Graph::resolve_sources(&project.paths, sources)?.into_sources();
 
-        // make sure `solc` has all required arguments
-        let solc = project.configure_solc_with_version(
-            solc,
-            Some(version.clone()),
-            edges.include_paths().clone(),
-        );
-
-        let sources_by_version = BTreeMap::from([(solc, (version, sources))]);
+        let sources_by_version = vec![(compiler, version.clone(), sources)];
         let sources = CompilerSources::Sequential(sources_by_version);
 
         Ok(Self { edges, project, sources, sparse_output: Default::default() })
@@ -204,11 +223,21 @@ impl<'a, T: ArtifactOutput> ProjectCompiler<'a, T> {
     /// let output = project.compile()?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn compile(self) -> Result<ProjectCompileOutput<T>> {
+    pub fn compile(
+        self,
+    ) -> core::result::Result<
+        ProjectCompileOutput<<C as Compiler>::CompilationError, T>,
+        MaybeCompilerError<C::Error>,
+    > {
         let slash_paths = self.project.slash_paths;
 
         // drive the compiler statemachine to completion
-        let mut output = self.preprocess()?.compile()?.write_artifacts()?.write_cache()?;
+        let mut output = self
+            .preprocess()?
+            .compile()
+            .map_err(|e| MaybeCompilerError::CompilerError(e))?
+            .write_artifacts()?
+            .write_cache()?;
 
         if slash_paths {
             // ensures we always use `/` paths
@@ -221,7 +250,7 @@ impl<'a, T: ArtifactOutput> ProjectCompiler<'a, T> {
     /// Does basic preprocessing
     ///   - sets proper source unit names
     ///   - check cache
-    fn preprocess(self) -> Result<PreprocessedState<'a, T>> {
+    fn preprocess(self) -> Result<PreprocessedState<'a, T, C>> {
         trace!("preprocessing");
         let Self { edges, project, mut sources, sparse_output } = self;
 
@@ -241,24 +270,24 @@ impl<'a, T: ArtifactOutput> ProjectCompiler<'a, T> {
 ///
 /// The main reason is to debug all states individually
 #[derive(Debug)]
-struct PreprocessedState<'a, T: ArtifactOutput> {
+struct PreprocessedState<'a, T: ArtifactOutput, C: Compiler> {
     /// Contains all the sources to compile.
-    sources: FilteredCompilerSources,
+    sources: FilteredCompilerSources<C>,
 
     /// Cache that holds `CacheEntry` objects if caching is enabled and the project is recompiled
-    cache: ArtifactsCache<'a, T>,
+    cache: ArtifactsCache<'a, T, C::ParsedSource, C::Settings>,
 
     sparse_output: SparseOutputFilter,
 }
 
-impl<'a, T: ArtifactOutput> PreprocessedState<'a, T> {
+impl<'a, T: ArtifactOutput, C: Compiler> PreprocessedState<'a, T, C> {
     /// advance to the next state by compiling all sources
-    fn compile(self) -> Result<CompiledState<'a, T>> {
+    fn compile(self) -> core::result::Result<CompiledState<'a, T, C>, C::Error> {
         trace!("compiling");
         let PreprocessedState { sources, cache, sparse_output } = self;
         let project = cache.project();
         let mut output = sources.compile(
-            &project.solc_config.settings,
+            &project.settings,
             &project.paths,
             sparse_output,
             cache.graph(),
@@ -278,18 +307,18 @@ impl<'a, T: ArtifactOutput> PreprocessedState<'a, T> {
 
 /// Represents the state after `solc` was successfully invoked
 #[derive(Debug)]
-struct CompiledState<'a, T: ArtifactOutput> {
-    output: AggregatedCompilerOutput,
-    cache: ArtifactsCache<'a, T>,
+struct CompiledState<'a, T: ArtifactOutput, C: Compiler> {
+    output: AggregatedCompilerOutput<C::CompilationError>,
+    cache: ArtifactsCache<'a, T, C::ParsedSource, C::Settings>,
 }
 
-impl<'a, T: ArtifactOutput> CompiledState<'a, T> {
+impl<'a, T: ArtifactOutput, C: Compiler> CompiledState<'a, T, C> {
     /// advance to the next state by handling all artifacts
     ///
     /// Writes all output contracts to disk if enabled in the `Project` and if the build was
     /// successful
     #[instrument(skip_all, name = "write-artifacts")]
-    fn write_artifacts(self) -> Result<ArtifactsState<'a, T>> {
+    fn write_artifacts(self) -> Result<ArtifactsState<'a, T, C>> {
         let CompiledState { output, cache } = self;
 
         let project = cache.project();
@@ -341,17 +370,17 @@ impl<'a, T: ArtifactOutput> CompiledState<'a, T> {
 
 /// Represents the state after all artifacts were written to disk
 #[derive(Debug)]
-struct ArtifactsState<'a, T: ArtifactOutput> {
-    output: AggregatedCompilerOutput,
-    cache: ArtifactsCache<'a, T>,
+struct ArtifactsState<'a, T: ArtifactOutput, C: Compiler> {
+    output: AggregatedCompilerOutput<C::CompilationError>,
+    cache: ArtifactsCache<'a, T, C::ParsedSource, C::Settings>,
     compiled_artifacts: Artifacts<T::Artifact>,
 }
 
-impl<'a, T: ArtifactOutput> ArtifactsState<'a, T> {
+impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
     /// Writes the cache file
     ///
     /// this concludes the [`Project::compile()`] statemachine
-    fn write_cache(self) -> Result<ProjectCompileOutput<T>> {
+    fn write_cache(self) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
         let ArtifactsState { output, cache, compiled_artifacts } = self;
         let project = cache.project();
         let ignored_error_codes = project.ignored_error_codes.clone();
@@ -379,15 +408,15 @@ impl<'a, T: ArtifactOutput> ArtifactsState<'a, T> {
 
 /// Determines how the `solc <-> sources` pairs are executed
 #[derive(Debug, Clone)]
-enum CompilerSources {
+enum CompilerSources<C> {
     /// Compile all these sequentially
-    Sequential(VersionedSources),
+    Sequential(VersionedSources<C>),
     /// Compile all these in parallel using a certain amount of jobs
     #[allow(dead_code)]
-    Parallel(VersionedSources, usize),
+    Parallel(VersionedSources<C>, usize),
 }
 
-impl CompilerSources {
+impl<C: Compiler> CompilerSources<C> {
     /// Converts all `\\` separators to `/`
     ///
     /// This effectively ensures that `solc` can find imported files like `/src/Cheats.sol` in the
@@ -418,17 +447,17 @@ impl CompilerSources {
     /// Filters out all sources that don't need to be compiled, see [`ArtifactsCache::filter`]
     fn filtered<T: ArtifactOutput>(
         self,
-        cache: &mut ArtifactsCache<'_, T>,
-    ) -> FilteredCompilerSources {
-        fn filtered_sources<T: ArtifactOutput>(
-            sources: VersionedSources,
-            cache: &mut ArtifactsCache<'_, T>,
-        ) -> VersionedFilteredSources {
+        cache: &mut ArtifactsCache<'_, T, C::ParsedSource, C::Settings>,
+    ) -> FilteredCompilerSources<C> {
+        fn filtered_sources<T: ArtifactOutput, C: Compiler>(
+            sources: VersionedSources<C>,
+            cache: &mut ArtifactsCache<'_, T, C::ParsedSource, C::Settings>,
+        ) -> VersionedFilteredSources<C> {
             cache.remove_dirty_sources();
 
             sources
                 .into_iter()
-                .map(|(solc, (version, sources))| {
+                .map(|(compiler, version, sources)| {
                     trace!("Filtering {} sources for {}", sources.len(), version);
                     let sources_to_compile = cache.filter(sources, &version);
                     trace!(
@@ -436,7 +465,7 @@ impl CompilerSources {
                         sources_to_compile.dirty().count(),
                         sources_to_compile.dirty_files().collect::<Vec<_>>()
                     );
-                    (solc, (version, sources_to_compile))
+                    (compiler, version, sources_to_compile)
                 })
                 .collect()
         }
@@ -454,23 +483,23 @@ impl CompilerSources {
 
 /// Determines how the `solc <-> sources` pairs are executed
 #[derive(Debug, Clone)]
-enum FilteredCompilerSources {
+enum FilteredCompilerSources<C> {
     /// Compile all these sequentially
-    Sequential(VersionedFilteredSources),
+    Sequential(VersionedFilteredSources<C>),
     /// Compile all these in parallel using a certain amount of jobs
-    Parallel(VersionedFilteredSources, usize),
+    Parallel(VersionedFilteredSources<C>, usize),
 }
 
-impl FilteredCompilerSources {
+impl<C: Compiler> FilteredCompilerSources<C> {
     /// Compiles all the files with `Solc`
     fn compile(
         self,
-        settings: &Settings,
+        settings: &<C::Input as CompilerInput>::Settings,
         paths: &ProjectPathsConfig,
         sparse_output: SparseOutputFilter,
-        graph: &GraphEdges,
+        graph: &GraphEdges<C::ParsedSource>,
         create_build_info: bool,
-    ) -> Result<AggregatedCompilerOutput> {
+    ) -> core::result::Result<AggregatedCompilerOutput<C::CompilationError>, C::Error> {
         match self {
             FilteredCompilerSources::Sequential(input) => {
                 compile_sequential(input, settings, paths, sparse_output, graph, create_build_info)
@@ -483,7 +512,7 @@ impl FilteredCompilerSources {
 
     #[cfg(test)]
     #[cfg(all(feature = "project-util", feature = "svm-solc"))]
-    fn sources(&self) -> &VersionedFilteredSources {
+    fn sources(&self) -> &VersionedFilteredSources<C> {
         match self {
             FilteredCompilerSources::Sequential(v) => v,
             FilteredCompilerSources::Parallel(v, _) => v,
@@ -492,80 +521,68 @@ impl FilteredCompilerSources {
 }
 
 /// Compiles the input set sequentially and returns an aggregated set of the solc `CompilerOutput`s
-fn compile_sequential(
-    input: VersionedFilteredSources,
-    settings: &Settings,
+fn compile_sequential<C: Compiler>(
+    input: VersionedFilteredSources<C>,
+    settings: &C::Settings,
     paths: &ProjectPathsConfig,
     sparse_output: SparseOutputFilter,
-    graph: &GraphEdges,
+    graph: &GraphEdges<C::ParsedSource>,
     create_build_info: bool,
-) -> Result<AggregatedCompilerOutput> {
+) -> core::result::Result<AggregatedCompilerOutput<C::CompilationError>, C::Error> {
     let mut aggregated = AggregatedCompilerOutput::default();
     trace!("compiling {} jobs sequentially", input.len());
-    for (solc, (version, filtered_sources)) in input {
+
+    // Include additional paths collected during graph resolution.
+    let mut include_paths = paths.include_paths.clone();
+    include_paths.extend(graph.include_paths().clone());
+
+    for (compiler, version, filtered_sources) in input {
         if filtered_sources.is_empty() {
             // nothing to compile
-            trace!("skip solc {} {} for empty sources set", solc.as_ref().display(), version);
+            trace!("skip {} for empty sources set", version);
             continue;
         }
-        trace!(
-            "compiling {} sources with solc \"{}\" {:?}",
-            filtered_sources.len(),
-            solc.as_ref().display(),
-            solc.args
-        );
+        trace!("compiling {} sources with \"{}\"", filtered_sources.len(), version,);
 
         let dirty_files: Vec<PathBuf> = filtered_sources.dirty_files().cloned().collect();
 
         // depending on the composition of the filtered sources, the output selection can be
         // optimized
         let mut opt_settings = settings.clone();
-        let sources = sparse_output.sparse_sources(filtered_sources, &mut opt_settings, graph);
+        let sources = sparse_output.sparse_sources(filtered_sources, &mut opt_settings);
 
-        for input in CompilerInput::with_sources(sources) {
-            let actually_dirty = input
-                .sources
-                .keys()
-                .filter(|f| dirty_files.contains(f))
-                .cloned()
-                .collect::<Vec<_>>();
-            if actually_dirty.is_empty() {
+        for input in C::Input::build(sources, opt_settings, &version) {
+            let actually_dirty = input.sources().keys().filter(|f| dirty_files.contains(f)).count();
+            if actually_dirty == 0 {
                 // nothing to compile for this particular language, all dirty files are in the other
                 // language set
-                trace!(
-                    "skip solc {} {} compilation of {} compiler input due to empty source set",
-                    solc.as_ref().display(),
-                    version,
-                    input.language
-                );
+                trace!("skip {} run due to empty source set", version);
                 continue;
             }
-            let input = input
-                .settings(opt_settings.clone())
-                .normalize_evm_version(&version)
-                .with_remappings(paths.remappings.clone())
-                .with_base_path(&paths.root)
-                .sanitized(&version);
-
             trace!(
-                "calling solc `{}` with {} sources {:?}",
+                "calling {} with {} sources {:?}",
                 version,
-                input.sources.len(),
-                input.sources.keys()
+                input.sources().len(),
+                input.sources().keys()
             );
 
             let start = Instant::now();
-            report::solc_spawn(&solc, &version, &input, &actually_dirty);
-            let output = solc.compile(&input)?;
-            report::solc_success(&solc, &version, &output, &start.elapsed());
-            trace!("compiled input, output has error: {}", output.has_error());
+            // report::compiler_spawn(&version, &input, &actually_dirty);
+            let (input, output) = compiler.compile(
+                input,
+                paths.root.clone(),
+                include_paths.clone(),
+                paths.allowed_paths.clone(),
+            )?;
+            // report::compiler_success(&version, &output, &start.elapsed());
+            // trace!("compiled input, output has error: {}", output.has_error());
             trace!("received compiler output: {:?}", output.contracts.keys());
 
             // if configured also create the build info
-            if create_build_info {
+            /*if create_build_info {
                 let build_info = RawBuildInfo::new(&input, &output, &version)?;
                 aggregated.build_infos.insert(version.clone(), build_info);
-            }
+            }*/
 
             aggregated.extend(version.clone(), output);
         }
@@ -574,60 +591,58 @@ fn compile_sequential(
 }
 
 /// compiles the input set using `num_jobs` threads
-fn compile_parallel(
-    input: VersionedFilteredSources,
+fn compile_parallel<C: Compiler>(
+    versioned_sources: VersionedFilteredSources<C>,
     num_jobs: usize,
-    settings: &Settings,
+    settings: &C::Settings,
     paths: &ProjectPathsConfig,
     sparse_output: SparseOutputFilter,
-    graph: &GraphEdges,
+    graph: &GraphEdges<C::ParsedSource>,
     create_build_info: bool,
-) -> Result<AggregatedCompilerOutput> {
+) -> std::result::Result<AggregatedCompilerOutput<C::CompilationError>, C::Error> {
     debug_assert!(num_jobs > 1);
-    trace!("compile {} sources in parallel using up to {} solc jobs", input.len(), num_jobs);
+    trace!(
+        "compile {} sources in parallel using up to {} solc jobs",
+        versioned_sources.len(),
+        num_jobs
+    );
 
-    let mut jobs = Vec::with_capacity(input.len());
-    for (solc, (version, filtered_sources)) in input {
+    // Include additional paths collected during graph resolution.
+    let mut include_paths = paths.include_paths.clone();
+    include_paths.extend(graph.include_paths().clone());
+
+    let mut jobs = Vec::with_capacity(versioned_sources.len());
+    for (compiler, version, filtered_sources) in versioned_sources {
         if filtered_sources.is_empty() {
             // nothing to compile
-            trace!("skip solc {} {} for empty sources set", solc.as_ref().display(), version);
+            trace!("skip {} for empty sources set", version);
             continue;
         }
 
         let dirty_files: Vec<PathBuf> = filtered_sources.dirty_files().cloned().collect();
+        let compiler = Arc::new(compiler);
 
         // depending on the composition of the filtered sources, the output selection can be
         // optimized
         let mut opt_settings = settings.clone();
-        let sources = sparse_output.sparse_sources(filtered_sources, &mut opt_settings, graph);
+        let sources = sparse_output.sparse_sources(filtered_sources, &mut opt_settings);
 
-        for input in CompilerInput::with_sources(sources) {
-            let actually_dirty = input
-                .sources
-                .keys()
-                .filter(|f| dirty_files.contains(f))
-                .cloned()
-                .collect::<Vec<_>>();
-            if actually_dirty.is_empty() {
+        for input in C::Input::build(sources, settings.clone(), &version) {
+            let actually_dirty = input.sources().keys().filter(|f| dirty_files.contains(f)).count();
+            if actually_dirty == 0 {
                 // nothing to compile for this particular language, all dirty files are in the other
                 // language set
-                trace!(
-                    "skip solc {} {} compilation of {} compiler input due to empty source set",
-                    solc.as_ref().display(),
-                    version,
-                    input.language
-                );
+                trace!("skip {} run due to empty source set", version);
                 continue;
             }
+            trace!(
+                "calling {} with {} sources {:?}",
+                version,
+                input.sources().len(),
+                input.sources().keys()
+            );
 
-            let job = input
-                .settings(settings.clone())
-                .normalize_evm_version(&version)
-                .with_remappings(paths.remappings.clone())
-                .with_base_path(&paths.root)
-                .sanitized(&version);
-
-            jobs.push((solc.clone(), version.clone(), job, actually_dirty))
+            jobs.push((compiler.clone(), version.clone(), input, actually_dirty));
         }
     }
 
@@ -641,34 +656,40 @@ fn compile_parallel(
 
     let outputs = pool.install(move || {
         jobs.into_par_iter()
-            .map(move |(solc, version, input, actually_dirty)| {
+            .map(move |(compiler, version, input, actually_dirty)| {
                 // set the reporter on this thread
                 let _guard = report::set_scoped(&scoped_report);
 
                 trace!(
-                    "calling solc `{}` {:?} with {} sources: {:?}",
+                    "calling solc `{}` with {} sources: {:?}",
                     version,
-                    solc.args,
-                    input.sources.len(),
-                    input.sources.keys()
+                    input.sources().len(),
+                    input.sources().keys()
                 );
                 let start = Instant::now();
-                report::solc_spawn(&solc, &version, &input, &actually_dirty);
-                solc.compile(&input).map(move |output| {
-                    report::solc_success(&solc, &version, &output, &start.elapsed());
-                    (version, input, output)
-                })
+                // report::compiler_spawn(&version, &input, &actually_dirty);
+                compiler
+                    .compile(
+                        input,
+                        paths.root.clone(),
+                        include_paths.clone(),
+                        paths.allowed_paths.clone(),
+                    )
+                    .map(move |(input, output)| {
+                        // report::compiler_success(&version, &output, &start.elapsed());
+                        (version, input, output)
+                    })
             })
-            .collect::<Result<Vec<_>>>()
+            .collect::<core::result::Result<Vec<_>, _>>()
     })?;
 
     let mut aggregated = AggregatedCompilerOutput::default();
     for (version, input, output) in outputs {
         // if configured also create the build info
-        if create_build_info {
+        /*if create_build_info {
             let build_info = RawBuildInfo::new(&input, &output, &version)?;
             aggregated.build_infos.insert(version.clone(), build_info);
-        }
+        }*/
         aggregated.extend(version, output);
     }
 

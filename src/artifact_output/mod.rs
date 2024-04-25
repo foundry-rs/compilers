@@ -10,7 +10,7 @@ use crate::{
     error::Result,
     sourcemap::{SourceMap, SyntaxError},
     sources::VersionedSourceFile,
-    utils, HardhatArtifact, ProjectPathsConfig, SolFilesCache, SolcError, SolcIoError,
+    utils, CompilerCache, HardhatArtifact, ProjectPathsConfig, SolcError, SolcIoError,
 };
 use alloy_json_abi::JsonAbi;
 use alloy_primitives::Bytes;
@@ -135,9 +135,9 @@ impl<T> From<ArtifactsMap<T>> for Artifacts<T> {
 }
 
 impl<'a, T> IntoIterator for &'a Artifacts<T> {
-    type Item = (&'a String, &'a BTreeMap<String, Vec<ArtifactFile<T>>>);
+    type Item = (&'a PathBuf, &'a BTreeMap<String, Vec<ArtifactFile<T>>>);
     type IntoIter =
-        std::collections::btree_map::Iter<'a, String, BTreeMap<String, Vec<ArtifactFile<T>>>>;
+        std::collections::btree_map::Iter<'a, PathBuf, BTreeMap<String, Vec<ArtifactFile<T>>>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
@@ -145,9 +145,9 @@ impl<'a, T> IntoIterator for &'a Artifacts<T> {
 }
 
 impl<T> IntoIterator for Artifacts<T> {
-    type Item = (String, BTreeMap<String, Vec<ArtifactFile<T>>>);
+    type Item = (PathBuf, BTreeMap<String, Vec<ArtifactFile<T>>>);
     type IntoIter =
-        std::collections::btree_map::IntoIter<String, BTreeMap<String, Vec<ArtifactFile<T>>>>;
+        std::collections::btree_map::IntoIter<PathBuf, BTreeMap<String, Vec<ArtifactFile<T>>>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -229,7 +229,7 @@ impl<T> Artifacts<T> {
     /// Returns the `Artifact` with matching file, contract name and version
     pub fn find_artifact(
         &self,
-        file: &str,
+        file: &Path,
         contract_name: &str,
         version: &Version,
     ) -> Option<&ArtifactFile<T>> {
@@ -318,7 +318,7 @@ impl<T> Artifacts<T> {
     /// **NOTE** this returns the path as is
     ///
     /// Borrowed version of [`Self::into_artifacts_with_files`].
-    pub fn artifacts_with_files(&self) -> impl Iterator<Item = (&String, &String, &T)> + '_ {
+    pub fn artifacts_with_files(&self) -> impl Iterator<Item = (&PathBuf, &String, &T)> + '_ {
         self.0.iter().flat_map(|(f, contract_artifacts)| {
             contract_artifacts.iter().flat_map(move |(name, artifacts)| {
                 artifacts.iter().map(move |artifact| (f, name, &artifact.artifact))
@@ -329,7 +329,7 @@ impl<T> Artifacts<T> {
     /// Returns an iterator that yields the tuple `(file, contract name, artifact)`
     ///
     /// **NOTE** this returns the path as is
-    pub fn into_artifacts_with_files(self) -> impl Iterator<Item = (String, String, T)> {
+    pub fn into_artifacts_with_files(self) -> impl Iterator<Item = (PathBuf, String, T)> {
         self.0.into_iter().flat_map(|(f, contract_artifacts)| {
             contract_artifacts.into_iter().flat_map(move |(name, artifacts)| {
                 let contract_name = name;
@@ -351,7 +351,7 @@ impl<T> Artifacts<T> {
             .map(|(file, c)| {
                 let file_path = Path::new(&file);
                 if let Ok(p) = file_path.strip_prefix(base) {
-                    (p.to_string_lossy().to_string(), c)
+                    (p.to_path_buf(), c)
                 } else {
                     (file, c)
                 }
@@ -370,10 +370,10 @@ impl<T> Artifacts<T> {
     }
 
     ///  Finds the artifact with matching path and name
-    pub fn find(&self, path: impl AsRef<str>, contract: impl AsRef<str>) -> Option<&T> {
+    pub fn find(&self, path: impl AsRef<Path>, contract: impl AsRef<str>) -> Option<&T> {
         let contract_path = path.as_ref();
         let contract_name = contract.as_ref();
-        self.0.iter().filter(|(path, _)| path.as_str() == contract_path).find_map(
+        self.0.iter().filter(|(path, _)| path.as_path() == contract_path).find_map(
             |(_file, contracts)| {
                 contracts.get(contract_name).and_then(|c| c.first().map(|a| &a.artifact))
             },
@@ -381,10 +381,10 @@ impl<T> Artifacts<T> {
     }
 
     /// Removes the artifact with matching file and name
-    pub fn remove(&mut self, path: impl AsRef<str>, contract: impl AsRef<str>) -> Option<T> {
+    pub fn remove(&mut self, path: impl AsRef<Path>, contract: impl AsRef<str>) -> Option<T> {
         let contract_path = path.as_ref();
         let contract_name = contract.as_ref();
-        self.0.iter_mut().filter(|(path, _)| path.as_str() == contract_path).find_map(
+        self.0.iter_mut().filter(|(path, _)| path.as_path() == contract_path).find_map(
             |(_file, contracts)| {
                 let mut artifact = None;
                 if let Some((c, mut artifacts)) = contracts.remove_entry(contract_name) {
@@ -804,7 +804,7 @@ pub trait ArtifactOutput {
     /// The `SourceFile` is also provided
     fn contract_to_artifact(
         &self,
-        _file: &str,
+        _file: &Path,
         _name: &str,
         contract: Contract,
         source_file: Option<&SourceFile>,
@@ -878,7 +878,7 @@ pub trait ArtifactOutput {
                 };
 
                 artifacts
-                    .entry(file.to_string())
+                    .entry(file.to_path_buf())
                     .or_default()
                     .entry(name.to_string())
                     .or_default()
@@ -926,7 +926,7 @@ pub trait ArtifactOutput {
                             }
 
                             let entries = artifacts
-                                .entry(file.to_string())
+                                .entry(file.clone())
                                 .or_default()
                                 .entry(name.to_string())
                                 .or_default();
@@ -958,7 +958,7 @@ pub trait ArtifactOutput {
     /// because other tools depend on this, such as slither.
     fn standalone_source_file_to_artifact(
         &self,
-        _path: &str,
+        _path: &Path,
         _file: &VersionedSourceFile,
     ) -> Option<Self::Artifact>;
 
@@ -988,15 +988,21 @@ pub struct OutputContext<'a> {
     /// └── inner
     ///     └── a.sol
     /// ```
-    pub cache: Cow<'a, SolFilesCache>,
+    pub existing_artifacts: BTreeMap<&'a Path, &'a BTreeMap<String, BTreeMap<Version, PathBuf>>>,
 }
 
 // === impl OutputContext
 
 impl<'a> OutputContext<'a> {
     /// Create a new context with the given cache file
-    pub fn new(cache: &'a SolFilesCache) -> Self {
-        Self { cache: Cow::Borrowed(cache) }
+    pub fn new<S>(cache: &'a CompilerCache<S>) -> Self {
+        let existing_artifacts = cache
+            .files
+            .iter()
+            .map(|(file, entry)| (file.as_path(), &entry.artifacts))
+            .collect::<BTreeMap<_, _>>();
+
+        Self { existing_artifacts }
     }
 
     /// Returns the path of the already existing artifact for the `contract` of the `file` compiled
@@ -1009,7 +1015,9 @@ impl<'a> OutputContext<'a> {
         contract: &str,
         version: &Version,
     ) -> Option<&PathBuf> {
-        self.cache.entry(file)?.find_artifact(contract, version)
+        self.existing_artifacts.get(file.as_ref()).and_then(|contracts| {
+            contracts.get(contract).and_then(|versions| versions.get(version))
+        })
     }
 }
 
@@ -1033,7 +1041,7 @@ impl ArtifactOutput for MinimalCombinedArtifacts {
 
     fn contract_to_artifact(
         &self,
-        _file: &str,
+        _file: &Path,
         _name: &str,
         contract: Contract,
         _source_file: Option<&SourceFile>,
@@ -1043,7 +1051,7 @@ impl ArtifactOutput for MinimalCombinedArtifacts {
 
     fn standalone_source_file_to_artifact(
         &self,
-        _path: &str,
+        _path: &Path,
         _file: &VersionedSourceFile,
     ) -> Option<Self::Artifact> {
         None
@@ -1086,7 +1094,7 @@ impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
 
     fn contract_to_artifact(
         &self,
-        file: &str,
+        file: &Path,
         name: &str,
         contract: Contract,
         source_file: Option<&SourceFile>,
@@ -1096,7 +1104,7 @@ impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
 
     fn standalone_source_file_to_artifact(
         &self,
-        path: &str,
+        path: &Path,
         file: &VersionedSourceFile,
     ) -> Option<Self::Artifact> {
         MinimalCombinedArtifacts::default().standalone_source_file_to_artifact(path, file)
