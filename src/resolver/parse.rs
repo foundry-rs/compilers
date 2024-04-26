@@ -245,7 +245,7 @@ impl<T> SolDataUnit<T> {
 ///
 /// NOTE: This method will return the match for the first named
 /// group, so the order of passed named groups matters.
-fn capture_outer_and_inner<'a>(
+pub fn capture_outer_and_inner<'a>(
     content: &'a str,
     regex: &regex::Regex,
     names: &[&str],

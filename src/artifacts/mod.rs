@@ -211,7 +211,12 @@ impl StandardJsonCompilerInput {
 impl From<StandardJsonCompilerInput> for CompilerInput {
     fn from(input: StandardJsonCompilerInput) -> Self {
         let StandardJsonCompilerInput { language, sources, settings } = input;
-        CompilerInput { language, sources: sources.into_iter().collect(), settings, ..Default::default() }
+        CompilerInput {
+            language,
+            sources: sources.into_iter().collect(),
+            settings,
+            ..Default::default()
+        }
     }
 }
 

@@ -42,6 +42,10 @@ pub static RE_SOL_SDPX_LICENSE_IDENTIFIER: Lazy<Regex> =
 /// A regex used to remove extra lines in flatenned files
 pub static RE_THREE_OR_MORE_NEWLINES: Lazy<Regex> = Lazy::new(|| Regex::new("\n{3,}").unwrap());
 
+/// A regex that matches version pragma in a Vyper
+pub static RE_VYPER_VERSION: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"#(?:pragma version|@version)\s+(?P<version>.+)").unwrap());
+
 /// Create a regex that matches any library or contract name inside a file
 pub fn create_contract_or_lib_name_regex(name: &str) -> Regex {
     Regex::new(&format!(r#"(?:using\s+(?P<n1>{name})\s+|is\s+(?:\w+\s*,\s*)*(?P<n2>{name})(?:\s*,\s*\w+)*|(?:(?P<ignore>(?:function|error|as)\s+|\n[^\n]*(?:"([^"\n]|\\")*|'([^'\n]|\\')*))|\W+)(?P<n3>{name})(?:\.|\(| ))"#)).unwrap()
@@ -85,7 +89,10 @@ pub fn source_files_iter(root: impl AsRef<Path>) -> impl Iterator<Item = PathBuf
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file())
         .filter(|e| {
-            e.path().extension().map(|ext| (ext == "sol") || (ext == "yul")).unwrap_or_default()
+            e.path()
+                .extension()
+                .map(|ext| (ext == "sol") || (ext == "yul") || (ext == "vy"))
+                .unwrap_or_default()
         })
         .map(|e| e.path().into())
 }

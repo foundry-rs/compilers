@@ -15,6 +15,7 @@ use std::{
 
 pub mod solc;
 mod vm;
+pub mod vyper;
 pub use vm::{CompilerVersion, CompilerVersionManager, VersionManagerError};
 
 pub trait CompilerSettings:

@@ -442,7 +442,8 @@ impl Solc {
                     // `--base-path` and `--include-path` conflict if set to the same path, so
                     // as a precaution, we ensure here that the `--base-path` is not also used
                     // for `--include-path`
-                    for path in include_paths.iter().filter(|p| p.as_path() != base_path.as_path()) {
+                    for path in include_paths.iter().filter(|p| p.as_path() != base_path.as_path())
+                    {
                         cmd.arg("--include-path").arg(path);
                     }
                 }
