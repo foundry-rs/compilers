@@ -566,14 +566,15 @@ fn compile_sequential<C: Compiler>(
                 input.sources().keys()
             );
 
+            let input = input
+                .with_remappings(paths.remappings.clone())
+                .with_base_path(paths.root.clone())
+                .with_allowed_paths(paths.allowed_paths.clone())
+                .with_include_paths(include_paths.clone());
+
             let start = Instant::now();
             // report::compiler_spawn(&version, &input, &actually_dirty);
-            let (input, output) = compiler.compile(
-                input,
-                Some(paths.root.clone()),
-                include_paths.clone(),
-                paths.allowed_paths.clone(),
-            )?;
+            let (input, output) = compiler.compile(input)?;
             // report::compiler_success(&version, &output, &start.elapsed());
             // trace!("compiled input, output has error: {}", output.has_error());
             trace!("received compiler output: {:?}", output.contracts.keys());
@@ -642,6 +643,12 @@ fn compile_parallel<C: Compiler>(
                 input.sources().keys()
             );
 
+            let input = input
+                .with_remappings(paths.remappings.clone())
+                .with_base_path(paths.root.clone())
+                .with_allowed_paths(paths.allowed_paths.clone())
+                .with_include_paths(include_paths.clone());
+
             jobs.push((compiler.clone(), version.clone(), input, actually_dirty));
         }
     }
@@ -668,17 +675,10 @@ fn compile_parallel<C: Compiler>(
                 );
                 let start = Instant::now();
                 // report::compiler_spawn(&version, &input, &actually_dirty);
-                compiler
-                    .compile(
-                        input,
-                        Some(paths.root.clone()),
-                        include_paths.clone(),
-                        paths.allowed_paths.clone(),
-                    )
-                    .map(move |(input, output)| {
-                        // report::compiler_success(&version, &output, &start.elapsed());
-                        (version, input, output)
-                    })
+                compiler.compile(input).map(move |(input, output)| {
+                    // report::compiler_success(&version, &output, &start.elapsed());
+                    (version, input, output)
+                })
             })
             .collect::<core::result::Result<Vec<_>, _>>()
     })?;

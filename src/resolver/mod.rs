@@ -1003,9 +1003,8 @@ src/Dapp.t.sol >=0.6.6
         let mut out = Vec::<u8>::new();
         tree::print(&graph, &Default::default(), &mut out).unwrap();
         assert_eq!(
-            "
-contracts/Greeter.sol >=0.6.0
-└── node_modules/hardhat/console.sol >= 0.4.22 <0.9.0
+            "contracts/Greeter.sol >=0.6.0
+└── node_modules/hardhat/console.sol >=0.4.22, <0.9.0
 ",
             String::from_utf8(out).unwrap()
         );

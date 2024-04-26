@@ -2585,7 +2585,7 @@ fn can_compile_std_json_input() {
 
     // should be installed
     if let Some(solc) = SolcVersionManager.get_installed(&Version::parse("0.8.10").unwrap()).ok() {
-        let (_, out) = solc.compile(input, None, BTreeSet::new(), BTreeSet::new()).unwrap();
+        let (_, out) = solc.compile(input).unwrap();
         assert!(!out.errors.is_empty());
         assert!(out.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
     }

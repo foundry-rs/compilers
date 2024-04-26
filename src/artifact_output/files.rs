@@ -7,6 +7,7 @@ use std::{
 };
 
 /// Container type for all contracts mapped to their output file
+#[derive(Debug)]
 pub struct MappedArtifactFiles<'a> {
     /// Represents the determined output artifact file and the contract(s) that target it
     ///
@@ -52,6 +53,7 @@ impl MappedArtifactFile {
     }
 }
 
+#[derive(Debug)]
 pub struct MappedContract<'a> {
     pub file: &'a Path,
     pub name: &'a str,

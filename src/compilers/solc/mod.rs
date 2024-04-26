@@ -13,6 +13,7 @@ use crate::{
         output_selection::OutputSelection, CompilerInput as SolcInput,
         CompilerOutput as SolcOutput, Error, Settings as SolcSettings, Sources,
     },
+    remappings::Remapping,
     resolver::parse::SolData,
     Solc,
 };
@@ -32,13 +33,11 @@ impl Compiler for Solc {
     fn compile(
         &self,
         mut input: Self::Input,
-        base_path: Option<PathBuf>,
-        include_paths: BTreeSet<PathBuf>,
-        allow_paths: BTreeSet<PathBuf>,
     ) -> Result<(Self::Input, CompilerOutput<Self::CompilationError>), Self::Error> {
-        let mut cmd = self.configure_cmd(base_path.clone(), include_paths, allow_paths);
+        let mut cmd =
+            self.configure_cmd(input.base_path.clone(), &input.include_paths, &input.allow_paths);
 
-        if let Some(ref base_path) = base_path {
+        if let Some(base_path) = input.base_path.clone() {
             // Strip prefix from all sources to ensure deterministic metadata.
             input.strip_prefix(base_path);
         }
@@ -61,7 +60,7 @@ impl Compiler for Solc {
             let output = std::str::from_utf8(&output.stdout).map_err(|_| SolcError::InvalidUtf8)?;
             let mut solc_output: SolcOutput = serde_json::from_str(output)?;
 
-            if let Some(ref base_path) = base_path {
+            if let Some(ref base_path) = input.base_path {
                 solc_output.join_all(base_path);
             }
 
@@ -110,16 +109,46 @@ impl CompilerInput for SolcInput {
                 language: "Solidity".to_string(),
                 sources: solidity_sources,
                 settings: settings.clone(),
+                allow_paths: Default::default(),
+                include_paths: Default::default(),
+                base_path: None,
             });
         }
         if !yul_sources.is_empty() {
-            res.push(Self { language: "Yul".to_string(), sources: yul_sources, settings });
+            res.push(Self {
+                language: "Yul".to_string(),
+                sources: yul_sources,
+                settings,
+                allow_paths: Default::default(),
+                include_paths: Default::default(),
+                base_path: None,
+            });
         }
         res
     }
 
     fn sources(&self) -> &Sources {
         &self.sources
+    }
+
+    fn with_allowed_paths(mut self, allowed_paths: BTreeSet<PathBuf>) -> Self {
+        self.allow_paths = allowed_paths;
+        self
+    }
+
+    fn with_base_path(mut self, base_path: PathBuf) -> Self {
+        self.base_path = Some(base_path);
+        self
+    }
+
+    fn with_include_paths(mut self, include_paths: BTreeSet<PathBuf>) -> Self {
+        self.include_paths = include_paths;
+        self
+    }
+
+    fn with_remappings(mut self, remappings: Vec<Remapping>) -> Self {
+        self.settings.remappings = remappings;
+        self
     }
 }
 

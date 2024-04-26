@@ -11,7 +11,7 @@ use md5::Digest;
 use semver::Version;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     fmt, fs,
     path::{Path, PathBuf},
     str::FromStr,
@@ -63,6 +63,12 @@ pub struct CompilerInput {
     pub language: String,
     pub sources: Sources,
     pub settings: Settings,
+    #[serde(skip)]
+    pub base_path: Option<PathBuf>,
+    #[serde(skip)]
+    pub allow_paths: BTreeSet<PathBuf>,
+    #[serde(skip)]
+    pub include_paths: BTreeSet<PathBuf>,
 }
 
 /// Default `language` field is set to `"Solidity"`.
@@ -72,6 +78,9 @@ impl Default for CompilerInput {
             language: SOLIDITY.to_string(),
             sources: Sources::default(),
             settings: Settings::default(),
+            base_path: None,
+            allow_paths: BTreeSet::default(),
+            include_paths: BTreeSet::default(),
         }
     }
 }
@@ -202,13 +211,13 @@ impl StandardJsonCompilerInput {
 impl From<StandardJsonCompilerInput> for CompilerInput {
     fn from(input: StandardJsonCompilerInput) -> Self {
         let StandardJsonCompilerInput { language, sources, settings } = input;
-        CompilerInput { language, sources: sources.into_iter().collect(), settings }
+        CompilerInput { language, sources: sources.into_iter().collect(), settings, ..Default::default() }
     }
 }
 
 impl From<CompilerInput> for StandardJsonCompilerInput {
     fn from(input: CompilerInput) -> Self {
-        let CompilerInput { language, sources, settings } = input;
+        let CompilerInput { language, sources, settings, .. } = input;
         StandardJsonCompilerInput { language, sources: sources.into_iter().collect(), settings }
     }
 }
@@ -2150,6 +2159,7 @@ mod tests {
             language: "Solidity".to_string(),
             sources: Default::default(),
             settings,
+            ..Default::default()
         };
 
         let i = input.clone().sanitized(&version);
@@ -2173,6 +2183,7 @@ mod tests {
             language: "Solidity".to_string(),
             sources: Default::default(),
             settings,
+            ..Default::default()
         };
 
         let i = input.clone().sanitized(&version);

@@ -426,8 +426,8 @@ impl Solc {
     pub fn configure_cmd(
         &self,
         base_path: Option<PathBuf>,
-        mut include_paths: BTreeSet<PathBuf>,
-        allow_paths: BTreeSet<PathBuf>,
+        mut include_paths: &BTreeSet<PathBuf>,
+        allow_paths: &BTreeSet<PathBuf>,
     ) -> Command {
         let mut cmd = Command::new(&self.solc);
         cmd.stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
@@ -442,8 +442,7 @@ impl Solc {
                     // `--base-path` and `--include-path` conflict if set to the same path, so
                     // as a precaution, we ensure here that the `--base-path` is not also used
                     // for `--include-path`
-                    include_paths.remove(&base_path);
-                    for path in include_paths {
+                    for path in include_paths.iter().filter(|p| p.as_path() != base_path.as_path()) {
                         cmd.arg("--include-path").arg(path);
                     }
                 }
