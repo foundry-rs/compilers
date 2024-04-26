@@ -930,7 +930,7 @@ mod tests {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/hardhat-sample");
         let paths = ProjectPathsConfig::hardhat(root).unwrap();
 
-        let graph = Graph::resolve(&paths).unwrap();
+        let graph = Graph::<SolData>::resolve(&paths).unwrap();
 
         assert_eq!(graph.edges.num_input_files, 1);
         assert_eq!(graph.files().len(), 2);
@@ -949,7 +949,7 @@ mod tests {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
         let paths = ProjectPathsConfig::dapptools(root).unwrap();
 
-        let graph = Graph::resolve(&paths).unwrap();
+        let graph = Graph::<SolData>::resolve(&paths).unwrap();
 
         assert_eq!(graph.edges.num_input_files, 2);
         assert_eq!(graph.files().len(), 3);
@@ -976,7 +976,7 @@ mod tests {
     fn can_print_dapp_sample_graph() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
         let paths = ProjectPathsConfig::dapptools(root).unwrap();
-        let graph = Graph::resolve(&paths).unwrap();
+        let graph = Graph::<SolData>::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();
         tree::print(&graph, &Default::default(), &mut out).unwrap();
 
@@ -999,18 +999,15 @@ src/Dapp.t.sol >=0.6.6
     fn can_print_hardhat_sample_graph() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/hardhat-sample");
         let paths = ProjectPathsConfig::hardhat(root).unwrap();
-        let graph = Graph::resolve(&paths).unwrap();
+        let graph = Graph::<SolData>::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();
         tree::print(&graph, &Default::default(), &mut out).unwrap();
         assert_eq!(
             "
 contracts/Greeter.sol >=0.6.0
 └── node_modules/hardhat/console.sol >= 0.4.22 <0.9.0
-"
-            .trim_start()
-            .as_bytes()
-            .to_vec(),
-            out
+",
+            String::from_utf8(out).unwrap()
         );
     }
 }

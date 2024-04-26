@@ -32,14 +32,16 @@ impl Compiler for Solc {
     fn compile(
         &self,
         mut input: Self::Input,
-        base_path: PathBuf,
+        base_path: Option<PathBuf>,
         include_paths: BTreeSet<PathBuf>,
         allow_paths: BTreeSet<PathBuf>,
     ) -> Result<(Self::Input, CompilerOutput<Self::CompilationError>), Self::Error> {
         let mut cmd = self.configure_cmd(base_path.clone(), include_paths, allow_paths);
 
-        // Strip prefix from all sources to ensure deterministic metadata.
-        input.strip_prefix(&base_path);
+        if let Some(ref base_path) = base_path {
+            // Strip prefix from all sources to ensure deterministic metadata.
+            input.strip_prefix(base_path);
+        }
 
         trace!(input=%serde_json::to_string(&input).unwrap_or_else(|e| e.to_string()));
         debug!(?cmd, "compiling");
@@ -59,7 +61,9 @@ impl Compiler for Solc {
             let output = std::str::from_utf8(&output.stdout).map_err(|_| SolcError::InvalidUtf8)?;
             let mut solc_output: SolcOutput = serde_json::from_str(output)?;
 
-            solc_output.join_all(&base_path);
+            if let Some(ref base_path) = base_path {
+                solc_output.join_all(base_path);
+            }
 
             let output = CompilerOutput {
                 errors: solc_output.errors,

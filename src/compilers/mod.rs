@@ -71,7 +71,7 @@ pub trait Compiler: Send + Sync {
     fn compile(
         &self,
         input: Self::Input,
-        base_path: PathBuf,
+        base_path: Option<PathBuf>,
         include_paths: BTreeSet<PathBuf>,
         allow_paths: BTreeSet<PathBuf>,
     ) -> Result<(Self::Input, CompilerOutput<Self::CompilationError>), Self::Error>;

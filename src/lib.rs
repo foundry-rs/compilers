@@ -270,6 +270,19 @@ impl<T: ArtifactOutput, S: CompilerSettings> Project<T, S> {
         println!("cargo:rerun-if-changed={}", self.paths.sources.display())
     }
 
+    pub fn compile<C: Compiler<Settings = S>>(
+        &self,
+        compiler: C,
+    ) -> MaybeCompilerResult<ProjectCompileOutput<C::CompilationError, T>, C> {
+        let sources = self.paths.read_input_files()?;
+        return project::ProjectCompiler::with_sources_and_compiler(
+            self,
+            self.sources()?,
+            compiler,
+        )?
+        .compile();
+    }
+
     /// Attempts to compile the contracts found at the configured source location, see
     /// `ProjectPathsConfig::sources`.
     ///
@@ -1056,7 +1069,12 @@ mod tests {
             .build()
             .unwrap();
         let project = Project::builder().paths(paths).no_artifacts().ephemeral().build().unwrap();
-        let contracts = project.compile_auto_detect(SolcVersionManager).unwrap().succeeded().into_output().contracts;
+        let contracts = project
+            .compile_auto_detect(SolcVersionManager)
+            .unwrap()
+            .succeeded()
+            .into_output()
+            .contracts;
         // Contracts A to F
         assert_eq!(contracts.contracts().count(), 3);
     }
@@ -1084,7 +1102,12 @@ mod tests {
             .no_artifacts()
             .build()
             .unwrap();
-        let contracts = project.compile_auto_detect(SolcVersionManager).unwrap().succeeded().into_output().contracts;
+        let contracts = project
+            .compile_auto_detect(SolcVersionManager)
+            .unwrap()
+            .succeeded()
+            .into_output()
+            .contracts;
         assert_eq!(contracts.contracts().count(), 3);
     }
 
@@ -1099,7 +1122,12 @@ mod tests {
             .build()
             .unwrap();
         let project = Project::builder().no_artifacts().paths(paths).ephemeral().build().unwrap();
-        let contracts = project.compile_auto_detect(SolcVersionManager).unwrap().succeeded().into_output().contracts;
+        let contracts = project
+            .compile_auto_detect(SolcVersionManager)
+            .unwrap()
+            .succeeded()
+            .into_output()
+            .contracts;
         assert_eq!(contracts.contracts().count(), 2);
     }
 

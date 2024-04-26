@@ -1,7 +1,18 @@
 //! Utilities for mocking project workspaces.
 
 use crate::{
-    artifacts::{Error, Settings}, compilers::{solc::SolcVersionManager, CompilerSettings}, config::ProjectPathsConfigBuilder, error::{Result, SolcError}, hh::HardhatArtifacts, project::MaybeCompilerResult, project_util::mock::{MockProjectGenerator, MockProjectSettings}, remappings::Remapping, utils::{self, tempdir}, Artifact, ArtifactOutput, Artifacts, CompilerCache, ConfigurableArtifacts, ConfigurableContractArtifact, FileFilter, PathStyle, Project, ProjectCompileOutput, ProjectPathsConfig, Solc, SolcIoError
+    artifacts::{Error, Settings},
+    compilers::{solc::SolcVersionManager, CompilerSettings},
+    config::ProjectPathsConfigBuilder,
+    error::{Result, SolcError},
+    hh::HardhatArtifacts,
+    project::MaybeCompilerResult,
+    project_util::mock::{MockProjectGenerator, MockProjectSettings},
+    remappings::Remapping,
+    utils::{self, tempdir},
+    Artifact, ArtifactOutput, Artifacts, CompilerCache, ConfigurableArtifacts,
+    ConfigurableContractArtifact, FileFilter, PathStyle, Project, ProjectCompileOutput,
+    ProjectPathsConfig, Solc, SolcIoError,
 };
 use fs_extra::{dir, file};
 use std::{
@@ -22,12 +33,14 @@ pub struct TempProject<T: ArtifactOutput = ConfigurableArtifacts, S = Settings> 
     _root: TempDir,
     /// actual project workspace with the `root` tempdir as its root
     inner: Project<T, S>,
+
+    solc: Option<Solc>,
 }
 
 impl<T: ArtifactOutput> TempProject<T> {
     /// Makes sure all resources are created
     pub fn create_new(root: TempDir, inner: Project<T>) -> std::result::Result<Self, SolcIoError> {
-        let mut project = Self { _root: root, inner };
+        let mut project = Self { _root: root, inner, solc: None };
         project.paths().create_all()?;
         // ignore license warnings
         project.inner.ignored_error_codes.push(1878);
@@ -62,8 +75,12 @@ impl<T: ArtifactOutput> TempProject<T> {
     /// Explicitly sets the solc version for the project
     #[cfg(feature = "svm-solc")]
     pub fn set_solc(&mut self, solc: impl AsRef<str>) -> &mut Self {
-        self.inner.solc = crate::Solc::find_or_install_svm_version(solc).unwrap();
-        self.inner.auto_detect = false;
+        use crate::compilers::CompilerVersionManager;
+        use semver::Version;
+
+        self.solc = Some(
+            SolcVersionManager.get_or_install(&Version::parse(solc.as_ref()).unwrap()).unwrap(),
+        );
         self
     }
 
@@ -263,7 +280,7 @@ contract {} {{}}
     }
 
     /// Compiles the project and ensures that the output has __changed__
-    pub fn ensure_changed(&self) -> MaybeCompilerResult<&Self, Solc> {
+    pub fn ensure_changed(&self) -> Result<&Self> {
         let compiled = self.compile().unwrap();
         if compiled.is_unchanged() {
             bail!("Compiled without detecting changes {}", compiled)
@@ -316,10 +333,17 @@ contract {} {{}}
     }
 
     pub fn compile(&self) -> MaybeCompilerResult<ProjectCompileOutput<Error, T>, Solc> {
-        self.project().compile_auto_detect(SolcVersionManager)
+        if let Some(solc) = self.solc.as_ref() {
+            self.project().compile(solc.clone())
+        } else {
+            self.project().compile_auto_detect(SolcVersionManager)
+        }
     }
 
-    pub fn compile_sparse(&self, filter: Box<dyn FileFilter>) -> MaybeCompilerResult<ProjectCompileOutput<Error, T>, Solc> {
+    pub fn compile_sparse(
+        &self,
+        filter: Box<dyn FileFilter>,
+    ) -> MaybeCompilerResult<ProjectCompileOutput<Error, T>, Solc> {
         self.project().compile_sparse(filter, SolcVersionManager)
     }
 }

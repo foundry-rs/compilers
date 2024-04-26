@@ -67,4 +67,8 @@ pub trait CompilerVersionManager {
 
     fn install(&self, version: &Version) -> Result<Self::Compiler, VersionManagerError>;
     fn get_installed(&self, version: &Version) -> Result<Self::Compiler, VersionManagerError>;
+
+    fn get_or_install(&self, version: &Version) -> Result<Self::Compiler, VersionManagerError> {
+        self.get_installed(version).or_else(|_| self.install(version))
+    }
 }

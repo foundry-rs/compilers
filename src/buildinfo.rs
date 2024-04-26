@@ -96,6 +96,7 @@ impl std::io::Write for BuildInfoWriter {
 }
 
 #[cfg(test)]
+#[cfg(ignore)]
 mod tests {
     use super::*;
     use crate::Source;

@@ -570,7 +570,7 @@ fn compile_sequential<C: Compiler>(
             // report::compiler_spawn(&version, &input, &actually_dirty);
             let (input, output) = compiler.compile(
                 input,
-                paths.root.clone(),
+                Some(paths.root.clone()),
                 include_paths.clone(),
                 paths.allowed_paths.clone(),
             )?;
@@ -671,7 +671,7 @@ fn compile_parallel<C: Compiler>(
                 compiler
                     .compile(
                         input,
-                        paths.root.clone(),
+                        Some(paths.root.clone()),
                         include_paths.clone(),
                         paths.allowed_paths.clone(),
                     )
@@ -701,8 +701,8 @@ fn compile_parallel<C: Compiler>(
 mod tests {
     use super::*;
     use crate::{
-        artifacts::output_selection::ContractOutputSelection, project_util::TempProject,
-        ConfigurableArtifacts, MinimalCombinedArtifacts,
+        artifacts::output_selection::ContractOutputSelection, compilers::solc::SolcVersionManager,
+        project_util::TempProject, ConfigurableArtifacts, MinimalCombinedArtifacts,
     };
 
     fn init_tracing() {
@@ -718,7 +718,7 @@ mod tests {
         let project =
             Project::builder().paths(ProjectPathsConfig::dapptools(root).unwrap()).build().unwrap();
 
-        let compiler = ProjectCompiler::new(&project).unwrap();
+        let compiler = ProjectCompiler::new(&project, SolcVersionManager).unwrap();
         let prep = compiler.preprocess().unwrap();
         let cache = prep.cache.as_cached().unwrap();
         // ensure that we have exactly 3 empty entries which will be filled on compilation.
@@ -739,7 +739,7 @@ mod tests {
         compiled.assert_success();
 
         let inner = project.project();
-        let compiler = ProjectCompiler::new(inner).unwrap();
+        let compiler = ProjectCompiler::new(inner, SolcVersionManager).unwrap();
         let prep = compiler.preprocess().unwrap();
         assert!(prep.cache.as_cached().unwrap().dirty_sources.is_empty())
     }
@@ -798,7 +798,7 @@ mod tests {
         )
         .unwrap();
 
-        let compiler = ProjectCompiler::new(tmp.project()).unwrap();
+        let compiler = ProjectCompiler::new(tmp.project(), SolcVersionManager).unwrap();
         let state = compiler.preprocess().unwrap();
         let sources = state.sources.sources();
 
@@ -812,7 +812,7 @@ mod tests {
         // single solc
         assert_eq!(sources.len(), 1);
 
-        let (_, filtered) = sources.values().next().unwrap();
+        let filtered = &sources[0].2;
 
         // 3 contracts total
         assert_eq!(filtered.0.len(), 3);
@@ -859,7 +859,7 @@ mod tests {
             .build()
             .unwrap();
         let project = Project::builder().paths(paths).build().unwrap();
-        let compiler = ProjectCompiler::new(&project).unwrap();
+        let compiler = ProjectCompiler::new(&project, SolcVersionManager).unwrap();
         let _out = compiler.compile().unwrap();
     }
 
