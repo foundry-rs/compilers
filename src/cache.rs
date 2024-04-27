@@ -1,7 +1,7 @@
 //! Support for compiling contracts.
 
 use crate::{
-    artifacts::Sources,
+    artifacts::{Settings, Sources},
     compilers::{CompilerSettings, ParsedSource},
     config::ProjectPaths,
     error::{Result, SolcError},
@@ -31,7 +31,7 @@ pub const SOLIDITY_FILES_CACHE_FILENAME: &str = "solidity-files-cache.json";
 
 /// A multi version cache file
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct CompilerCache<S> {
+pub struct CompilerCache<S = Settings> {
     #[serde(rename = "_format")]
     pub format: String,
     /// contains all directories used for the project
@@ -363,7 +363,7 @@ impl<'a, S: CompilerSettings> From<&'a ProjectPathsConfig> for CompilerCache<S> 
 /// `solc` versions generating version specific artifacts.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CacheEntry<S> {
+pub struct CacheEntry<S = Settings> {
     /// the last modification time of this file
     pub last_modification_date: u64,
     /// hash to identify whether the content of the file changed

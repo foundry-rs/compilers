@@ -2,8 +2,7 @@
 
 use crate::{
     artifacts::{
-        contract::{CompactContractBytecode, CompactContractRef, Contract},
-        Severity,
+        contract::{CompactContractBytecode, CompactContractRef, Contract}, Error, Severity
     },
     buildinfo::RawBuildInfo,
     compilers::{CompilationError, CompilerOutput},
@@ -29,7 +28,7 @@ pub mod sources;
 /// Contains a mixture of already compiled/cached artifacts and the input set of sources that still
 /// need to be compiled.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct ProjectCompileOutput<E, T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct ProjectCompileOutput<E = Error, T: ArtifactOutput = ConfigurableArtifacts> {
     /// contains the aggregated `CompilerOutput`
     pub(crate) compiler_output: AggregatedCompilerOutput<E>,
     /// all artifact files from `output` that were freshly compiled and written
