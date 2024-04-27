@@ -426,8 +426,8 @@ impl<C: Compiler> CompilerSources<C> {
         {
             use path_slash::PathBufExt;
 
-            fn slash_versioned_sources(v: &mut VersionedSources) {
-                for (_, (_, sources)) in v {
+            fn slash_versioned_sources<C: Compiler>(v: &mut VersionedSources<C>) {
+                for (_, _, sources) in v {
                     *sources = std::mem::take(sources)
                         .into_iter()
                         .map(|(path, source)| {

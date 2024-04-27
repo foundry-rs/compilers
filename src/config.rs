@@ -170,8 +170,20 @@ impl ProjectPathsConfig {
             self.libraries.iter_mut().for_each(slashed);
             self.remappings.iter_mut().for_each(Remapping::slash_path);
 
-            self.include_paths.iter_mut().for_each(slashed);
-            self.allowed_paths.iter_mut().for_each(slashed);
+            self.include_paths = std::mem::take(&mut self.include_paths)
+                .into_iter()
+                .map(|mut p| {
+                    slashed(&mut p);
+                    p
+                })
+                .collect();
+            self.allowed_paths = std::mem::take(&mut self.allowed_paths)
+                .into_iter()
+                .map(|mut p| {
+                    slashed(&mut p);
+                    p
+                })
+                .collect();
         }
     }
 

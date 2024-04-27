@@ -19,7 +19,7 @@ impl VersionedSourceFiles {
             use path_slash::PathExt;
             self.0 = std::mem::take(&mut self.0)
                 .into_iter()
-                .map(|(path, files)| (PathBuf::from(path.to_slash_lossy()), files))
+                .map(|(path, files)| (PathBuf::from(path.to_slash_lossy().as_ref()), files))
                 .collect()
         }
     }
