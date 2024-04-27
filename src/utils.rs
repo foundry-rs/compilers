@@ -587,6 +587,8 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn can_read_different_case() {
+        use crate::resolver::parse::SolData;
+
         let tmp_dir = tempdir("out").unwrap();
         let path = tmp_dir.path().join("forge-std");
         create_dir_all(&path).unwrap();
@@ -603,7 +605,7 @@ contract A {}
 
         assert!(!non_existing.exists());
 
-        let found = crate::resolver::Node::read(&non_existing).unwrap_err();
+        let found = crate::resolver::Node::<SolData>::read(&non_existing).unwrap_err();
         matches!(found, SolcError::ResolveCaseSensitiveFileName { .. });
     }
 
