@@ -139,7 +139,7 @@ pub type MaybeCompilerResult<T, C> =
 pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
     /// Contains the relationship of the source files and their imports
     edges: GraphEdges<C::ParsedSource>,
-    project: &'a Project<T, C::Settings>,
+    project: &'a Project<T, C>,
     /// how to compile all the sources
     sources: CompilerSources<C>,
     /// How to select solc [`crate::artifacts::CompilerOutput`] for files
@@ -151,7 +151,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     /// sources.
     #[cfg(feature = "svm-solc")]
     pub fn new<VM: CompilerVersionManager<Compiler = C>>(
-        project: &'a Project<T, C::Settings>,
+        project: &'a Project<T, C>,
         version_manager: VM,
     ) -> Result<Self> {
         Self::with_sources(project, project.paths.read_input_files()?, version_manager)
@@ -165,7 +165,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     /// multiple `jobs`, see [`crate::Project::set_solc_jobs()`].
     #[cfg(feature = "svm-solc")]
     pub fn with_sources<VM: CompilerVersionManager<Compiler = C>>(
-        project: &'a Project<T, C::Settings>,
+        project: &'a Project<T, C>,
         sources: Sources,
         version_manager: VM,
     ) -> Result<Self> {
@@ -187,7 +187,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
 
     /// Compiles the sources with a pinned `Solc` instance
     pub fn with_sources_and_compiler(
-        project: &'a Project<T, C::Settings>,
+        project: &'a Project<T, C>,
         sources: Sources,
         compiler: C,
     ) -> Result<Self> {
@@ -235,7 +235,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
         let mut output = self
             .preprocess()?
             .compile()
-            .map_err(|e| MaybeCompilerError::CompilerError(e))?
+            .map_err(MaybeCompilerError::CompilerError)?
             .write_artifacts()?
             .write_cache()?;
 
@@ -275,7 +275,7 @@ struct PreprocessedState<'a, T: ArtifactOutput, C: Compiler> {
     sources: FilteredCompilerSources<C>,
 
     /// Cache that holds `CacheEntry` objects if caching is enabled and the project is recompiled
-    cache: ArtifactsCache<'a, T, C::ParsedSource, C::Settings>,
+    cache: ArtifactsCache<'a, T, C>,
 
     sparse_output: SparseOutputFilter,
 }
@@ -309,7 +309,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> PreprocessedState<'a, T, C> {
 #[derive(Debug)]
 struct CompiledState<'a, T: ArtifactOutput, C: Compiler> {
     output: AggregatedCompilerOutput<C::CompilationError>,
-    cache: ArtifactsCache<'a, T, C::ParsedSource, C::Settings>,
+    cache: ArtifactsCache<'a, T, C>,
 }
 
 impl<'a, T: ArtifactOutput, C: Compiler> CompiledState<'a, T, C> {
@@ -372,7 +372,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> CompiledState<'a, T, C> {
 #[derive(Debug)]
 struct ArtifactsState<'a, T: ArtifactOutput, C: Compiler> {
     output: AggregatedCompilerOutput<C::CompilationError>,
-    cache: ArtifactsCache<'a, T, C::ParsedSource, C::Settings>,
+    cache: ArtifactsCache<'a, T, C>,
     compiled_artifacts: Artifacts<T::Artifact>,
 }
 
@@ -447,11 +447,11 @@ impl<C: Compiler> CompilerSources<C> {
     /// Filters out all sources that don't need to be compiled, see [`ArtifactsCache::filter`]
     fn filtered<T: ArtifactOutput>(
         self,
-        cache: &mut ArtifactsCache<'_, T, C::ParsedSource, C::Settings>,
+        cache: &mut ArtifactsCache<'_, T, C>,
     ) -> FilteredCompilerSources<C> {
         fn filtered_sources<T: ArtifactOutput, C: Compiler>(
             sources: VersionedSources<C>,
-            cache: &mut ArtifactsCache<'_, T, C::ParsedSource, C::Settings>,
+            cache: &mut ArtifactsCache<'_, T, C>,
         ) -> VersionedFilteredSources<C> {
             cache.remove_dirty_sources();
 
@@ -715,8 +715,10 @@ mod tests {
     #[test]
     fn can_preprocess() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
-        let project =
-            Project::builder().paths(ProjectPathsConfig::dapptools(root).unwrap()).build().unwrap();
+        let project = Project::builder()
+            .paths(ProjectPathsConfig::dapptools(root).unwrap())
+            .build(Default::default())
+            .unwrap();
 
         let compiler = ProjectCompiler::new(&project, SolcVersionManager).unwrap();
         let prep = compiler.preprocess().unwrap();
@@ -858,7 +860,7 @@ mod tests {
             .root("../../foundry-integration-tests/testdata/solmate")
             .build()
             .unwrap();
-        let project = Project::builder().paths(paths).build().unwrap();
+        let project = Project::builder().paths(paths).build(Default::default()).unwrap();
         let compiler = ProjectCompiler::new(&project, SolcVersionManager).unwrap();
         let _out = compiler.compile().unwrap();
     }

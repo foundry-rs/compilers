@@ -5,6 +5,7 @@ use crate::{
 use semver::Version;
 use std::collections::HashSet;
 
+#[derive(Debug)]
 pub struct SolcVersionManager;
 
 impl CompilerVersionManager for SolcVersionManager {

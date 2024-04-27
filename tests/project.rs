@@ -37,8 +37,13 @@ fn can_get_versioned_linkrefs() {
         .build()
         .unwrap();
 
-    let project = Project::builder().paths(paths).ephemeral().no_artifacts().build().unwrap();
-    project.compile_auto_detect(SolcVersionManager).unwrap().assert_success();
+    let project = Project::builder()
+        .paths(paths)
+        .ephemeral()
+        .no_artifacts()
+        .build(Default::default())
+        .unwrap();
+    project.compile().unwrap().assert_success();
 }
 
 #[test]
@@ -415,26 +420,26 @@ fn can_compile_dapp_sample_with_cache() {
         .unwrap();
 
     // first compile
-    let project = Project::builder().paths(paths).build().unwrap();
-    let compiled = project.compile_auto_detect(SolcVersionManager).unwrap();
+    let project = Project::builder().paths(paths).build(Default::default()).unwrap();
+    let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Dapp").is_some());
     compiled.assert_success();
 
     // cache is used when nothing to compile
-    let compiled = project.compile_auto_detect(SolcVersionManager).unwrap();
+    let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Dapp").is_some());
     assert!(compiled.is_unchanged());
 
     // deleted artifacts cause recompile even with cache
     std::fs::remove_dir_all(project.artifacts_path()).unwrap();
-    let compiled = project.compile_auto_detect(SolcVersionManager).unwrap();
+    let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Dapp").is_some());
     assert!(!compiled.is_unchanged());
 
     // new file is compiled even with partial cache
     std::fs::copy(cache_testdata_dir.join("NewContract.sol"), root.join("src/NewContract.sol"))
         .unwrap();
-    let compiled = project.compile_auto_detect(SolcVersionManager).unwrap();
+    let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Dapp").is_some());
     assert!(compiled.find_first("NewContract").is_some());
     assert!(!compiled.is_unchanged());
@@ -450,7 +455,7 @@ fn can_compile_dapp_sample_with_cache() {
 
     // old cached artifact is not taken from the cache
     std::fs::copy(cache_testdata_dir.join("Dapp.sol"), root.join("src/Dapp.sol")).unwrap();
-    let compiled = project.compile_auto_detect(SolcVersionManager).unwrap();
+    let compiled = project.compile().unwrap();
     assert_eq!(
         compiled.into_artifacts().map(|(artifact_id, _)| artifact_id.name).collect::<HashSet<_>>(),
         HashSet::from([
@@ -463,8 +468,7 @@ fn can_compile_dapp_sample_with_cache() {
 
     // deleted artifact is not taken from the cache
     std::fs::remove_file(project.paths.sources.join("Dapp.sol")).unwrap();
-    let compiled: ProjectCompileOutput<_> =
-        project.compile_auto_detect(SolcVersionManager).unwrap();
+    let compiled: ProjectCompileOutput<_> = project.compile().unwrap();
     assert!(compiled.find_first("Dapp").is_none());
 }
 
@@ -1838,7 +1842,7 @@ fn can_compile_single_files() {
         )
         .unwrap();
 
-    let compiled = tmp.project().compile_file(f.clone(), SolcVersionManager).unwrap();
+    let compiled = tmp.project().compile_file(f.clone()).unwrap();
     compiled.assert_success();
     assert!(compiled.find_first("Foo").is_some());
 
@@ -1853,7 +1857,7 @@ fn can_compile_single_files() {
         )
         .unwrap();
 
-    let compiled = tmp.project().compile_files(vec![f, bar], SolcVersionManager).unwrap();
+    let compiled = tmp.project().compile_files(vec![f, bar]).unwrap();
     compiled.assert_success();
     assert!(compiled.find_first("Foo").is_some());
     assert!(compiled.find_first("Bar").is_some());
@@ -2547,7 +2551,7 @@ fn can_create_standard_json_input_with_external_file() {
     .unwrap();
 
     // solc compiles using the host file system; therefore, this setup is considered valid
-    let compiled = verif_project.compile_auto_detect(SolcVersionManager).unwrap();
+    let compiled = verif_project.compile().unwrap();
     compiled.assert_success();
 
     // can create project root based paths
@@ -2691,9 +2695,9 @@ fn test_compiler_severity_filter() {
         .no_artifacts()
         .paths(gen_test_data_warning_path())
         .ephemeral()
-        .build()
+        .build(Default::default())
         .unwrap();
-    let compiled = project.compile_auto_detect(SolcVersionManager).unwrap();
+    let compiled = project.compile().unwrap();
     assert!(compiled.has_compiler_warnings());
     compiled.assert_success();
 
@@ -2702,9 +2706,9 @@ fn test_compiler_severity_filter() {
         .paths(gen_test_data_warning_path())
         .ephemeral()
         .set_compiler_severity_filter(foundry_compilers::artifacts::Severity::Warning)
-        .build()
+        .build(Default::default())
         .unwrap();
-    let compiled = project.compile_auto_detect(SolcVersionManager).unwrap();
+    let compiled = project.compile().unwrap();
     assert!(compiled.has_compiler_warnings());
     assert!(compiled.has_compiler_errors());
 }
@@ -2734,8 +2738,8 @@ fn compile_project_with_options(
         builder = builder.set_compiler_severity_filter(severity);
     }
 
-    let project = builder.build().unwrap();
-    project.compile_auto_detect(SolcVersionManager).unwrap()
+    let project = builder.build(Default::default()).unwrap();
+    project.compile().unwrap()
 }
 
 #[test]

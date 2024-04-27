@@ -2,7 +2,7 @@
 
 use crate::{
     artifacts::{Settings, Sources},
-    compilers::{CompilerSettings, ParsedSource},
+    compilers::{Compiler, CompilerSettings},
     config::ProjectPaths,
     error::{Result, SolcError},
     filter::{FilteredSources, SourceCompilationKind},
@@ -543,18 +543,18 @@ impl GroupedSources {
 /// A helper abstraction over the [`SolFilesCache`] used to determine what files need to compiled
 /// and which `Artifacts` can be reused.
 #[derive(Debug)]
-pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput, D, S> {
+pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput, C: Compiler> {
     /// The preexisting cache file.
-    pub cache: CompilerCache<S>,
+    pub cache: CompilerCache<C::Settings>,
 
     /// All already existing artifacts.
     pub cached_artifacts: Artifacts<T::Artifact>,
 
     /// Relationship between all the files.
-    pub edges: GraphEdges<D>,
+    pub edges: GraphEdges<C::ParsedSource>,
 
     /// The project.
-    pub project: &'a Project<T, S>,
+    pub project: &'a Project<T, C>,
 
     /// Files that were invalidated and removed from cache.
     /// Those are not grouped by version and purged completely.
@@ -569,7 +569,7 @@ pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput, D, S> {
     pub content_hashes: HashMap<PathBuf, String>,
 }
 
-impl<'a, T: ArtifactOutput, D: ParsedSource, S: CompilerSettings> ArtifactsCacheInner<'a, T, D, S> {
+impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
     /// Creates a new cache entry for the file
     fn create_cache_entry(&mut self, file: PathBuf, source: &Source) {
         let imports = self
@@ -580,7 +580,7 @@ impl<'a, T: ArtifactOutput, D: ParsedSource, S: CompilerSettings> ArtifactsCache
             .collect();
 
         let entry = CacheEntry {
-            last_modification_date: CacheEntry::<S>::read_last_modification_date(&file)
+            last_modification_date: CacheEntry::<C::Settings>::read_last_modification_date(&file)
                 .unwrap_or_default(),
             content_hash: source.content_hash(),
             source_name: utils::source_name(&file, self.project.root()).into(),
@@ -715,7 +715,8 @@ impl<'a, T: ArtifactOutput, D: ParsedSource, S: CompilerSettings> ArtifactsCache
 
         // Build a temporary graph for walking imports. We need this because `self.edges`
         // only contains graph data for in-scope sources but we are operating on cache entries.
-        let Ok(graph) = Graph::<D>::resolve_sources(&self.project.paths, sources) else {
+        let Ok(graph) = Graph::<C::ParsedSource>::resolve_sources(&self.project.paths, sources)
+        else {
             // Purge all sources on graph resolution error.
             self.dirty_sources.extend(files);
             return;
@@ -794,22 +795,22 @@ impl<'a, T: ArtifactOutput, D: ParsedSource, S: CompilerSettings> ArtifactsCache
 /// Abstraction over configured caching which can be either non-existent or an already loaded cache
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
-pub(crate) enum ArtifactsCache<'a, T: ArtifactOutput, D, S> {
+pub(crate) enum ArtifactsCache<'a, T: ArtifactOutput, C: Compiler> {
     /// Cache nothing on disk
-    Ephemeral(GraphEdges<D>, &'a Project<T, S>),
+    Ephemeral(GraphEdges<C::ParsedSource>, &'a Project<T, C>),
     /// Handles the actual cached artifacts, detects artifacts that can be reused
-    Cached(ArtifactsCacheInner<'a, T, D, S>),
+    Cached(ArtifactsCacheInner<'a, T, C>),
 }
 
-impl<'a, T: ArtifactOutput, D: ParsedSource, S: CompilerSettings> ArtifactsCache<'a, T, D, S> {
-    pub fn new(project: &'a Project<T, S>, edges: GraphEdges<D>) -> Result<Self> {
+impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
+    pub fn new(project: &'a Project<T, C>, edges: GraphEdges<C::ParsedSource>) -> Result<Self> {
         /// Returns the [SolFilesCache] to use
         ///
         /// Returns a new empty cache if the cache does not exist or `invalidate_cache` is set.
-        fn get_cache<T: ArtifactOutput, S: CompilerSettings>(
-            project: &Project<T, S>,
+        fn get_cache<T: ArtifactOutput, C: Compiler>(
+            project: &Project<T, C>,
             invalidate_cache: bool,
-        ) -> CompilerCache<S> {
+        ) -> CompilerCache<C::Settings> {
             // the currently configured paths
             let paths = project.paths.paths_relative();
 
@@ -868,7 +869,7 @@ impl<'a, T: ArtifactOutput, D: ParsedSource, S: CompilerSettings> ArtifactsCache
     }
 
     /// Returns the graph data for this project
-    pub fn graph(&self) -> &GraphEdges<D> {
+    pub fn graph(&self) -> &GraphEdges<C::ParsedSource> {
         match self {
             ArtifactsCache::Ephemeral(graph, _) => graph,
             ArtifactsCache::Cached(inner) => &inner.edges,
@@ -879,7 +880,7 @@ impl<'a, T: ArtifactOutput, D: ParsedSource, S: CompilerSettings> ArtifactsCache
     #[allow(unused)]
     #[doc(hidden)]
     // only useful for debugging for debugging purposes
-    pub fn as_cached(&self) -> Option<&ArtifactsCacheInner<'a, T, D, S>> {
+    pub fn as_cached(&self) -> Option<&ArtifactsCacheInner<'a, T, C>> {
         match self {
             ArtifactsCache::Ephemeral(_, _) => None,
             ArtifactsCache::Cached(cached) => Some(cached),
@@ -893,7 +894,7 @@ impl<'a, T: ArtifactOutput, D: ParsedSource, S: CompilerSettings> ArtifactsCache
         }
     }
 
-    pub fn project(&self) -> &'a Project<T, S> {
+    pub fn project(&self) -> &'a Project<T, C> {
         match self {
             ArtifactsCache::Ephemeral(_, project) => project,
             ArtifactsCache::Cached(cache) => cache.project,
@@ -953,7 +954,7 @@ impl<'a, T: ArtifactOutput, D: ParsedSource, S: CompilerSettings> ArtifactsCache
                     if dirty_sources.contains(file) {
                         return false;
                     }
-                    if written_artifacts.find_artifact(&file, name, version).is_some() {
+                    if written_artifacts.find_artifact(file, name, version).is_some() {
                         return false;
                     }
                     true

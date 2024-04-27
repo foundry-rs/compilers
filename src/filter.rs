@@ -1,9 +1,7 @@
 //! Types to apply filter to input types
 
 use crate::{
-    artifacts::output_selection::OutputSelection,
-    compilers::{CompilerInput, CompilerSettings},
-    Source, Sources,
+    artifacts::output_selection::OutputSelection, compilers::CompilerSettings, Source, Sources,
 };
 use std::{
     collections::BTreeMap,

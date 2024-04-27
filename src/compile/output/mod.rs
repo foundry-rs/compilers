@@ -2,7 +2,8 @@
 
 use crate::{
     artifacts::{
-        contract::{CompactContractBytecode, CompactContractRef, Contract}, Error, Severity
+        contract::{CompactContractBytecode, CompactContractRef, Contract},
+        Error, Severity,
     },
     buildinfo::RawBuildInfo,
     compilers::{CompilationError, CompilerOutput},

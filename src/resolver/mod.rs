@@ -361,7 +361,7 @@ impl<D: ParsedSource> Graph<D> {
                 None => continue,
             };
 
-            for import_path in node.data.resolve_imports(&paths) {
+            for import_path in node.data.resolve_imports(paths) {
                 match paths.resolve_import_and_include_paths(
                     cwd,
                     &import_path,
@@ -429,7 +429,7 @@ impl<D: ParsedSource> Graph<D> {
             versions: nodes
                 .iter()
                 .enumerate()
-                .map(|(idx, node)| (idx, node.data.version_req().map(|v| v.clone())))
+                .map(|(idx, node)| (idx, node.data.version_req().cloned()))
                 .collect(),
             data: Default::default(),
             unresolved_imports,

@@ -5,6 +5,7 @@ use crate::{
     remappings::Remapping,
     ProjectPathsConfig,
 };
+use auto_impl::auto_impl;
 use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
@@ -36,16 +37,16 @@ pub trait CompilerInput: Serialize + Send + Sized {
 
     fn build(sources: Sources, settings: Self::Settings, version: &Version) -> Vec<Self>;
     fn sources(&self) -> &Sources;
-    fn with_remappings(self, remappings: Vec<Remapping>) -> Self {
+    fn with_remappings(self, _remappings: Vec<Remapping>) -> Self {
         self
     }
-    fn with_base_path(self, base_path: PathBuf) -> Self {
+    fn with_base_path(self, _base_path: PathBuf) -> Self {
         self
     }
-    fn with_allowed_paths(self, allowed_paths: BTreeSet<PathBuf>) -> Self {
+    fn with_allowed_paths(self, _allowed_paths: BTreeSet<PathBuf>) -> Self {
         self
     }
-    fn with_include_paths(self, include_paths: BTreeSet<PathBuf>) -> Self {
+    fn with_include_paths(self, _include_paths: BTreeSet<PathBuf>) -> Self {
         self
     }
 }
@@ -75,7 +76,8 @@ pub trait CompilationError: DeserializeOwned + Send + Debug {
     fn error_code(&self) -> Option<u64>;
 }
 
-pub trait Compiler: Send + Sync {
+#[auto_impl(&, Box)]
+pub trait Compiler: Send + Sync + Clone {
     type Input: CompilerInput<Settings = Self::Settings>;
     type Error: CompilerError;
     type CompilationError: CompilationError;

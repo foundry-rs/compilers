@@ -1,6 +1,8 @@
 use core::fmt;
+use std::fmt::Debug;
 
 use super::Compiler;
+use auto_impl::auto_impl;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
@@ -59,7 +61,8 @@ impl VersionManagerError {
     }
 }
 
-pub trait CompilerVersionManager {
+#[auto_impl(&, Box, Arc)]
+pub trait CompilerVersionManager: Debug {
     type Compiler: Compiler;
 
     fn all_versions(&self) -> Vec<CompilerVersion>;

@@ -2,7 +2,7 @@
 
 use crate::{
     artifacts::{Error, Settings},
-    compilers::{solc::SolcVersionManager, CompilerSettings},
+    compilers::{solc::SolcVersionManager, Compiler, CompilerSettings},
     config::ProjectPathsConfigBuilder,
     error::{Result, SolcError},
     hh::HardhatArtifacts,
@@ -28,19 +28,17 @@ pub mod mock;
 /// A [`Project`] wrapper that lives in a new temporary directory
 ///
 /// Once `TempProject` is dropped, the temp dir is automatically removed, see [`TempDir::drop()`]
-pub struct TempProject<T: ArtifactOutput = ConfigurableArtifacts, S = Settings> {
+pub struct TempProject<T: ArtifactOutput = ConfigurableArtifacts, C: Compiler = Solc> {
     /// temporary workspace root
     _root: TempDir,
     /// actual project workspace with the `root` tempdir as its root
-    inner: Project<T, S>,
-
-    solc: Option<Solc>,
+    inner: Project<T, C>,
 }
 
 impl<T: ArtifactOutput> TempProject<T> {
     /// Makes sure all resources are created
     pub fn create_new(root: TempDir, inner: Project<T>) -> std::result::Result<Self, SolcIoError> {
-        let mut project = Self { _root: root, inner, solc: None };
+        let mut project = Self { _root: root, inner };
         project.paths().create_all()?;
         // ignore license warnings
         project.inner.ignored_error_codes.push(1878);
@@ -62,7 +60,8 @@ impl<T: ArtifactOutput> TempProject<T> {
     ) -> Result<Self> {
         let tmp_dir = tempdir(prefix)?;
         let paths = paths.build_with_root(tmp_dir.path());
-        let inner = Project::builder().artifacts(artifacts).paths(paths).build()?;
+        let inner =
+            Project::builder().artifacts(artifacts).paths(paths).build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 
@@ -75,12 +74,12 @@ impl<T: ArtifactOutput> TempProject<T> {
     /// Explicitly sets the solc version for the project
     #[cfg(feature = "svm-solc")]
     pub fn set_solc(&mut self, solc: impl AsRef<str>) -> &mut Self {
-        use crate::compilers::CompilerVersionManager;
+        use crate::{compilers::CompilerVersionManager, CompilerConfig};
         use semver::Version;
 
-        self.solc = Some(
-            SolcVersionManager.get_or_install(&Version::parse(solc.as_ref()).unwrap()).unwrap(),
-        );
+        let solc =
+            SolcVersionManager.get_or_install(&Version::parse(solc.as_ref()).unwrap()).unwrap();
+        self.inner.compiler_config = CompilerConfig::Specific(solc);
         self
     }
 
@@ -333,18 +332,14 @@ contract {} {{}}
     }
 
     pub fn compile(&self) -> MaybeCompilerResult<ProjectCompileOutput<Error, T>, Solc> {
-        if let Some(solc) = self.solc.as_ref() {
-            self.project().compile(solc.clone())
-        } else {
-            self.project().compile_auto_detect(SolcVersionManager)
-        }
+        self.project().compile()
     }
 
     pub fn compile_sparse(
         &self,
         filter: Box<dyn FileFilter>,
     ) -> MaybeCompilerResult<ProjectCompileOutput<Error, T>, Solc> {
-        self.project().compile_sparse(filter, SolcVersionManager)
+        self.project().compile_sparse(filter)
     }
 }
 
@@ -358,7 +353,8 @@ impl<T: ArtifactOutput + Default> TempProject<T> {
     pub fn with_style(prefix: &str, style: PathStyle) -> Result<Self> {
         let tmp_dir = tempdir(prefix)?;
         let paths = style.paths(tmp_dir.path())?;
-        let inner = Project::builder().artifacts(T::default()).paths(paths).build()?;
+        let inner =
+            Project::builder().artifacts(T::default()).paths(paths).build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 
@@ -400,19 +396,21 @@ impl TempProject<HardhatArtifacts> {
 
         let paths = ProjectPathsConfig::hardhat(tmp_dir.path())?;
 
-        let inner =
-            Project::builder().artifacts(HardhatArtifacts::default()).paths(paths).build()?;
+        let inner = Project::builder()
+            .artifacts(HardhatArtifacts::default())
+            .paths(paths)
+            .build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 }
 
-impl TempProject<ConfigurableArtifacts, Settings> {
+impl TempProject<ConfigurableArtifacts> {
     /// Creates an empty new dapptools style workspace in a new temporary dir
     pub fn dapptools() -> Result<Self> {
         let tmp_dir = tempdir("tmp_dapp")?;
         let paths = ProjectPathsConfig::dapptools(tmp_dir.path())?;
 
-        let inner = Project::builder().paths(paths).build()?;
+        let inner = Project::builder().paths(paths).build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 
@@ -420,7 +418,10 @@ impl TempProject<ConfigurableArtifacts, Settings> {
         let tmp_dir = tempdir("tmp_dapp")?;
         let paths = ProjectPathsConfig::dapptools(tmp_dir.path())?;
 
-        let inner = Project::builder().paths(paths).ignore_paths(paths_to_ignore).build()?;
+        let inner = Project::builder()
+            .paths(paths)
+            .ignore_paths(paths_to_ignore)
+            .build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 
@@ -441,7 +442,7 @@ impl TempProject<ConfigurableArtifacts, Settings> {
             .map_err(|err| SolcIoError::new(err, tmp_dir.path()))?;
         let paths = ProjectPathsConfig::dapptools(tmp_dir.path())?;
 
-        let inner = Project::builder().paths(paths).build()?;
+        let inner = Project::builder().paths(paths).build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 

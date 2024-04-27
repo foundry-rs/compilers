@@ -426,7 +426,7 @@ impl Solc {
     pub fn configure_cmd(
         &self,
         base_path: Option<PathBuf>,
-        mut include_paths: &BTreeSet<PathBuf>,
+        include_paths: &BTreeSet<PathBuf>,
         allow_paths: &BTreeSet<PathBuf>,
     ) -> Command {
         let mut cmd = Command::new(&self.solc);
@@ -554,14 +554,6 @@ impl Solc {
         .await;
 
         crate::many::CompiledMany::new(outputs)
-    }
-}
-
-fn compile_output(output: Output) -> Result<Vec<u8>> {
-    if output.status.success() {
-        Ok(output.stdout)
-    } else {
-        Err(SolcError::solc_output(&output))
     }
 }
 

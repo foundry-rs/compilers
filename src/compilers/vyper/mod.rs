@@ -66,6 +66,7 @@ impl CompilationError for VyperCompilationError {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Vyper {
     pub path: PathBuf,
     pub version: Version,
@@ -77,10 +78,10 @@ pub struct VyperParsedSource {
 }
 
 impl ParsedSource for VyperParsedSource {
-    fn parse(content: &str, file: &Path) -> Self {
+    fn parse(content: &str, _file: &Path) -> Self {
         let version_req = capture_outer_and_inner(content, &utils::RE_VYPER_VERSION, &["version"])
             .first()
-            .and_then(|(cap, name)| VersionReq::parse(cap.as_str()).ok());
+            .and_then(|(cap, _)| VersionReq::parse(cap.as_str()).ok());
         VyperParsedSource { version_req }
     }
 
@@ -116,7 +117,7 @@ pub struct VyperOutput {
 impl CompilerInput for VyperInput {
     type Settings = VyperSettings;
 
-    fn build(sources: Sources, settings: Self::Settings, version: &Version) -> Vec<Self> {
+    fn build(sources: Sources, settings: Self::Settings, _version: &Version) -> Vec<Self> {
         vec![VyperInput { language: "Vyper".to_string(), sources, settings }]
     }
 
