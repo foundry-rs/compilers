@@ -1,4 +1,4 @@
-use crate::compilers::VersionManagerError;
+use crate::compilers::{Compiler, VersionManagerError};
 use semver::Version;
 use std::{
     io,
@@ -130,3 +130,23 @@ impl From<SolcIoError> for io::Error {
         err.io
     }
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum MaybeCompilerError<E> {
+    #[error(transparent)]
+    SolcError(SolcError),
+    #[error(transparent)]
+    CompilerError(E),
+}
+
+impl<T, E> From<T> for MaybeCompilerError<E>
+where
+    T: Into<SolcError>,
+{
+    fn from(e: T) -> Self {
+        MaybeCompilerError::SolcError(e.into())
+    }
+}
+
+pub type MaybeCompilerResult<T, C> =
+    core::result::Result<T, MaybeCompilerError<<C as Compiler>::Error>>;

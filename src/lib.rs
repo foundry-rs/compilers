@@ -60,8 +60,8 @@ use crate::{
     sources::{VersionedSourceFile, VersionedSourceFiles},
 };
 use artifacts::{contract::Contract, output_selection::OutputSelection, Settings, Severity};
-use compile::{output::contracts::VersionedContracts, project::MaybeCompilerResult};
-use error::Result;
+use compile::output::contracts::VersionedContracts;
+use error::{MaybeCompilerResult, Result};
 use semver::Version;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},

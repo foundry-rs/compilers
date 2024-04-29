@@ -105,7 +105,7 @@ use crate::{
     artifacts::{VersionedFilteredSources, VersionedSources},
     cache::ArtifactsCache,
     compilers::{Compiler, CompilerInput, CompilerVersionManager},
-    error::{Result, SolcError},
+    error::{MaybeCompilerError, Result, SolcError},
     filter::SparseOutputFilter,
     output::AggregatedCompilerOutput,
     report,
@@ -114,26 +114,6 @@ use crate::{
 };
 use rayon::prelude::*;
 use std::{path::PathBuf, sync::Arc, time::Instant};
-
-#[derive(Debug, thiserror::Error)]
-pub enum MaybeCompilerError<E> {
-    #[error(transparent)]
-    SolcError(SolcError),
-    #[error(transparent)]
-    CompilerError(E),
-}
-
-impl<T, E> From<T> for MaybeCompilerError<E>
-where
-    T: Into<SolcError>,
-{
-    fn from(e: T) -> Self {
-        MaybeCompilerError::SolcError(e.into())
-    }
-}
-
-pub type MaybeCompilerResult<T, C> =
-    core::result::Result<T, MaybeCompilerError<<C as Compiler>::Error>>;
 
 #[derive(Debug)]
 pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {

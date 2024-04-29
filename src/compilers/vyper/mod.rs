@@ -148,13 +148,10 @@ impl Compiler for Vyper {
         let stdin = child.stdin.as_mut().unwrap();
         serde_json::to_writer(stdin, &input)?;
 
-        println!("{:?}", serde_json::to_string(&input));
         debug!("wrote JSON input to stdin");
 
         let output = child.wait_with_output()?;
         debug!(%output.status, output.stderr = ?String::from_utf8_lossy(&output.stderr), "finished");
-
-        println!("{:?}", output);
 
         if output.status.success() {
             // Only run UTF-8 validation once.

@@ -1,5 +1,6 @@
 use crate::{
     artifacts::Source,
+    compilers::Compiler,
     error::{Result, SolcError},
     resolver::parse::SolData,
     utils, CompilerInput, CompilerOutput,
@@ -155,6 +156,8 @@ pub struct Solc {
 
 impl Solc {
     /// A new instance which points to `solc`. Invokes `solc --version` to determine the version.
+    ///
+    /// Returns error if `solc` is not found in the system or if the version cannot be retrieved.
     pub fn new(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let version = Self::version(path)?;
