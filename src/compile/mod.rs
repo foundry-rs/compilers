@@ -9,6 +9,7 @@ use once_cell::sync::Lazy;
 use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
+    collections::BTreeSet,
     path::{Path, PathBuf},
     process::{Command, Output, Stdio},
     str::FromStr,
@@ -111,6 +112,9 @@ pub struct Solc {
     pub solc: PathBuf,
     /// Compiler version.
     pub version: Version,
+    pub base_path: Option<PathBuf>,
+    pub allow_paths: BTreeSet<PathBuf>,
+    pub include_paths: BTreeSet<PathBuf>,
 }
 
 impl Solc {
@@ -125,7 +129,13 @@ impl Solc {
 
     /// A new instance which points to `solc` with the given version
     pub fn new_with_version(path: impl Into<PathBuf>, version: Version) -> Self {
-        Solc { solc: path.into(), version }
+        Solc {
+            solc: path.into(),
+            version,
+            base_path: None,
+            allow_paths: Default::default(),
+            include_paths: Default::default(),
+        }
     }
 
     /// Returns the directory in which [svm](https://github.com/roynalnaruto/svm-rs) stores all versions
@@ -310,7 +320,7 @@ impl Solc {
     }
 
     /// Compiles with `--standard-json` and deserializes the output as the given `D`.
-    pub fn compile_as<D: DeserializeOwned>(&self, input: &SolcInput) -> Result<D> {
+    pub fn compile_as<T: Serialize, D: DeserializeOwned>(&self, input: &T) -> Result<D> {
         let output = self.compile_output(input)?;
 
         // Only run UTF-8 validation once.
@@ -321,8 +331,8 @@ impl Solc {
 
     /// Compiles with `--standard-json` and returns the raw `stdout` output.
     #[instrument(name = "compile", level = "debug", skip_all)]
-    pub fn compile_output(&self, input: &SolcInput) -> Result<Vec<u8>> {
-        let mut cmd = self.configure_cmd(input);
+    pub fn compile_output<T: Serialize>(&self, input: &T) -> Result<Vec<u8>> {
+        let mut cmd = self.configure_cmd();
 
         trace!(input=%serde_json::to_string(input).unwrap_or_else(|e| e.to_string()));
         debug!(?cmd, "compiling");
@@ -364,22 +374,22 @@ impl Solc {
         move |err| SolcError::io(err, &self.solc)
     }
 
-    pub fn configure_cmd(&self, input: &SolcInput) -> Command {
+    pub fn configure_cmd(&self) -> Command {
         let mut cmd = Command::new(&self.solc);
         cmd.stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
 
-        if !input.allow_paths.is_empty() {
+        if !self.allow_paths.is_empty() {
             cmd.arg("--allow-paths");
-            cmd.arg(input.allow_paths.iter().map(|p| p.display()).join(","));
+            cmd.arg(self.allow_paths.iter().map(|p| p.display()).join(","));
         }
-        if let Some(base_path) = &input.base_path {
+        if let Some(base_path) = &self.base_path {
             if SUPPORTS_BASE_PATH.matches(&self.version) {
                 if SUPPORTS_INCLUDE_PATH.matches(&self.version) {
                     // `--base-path` and `--include-path` conflict if set to the same path, so
                     // as a precaution, we ensure here that the `--base-path` is not also used
                     // for `--include-path`
                     for path in
-                        input.include_paths.iter().filter(|p| p.as_path() != base_path.as_path())
+                        self.include_paths.iter().filter(|p| p.as_path() != base_path.as_path())
                     {
                         cmd.arg("--include-path").arg(path);
                     }

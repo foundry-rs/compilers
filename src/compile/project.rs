@@ -152,7 +152,8 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
         let graph = Graph::resolve_sources(&project.paths, sources)?;
         let (versions, edges) = graph.into_sources_by_version(project.offline, &version_manager)?;
 
-        let sources_by_version = versions.get(&version_manager)?;
+        let sources_by_version =
+            versions.get(&project.paths, edges.include_paths(), &version_manager)?;
 
         let sources = if project.solc_jobs > 1 && sources_by_version.len() > 1 {
             // if there are multiple different versions, and we can use multiple jobs we can compile
@@ -536,11 +537,7 @@ fn compile_sequential<C: Compiler>(
                 input.sources().keys()
             );
 
-            let input = input
-                .with_remappings(paths.remappings.clone())
-                .with_base_path(paths.root.clone())
-                .with_allowed_paths(paths.allowed_paths.clone())
-                .with_include_paths(include_paths.clone());
+            let input = input.with_remappings(paths.remappings.clone());
 
             let start = Instant::now();
             // report::compiler_spawn(&version, &input, &actually_dirty);
@@ -613,11 +610,7 @@ fn compile_parallel<C: Compiler>(
                 input.sources().keys()
             );
 
-            let input = input
-                .with_remappings(paths.remappings.clone())
-                .with_base_path(paths.root.clone())
-                .with_allowed_paths(paths.allowed_paths.clone())
-                .with_include_paths(include_paths.clone());
+            let input = input.with_remappings(paths.remappings.clone());
 
             jobs.push((compiler.clone(), version.clone(), input, actually_dirty));
         }

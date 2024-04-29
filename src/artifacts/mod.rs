@@ -63,12 +63,6 @@ pub struct SolcInput {
     pub language: String,
     pub sources: Sources,
     pub settings: Settings,
-    #[serde(skip)]
-    pub base_path: Option<PathBuf>,
-    #[serde(skip)]
-    pub allow_paths: BTreeSet<PathBuf>,
-    #[serde(skip)]
-    pub include_paths: BTreeSet<PathBuf>,
 }
 
 /// Default `language` field is set to `"Solidity"`.
@@ -78,9 +72,6 @@ impl Default for SolcInput {
             language: SOLIDITY.to_string(),
             sources: Sources::default(),
             settings: Settings::default(),
-            base_path: None,
-            allow_paths: BTreeSet::default(),
-            include_paths: BTreeSet::default(),
         }
     }
 }
@@ -158,15 +149,6 @@ impl SolcInput {
             .collect();
 
         self.settings.strip_prefix(base);
-    }
-
-    /// Similar to `Self::strip_prefix()`. Remove a base path from all
-    /// sources _and_ all paths in solc settings such as remappings
-    ///
-    /// See also `solc --base-path`
-    pub fn with_base_path(mut self, base: impl AsRef<Path>) -> Self {
-        self.strip_prefix(base);
-        self
     }
 
     /// The flag indicating whether the current [CompilerInput] is

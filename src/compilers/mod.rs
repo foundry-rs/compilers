@@ -41,15 +41,6 @@ pub trait CompilerInput: Serialize + Send + Sized {
     fn with_remappings(self, _remappings: Vec<Remapping>) -> Self {
         self
     }
-    fn with_base_path(self, _base_path: PathBuf) -> Self {
-        self
-    }
-    fn with_allowed_paths(self, _allowed_paths: BTreeSet<PathBuf>) -> Self {
-        self
-    }
-    fn with_include_paths(self, _include_paths: BTreeSet<PathBuf>) -> Self {
-        self
-    }
 }
 
 pub trait ParsedSource: Debug + Sized + Send {
@@ -77,7 +68,6 @@ pub trait CompilationError: DeserializeOwned + Send + Debug {
     fn error_code(&self) -> Option<u64>;
 }
 
-#[auto_impl(&, Box)]
 pub trait Compiler: Send + Sync + Clone {
     type Input: CompilerInput<Settings = Self::Settings>;
     type CompilationError: CompilationError;
@@ -90,4 +80,14 @@ pub trait Compiler: Send + Sync + Clone {
     ) -> Result<(Self::Input, CompilerOutput<Self::CompilationError>)>;
 
     fn version(&self) -> &Version;
+
+    fn with_base_path(self, _base_path: PathBuf) -> Self {
+        self
+    }
+    fn with_allowed_paths(self, _allowed_paths: BTreeSet<PathBuf>) -> Self {
+        self
+    }
+    fn with_include_paths(self, _include_paths: BTreeSet<PathBuf>) -> Self {
+        self
+    }
 }
