@@ -12,7 +12,6 @@ use std::{
     collections::BTreeSet,
     fmt::{self, Formatter},
     fs,
-    ops::{Deref, DerefMut},
     path::{Component, Path, PathBuf},
 };
 
@@ -884,111 +883,6 @@ impl SolcConfigBuilder {
         let mut settings = settings.unwrap_or_default();
         settings.push_all(output_selection);
         SolcConfig { settings }
-    }
-}
-
-/// Container for all `--include-path` arguments for Solc, see also
-/// [Solc docs](https://docs.soliditylang.org/en/v0.8.9/using-the-compiler.html#base-path-and-import-remapping).
-///
-/// The `--include--path` flag:
-/// > Makes an additional source directory available to the default import callback. Use this option
-/// > if you want to import contracts whose location is not fixed in relation to your main source
-/// > tree, e.g. third-party libraries installed using a package manager. Can be used multiple
-/// > times. Can only be used if base path has a non-empty value.
-///
-/// In contrast to `--allow-paths` [`AllowedLibPaths`], which takes multiple arguments,
-/// `--include-path` only takes a single path argument.
-#[derive(Clone, Debug, Default)]
-pub struct IncludePaths(pub(crate) BTreeSet<PathBuf>);
-
-// === impl IncludePaths ===
-
-impl IncludePaths {
-    /// Returns the [Command](std::process::Command) arguments for this type
-    ///
-    /// For each entry in the set, it will return `--include-path` + `<entry>`
-    pub fn args(&self) -> impl Iterator<Item = String> + '_ {
-        self.paths().flat_map(|path| ["--include-path".to_string(), format!("{}", path.display())])
-    }
-
-    /// Returns all paths that exist
-    pub fn paths(&self) -> impl Iterator<Item = &PathBuf> + '_ {
-        self.0.iter().filter(|path| path.exists())
-    }
-}
-
-impl Deref for IncludePaths {
-    type Target = BTreeSet<PathBuf>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for IncludePaths {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-/// Helper struct for serializing `--allow-paths` arguments to Solc
-///
-/// From the [Solc docs](https://docs.soliditylang.org/en/v0.8.9/using-the-compiler.html#base-path-and-import-remapping):
-/// For security reasons the compiler has restrictions on what directories it can access.
-/// Directories of source files specified on the command line and target paths of
-/// remappings are automatically allowed to be accessed by the file reader,
-/// but everything else is rejected by default. Additional paths (and their subdirectories)
-/// can be allowed via the --allow-paths /sample/path,/another/sample/path switch.
-/// Everything inside the path specified via --base-path is always allowed.
-#[derive(Clone, Debug, Default)]
-pub struct AllowedLibPaths(pub(crate) BTreeSet<PathBuf>);
-
-// === impl AllowedLibPaths ===
-
-impl AllowedLibPaths {
-    /// Returns the [Command](std::process::Command) arguments for this type
-    ///
-    /// `--allow-paths` takes a single value: all comma separated paths
-    pub fn args(&self) -> Option<[String; 2]> {
-        let args = self.to_string();
-        if args.is_empty() {
-            return None;
-        }
-        Some(["--allow-paths".to_string(), args])
-    }
-
-    /// Returns all paths that exist
-    pub fn paths(&self) -> impl Iterator<Item = &PathBuf> + '_ {
-        self.0.iter().filter(|path| path.exists())
-    }
-}
-
-impl Deref for AllowedLibPaths {
-    type Target = BTreeSet<PathBuf>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for AllowedLibPaths {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl fmt::Display for AllowedLibPaths {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let lib_paths =
-            self.paths().map(|path| format!("{}", path.display())).collect::<Vec<_>>().join(",");
-        write!(f, "{lib_paths}")
-    }
-}
-
-impl<T: Into<PathBuf>> From<Vec<T>> for AllowedLibPaths {
-    fn from(libs: Vec<T>) -> Self {
-        let libs = libs.into_iter().map(utils::canonicalized).collect();
-        AllowedLibPaths(libs)
     }
 }
 

@@ -8,16 +8,15 @@ use foundry_compilers::{
     },
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
-    compilers::{solc::SolcVersionManager, Compiler, CompilerVersionManager},
+    compilers::{solc::SolcVersionManager, CompilerVersionManager},
     error::SolcError,
     flatten::Flattener,
     info::ContractInfo,
-    project::MaybeCompilerError,
     project_util::*,
     remappings::Remapping,
     resolver::parse::SolData,
-    utils, Artifact, CompilerInput, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectCompileOutput, ProjectPathsConfig, Solc, TestFileFilter,
+    Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project, ProjectCompileOutput,
+    ProjectPathsConfig, SolcInput, TestFileFilter,
 };
 use pretty_assertions::assert_eq;
 use semver::Version;
@@ -2082,7 +2081,7 @@ fn can_detect_invalid_version() {
 
     let out = tmp.compile().unwrap_err();
     match out {
-        MaybeCompilerError::SolcError(SolcError::Message(err)) => {
+        SolcError::Message(err) => {
             assert_eq!(err, "Encountered invalid solc version in src/A.sol: No solc version exists that matches the version requirement: ^0.100.10");
         }
         _ => {
@@ -2584,12 +2583,12 @@ fn can_compile_std_json_input() {
     let input = tmp.project().standard_json_input(source).unwrap();
 
     assert!(input.settings.remappings.contains(&"ds-test/=lib/ds-test/src/".parse().unwrap()));
-    let input: CompilerInput = input.into();
+    let input: SolcInput = input.into();
     assert!(input.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
 
     // should be installed
-    if let Some(solc) = SolcVersionManager.get_installed(&Version::parse("0.8.10").unwrap()).ok() {
-        let (_, out) = solc.compile(input).unwrap();
+    if let Ok(solc) = SolcVersionManager.get_installed(&Version::parse("0.8.10").unwrap()) {
+        let out = solc.compile(&input).unwrap();
         assert!(!out.errors.is_empty());
         assert!(out.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
     }
@@ -2818,7 +2817,7 @@ async fn can_install_solc_and_compile_std_json_input_async() {
     let solc = &tmp.project().solc;
 
     assert!(input.settings.remappings.contains(&"ds-test/=lib/ds-test/src/".parse().unwrap()));
-    let input: CompilerInput = input.into();
+    let input: SolcInput = input.into();
     assert!(input.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
 
     remove_solc_if_exists(&solc.version().expect("failed to get version"));

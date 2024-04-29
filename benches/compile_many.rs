@@ -3,7 +3,7 @@
 extern crate criterion;
 
 use criterion::Criterion;
-use foundry_compilers::{CompilerInput, Solc};
+use foundry_compilers::{Solc, SolcInput};
 use std::path::Path;
 
 fn compile_many_benchmark(c: &mut Criterion) {
@@ -32,7 +32,7 @@ fn compile_many_benchmark(c: &mut Criterion) {
     }
 }
 
-fn load_compiler_inputs() -> Vec<CompilerInput> {
+fn load_compiler_inputs() -> Vec<SolcInput> {
     let mut inputs = Vec::new();
     for file in std::fs::read_dir(Path::new(&env!("CARGO_MANIFEST_DIR")).join("test-data/in"))
         .unwrap()
@@ -40,7 +40,7 @@ fn load_compiler_inputs() -> Vec<CompilerInput> {
     {
         let file = file.unwrap();
         let input = std::fs::read_to_string(file.path()).unwrap();
-        let input: CompilerInput = serde_json::from_str(&input).unwrap();
+        let input: SolcInput = serde_json::from_str(&input).unwrap();
         inputs.push(input);
     }
     inputs

@@ -1,6 +1,6 @@
 //! Represents an entire build
 
-use crate::{utils, CompilerInput, CompilerOutput, SolcError};
+use crate::{utils, CompilerOutput, SolcError, SolcInput};
 use alloy_primitives::hex;
 use md5::Digest;
 use semver::Version;
@@ -18,7 +18,7 @@ pub struct BuildInfo {
     pub format: String,
     pub solc_version: Version,
     pub solc_long_version: Version,
-    pub input: CompilerInput,
+    pub input: SolcInput,
     pub output: CompilerOutput,
 }
 
@@ -43,7 +43,7 @@ pub struct RawBuildInfo {
 impl RawBuildInfo {
     /// Serializes a `BuildInfo` object
     pub fn new(
-        input: &CompilerInput,
+        input: &SolcInput,
         output: &CompilerOutput,
         version: &Version,
     ) -> serde_json::Result<RawBuildInfo> {
@@ -104,7 +104,7 @@ mod tests {
 
     #[test]
     fn build_info_serde() {
-        let inputs = CompilerInput::with_sources(BTreeMap::from([(
+        let inputs = SolcInput::with_sources(BTreeMap::from([(
             PathBuf::from("input.sol"),
             Source::new(""),
         )]));

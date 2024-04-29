@@ -2,6 +2,7 @@ use crate::{
     artifacts::{
         output_selection::OutputSelection, Contract, FileToContractsMap, SourceFile, Sources,
     },
+    error::Result,
     remappings::Remapping,
     ProjectPathsConfig,
 };
@@ -79,7 +80,6 @@ pub trait CompilationError: DeserializeOwned + Send + Debug {
 #[auto_impl(&, Box)]
 pub trait Compiler: Send + Sync + Clone {
     type Input: CompilerInput<Settings = Self::Settings>;
-    type Error: CompilerError;
     type CompilationError: CompilationError;
     type ParsedSource: ParsedSource;
     type Settings: CompilerSettings;
@@ -87,7 +87,7 @@ pub trait Compiler: Send + Sync + Clone {
     fn compile(
         &self,
         input: Self::Input,
-    ) -> Result<(Self::Input, CompilerOutput<Self::CompilationError>), Self::Error>;
+    ) -> Result<(Self::Input, CompilerOutput<Self::CompilationError>)>;
 
     fn version(&self) -> &Version;
 }

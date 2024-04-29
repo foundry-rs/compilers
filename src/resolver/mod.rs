@@ -794,7 +794,7 @@ impl VersionedSources {
 
         let mut sources_by_version = Vec::new();
         for (version, sources) in self.inner {
-            let mut compiler = if !version.is_installed() {
+            let compiler = if !version.is_installed() {
                 if self.offline {
                     return Err(SolcError::msg(format!(
                         "missing solc \"{version}\" installation in offline mode"

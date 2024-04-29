@@ -1,6 +1,3 @@
-mod error;
-pub use error::SolcError;
-
 mod vm;
 use itertools::Itertools;
 pub use vm::SolcVersionManager;
@@ -10,9 +7,9 @@ use super::{
 };
 use crate::{
     artifacts::{
-        output_selection::OutputSelection, CompilerInput as SolcInput,
-        CompilerOutput as SolcOutput, Error, Settings as SolcSettings, Sources,
+        output_selection::OutputSelection, Error, Settings as SolcSettings, SolcInput, Sources,
     },
+    error::Result,
     remappings::Remapping,
     resolver::parse::SolData,
     Solc,
@@ -25,7 +22,6 @@ use std::{
 
 impl Compiler for Solc {
     type Input = SolcInput;
-    type Error = SolcError;
     type CompilationError = crate::artifacts::Error;
     type ParsedSource = SolData;
     type Settings = SolcSettings;
@@ -33,47 +29,25 @@ impl Compiler for Solc {
     fn compile(
         &self,
         mut input: Self::Input,
-    ) -> Result<(Self::Input, CompilerOutput<Self::CompilationError>), Self::Error> {
-        let mut cmd =
-            self.configure_cmd(input.base_path.clone(), &input.include_paths, &input.allow_paths);
-
+    ) -> Result<(Self::Input, CompilerOutput<Self::CompilationError>)> {
         if let Some(base_path) = input.base_path.clone() {
             // Strip prefix from all sources to ensure deterministic metadata.
             input.strip_prefix(base_path);
         }
 
-        trace!(input=%serde_json::to_string(&input).unwrap_or_else(|e| e.to_string()));
-        debug!(?cmd, "compiling");
+        let mut solc_output = self.compile(&input)?;
 
-        let mut child = cmd.spawn()?;
-        debug!("spawned");
-
-        let stdin = child.stdin.as_mut().unwrap();
-        serde_json::to_writer(stdin, &input)?;
-        debug!("wrote JSON input to stdin");
-
-        let output = child.wait_with_output()?;
-        debug!(%output.status, output.stderr = ?String::from_utf8_lossy(&output.stderr), "finished");
-
-        if output.status.success() {
-            // Only run UTF-8 validation once.
-            let output = std::str::from_utf8(&output.stdout).map_err(|_| SolcError::InvalidUtf8)?;
-            let mut solc_output: SolcOutput = serde_json::from_str(output)?;
-
-            if let Some(ref base_path) = input.base_path {
-                solc_output.join_all(base_path);
-            }
-
-            let output = CompilerOutput {
-                errors: solc_output.errors,
-                contracts: solc_output.contracts,
-                sources: solc_output.sources,
-            };
-
-            Ok((input, output))
-        } else {
-            Err(SolcError::solc_output(Some(self.version.clone()), &output))
+        if let Some(ref base_path) = input.base_path {
+            solc_output.join_all(base_path);
         }
+
+        let output = CompilerOutput {
+            errors: solc_output.errors,
+            contracts: solc_output.contracts,
+            sources: solc_output.sources,
+        };
+
+        Ok((input, output))
     }
 
     fn version(&self) -> &Version {

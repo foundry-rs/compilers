@@ -105,7 +105,7 @@ use crate::{
     artifacts::{VersionedFilteredSources, VersionedSources},
     cache::ArtifactsCache,
     compilers::{Compiler, CompilerInput, CompilerVersionManager},
-    error::{MaybeCompilerError, Result, SolcError},
+    error::Result,
     filter::SparseOutputFilter,
     output::AggregatedCompilerOutput,
     report,
@@ -203,21 +203,11 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     /// let output = project.compile()?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn compile(
-        self,
-    ) -> core::result::Result<
-        ProjectCompileOutput<<C as Compiler>::CompilationError, T>,
-        MaybeCompilerError<C::Error>,
-    > {
+    pub fn compile(self) -> Result<ProjectCompileOutput<<C as Compiler>::CompilationError, T>> {
         let slash_paths = self.project.slash_paths;
 
         // drive the compiler statemachine to completion
-        let mut output = self
-            .preprocess()?
-            .compile()
-            .map_err(MaybeCompilerError::CompilerError)?
-            .write_artifacts()?
-            .write_cache()?;
+        let mut output = self.preprocess()?.compile()?.write_artifacts()?.write_cache()?;
 
         if slash_paths {
             // ensures we always use `/` paths
@@ -262,7 +252,7 @@ struct PreprocessedState<'a, T: ArtifactOutput, C: Compiler> {
 
 impl<'a, T: ArtifactOutput, C: Compiler> PreprocessedState<'a, T, C> {
     /// advance to the next state by compiling all sources
-    fn compile(self) -> core::result::Result<CompiledState<'a, T, C>, C::Error> {
+    fn compile(self) -> Result<CompiledState<'a, T, C>> {
         trace!("compiling");
         let PreprocessedState { sources, cache, sparse_output } = self;
         let project = cache.project();
@@ -479,7 +469,7 @@ impl<C: Compiler> FilteredCompilerSources<C> {
         sparse_output: SparseOutputFilter,
         graph: &GraphEdges<C::ParsedSource>,
         create_build_info: bool,
-    ) -> core::result::Result<AggregatedCompilerOutput<C::CompilationError>, C::Error> {
+    ) -> Result<AggregatedCompilerOutput<C::CompilationError>> {
         match self {
             FilteredCompilerSources::Sequential(input) => {
                 compile_sequential(input, settings, paths, sparse_output, graph, create_build_info)
@@ -508,7 +498,7 @@ fn compile_sequential<C: Compiler>(
     sparse_output: SparseOutputFilter,
     graph: &GraphEdges<C::ParsedSource>,
     create_build_info: bool,
-) -> core::result::Result<AggregatedCompilerOutput<C::CompilationError>, C::Error> {
+) -> Result<AggregatedCompilerOutput<C::CompilationError>> {
     let mut aggregated = AggregatedCompilerOutput::default();
     trace!("compiling {} jobs sequentially", input.len());
 
@@ -580,7 +570,7 @@ fn compile_parallel<C: Compiler>(
     sparse_output: SparseOutputFilter,
     graph: &GraphEdges<C::ParsedSource>,
     create_build_info: bool,
-) -> std::result::Result<AggregatedCompilerOutput<C::CompilationError>, C::Error> {
+) -> Result<AggregatedCompilerOutput<C::CompilationError>> {
     debug_assert!(num_jobs > 1);
     trace!(
         "compile {} sources in parallel using up to {} solc jobs",

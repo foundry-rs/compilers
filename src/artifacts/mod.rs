@@ -59,7 +59,7 @@ const YUL: &str = "Yul";
 
 /// Input type `solc` expects.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CompilerInput {
+pub struct SolcInput {
     pub language: String,
     pub sources: Sources,
     pub settings: Settings,
@@ -72,9 +72,9 @@ pub struct CompilerInput {
 }
 
 /// Default `language` field is set to `"Solidity"`.
-impl Default for CompilerInput {
+impl Default for SolcInput {
     fn default() -> Self {
-        CompilerInput {
+        SolcInput {
             language: SOLIDITY.to_string(),
             sources: Sources::default(),
             settings: Settings::default(),
@@ -85,7 +85,7 @@ impl Default for CompilerInput {
     }
 }
 
-impl CompilerInput {
+impl SolcInput {
     /// This will remove/adjust values in the `CompilerInput` that are not compatible with this
     /// version
     pub fn sanitize(&mut self, version: &Version) {
@@ -208,10 +208,10 @@ impl StandardJsonCompilerInput {
     }
 }
 
-impl From<StandardJsonCompilerInput> for CompilerInput {
+impl From<StandardJsonCompilerInput> for SolcInput {
     fn from(input: StandardJsonCompilerInput) -> Self {
         let StandardJsonCompilerInput { language, sources, settings } = input;
-        CompilerInput {
+        SolcInput {
             language,
             sources: sources.into_iter().collect(),
             settings,
@@ -220,9 +220,9 @@ impl From<StandardJsonCompilerInput> for CompilerInput {
     }
 }
 
-impl From<CompilerInput> for StandardJsonCompilerInput {
-    fn from(input: CompilerInput) -> Self {
-        let CompilerInput { language, sources, settings, .. } = input;
+impl From<SolcInput> for StandardJsonCompilerInput {
+    fn from(input: SolcInput) -> Self {
+        let SolcInput { language, sources, settings, .. } = input;
         StandardJsonCompilerInput { language, sources: sources.into_iter().collect(), settings }
     }
 }
@@ -2076,7 +2076,7 @@ mod tests {
         for path in fs::read_dir(dir).unwrap() {
             let path = path.unwrap().path();
             let compiler_input = fs::read_to_string(&path).unwrap();
-            serde_json::from_str::<CompilerInput>(&compiler_input).unwrap_or_else(|err| {
+            serde_json::from_str::<SolcInput>(&compiler_input).unwrap_or_else(|err| {
                 panic!("Failed to read compiler input of {} {}", path.display(), err)
             });
         }
@@ -2096,7 +2096,7 @@ mod tests {
                 });
 
             let pretty = serde_json::to_string_pretty(&val).unwrap();
-            serde_json::from_str::<CompilerInput>(&pretty).unwrap_or_else(|err| {
+            serde_json::from_str::<SolcInput>(&pretty).unwrap_or_else(|err| {
                 panic!("Failed to read converted compiler input of {} {}", path.display(), err)
             });
         }
@@ -2160,7 +2160,7 @@ mod tests {
 
         let settings = Settings { metadata: Some(BytecodeHash::Ipfs.into()), ..Default::default() };
 
-        let input = CompilerInput {
+        let input = SolcInput {
             language: "Solidity".to_string(),
             sources: Default::default(),
             settings,
@@ -2184,7 +2184,7 @@ mod tests {
             ..Default::default()
         };
 
-        let input = CompilerInput {
+        let input = SolcInput {
             language: "Solidity".to_string(),
             sources: Default::default(),
             settings,

@@ -1,10 +1,10 @@
 use super::{
-    solc::SolcError, CompilationError, Compiler, CompilerError, CompilerInput, CompilerSettings,
-    ParsedSource,
+    CompilationError, Compiler, CompilerError, CompilerInput, CompilerSettings, ParsedSource,
 };
 use crate::{
     artifacts::{output_selection::OutputSelection, serde_helpers, Error, Severity, Sources},
     compilers::CompilerOutput,
+    error::{Result, SolcError},
     resolver::parse::capture_outer_and_inner,
     utils, CompilerOutput as SolcOutput, EvmVersion, ProjectPathsConfig,
 };
@@ -130,19 +130,18 @@ impl Compiler for Vyper {
     type Settings = VyperSettings;
     type CompilationError = Error;
     type ParsedSource = VyperParsedSource;
-    type Error = SolcError;
     type Input = VyperInput;
 
     fn compile(
         &self,
         input: Self::Input,
-    ) -> Result<(Self::Input, super::CompilerOutput<Self::CompilationError>), Self::Error> {
+    ) -> Result<(Self::Input, super::CompilerOutput<Self::CompilationError>)> {
         let mut cmd = Command::new(&self.path);
         cmd.stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
 
         cmd.arg("--standard-json");
 
-        let mut child = cmd.spawn()?;
+        let mut child = cmd.spawn().map_err(|e| SolcError::io(e, &self.path))?;
         debug!("spawned");
 
         let stdin = child.stdin.as_mut().unwrap();
@@ -150,13 +149,13 @@ impl Compiler for Vyper {
 
         debug!("wrote JSON input to stdin");
 
-        let output = child.wait_with_output()?;
+        let output = child.wait_with_output().map_err(|e| SolcError::io(e, &self.path))?;
         debug!(%output.status, output.stderr = ?String::from_utf8_lossy(&output.stderr), "finished");
 
         if output.status.success() {
             // Only run UTF-8 validation once.
             let output = std::str::from_utf8(&output.stdout).map_err(|_| SolcError::InvalidUtf8)?;
-            let mut solc_output: SolcOutput = serde_json::from_str(output)?;
+            let solc_output: SolcOutput = serde_json::from_str(output)?;
 
             let output = CompilerOutput {
                 errors: solc_output.errors,
@@ -166,7 +165,7 @@ impl Compiler for Vyper {
 
             Ok((input, output))
         } else {
-            Err(SolcError::solc_output(Some(self.version.clone()), &output))
+            Err(SolcError::solc_output(&output))
         }
     }
 

@@ -2,11 +2,10 @@
 
 use crate::{
     artifacts::{Error, Settings},
-    compilers::{solc::SolcVersionManager, Compiler, CompilerSettings},
+    compilers::{solc::SolcVersionManager, Compiler},
     config::ProjectPathsConfigBuilder,
     error::{Result, SolcError},
     hh::HardhatArtifacts,
-    project::MaybeCompilerResult,
     project_util::mock::{MockProjectGenerator, MockProjectSettings},
     remappings::Remapping,
     utils::{self, tempdir},
@@ -331,14 +330,14 @@ contract {} {{}}
         utils::source_files(self.project().sources_path())
     }
 
-    pub fn compile(&self) -> MaybeCompilerResult<ProjectCompileOutput<Error, T>, Solc> {
+    pub fn compile(&self) -> Result<ProjectCompileOutput<Error, T>> {
         self.project().compile()
     }
 
     pub fn compile_sparse(
         &self,
         filter: Box<dyn FileFilter>,
-    ) -> MaybeCompilerResult<ProjectCompileOutput<Error, T>, Solc> {
+    ) -> Result<ProjectCompileOutput<Error, T>> {
         self.project().compile_sparse(filter)
     }
 }

@@ -11,7 +11,7 @@ extern crate tracing;
 pub mod error;
 
 pub mod artifacts;
-pub use artifacts::{CompilerInput, CompilerOutput, EvmVersion};
+pub use artifacts::{CompilerOutput, EvmVersion, SolcInput};
 
 pub mod sourcemap;
 
@@ -25,7 +25,7 @@ pub mod cache;
 pub mod flatten;
 
 pub mod hh;
-use compilers::{vyper::Vyper, Compiler, CompilerSettings, CompilerVersionManager};
+use compilers::{Compiler, CompilerSettings, CompilerVersionManager};
 pub use hh::{HardhatArtifact, HardhatArtifacts};
 
 pub mod resolver;
@@ -41,7 +41,7 @@ pub use compile::{
 };
 
 mod config;
-pub use config::{AllowedLibPaths, PathStyle, ProjectPaths, ProjectPathsConfig, SolcConfig};
+pub use config::{PathStyle, ProjectPaths, ProjectPathsConfig, SolcConfig};
 
 pub mod remappings;
 
@@ -59,9 +59,9 @@ use crate::{
     error::{SolcError, SolcIoError},
     sources::{VersionedSourceFile, VersionedSourceFiles},
 };
-use artifacts::{contract::Contract, output_selection::OutputSelection, Settings, Severity};
+use artifacts::{contract::Contract, output_selection::OutputSelection, Severity};
 use compile::output::contracts::VersionedContracts;
-use error::{MaybeCompilerResult, Result};
+use error::Result;
 use semver::Version;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -282,7 +282,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
         println!("cargo:rerun-if-changed={}", self.paths.sources.display())
     }
 
-    pub fn compile(&self) -> MaybeCompilerResult<ProjectCompileOutput<C::CompilationError, T>, C> {
+    pub fn compile(&self) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
         let sources = self.paths.read_input_files()?;
         let out = match self.compiler_config {
             CompilerConfig::Specific(ref compiler) => {
@@ -327,7 +327,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
     pub fn svm_compile(
         &self,
         sources: Sources,
-    ) -> MaybeCompilerResult<ProjectCompileOutput<C::CompilationError, T>, C> {
+    ) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
         match self.compiler_config {
             CompilerConfig::Specific(ref compiler) => {
                 project::ProjectCompiler::with_sources_and_compiler(
@@ -358,7 +358,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
     pub fn compile_file(
         &self,
         file: impl Into<PathBuf>,
-    ) -> MaybeCompilerResult<ProjectCompileOutput<C::CompilationError, T>, C> {
+    ) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
         let file = file.into();
         let source = Source::read(&file)?;
         match self.compiler_config {
@@ -392,7 +392,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
     pub fn compile_files<P, I>(
         &self,
         files: I,
-    ) -> MaybeCompilerResult<ProjectCompileOutput<C::CompilationError, T>, C>
+    ) -> Result<ProjectCompileOutput<C::CompilationError, T>>
     where
         I: IntoIterator<Item = P>,
         P: Into<PathBuf>,
@@ -444,7 +444,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
     pub fn compile_sparse(
         &self,
         filter: Box<dyn FileFilter>,
-    ) -> MaybeCompilerResult<ProjectCompileOutput<C::CompilationError, T>, C> {
+    ) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
         let sources =
             Source::read_all(self.paths.input_files().into_iter().filter(|p| filter.is_match(p)))?;
 
@@ -565,7 +565,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
 
     /// Runs solc compiler without requesting any output and collects a mapping from contract names
     /// to source files containing artifact with given name.
-    fn collect_contract_names_solc(&self) -> MaybeCompilerResult<HashMap<String, Vec<PathBuf>>, C>
+    fn collect_contract_names_solc(&self) -> Result<HashMap<String, Vec<PathBuf>>>
     where
         T: Clone,
         C: Clone,
@@ -578,7 +578,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
         let output = temp_project.compile()?;
 
         if output.has_compiler_errors() {
-            return Err(SolcError::msg(output).into());
+            return Err(SolcError::msg(output));
         }
 
         let contracts = output.into_artifacts().fold(
@@ -595,7 +595,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
     /// Parses project sources via solang parser, collecting mapping from contract name to source
     /// files containing artifact with given name. On parser failure, fallbacks to
     /// [Self::collect_contract_names_solc].
-    fn collect_contract_names(&self) -> MaybeCompilerResult<HashMap<String, Vec<PathBuf>>, C>
+    fn collect_contract_names(&self) -> Result<HashMap<String, Vec<PathBuf>>>
     where
         T: Clone,
         C: Clone,
@@ -623,7 +623,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
 
     /// Finds the path of the contract with the given name.
     /// Throws error if multiple or no contracts with the same name are found.
-    pub fn find_contract_path(&self, target_name: &str) -> MaybeCompilerResult<PathBuf, C>
+    pub fn find_contract_path(&self, target_name: &str) -> Result<PathBuf>
     where
         T: Clone,
         C: Clone,
@@ -634,16 +634,14 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
             return Err(SolcError::msg(format!(
                 "No contract found with the name `{}`",
                 target_name
-            ))
-            .into());
+            )));
         }
         let mut paths = contracts.remove(target_name).unwrap();
         if paths.len() > 1 {
             return Err(SolcError::msg(format!(
                 "Multiple contracts found with the name `{}`",
                 target_name
-            ))
-            .into());
+            )));
         }
 
         Ok(paths.remove(0))
@@ -661,8 +659,6 @@ pub struct ProjectBuilder<T: ArtifactOutput = ConfigurableArtifacts, C: Compiler
     build_info: bool,
     /// Whether writing artifacts to disk is enabled, default is true.
     no_artifacts: bool,
-    /// Whether automatic solc version detection is enabled
-    auto_detect: bool,
     /// Use offline mode
     offline: bool,
     /// Whether to slash paths of the `ProjectCompilerOutput`
@@ -686,7 +682,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectBuilder<T, C> {
             cached: true,
             build_info: false,
             no_artifacts: false,
-            auto_detect: true,
             offline: false,
             slash_paths: true,
             artifacts,
@@ -792,19 +787,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectBuilder<T, C> {
         self
     }
 
-    /// Sets automatic solc version detection
-    #[must_use]
-    pub fn set_auto_detect(mut self, auto_detect: bool) -> Self {
-        self.auto_detect = auto_detect;
-        self
-    }
-
-    /// Disables automatic solc version detection
-    #[must_use]
-    pub fn no_auto_detect(self) -> Self {
-        self.set_auto_detect(false)
-    }
-
     /// Sets the maximum number of parallel `solc` processes to run simultaneously.
     ///
     /// # Panics
@@ -829,7 +811,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectBuilder<T, C> {
             paths,
             cached,
             no_artifacts,
-            auto_detect,
             ignored_error_codes,
             compiler_severity_filter,
             solc_jobs,
@@ -844,7 +825,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectBuilder<T, C> {
             paths,
             cached,
             no_artifacts,
-            auto_detect,
             offline,
             slash_paths,
             artifacts,
@@ -862,7 +842,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectBuilder<T, C> {
             paths,
             cached,
             no_artifacts,
-            auto_detect,
             artifacts,
             ignored_error_codes,
             ignored_file_paths,

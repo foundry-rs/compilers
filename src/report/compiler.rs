@@ -5,7 +5,7 @@
 //! to get this info when debugging an issue. Most convenient way to look at these object is as a
 //! separate json file
 
-use crate::{CompilerInput, CompilerOutput};
+use crate::{CompilerOutput, SolcInput};
 use semver::Version;
 use std::{env, path::PathBuf, str::FromStr};
 
@@ -55,7 +55,7 @@ impl SolcCompilerIoReporter {
     }
 
     /// Callback to write the input to disk if target is set
-    pub fn log_compiler_input(&self, input: &CompilerInput, version: &Version) {
+    pub fn log_compiler_input(&self, input: &SolcInput, version: &Version) {
         if let Some(ref target) = self.target {
             target.write_input(input, version)
         }
@@ -88,7 +88,7 @@ struct Target {
 }
 
 impl Target {
-    fn write_input(&self, input: &CompilerInput, version: &Version) {
+    fn write_input(&self, input: &SolcInput, version: &Version) {
         trace!("logging compiler input to {}", self.dest_input.display());
         match serde_json::to_string_pretty(input) {
             Ok(json) => {
@@ -215,7 +215,7 @@ mod tests {
     fn check_no_write_when_no_target() {
         let reporter = SolcCompilerIoReporter::default();
         let version = Version::parse("0.8.10").unwrap();
-        let input = CompilerInput::default();
+        let input = SolcInput::default();
         let output = CompilerOutput::default();
 
         reporter.log_compiler_input(&input, &version);
@@ -230,7 +230,7 @@ mod tests {
         let version = Version::parse("0.8.10").unwrap();
         let target = Target { dest_input: input_path.clone(), dest_output: output_path.clone() };
 
-        let input = CompilerInput::default();
+        let input = SolcInput::default();
         let output = CompilerOutput::default();
 
         target.write_input(&input, &version);

@@ -14,7 +14,7 @@
 
 // <https://github.com/tokio-rs/tracing/blob/master/tracing-core/src/dispatch.rs>
 
-use crate::{remappings::Remapping, CompilerInput, CompilerOutput, Solc};
+use crate::{remappings::Remapping, CompilerOutput, Solc, SolcInput};
 use semver::Version;
 use std::{
     any::{Any, TypeId},
@@ -110,7 +110,7 @@ pub trait Reporter: 'static + std::fmt::Debug {
         &self,
         _solc: &Solc,
         _version: &Version,
-        _input: &CompilerInput,
+        _input: &SolcInput,
         _dirty_files: &[PathBuf],
     ) {
     }
@@ -184,7 +184,7 @@ impl dyn Reporter {
 pub(crate) fn solc_spawn(
     solc: &Solc,
     version: &Version,
-    input: &CompilerInput,
+    input: &SolcInput,
     dirty_files: &[PathBuf],
 ) {
     get_default(|r| r.reporter.on_solc_spawn(solc, version, input, dirty_files));
@@ -348,7 +348,7 @@ impl Reporter for BasicStdoutReporter {
         &self,
         _solc: &Solc,
         version: &Version,
-        input: &CompilerInput,
+        input: &SolcInput,
         dirty_files: &[PathBuf],
     ) {
         self.solc_io_report.log_compiler_input(input, version);
