@@ -310,9 +310,8 @@ impl<S: CompilerSettings> CompilerCache<S> {
     }
 }
 
-// async variants for read and write
-/*#[cfg(feature = "async")]
-impl<S: CompilerSettings> CompilerCache<S> {
+#[cfg(feature = "async")]
+impl<S: CompilerSettings + 'static> CompilerCache<S> {
     pub async fn async_read(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref().to_owned();
         Self::asyncify(move || Self::read(path)).await
@@ -337,7 +336,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
             )),
         }
     }
-}*/
+}
 
 impl<S> Default for CompilerCache<S> {
     fn default() -> Self {

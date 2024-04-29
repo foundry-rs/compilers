@@ -7,7 +7,7 @@ use crate::{
     ProjectPathsConfig,
 };
 use semver::{Version, VersionReq};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
@@ -52,10 +52,17 @@ pub trait CompilerError: std::error::Error + Send + Sync {
     fn compiler_version(&self) -> Option<&Version>;
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CompilerOutput<E> {
     pub errors: Vec<E>,
     pub contracts: FileToContractsMap<Contract>,
     pub sources: BTreeMap<PathBuf, SourceFile>,
+}
+
+impl<E> Default for CompilerOutput<E> {
+    fn default() -> Self {
+        Self { errors: Vec::new(), contracts: BTreeMap::new(), sources: BTreeMap::new() }
+    }
 }
 
 /// Error returned by compiler. Might also represent a warning or informational message.
@@ -69,7 +76,7 @@ pub trait CompilationError: DeserializeOwned + Send + Debug {
 
 pub trait Compiler: Send + Sync + Clone {
     type Input: CompilerInput<Settings = Self::Settings>;
-    type CompilationError: CompilationError;
+    type CompilationError: CompilationError + Serialize + DeserializeOwned;
     type ParsedSource: ParsedSource;
     type Settings: CompilerSettings;
 

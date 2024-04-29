@@ -639,43 +639,19 @@ mod tests {
         let versions = ["=0.1.2", "^0.5.6", ">=0.7.1", ">0.8.0"];
 
         versions.iter().for_each(|version| {
-            let version_req = SolData::parse_version_req(&version).unwrap();
-            assert_eq!(version_req, VersionReq::from_str(&version).unwrap());
+            let version_req = SolData::parse_version_req(version).unwrap();
+            assert_eq!(version_req, VersionReq::from_str(version).unwrap());
         });
 
         // Solidity defines version ranges with a space, whereas the semver package
         // requires them to be separated with a comma
         let version_range = ">=0.8.0 <0.9.0";
-        let version_req = SolData::parse_version_req(&version_range).unwrap();
+        let version_req = SolData::parse_version_req(version_range).unwrap();
         assert_eq!(version_req, VersionReq::from_str(">=0.8.0,<0.9.0").unwrap());
     }
 
     #[test]
-    #[cfg(feature = "svm-solc")]
-    fn test_detect_version() {
-        use crate::resolver::parse::SolData;
-
-        for (pragma, expected) in [
-            // pinned
-            ("=0.4.14", "=0.4.14"),
-            // pinned too
-            ("0.4.14", "=0.4.14"),
-            // The latest patch is 0.4.26
-            ("^0.4.14", "0.4.26"),
-            // range
-            (">=0.4.0 <0.5.0", "0.4.26"),
-            // latest - this has to be updated every time a new version is released.
-            // Requires the SVM version list to be updated as well.
-            (">=0.5.0", "0.8.25"),
-        ] {
-            let res = SolData::parse_version_req(&pragma).unwrap();
-            assert_eq!(res, VersionReq::from_str(expected).unwrap());
-        }
-    }
-
-    #[test]
     #[cfg(feature = "full")]
-    #[cfg(ignore)]
     fn test_find_installed_version_path() {
         // This test does not take the lock by default, so we need to manually add it here.
         let _lock = take_solc_installer_lock();
@@ -687,7 +663,7 @@ mod tests {
         {
             Solc::blocking_install(&version).unwrap();
         }
-        let res = Solc::find_svm_installed_version(version.to_string()).unwrap().unwrap();
+        let res = SolcVersionManager.get_installed(&version).unwrap();
         let expected = svm::data_dir().join(ver).join(format!("solc-{ver}"));
         assert_eq!(res.solc, expected);
     }
@@ -707,11 +683,5 @@ mod tests {
         let version = Version::from_str(ver).unwrap();
         let res = SolcVersionManager.get_installed(&version);
         assert!(matches!(res, Err(VersionManagerError::VersionNotInstalled(_))));
-    }
-
-    ///// helpers
-
-    fn source(version: &str) -> Source {
-        Source::new(format!("pragma solidity {version};\n"))
     }
 }

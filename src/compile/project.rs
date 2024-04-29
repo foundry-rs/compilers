@@ -103,6 +103,7 @@
 use crate::{
     artifact_output::Artifacts,
     artifacts::{VersionedFilteredSources, VersionedSources},
+    buildinfo::RawBuildInfo,
     cache::ArtifactsCache,
     compilers::{Compiler, CompilerInput, CompilerVersionManager},
     error::Result,
@@ -547,10 +548,10 @@ fn compile_sequential<C: Compiler>(
             trace!("received compiler output: {:?}", output.contracts.keys());
 
             // if configured also create the build info
-            /*if create_build_info {
+            if create_build_info {
                 let build_info = RawBuildInfo::new(&input, &output, &version)?;
                 aggregated.build_infos.insert(version.clone(), build_info);
-            }*/
+            }
 
             aggregated.extend(version.clone(), output);
         }
@@ -649,10 +650,10 @@ fn compile_parallel<C: Compiler>(
     let mut aggregated = AggregatedCompilerOutput::default();
     for (version, input, output) in outputs {
         // if configured also create the build info
-        /*if create_build_info {
+        if create_build_info {
             let build_info = RawBuildInfo::new(&input, &output, &version)?;
             aggregated.build_infos.insert(version.clone(), build_info);
-        }*/
+        }
         aggregated.extend(version, output);
     }
 

@@ -1,10 +1,10 @@
 //! Represents an entire build
 
-use crate::{utils, CompilerOutput, SolcError, SolcInput};
+use crate::{utils, SolcError};
 use alloy_primitives::hex;
 use md5::Digest;
 use semver::Version;
-use serde::{ser::SerializeStruct, Deserialize, Serialize, Serializer};
+use serde::{de::DeserializeOwned, ser::SerializeStruct, Deserialize, Serialize, Serializer};
 use std::{cell::RefCell, path::Path, rc::Rc};
 
 pub const ETHERS_FORMAT_VERSION: &str = "ethers-rs-sol-build-info-1";
@@ -12,17 +12,17 @@ pub const ETHERS_FORMAT_VERSION: &str = "ethers-rs-sol-build-info-1";
 // A hardhat compatible build info representation
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BuildInfo {
+pub struct BuildInfo<I, O> {
     pub id: String,
     #[serde(rename = "_format")]
     pub format: String,
     pub solc_version: Version,
     pub solc_long_version: Version,
-    pub input: SolcInput,
-    pub output: CompilerOutput,
+    pub input: I,
+    pub output: O,
 }
 
-impl BuildInfo {
+impl<I: DeserializeOwned, O: DeserializeOwned> BuildInfo<I, O> {
     /// Deserializes the `BuildInfo` object from the given file
     pub fn read(path: impl AsRef<Path>) -> Result<Self, SolcError> {
         utils::read_json_file(path)
@@ -42,9 +42,9 @@ pub struct RawBuildInfo {
 
 impl RawBuildInfo {
     /// Serializes a `BuildInfo` object
-    pub fn new(
-        input: &SolcInput,
-        output: &CompilerOutput,
+    pub fn new<I: Serialize, O: Serialize>(
+        input: &I,
+        output: &O,
         version: &Version,
     ) -> serde_json::Result<RawBuildInfo> {
         let mut hasher = md5::Md5::new();
@@ -98,7 +98,11 @@ impl std::io::Write for BuildInfoWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{compilers::CompilerInput, Source};
+    use crate::{
+        artifacts::Error,
+        compilers::{CompilerInput, CompilerOutput},
+        SolcInput, Source,
+    };
     use std::{collections::BTreeMap, path::PathBuf};
 
     #[test]
@@ -108,9 +112,10 @@ mod tests {
             Default::default(),
             &Version::parse("0.8.4").unwrap(),
         );
-        let output = CompilerOutput::default();
+        let output = CompilerOutput::<Error>::default();
         let v: Version = "0.8.4+commit.c7e474f2".parse().unwrap();
         let raw_info = RawBuildInfo::new(&inputs[0], &output, &v).unwrap();
-        let _info: BuildInfo = serde_json::from_str(&raw_info.build_info).unwrap();
+        let _info: BuildInfo<SolcInput, CompilerOutput<Error>> =
+            serde_json::from_str(&raw_info.build_info).unwrap();
     }
 }

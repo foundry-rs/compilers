@@ -8,7 +8,7 @@ use foundry_compilers::{
     },
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
-    compilers::{solc::SolcVersionManager, CompilerVersionManager},
+    compilers::{solc::SolcVersionManager, CompilerOutput, CompilerVersionManager},
     error::SolcError,
     flatten::Flattener,
     info::ContractInfo,
@@ -347,7 +347,8 @@ contract B { }
 
     let mut build_info_count = 0;
     for entry in fs::read_dir(info_dir).unwrap() {
-        let _info = BuildInfo::read(entry.unwrap().path()).unwrap();
+        let _info =
+            BuildInfo::<SolcInput, CompilerOutput<Error>>::read(entry.unwrap().path()).unwrap();
         build_info_count += 1;
     }
     assert_eq!(build_info_count, 1);
@@ -388,7 +389,8 @@ contract B { }
 
     let mut build_info_count = 0;
     for entry in fs::read_dir(info_dir).unwrap() {
-        let _info = BuildInfo::read(entry.unwrap().path()).unwrap();
+        let _info =
+            BuildInfo::<SolcInput, CompilerOutput<Error>>::read(entry.unwrap().path()).unwrap();
         build_info_count += 1;
     }
     assert_eq!(build_info_count, 1);

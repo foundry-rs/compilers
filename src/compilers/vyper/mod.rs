@@ -6,7 +6,7 @@ use crate::{
     compilers::CompilerOutput,
     error::{Result, SolcError},
     resolver::parse::capture_outer_and_inner,
-    utils, CompilerOutput as SolcOutput, EvmVersion, ProjectPathsConfig,
+    utils, EvmVersion, ProjectPathsConfig,
 };
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
@@ -110,10 +110,6 @@ pub struct VyperInput {
     pub settings: VyperSettings,
 }
 
-pub struct VyperOutput {
-    errors: Vec<VyperCompilationError>,
-}
-
 impl CompilerInput for VyperInput {
     type Settings = VyperSettings;
 
@@ -155,13 +151,7 @@ impl Compiler for Vyper {
         if output.status.success() {
             // Only run UTF-8 validation once.
             let output = std::str::from_utf8(&output.stdout).map_err(|_| SolcError::InvalidUtf8)?;
-            let solc_output: SolcOutput = serde_json::from_str(output)?;
-
-            let output = CompilerOutput {
-                errors: solc_output.errors,
-                contracts: solc_output.contracts,
-                sources: solc_output.sources,
-            };
+            let output: CompilerOutput<Error> = serde_json::from_str(output)?;
 
             Ok((input, output))
         } else {
