@@ -317,7 +317,7 @@ impl Solc {
     /// let output = solc.compile(&input)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn compile(&self, input: &SolcInput) -> Result<CompilerOutput> {
+    pub fn compile<T: Serialize>(&self, input: &T) -> Result<CompilerOutput> {
         self.compile_as(input)
     }
 
@@ -349,7 +349,7 @@ impl Solc {
         let output = child.wait_with_output().map_err(self.map_io_err())?;
         debug!(%output.status, output.stderr = ?String::from_utf8_lossy(&output.stderr), "finished");
 
-        compile_output(&self.version, output)
+        compile_output(output)
     }
 
     /// Invokes `solc --version` and parses the output as a SemVer [`Version`], stripping the
@@ -505,7 +505,7 @@ impl Solc {
     }
 }
 
-fn compile_output(version: &Version, output: Output) -> Result<Vec<u8>> {
+fn compile_output(output: Output) -> Result<Vec<u8>> {
     if output.status.success() {
         Ok(output.stdout)
     } else {
