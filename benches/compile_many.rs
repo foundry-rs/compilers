@@ -3,12 +3,16 @@
 extern crate criterion;
 
 use criterion::Criterion;
-use foundry_compilers::{Solc, SolcInput};
+use foundry_compilers::{
+    compilers::{solc::SolcVersionManager, CompilerVersionManager},
+    Solc, SolcInput,
+};
+use semver::Version;
 use std::path::Path;
 
 fn compile_many_benchmark(c: &mut Criterion) {
     let inputs = load_compiler_inputs();
-    let solc = Solc::default();
+    let solc = SolcVersionManager.get_or_install(&Version::parse("0.8.0").unwrap()).unwrap();
 
     let mut group = c.benchmark_group("compile many");
     group.sample_size(10);
@@ -22,7 +26,7 @@ fn compile_many_benchmark(c: &mut Criterion) {
 
     #[cfg(feature = "full")]
     {
-        let tasks = inputs.into_iter().map(|input| (Solc::default(), input)).collect::<Vec<_>>();
+        let tasks = inputs.into_iter().map(|input| (solc.clone(), input)).collect::<Vec<_>>();
         let num = tasks.len();
         group.bench_function("concurrently", |b| {
             b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {

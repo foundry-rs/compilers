@@ -11,7 +11,7 @@ use md5::Digest;
 use semver::Version;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, HashSet},
     fmt, fs,
     path::{Path, PathBuf},
     str::FromStr,
@@ -193,12 +193,7 @@ impl StandardJsonCompilerInput {
 impl From<StandardJsonCompilerInput> for SolcInput {
     fn from(input: StandardJsonCompilerInput) -> Self {
         let StandardJsonCompilerInput { language, sources, settings } = input;
-        SolcInput {
-            language,
-            sources: sources.into_iter().collect(),
-            settings,
-            ..Default::default()
-        }
+        SolcInput { language, sources: sources.into_iter().collect(), settings }
     }
 }
 
@@ -2142,12 +2137,8 @@ mod tests {
 
         let settings = Settings { metadata: Some(BytecodeHash::Ipfs.into()), ..Default::default() };
 
-        let input = SolcInput {
-            language: "Solidity".to_string(),
-            sources: Default::default(),
-            settings,
-            ..Default::default()
-        };
+        let input =
+            SolcInput { language: "Solidity".to_string(), sources: Default::default(), settings };
 
         let i = input.clone().sanitized(&version);
         assert_eq!(i.settings.metadata.unwrap().bytecode_hash, Some(BytecodeHash::Ipfs));
@@ -2166,12 +2157,8 @@ mod tests {
             ..Default::default()
         };
 
-        let input = SolcInput {
-            language: "Solidity".to_string(),
-            sources: Default::default(),
-            settings,
-            ..Default::default()
-        };
+        let input =
+            SolcInput { language: "Solidity".to_string(), sources: Default::default(), settings };
 
         let i = input.clone().sanitized(&version);
         assert_eq!(i.settings.metadata.unwrap().cbor_metadata, Some(true));

@@ -1,6 +1,6 @@
 use crate::{
     compilers::vm::{CompilerVersion, CompilerVersionManager, VersionManagerError},
-    utils, Solc, RELEASES,
+    Solc,
 };
 use semver::Version;
 use std::collections::HashSet;

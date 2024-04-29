@@ -6,7 +6,6 @@ use crate::{
     remappings::Remapping,
     ProjectPathsConfig,
 };
-use auto_impl::auto_impl;
 use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{

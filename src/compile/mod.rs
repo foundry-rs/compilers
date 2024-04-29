@@ -410,11 +410,15 @@ impl Solc {
 }
 
 #[cfg(feature = "async")]
-#[cfg(ignore)]
 impl Solc {
     /// Convenience function for compiling all sources under the given path
     pub async fn async_compile_source(&self, path: impl AsRef<Path>) -> Result<CompilerOutput> {
-        self.async_compile(&SolcInput::with_sources(Source::async_read_all_from(path).await?)).await
+        self.async_compile(&SolcInput::build(
+            Source::async_read_all_from(path).await?,
+            Default::default(),
+            &self.version,
+        ))
+        .await
     }
 
     /// Run `solc --stand-json` and return the `solc`'s output as
@@ -434,31 +438,25 @@ impl Solc {
     }
 
     pub async fn async_compile_output<T: Serialize>(&self, input: &T) -> Result<Vec<u8>> {
-        use tokio::io::AsyncWriteExt;
-        let content = serde_json::to_vec(input)?;
-        let mut cmd = tokio::process::Command::new(&self.solc);
-        if let Some(ref base_path) = self.base_path {
-            cmd.current_dir(base_path);
-        }
-        let mut child = cmd
-            .args(&self.args)
-            .arg("--standard-json")
-            .stdin(Stdio::piped())
-            .stderr(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .map_err(self.map_io_err())?;
+        use tokio::{io::AsyncWriteExt, process::Command};
+
+        let mut cmd: Command = self.configure_cmd().into();
+        let mut child = cmd.spawn().map_err(self.map_io_err())?;
         let stdin = child.stdin.as_mut().unwrap();
+
+        let content = serde_json::to_vec(input)?;
+
         stdin.write_all(&content).await.map_err(self.map_io_err())?;
         stdin.flush().await.map_err(self.map_io_err())?;
+
         compile_output(child.wait_with_output().await.map_err(self.map_io_err())?)
     }
 
-    pub async fn async_version(&self) -> Result<Version> {
-        let mut cmd = tokio::process::Command::new(&self.solc);
+    pub async fn async_version(solc: impl AsRef<Path>) -> Result<Version> {
+        let mut cmd = tokio::process::Command::new(solc.as_ref());
         cmd.arg("--version").stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
         debug!(?cmd, "getting version");
-        let output = cmd.output().await.map_err(self.map_io_err())?;
+        let output = cmd.output().await.map_err(|e| SolcError::io(e, solc.as_ref()))?;
         let version = version_from_output(output)?;
         debug!(%version);
         Ok(version)
