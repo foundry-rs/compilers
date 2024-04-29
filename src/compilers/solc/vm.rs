@@ -21,9 +21,7 @@ impl CompilerVersionManager for SolcVersionManager {
             })
             .collect::<HashSet<_>>();
         all_versions.extend(
-            RELEASES
-                .1
-                .clone()
+            Solc::released_versions()
                 .into_iter()
                 .filter(|v| uniques.insert((v.major, v.minor, v.patch)))
                 .map(CompilerVersion::Remote),
@@ -33,15 +31,7 @@ impl CompilerVersionManager for SolcVersionManager {
     }
 
     fn installed_versions(&self) -> Vec<CompilerVersion> {
-        Solc::svm_home()
-            .map(|home| {
-                utils::installed_versions(home)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(CompilerVersion::Installed)
-                    .collect()
-            })
-            .unwrap_or_default()
+        Solc::installed_versions().into_iter().map(CompilerVersion::Installed).collect()
     }
 
     fn get_installed(&self, version: &Version) -> Result<Self::Compiler, VersionManagerError> {

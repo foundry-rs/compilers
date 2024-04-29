@@ -112,8 +112,11 @@ pub struct Solc {
     pub solc: PathBuf,
     /// Compiler version.
     pub version: Version,
+    /// Value for --base-path arg.
     pub base_path: Option<PathBuf>,
+    /// Value for --allow-paths arg.
     pub allow_paths: BTreeSet<PathBuf>,
+    /// Value for --include-paths arg.
     pub include_paths: BTreeSet<PathBuf>,
 }
 
@@ -171,10 +174,9 @@ impl Solc {
             .unwrap_or_default()
     }
 
-    /// Returns the list of all versions that are available to download and marking those which are
-    /// already installed.
+    /// Returns the list of all versions that are available to download
     #[cfg(feature = "svm-solc")]
-    pub fn all_versions() -> Vec<Version> {
+    pub fn released_versions() -> Vec<Version> {
         RELEASES.1.clone().into_iter().collect()
     }
 
@@ -192,7 +194,7 @@ impl Solc {
     /// # }
     /// ```
     #[cfg(feature = "svm-solc")]
-    pub async fn install(version: &Version) -> core::result::Result<Self, svm::SvmError> {
+    pub async fn install(version: &Version) -> std::result::Result<Self, svm::SvmError> {
         trace!("installing solc version \"{}\"", version);
         crate::report::solc_installation_start(version);
         match svm::install(version).await {
@@ -209,7 +211,7 @@ impl Solc {
 
     /// Blocking version of `Self::install`
     #[cfg(feature = "svm-solc")]
-    pub fn blocking_install(version: &Version) -> core::result::Result<Self, svm::SvmError> {
+    pub fn blocking_install(version: &Version) -> std::result::Result<Self, svm::SvmError> {
         use crate::utils::RuntimeOrHandle;
 
         trace!("blocking installing solc version \"{}\"", version);
