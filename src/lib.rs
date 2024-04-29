@@ -473,7 +473,9 @@ impl<T: ArtifactOutput> Project<T> {
         if self.cache_path().exists() {
             std::fs::remove_file(self.cache_path())
                 .map_err(|err| SolcIoError::new(err, self.cache_path()))?;
-            if let Some(cache_folder) = self.cache_path().parent() {
+            if let Some(cache_folder) =
+                self.cache_path().parent().filter(|cache_folder| self.root() != cache_folder)
+            {
                 // remove the cache folder if the cache file was the only file
                 if cache_folder
                     .read_dir()
@@ -489,14 +491,14 @@ impl<T: ArtifactOutput> Project<T> {
         }
 
         // clean the artifacts dir
-        if self.artifacts_path().exists() {
+        if self.artifacts_path().exists() && self.root() != self.artifacts_path() {
             std::fs::remove_dir_all(self.artifacts_path())
                 .map_err(|err| SolcIoError::new(err, self.artifacts_path().clone()))?;
             trace!("removed artifacts dir \"{}\"", self.artifacts_path().display());
         }
 
         // also clean the build-info dir, in case it's not nested in the artifacts dir
-        if self.build_info_path().exists() {
+        if self.build_info_path().exists() && self.root() != self.build_info_path() {
             std::fs::remove_dir_all(self.build_info_path())
                 .map_err(|err| SolcIoError::new(err, self.build_info_path().clone()))?;
             tracing::trace!("removed build-info dir \"{}\"", self.build_info_path().display());
