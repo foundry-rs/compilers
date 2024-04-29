@@ -96,18 +96,18 @@ impl std::io::Write for BuildInfoWriter {
 }
 
 #[cfg(test)]
-#[cfg(ignore)]
 mod tests {
     use super::*;
-    use crate::Source;
+    use crate::{compilers::CompilerInput, Source};
     use std::{collections::BTreeMap, path::PathBuf};
 
     #[test]
     fn build_info_serde() {
-        let inputs = SolcInput::with_sources(BTreeMap::from([(
-            PathBuf::from("input.sol"),
-            Source::new(""),
-        )]));
+        let inputs = SolcInput::build(
+            BTreeMap::from([(PathBuf::from("input.sol"), Source::new(""))]),
+            Default::default(),
+            &Version::parse("0.8.4").unwrap(),
+        );
         let output = CompilerOutput::default();
         let v: Version = "0.8.4+commit.c7e474f2".parse().unwrap();
         let raw_info = RawBuildInfo::new(&inputs[0], &output, &v).unwrap();

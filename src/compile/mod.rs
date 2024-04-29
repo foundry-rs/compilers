@@ -533,28 +533,28 @@ impl AsRef<Path> for Solc {
 }
 
 #[cfg(test)]
-#[cfg(ignore)]
 mod tests {
     use super::*;
     use crate::{
         compilers::{solc::SolcVersionManager, CompilerVersionManager, VersionManagerError},
+        resolver::parse::SolData,
         Artifact,
     };
 
     #[test]
     fn test_version_parse() {
-        let req = Solc::version_req(">=0.6.2 <0.8.21").unwrap();
+        let req = SolData::parse_version_req(">=0.6.2 <0.8.21").unwrap();
         let semver_req: VersionReq = ">=0.6.2,<0.8.21".parse().unwrap();
         assert_eq!(req, semver_req);
     }
 
     fn solc() -> Solc {
-        Solc::default()
+        SolcVersionManager.get_or_install(&Version::parse("0.8.18").unwrap()).unwrap()
     }
 
     #[test]
     fn solc_version_works() {
-        solc().version().unwrap();
+        Solc::version(solc().solc).unwrap();
     }
 
     #[test]
@@ -565,7 +565,7 @@ mod tests {
     #[cfg(feature = "async")]
     #[tokio::test]
     async fn async_solc_version_works() {
-        let _version = solc().async_version().await.unwrap();
+        Solc::async_version(solc().solc).await.unwrap();
     }
 
     #[test]
@@ -637,29 +637,29 @@ mod tests {
     #[test]
     fn test_version_req() {
         let versions = ["=0.1.2", "^0.5.6", ">=0.7.1", ">0.8.0"];
-        let sources = versions.iter().map(|version| source(version));
 
-        sources.zip(versions).for_each(|(source, version)| {
-            let version_req = Solc::source_version_req(&source).unwrap();
-            assert_eq!(version_req, VersionReq::from_str(version).unwrap());
+        versions.iter().for_each(|version| {
+            let version_req = SolData::parse_version_req(&version).unwrap();
+            assert_eq!(version_req, VersionReq::from_str(&version).unwrap());
         });
 
         // Solidity defines version ranges with a space, whereas the semver package
         // requires them to be separated with a comma
         let version_range = ">=0.8.0 <0.9.0";
-        let source = source(version_range);
-        let version_req = Solc::source_version_req(&source).unwrap();
+        let version_req = SolData::parse_version_req(&version_range).unwrap();
         assert_eq!(version_req, VersionReq::from_str(">=0.8.0,<0.9.0").unwrap());
     }
 
     #[test]
     #[cfg(feature = "svm-solc")]
     fn test_detect_version() {
+        use crate::resolver::parse::SolData;
+
         for (pragma, expected) in [
             // pinned
-            ("=0.4.14", "0.4.14"),
+            ("=0.4.14", "=0.4.14"),
             // pinned too
-            ("0.4.14", "0.4.14"),
+            ("0.4.14", "=0.4.14"),
             // The latest patch is 0.4.26
             ("^0.4.14", "0.4.26"),
             // range
@@ -668,9 +668,8 @@ mod tests {
             // Requires the SVM version list to be updated as well.
             (">=0.5.0", "0.8.25"),
         ] {
-            let source = source(pragma);
-            let res = Solc::detect_version(&source).unwrap();
-            assert_eq!(res, Version::from_str(expected).unwrap());
+            let res = SolData::parse_version_req(&pragma).unwrap();
+            assert_eq!(res, VersionReq::from_str(expected).unwrap());
         }
     }
 
@@ -708,31 +707,6 @@ mod tests {
         let version = Version::from_str(ver).unwrap();
         let res = SolcVersionManager.get_installed(&version);
         assert!(matches!(res, Err(VersionManagerError::VersionNotInstalled(_))));
-    }
-
-    #[test]
-    fn test_find_latest_matching_installation() {
-        let versions = ["0.4.24", "0.5.1", "0.5.2"]
-            .iter()
-            .map(|version| Version::from_str(version).unwrap())
-            .collect::<Vec<_>>();
-
-        let required = VersionReq::from_str(">=0.4.24").unwrap();
-
-        let got = Solc::find_matching_installation(&versions, &required).unwrap();
-        assert_eq!(got, versions[2]);
-    }
-
-    #[test]
-    fn test_no_matching_installation() {
-        let versions = ["0.4.24", "0.5.1", "0.5.2"]
-            .iter()
-            .map(|version| Version::from_str(version).unwrap())
-            .collect::<Vec<_>>();
-
-        let required = VersionReq::from_str(">=0.6.0").unwrap();
-        let got = Solc::find_matching_installation(&versions, &required);
-        assert!(got.is_none());
     }
 
     ///// helpers
