@@ -40,6 +40,7 @@ pub trait CompilerInput: Serialize + Send + Sized {
     fn with_remappings(self, _remappings: Vec<Remapping>) -> Self {
         self
     }
+    fn compiler_name(&self) -> String;
 }
 
 pub trait ParsedSource: Debug + Sized + Send {

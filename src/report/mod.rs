@@ -14,7 +14,7 @@
 
 // <https://github.com/tokio-rs/tracing/blob/master/tracing-core/src/dispatch.rs>
 
-use crate::{remappings::Remapping, CompilerOutput, Solc, SolcInput};
+use crate::remappings::Remapping;
 use semver::Version;
 use std::{
     any::{Any, TypeId},
@@ -106,24 +106,16 @@ pub trait Reporter: 'static + std::fmt::Debug {
     ///
     /// If this is a fresh compile then the [crate::artifacts::Sources] set of the [CompilerInput]
     /// matches the dirty files set.
-    fn on_solc_spawn(
+    fn on_compiler_spawn(
         &self,
-        _solc: &Solc,
+        _compiler_name: &str,
         _version: &Version,
-        _input: &SolcInput,
         _dirty_files: &[PathBuf],
     ) {
     }
 
     /// Invoked with the `CompilerOutput` if [`Solc::compile()`] was successful
-    fn on_solc_success(
-        &self,
-        _solc: &Solc,
-        _version: &Version,
-        _output: &CompilerOutput,
-        _duration: &Duration,
-    ) {
-    }
+    fn on_compiler_success(&self, _compiler_name: &str, _version: &Version, _duration: &Duration) {}
 
     /// Invoked before a new [`Solc`] bin is installed
     fn on_solc_installation_start(&self, _version: &Version) {}
@@ -181,22 +173,12 @@ impl dyn Reporter {
     }
 }
 
-pub(crate) fn solc_spawn(
-    solc: &Solc,
-    version: &Version,
-    input: &SolcInput,
-    dirty_files: &[PathBuf],
-) {
-    get_default(|r| r.reporter.on_solc_spawn(solc, version, input, dirty_files));
+pub(crate) fn compiler_spawn(compiler_name: &str, version: &Version, dirty_files: &[PathBuf]) {
+    get_default(|r| r.reporter.on_compiler_spawn(compiler_name, version, dirty_files));
 }
 
-pub(crate) fn solc_success(
-    solc: &Solc,
-    version: &Version,
-    output: &CompilerOutput,
-    duration: &Duration,
-) {
-    get_default(|r| r.reporter.on_solc_success(solc, version, output, duration));
+pub(crate) fn compiler_success(compiler_name: &str, version: &Version, duration: &Duration) {
+    get_default(|r| r.reporter.on_compiler_success(compiler_name, version, duration));
 }
 
 #[allow(dead_code)]
@@ -331,47 +313,28 @@ pub struct NoReporter(());
 impl Reporter for NoReporter {}
 
 /// A [`Reporter`] that emits some general information to `stdout`
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BasicStdoutReporter {
-    solc_io_report: SolcCompilerIoReporter,
-}
-
-impl Default for BasicStdoutReporter {
-    fn default() -> Self {
-        Self { solc_io_report: SolcCompilerIoReporter::from_default_env() }
-    }
+    _priv: (),
 }
 
 impl Reporter for BasicStdoutReporter {
     /// Callback invoked right before [`Solc::compile()`] is called
-    fn on_solc_spawn(
-        &self,
-        _solc: &Solc,
-        version: &Version,
-        input: &SolcInput,
-        dirty_files: &[PathBuf],
-    ) {
-        self.solc_io_report.log_compiler_input(input, version);
+    fn on_compiler_spawn(&self, compiler_name: &str, version: &Version, dirty_files: &[PathBuf]) {
         println!(
-            "Compiling {} files with {}.{}.{}",
+            "Compiling {} files with {} {}.{}.{}",
             dirty_files.len(),
+            compiler_name,
             version.major,
             version.minor,
             version.patch
         );
     }
 
-    fn on_solc_success(
-        &self,
-        _solc: &Solc,
-        version: &Version,
-        output: &CompilerOutput,
-        duration: &Duration,
-    ) {
-        self.solc_io_report.log_compiler_output(output, version);
+    fn on_compiler_success(&self, compiler_name: &str, version: &Version, duration: &Duration) {
         println!(
-            "Solc {}.{}.{} finished in {duration:.2?}",
-            version.major, version.minor, version.patch
+            "{} {}.{}.{} finished in {duration:.2?}",
+            compiler_name, version.major, version.minor, version.patch
         );
     }
 

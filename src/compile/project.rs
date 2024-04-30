@@ -524,8 +524,13 @@ fn compile_sequential<C: Compiler>(
         let sources = sparse_output.sparse_sources(filtered_sources, &mut opt_settings);
 
         for input in C::Input::build(sources, opt_settings, &version) {
-            let actually_dirty = input.sources().keys().filter(|f| dirty_files.contains(f)).count();
-            if actually_dirty == 0 {
+            let actually_dirty = input
+                .sources()
+                .keys()
+                .filter(|f| dirty_files.contains(f))
+                .cloned()
+                .collect::<Vec<_>>();
+            if actually_dirty.is_empty() {
                 // nothing to compile for this particular language, all dirty files are in the other
                 // language set
                 trace!("skip {} run due to empty source set", version);
@@ -541,9 +546,13 @@ fn compile_sequential<C: Compiler>(
             let input = input.with_remappings(paths.remappings.clone());
 
             let start = Instant::now();
-            // report::compiler_spawn(&version, &input, &actually_dirty);
+            report::compiler_spawn(
+                &input.compiler_name(),
+                compiler.version(),
+                actually_dirty.as_slice(),
+            );
             let (input, output) = compiler.compile(input)?;
-            // report::compiler_success(&version, &output, &start.elapsed());
+            report::compiler_success(&input.compiler_name(), compiler.version(), &start.elapsed());
             // trace!("compiled input, output has error: {}", output.has_error());
             trace!("received compiler output: {:?}", output.contracts.keys());
 
@@ -597,8 +606,13 @@ fn compile_parallel<C: Compiler>(
         let sources = sparse_output.sparse_sources(filtered_sources, &mut opt_settings);
 
         for input in C::Input::build(sources, settings.clone(), &version) {
-            let actually_dirty = input.sources().keys().filter(|f| dirty_files.contains(f)).count();
-            if actually_dirty == 0 {
+            let actually_dirty = input
+                .sources()
+                .keys()
+                .filter(|f| dirty_files.contains(f))
+                .cloned()
+                .collect::<Vec<_>>();
+            if actually_dirty.is_empty() {
                 // nothing to compile for this particular language, all dirty files are in the other
                 // language set
                 trace!("skip {} run due to empty source set", version);
@@ -638,9 +652,17 @@ fn compile_parallel<C: Compiler>(
                     input.sources().keys()
                 );
                 let start = Instant::now();
-                // report::compiler_spawn(&version, &input, &actually_dirty);
+                report::compiler_spawn(
+                    &input.compiler_name(),
+                    compiler.version(),
+                    actually_dirty.as_slice(),
+                );
                 compiler.compile(input).map(move |(input, output)| {
-                    // report::compiler_success(&version, &output, &start.elapsed());
+                    report::compiler_success(
+                        &input.compiler_name(),
+                        compiler.version(),
+                        &start.elapsed(),
+                    );
                     (version, input, output)
                 })
             })

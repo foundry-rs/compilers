@@ -114,6 +114,10 @@ impl CompilerInput for SolcInput {
         self.settings.remappings = remappings;
         self
     }
+
+    fn compiler_name(&self) -> String {
+        "Solc".to_string()
+    }
 }
 
 impl CompilerSettings for SolcSettings {

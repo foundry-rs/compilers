@@ -120,6 +120,10 @@ impl CompilerInput for VyperInput {
     fn sources(&self) -> &Sources {
         &self.sources
     }
+
+    fn compiler_name(&self) -> String {
+        "Vyper".to_string()
+    }
 }
 
 impl Compiler for Vyper {
