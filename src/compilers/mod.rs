@@ -9,7 +9,7 @@ use crate::{
 use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     fmt::Debug,
     path::{Path, PathBuf},
 };
@@ -76,9 +76,35 @@ pub trait CompilationError: Serialize + DeserializeOwned + Send + Debug {
 /// error but might be extended in the future.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompilerOutput<E> {
+    #[serde(default = "Vec::new", skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<E>,
+    #[serde(default)]
     pub contracts: FileToContractsMap<Contract>,
+    #[serde(default)]
     pub sources: BTreeMap<PathBuf, SourceFile>,
+}
+
+impl<E> CompilerOutput<E> {
+    /// Retains only those files the given iterator yields
+    ///
+    /// In other words, removes all contracts for files not included in the iterator
+    pub fn retain_files<'a, I>(&mut self, files: I)
+    where
+        I: IntoIterator<Item = &'a Path>,
+    {
+        // Note: use `to_lowercase` here because solc not necessarily emits the exact file name,
+        // e.g. `src/utils/upgradeProxy.sol` is emitted as `src/utils/UpgradeProxy.sol`
+        let files: HashSet<_> =
+            files.into_iter().map(|s| s.to_string_lossy().to_lowercase()).collect();
+        self.contracts.retain(|f, _| files.contains(&f.to_string_lossy().to_lowercase()));
+        self.sources.retain(|f, _| files.contains(&f.to_string_lossy().to_lowercase()));
+    }
+
+    pub fn merge(&mut self, other: CompilerOutput<E>) {
+        self.errors.extend(other.errors);
+        self.contracts.extend(other.contracts);
+        self.sources.extend(other.sources);
+    }
 }
 
 impl<E> Default for CompilerOutput<E> {

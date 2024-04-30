@@ -1,70 +1,24 @@
-use super::{
-    CompilationError, Compiler, CompilerError, CompilerInput, CompilerSettings, ParsedSource,
-};
+use self::{error::VyperCompilationError, input::VyperInput, parser::VyperParsedSource};
+use super::{Compiler, CompilerInput, CompilerOutput};
 use crate::{
-    artifacts::{output_selection::OutputSelection, serde_helpers, Error, Severity, Sources},
-    compilers::CompilerOutput,
+    artifacts::{Source},
     error::{Result, SolcError},
-    resolver::parse::capture_outer_and_inner,
-    utils, EvmVersion, ProjectPathsConfig,
 };
-use semver::{Version, VersionReq};
-use serde::{Deserialize, Serialize};
+use semver::Version;
+use serde::{de::DeserializeOwned, Serialize};
 use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    str::FromStr,
 };
 
-#[derive(Debug, Serialize, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VyperSettings {
-    #[serde(
-        default,
-        with = "serde_helpers::display_from_str_opt",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub evm_version: Option<EvmVersion>,
-    pub output_selection: OutputSelection,
-}
+pub mod error;
+pub mod input;
+pub mod parser;
+pub mod settings;
+pub use settings::VyperSettings;
 
-impl CompilerSettings for VyperSettings {
-    fn output_selection_mut(&mut self) -> &mut OutputSelection {
-        &mut self.output_selection
-    }
-
-    fn can_use_cached(&self, other: &Self) -> bool {
-        self.evm_version == other.evm_version
-            && self.output_selection.is_subset_of(&other.output_selection)
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct VyperCompilationError {
-    pub message: String,
-    pub severity: Severity,
-}
-
-impl CompilationError for VyperCompilationError {
-    fn is_warning(&self) -> bool {
-        self.severity.is_warning()
-    }
-
-    fn is_error(&self) -> bool {
-        self.severity.is_error()
-    }
-
-    fn source_location(&self) -> Option<crate::artifacts::error::SourceLocation> {
-        None
-    }
-
-    fn severity(&self) -> Severity {
-        self.severity
-    }
-
-    fn error_code(&self) -> Option<u64> {
-        None
-    }
-}
+type VyperCompilerOutput = CompilerOutput<VyperCompilationError>;
 
 #[derive(Debug, Clone)]
 pub struct Vyper {
@@ -72,95 +26,129 @@ pub struct Vyper {
     pub version: Version,
 }
 
-#[derive(Debug)]
-pub struct VyperParsedSource {
-    version_req: Option<VersionReq>,
-}
-
-impl ParsedSource for VyperParsedSource {
-    fn parse(content: &str, _file: &Path) -> Self {
-        let version_req = capture_outer_and_inner(content, &utils::RE_VYPER_VERSION, &["version"])
-            .first()
-            .and_then(|(cap, _)| VersionReq::parse(cap.as_str()).ok());
-        VyperParsedSource { version_req }
+impl Vyper {
+    /// Creates a new instance of the Vyper compiler. Uses the `vyper` binary in the system `PATH`.
+    pub fn new() -> Result<Self> {
+        let version = Self::version("vyper")?;
+        Ok(Self { path: "vyper".into(), version })
     }
 
-    fn version_req(&self) -> Option<&VersionReq> {
-        self.version_req.as_ref()
+    /// Convenience function for compiling all sources under the given path
+    pub fn compile_source(&self, path: impl AsRef<Path>) -> Result<VyperCompilerOutput> {
+        let path = path.as_ref();
+        let mut res: VyperCompilerOutput = Default::default();
+        for input in
+            VyperInput::build(Source::read_all_from(path)?, Default::default(), &self.version)
+        {
+            let output = self.compile(&input)?;
+            res.merge(output)
+        }
+        Ok(res)
     }
 
-    fn resolve_imports(&self, _paths: &ProjectPathsConfig) -> Vec<PathBuf> {
-        vec![]
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum VyperError {}
-
-impl CompilerError for VyperError {
-    fn compiler_version(&self) -> Option<&Version> {
-        None
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VyperInput {
-    pub language: String,
-    pub sources: Sources,
-    pub settings: VyperSettings,
-}
-
-impl CompilerInput for VyperInput {
-    type Settings = VyperSettings;
-
-    fn build(sources: Sources, settings: Self::Settings, _version: &Version) -> Vec<Self> {
-        vec![VyperInput { language: "Vyper".to_string(), sources, settings }]
+    /// Same as [`Self::compile()`], but only returns those files which are included in the
+    /// `CompilerInput`.
+    ///
+    /// In other words, this removes those files from the `VyperCompilerOutput` that are __not__ included
+    /// in the provided `CompilerInput`.
+    ///
+    /// # Examples
+    pub fn compile_exact(&self, input: &VyperInput) -> Result<VyperCompilerOutput> {
+        let mut out = self.compile(input)?;
+        out.retain_files(input.sources.keys().map(|p| p.as_path()));
+        Ok(out)
     }
 
-    fn sources(&self) -> &Sources {
-        &self.sources
+    /// Compiles with `--standard-json` and deserializes the output as [`VyperCompilerOutput`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use foundry_compilers::{CompilerInput, Solc};
+    ///
+    /// let solc = Solc::default();
+    /// let input = CompilerInput::new("./contracts")?;
+    /// let output = solc.compile(&input)?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn compile<T: Serialize>(&self, input: &T) -> Result<VyperCompilerOutput> {
+        self.compile_as(input)
     }
 
-    fn compiler_name(&self) -> String {
-        "Vyper".to_string()
+    /// Compiles with `--standard-json` and deserializes the output as the given `D`.
+    pub fn compile_as<T: Serialize, D: DeserializeOwned>(&self, input: &T) -> Result<D> {
+        let output = self.compile_output(input)?;
+
+        // Only run UTF-8 validation once.
+        let output = std::str::from_utf8(&output).map_err(|_| SolcError::InvalidUtf8)?;
+
+        Ok(serde_json::from_str(output)?)
+    }
+
+    /// Compiles with `--standard-json` and returns the raw `stdout` output.
+    #[instrument(name = "compile", level = "debug", skip_all)]
+    pub fn compile_output<T: Serialize>(&self, input: &T) -> Result<Vec<u8>> {
+        let mut cmd = Command::new(&self.path);
+        cmd.arg("--standard-json")
+            .stdin(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped());
+
+        trace!(input=%serde_json::to_string(input).unwrap_or_else(|e| e.to_string()));
+        debug!(?cmd, "compiling");
+
+        let mut child = cmd.spawn().map_err(self.map_io_err())?;
+        debug!("spawned");
+
+        let stdin = child.stdin.as_mut().unwrap();
+        serde_json::to_writer(stdin, input)?;
+        debug!("wrote JSON input to stdin");
+
+        let output = child.wait_with_output().map_err(self.map_io_err())?;
+        debug!(%output.status, output.stderr = ?String::from_utf8_lossy(&output.stderr), "finished");
+
+        if output.status.success() {
+            Ok(output.stdout)
+        } else {
+            Err(SolcError::solc_output(&output))
+        }
+    }
+
+    /// Invokes `vyper --version` and parses the output as a SemVer [`Version`].
+    #[instrument(level = "debug", skip_all)]
+    pub fn version(vyper: impl Into<PathBuf>) -> Result<Version> {
+        let vyper = vyper.into();
+        let mut cmd = Command::new(vyper.clone());
+        cmd.arg("--version").stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
+        debug!(?cmd, "getting Solc version");
+        let output = cmd.output().map_err(|e| SolcError::io(e, vyper))?;
+        trace!(?output);
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            Ok(Version::from_str(&stdout.trim())?)
+        } else {
+            Err(SolcError::solc_output(&output))
+        }
+    }
+
+    fn map_io_err(&self) -> impl FnOnce(std::io::Error) -> SolcError + '_ {
+        move |err| SolcError::io(err, &self.path)
     }
 }
 
 impl Compiler for Vyper {
     type Settings = VyperSettings;
-    type CompilationError = Error;
+    type CompilationError = VyperCompilationError;
     type ParsedSource = VyperParsedSource;
     type Input = VyperInput;
 
     fn compile(
         &self,
         input: Self::Input,
-    ) -> Result<(Self::Input, super::CompilerOutput<Self::CompilationError>)> {
-        let mut cmd = Command::new(&self.path);
-        cmd.stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
+    ) -> Result<(Self::Input, VyperCompilerOutput)> {
+        let output = self.compile(&input)?;
 
-        cmd.arg("--standard-json");
-
-        let mut child = cmd.spawn().map_err(|e| SolcError::io(e, &self.path))?;
-        debug!("spawned");
-
-        let stdin = child.stdin.as_mut().unwrap();
-        serde_json::to_writer(stdin, &input)?;
-
-        debug!("wrote JSON input to stdin");
-
-        let output = child.wait_with_output().map_err(|e| SolcError::io(e, &self.path))?;
-        debug!(%output.status, output.stderr = ?String::from_utf8_lossy(&output.stderr), "finished");
-
-        if output.status.success() {
-            // Only run UTF-8 validation once.
-            let output = std::str::from_utf8(&output.stdout).map_err(|_| SolcError::InvalidUtf8)?;
-            let output: CompilerOutput<Error> = serde_json::from_str(output)?;
-
-            Ok((input, output))
-        } else {
-            Err(SolcError::solc_output(&output))
-        }
+        Ok((input, output))
     }
 
     fn version(&self) -> &Version {
