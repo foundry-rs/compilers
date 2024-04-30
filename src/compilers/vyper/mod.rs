@@ -1,7 +1,7 @@
 use self::{error::VyperCompilationError, input::VyperInput, parser::VyperParsedSource};
 use super::{Compiler, CompilerInput, CompilerOutput};
 use crate::{
-    artifacts::{Source},
+    artifacts::Source,
     error::{Result, SolcError},
 };
 use semver::Version;
@@ -49,8 +49,8 @@ impl Vyper {
     /// Same as [`Self::compile()`], but only returns those files which are included in the
     /// `CompilerInput`.
     ///
-    /// In other words, this removes those files from the `VyperCompilerOutput` that are __not__ included
-    /// in the provided `CompilerInput`.
+    /// In other words, this removes those files from the `VyperCompilerOutput` that are __not__
+    /// included in the provided `CompilerInput`.
     ///
     /// # Examples
     pub fn compile_exact(&self, input: &VyperInput) -> Result<VyperCompilerOutput> {
@@ -142,10 +142,7 @@ impl Compiler for Vyper {
     type ParsedSource = VyperParsedSource;
     type Input = VyperInput;
 
-    fn compile(
-        &self,
-        input: Self::Input,
-    ) -> Result<(Self::Input, VyperCompilerOutput)> {
+    fn compile(&self, input: Self::Input) -> Result<(Self::Input, VyperCompilerOutput)> {
         let output = self.compile(&input)?;
 
         Ok((input, output))
