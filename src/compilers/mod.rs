@@ -10,7 +10,7 @@ use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
-    fmt::Debug,
+    fmt::{Debug, Display},
     path::{Path, PathBuf},
 };
 
@@ -64,7 +64,7 @@ pub trait ParsedSource: Debug + Sized + Send {
 }
 
 /// Error returned by compiler. Might also represent a warning or informational message.
-pub trait CompilationError: Serialize + DeserializeOwned + Send + Debug {
+pub trait CompilationError: Serialize + DeserializeOwned + Send + Display + Debug {
     fn is_warning(&self) -> bool;
     fn is_error(&self) -> bool;
     fn source_location(&self) -> Option<crate::artifacts::error::SourceLocation>;

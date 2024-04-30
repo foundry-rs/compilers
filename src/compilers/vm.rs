@@ -66,7 +66,7 @@ impl VersionManagerError {
 ///
 /// [`SolcVersionManager`]: crate::compilers::solc::SolcVersionManager
 #[auto_impl(&, Box, Arc)]
-pub trait CompilerVersionManager: Debug {
+pub trait CompilerVersionManager: Debug + Send + Sync {
     type Compiler: Compiler;
 
     /// Returns all versions available locally and remotely.

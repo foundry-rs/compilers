@@ -1,3 +1,4 @@
+use core::fmt;
 use std::path::PathBuf;
 
 use crate::{
@@ -41,5 +42,11 @@ impl CompilationError for VyperCompilationError {
 
     fn error_code(&self) -> Option<u64> {
         None
+    }
+}
+
+impl fmt::Display for VyperCompilationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.message)
     }
 }

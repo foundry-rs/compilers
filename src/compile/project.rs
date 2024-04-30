@@ -153,8 +153,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
         let graph = Graph::resolve_sources(&project.paths, sources)?;
         let (versions, edges) = graph.into_sources_by_version(project.offline, &version_manager)?;
 
-        let sources_by_version =
-            versions.get(&project.paths, edges.include_paths(), &version_manager)?;
+        let sources_by_version = versions.get(&version_manager)?;
 
         let sources = if project.solc_jobs > 1 && sources_by_version.len() > 1 {
             // if there are multiple different versions, and we can use multiple jobs we can compile
@@ -516,6 +515,11 @@ fn compile_sequential<C: Compiler>(
         }
         trace!("compiling {} sources with \"{}\"", filtered_sources.len(), version,);
 
+        let compiler = compiler
+            .with_base_path(paths.root.clone())
+            .with_allowed_paths(paths.allowed_paths.clone())
+            .with_include_paths(include_paths.clone());
+
         let dirty_files: Vec<PathBuf> = filtered_sources.dirty_files().cloned().collect();
 
         // depending on the composition of the filtered sources, the output selection can be
@@ -596,6 +600,11 @@ fn compile_parallel<C: Compiler>(
             trace!("skip {} for empty sources set", version);
             continue;
         }
+
+        let compiler = compiler
+            .with_base_path(paths.root.clone())
+            .with_allowed_paths(paths.allowed_paths.clone())
+            .with_include_paths(include_paths.clone());
 
         let dirty_files: Vec<PathBuf> = filtered_sources.dirty_files().cloned().collect();
         let compiler = Arc::new(compiler);

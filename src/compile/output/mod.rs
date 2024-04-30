@@ -959,7 +959,7 @@ impl<'a, E: CompilationError> fmt::Display for OutputDiagnostics<'a, E> {
 
             if !ignored {
                 f.write_str("\n")?;
-                err.fmt(f)?;
+                fmt::Display::fmt(&err, f)?;
             }
         }
 

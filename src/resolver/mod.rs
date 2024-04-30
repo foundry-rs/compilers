@@ -780,26 +780,13 @@ pub struct VersionedSources {
 
 impl VersionedSources {
     /// Resolves or installs the corresponding `Solc` installation.
-    ///
-    /// This will also configure following solc arguments:
-    ///    - `allowed_paths`
-    ///    - `base_path`
     pub fn get<VM: CompilerVersionManager>(
         self,
-        paths: &ProjectPathsConfig,
-        resolved_solc_include_paths: &BTreeSet<PathBuf>,
         version_manager: &VM,
     ) -> Result<Vec<(VM::Compiler, semver::Version, Sources)>> {
         // we take the installer lock here to ensure installation checking is done in sync
         #[cfg(test)]
         let _lock = crate::compile::take_solc_installer_lock();
-
-        let include_paths = paths
-            .include_paths
-            .iter()
-            .chain(resolved_solc_include_paths.iter())
-            .cloned()
-            .collect::<BTreeSet<_>>();
 
         let mut sources_by_version = Vec::new();
         for (version, sources) in self.inner {
@@ -816,11 +803,6 @@ impl VersionedSources {
                 // find installed svm
                 version_manager.get_installed(version.as_ref())?
             };
-
-            let compiler = compiler
-                .with_base_path(paths.root.clone())
-                .with_allowed_paths(paths.allowed_paths.clone())
-                .with_include_paths(include_paths.clone());
 
             /*if self.offline {
                 trace!("skip verifying solc checksum for {} in offline mode", compiler.solc.display());
