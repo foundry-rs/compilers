@@ -61,16 +61,26 @@ impl VersionManagerError {
     }
 }
 
+/// Abstraction over a compiler version manager. Currently main implementation is
+/// [`SolcVersionManager`]. Acts as a factory of [Compiler]s.
+///
+/// [`SolcVersionManager`]: crate::compilers::solc::SolcVersionManager
 #[auto_impl(&, Box, Arc)]
 pub trait CompilerVersionManager: Debug {
     type Compiler: Compiler;
 
+    /// Returns all versions available locally and remotely.
     fn all_versions(&self) -> Vec<CompilerVersion>;
+    /// Returns all versions available locally.
     fn installed_versions(&self) -> Vec<CompilerVersion>;
 
+    /// Installs a compiler version and returns the compiler instance.
     fn install(&self, version: &Version) -> Result<Self::Compiler, VersionManagerError>;
+    /// Returns the compiler instance for the given version if it is installed. If not, returns an
+    /// error.
     fn get_installed(&self, version: &Version) -> Result<Self::Compiler, VersionManagerError>;
 
+    /// Returns the compiler instance for the given version if it is installed. If not, installs it.
     fn get_or_install(&self, version: &Version) -> Result<Self::Compiler, VersionManagerError> {
         self.get_installed(version).or_else(|_| self.install(version))
     }
