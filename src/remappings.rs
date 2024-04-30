@@ -1,7 +1,7 @@
 use crate::utils;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{hash_map::Entry, HashMap, HashSet},
     fmt,
     path::{Path, PathBuf},
     str::FromStr,
@@ -227,6 +227,7 @@ impl Remapping {
         let dir = dir.as_ref();
         let is_inside_node_modules = dir.ends_with("node_modules");
 
+        let mut visited_symlink_dirs = HashSet::new();
         // iterate over all dirs that are children of the root
         for dir in walkdir::WalkDir::new(dir)
             .follow_links(true)
@@ -239,8 +240,13 @@ impl Remapping {
         {
             let depth1_dir = dir.path();
             // check all remappings in this depth 1 folder
-            let candidates =
-                find_remapping_candidates(depth1_dir, depth1_dir, 0, is_inside_node_modules);
+            let candidates = find_remapping_candidates(
+                depth1_dir,
+                depth1_dir,
+                0,
+                is_inside_node_modules,
+                &mut visited_symlink_dirs,
+            );
 
             for candidate in candidates {
                 if let Some(name) = candidate.window_start.file_name().and_then(|s| s.to_str()) {
@@ -625,11 +631,14 @@ fn is_hidden(entry: &walkdir::DirEntry) -> bool {
 }
 
 /// Finds all remappings in the directory recursively
+///
+/// Note: this supports symlinks and will short-circuit if a symlink dir has already been visited, this can occur in pnpm setups: <https://github.com/foundry-rs/foundry/issues/7820>
 fn find_remapping_candidates(
     current_dir: &Path,
     open: &Path,
     current_level: usize,
     is_inside_node_modules: bool,
+    visited_symlink_dirs: &mut HashSet<PathBuf>,
 ) -> Vec<Candidate> {
     // this is a marker if the current root is a candidate for a remapping
     let mut is_candidate = false;
@@ -665,6 +674,11 @@ fn find_remapping_candidates(
             // ```
             if entry.path_is_symlink() {
                 if let Ok(target) = utils::canonicalize(entry.path()) {
+                    if visited_symlink_dirs.contains(&target) {
+                        // short-circuiting if we've already visited the symlink
+                        return Vec::new();
+                    }
+                    visited_symlink_dirs.insert(target.clone());
                     // the symlink points to a parent dir of the current window
                     if open.components().count() > target.components().count()
                         && utils::common_ancestor(open, &target).is_some()
@@ -693,6 +707,7 @@ fn find_remapping_candidates(
                         subdir,
                         current_level + 1,
                         is_inside_node_modules,
+                        visited_symlink_dirs,
                     ));
                 } else {
                     // continue scanning with the current window
@@ -701,6 +716,7 @@ fn find_remapping_candidates(
                         open,
                         current_level,
                         is_inside_node_modules,
+                        visited_symlink_dirs,
                     ));
                 }
             }
