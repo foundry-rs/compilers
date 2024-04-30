@@ -15,8 +15,8 @@ use foundry_compilers::{
     project_util::*,
     remappings::Remapping,
     resolver::parse::SolData,
-    Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project, ProjectCompileOutput,
-    ProjectPathsConfig, SolcInput, TestFileFilter,
+    utils, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
+    ProjectCompileOutput, ProjectPathsConfig, SolcInput, TestFileFilter,
 };
 use pretty_assertions::assert_eq;
 use semver::Version;
@@ -2513,7 +2513,6 @@ fn can_sanitize_bytecode_hash() {
 
 // https://github.com/foundry-rs/foundry/issues/5307
 #[test]
-#[cfg(ignore)]
 fn can_create_standard_json_input_with_external_file() {
     // File structure:
     // .
@@ -2532,7 +2531,7 @@ fn can_create_standard_json_input_with_external_file() {
 
     let mut verif_project = Project::builder()
         .paths(ProjectPathsConfig::dapptools(&verif_dir).unwrap())
-        .build()
+        .build(Default::default())
         .unwrap();
 
     verif_project.paths.remappings.push(Remapping {
@@ -2566,8 +2565,10 @@ fn can_create_standard_json_input_with_external_file() {
         ]
     );
 
+    let solc = SolcVersionManager.get_installed(&Version::parse("0.8.24").unwrap()).unwrap();
+
     // can compile using the created json
-    let compiler_errors = Solc::default()
+    let compiler_errors = solc
         .compile(&std_json)
         .unwrap()
         .errors
@@ -2600,7 +2601,6 @@ fn can_compile_std_json_input() {
 // https://doc.rust-lang.org/std/os/windows/fs/fn.symlink_dir.html#limitations
 #[test]
 #[cfg(unix)]
-#[cfg(ignore)]
 fn can_create_standard_json_input_with_symlink() {
     let mut project = TempProject::dapptools().unwrap();
     let dependency = TempProject::dapptools().unwrap();
@@ -2654,8 +2654,10 @@ fn can_create_standard_json_input_with_symlink() {
         ]
     );
 
+    let solc = SolcVersionManager.get_installed(&Version::parse("0.8.24").unwrap()).unwrap();
+
     // can compile using the created json
-    let compiler_errors = Solc::default()
+    let compiler_errors = solc
         .compile(&std_json)
         .unwrap()
         .errors
@@ -2810,23 +2812,20 @@ contract Contract {{ }}
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg(ignore)]
 async fn can_install_solc_and_compile_std_json_input_async() {
     let tmp = TempProject::dapptools_init().unwrap();
     tmp.assert_no_errors();
     let source = tmp.list_source_files().into_iter().find(|p| p.ends_with("Dapp.t.sol")).unwrap();
     let input = tmp.project().standard_json_input(source).unwrap();
-    let solc = &tmp.project().solc;
+    let solc = SolcVersionManager.get_or_install(&Version::parse("0.8.24").unwrap()).unwrap();
 
     assert!(input.settings.remappings.contains(&"ds-test/=lib/ds-test/src/".parse().unwrap()));
     let input: SolcInput = input.into();
     assert!(input.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
 
-    remove_solc_if_exists(&solc.version().expect("failed to get version"));
-
     let out = solc.async_compile(&input).await.unwrap();
     assert!(!out.has_error());
-    assert!(out.sources.contains_key("lib/ds-test/src/test.sol"));
+    assert!(out.sources.contains_key(&PathBuf::from("lib/ds-test/src/test.sol")));
 }
 
 #[test]
