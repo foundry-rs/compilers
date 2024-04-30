@@ -674,11 +674,10 @@ fn find_remapping_candidates(
             // ```
             if entry.path_is_symlink() {
                 if let Ok(target) = utils::canonicalize(entry.path()) {
-                    if visited_symlink_dirs.contains(&target) {
+                    if !visited_symlink_dirs.insert(target.clone()) {
                         // short-circuiting if we've already visited the symlink
                         return Vec::new();
                     }
-                    visited_symlink_dirs.insert(target.clone());
                     // the symlink points to a parent dir of the current window
                     if open.components().count() > target.components().count()
                         && utils::common_ancestor(open, &target).is_some()
