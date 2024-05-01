@@ -60,7 +60,7 @@ pub trait CompilerInput: Serialize + Send + Sized {
 pub trait ParsedSource: Debug + Sized + Send {
     fn parse(content: &str, file: &Path) -> Self;
     fn version_req(&self) -> Option<&VersionReq>;
-    fn resolve_imports(&self, paths: &ProjectPathsConfig) -> Vec<PathBuf>;
+    fn resolve_imports<C>(&self, paths: &ProjectPathsConfig<C>) -> Vec<PathBuf>;
 }
 
 /// Error returned by compiler. Might also represent a warning or informational message.
@@ -117,6 +117,9 @@ impl<E> Default for CompilerOutput<E> {
 /// binary aware of the version and able to compile given input into [CompilerOutput] including
 /// artifacts and errors.
 pub trait Compiler: Send + Sync + Clone {
+    /// Extensions of source files recognized by the compiler.
+    const FILE_EXTENSIONS: &'static [&'static str];
+
     type Input: CompilerInput<Settings = Self::Settings>;
     type CompilationError: CompilationError;
     type ParsedSource: ParsedSource;

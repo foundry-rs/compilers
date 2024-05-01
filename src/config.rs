@@ -1,23 +1,25 @@
 use crate::{
     artifacts::{output_selection::ContractOutputSelection, Settings},
     cache::SOLIDITY_FILES_CACHE_FILENAME,
+    compilers::Compiler,
     error::{Result, SolcError, SolcIoError},
     flatten::{collect_ordered_deps, combine_version_pragmas},
     remappings::Remapping,
     resolver::{Graph, SolImportAlias},
-    utils, Source, Sources,
+    utils, Solc, Source, Sources,
 };
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeSet,
     fmt::{self, Formatter},
     fs,
+    marker::PhantomData,
     path::{Component, Path, PathBuf},
 };
 
 /// Where to find all files or where to write them
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectPathsConfig {
+pub struct ProjectPathsConfig<C = Solc> {
     /// Project root
     pub root: PathBuf,
     /// Path to the cache, if any
@@ -40,6 +42,8 @@ pub struct ProjectPathsConfig {
     pub include_paths: BTreeSet<PathBuf>,
     /// The paths which will be allowed for library inclusion
     pub allowed_paths: BTreeSet<PathBuf>,
+
+    pub _c: PhantomData<C>,
 }
 
 impl ProjectPathsConfig {
@@ -47,6 +51,157 @@ impl ProjectPathsConfig {
         ProjectPathsConfigBuilder::default()
     }
 
+    /// Flattens all file imports into a single string
+    pub fn flatten(&self, target: &Path) -> Result<String> {
+        trace!("flattening file");
+        let mut input_files = self.input_files();
+
+        // we need to ensure that the target is part of the input set, otherwise it's not
+        // part of the graph if it's not imported by any input file
+        let flatten_target = target.to_path_buf();
+        if !input_files.contains(&flatten_target) {
+            input_files.push(flatten_target.clone());
+        }
+
+        let sources = Source::read_all_files(input_files)?;
+        let graph = Graph::resolve_sources(self, sources)?;
+        let ordered_deps = collect_ordered_deps(&flatten_target, self, &graph)?;
+
+        let mut sources = Vec::new();
+        let mut experimental_pragma = None;
+        let mut version_pragmas = Vec::new();
+
+        let mut result = String::new();
+
+        for path in ordered_deps.iter() {
+            let node_id = graph.files().get(path).ok_or_else(|| {
+                SolcError::msg(format!("cannot resolve file at {}", path.display()))
+            })?;
+            let node = graph.node(*node_id);
+            let content = node.content();
+
+            // Firstly we strip all licesnses, verson pragmas
+            // We keep target file pragma and license placing them in the beginning of the result.
+            let mut ranges_to_remove = Vec::new();
+
+            if let Some(license) = &node.data.license {
+                ranges_to_remove.push(license.loc());
+                if *path == flatten_target {
+                    result.push_str(&content[license.loc()]);
+                    result.push('\n');
+                }
+            }
+            if let Some(version) = &node.data.version {
+                let content = &content[version.loc()];
+                ranges_to_remove.push(version.loc());
+                version_pragmas.push(content);
+            }
+            if let Some(experimental) = &node.data.experimental {
+                ranges_to_remove.push(experimental.loc());
+                if experimental_pragma.is_none() {
+                    experimental_pragma = Some(content[experimental.loc()].to_owned());
+                }
+            }
+            for import in &node.data.imports {
+                ranges_to_remove.push(import.loc());
+            }
+            ranges_to_remove.sort_by_key(|loc| loc.start);
+
+            let mut content = content.as_bytes().to_vec();
+            let mut offset = 0_isize;
+
+            for range in ranges_to_remove {
+                let repl_range = utils::range_by_offset(&range, offset);
+                offset -= repl_range.len() as isize;
+                content.splice(repl_range, std::iter::empty());
+            }
+
+            let mut content = String::from_utf8(content).map_err(|err| {
+                SolcError::msg(format!("failed to convert extended bytes to string: {err}"))
+            })?;
+
+            // Iterate over all aliased imports, and replace alias with real name via regexes
+            for alias in node.data.imports.iter().flat_map(|i| i.data().aliases()) {
+                let (alias, target) = match alias {
+                    SolImportAlias::Contract(alias, target) => (alias.clone(), target.clone()),
+                    _ => continue,
+                };
+                let name_regex = utils::create_contract_or_lib_name_regex(&alias);
+                let target_len = target.len() as isize;
+                let mut replace_offset = 0;
+                for cap in name_regex.captures_iter(&content.clone()) {
+                    if cap.name("ignore").is_some() {
+                        continue;
+                    }
+                    if let Some(name_match) =
+                        ["n1", "n2", "n3"].iter().find_map(|name| cap.name(name))
+                    {
+                        let name_match_range =
+                            utils::range_by_offset(&name_match.range(), replace_offset);
+                        replace_offset += target_len - (name_match_range.len() as isize);
+                        content.replace_range(name_match_range, &target);
+                    }
+                }
+            }
+
+            let content = format!(
+                "// {}\n{}",
+                path.strip_prefix(&self.root).unwrap_or(path).display(),
+                content
+            );
+
+            sources.push(content);
+        }
+
+        if let Some(version) = combine_version_pragmas(version_pragmas) {
+            result.push_str(&version);
+            result.push('\n');
+        }
+        if let Some(experimental) = experimental_pragma {
+            result.push_str(&experimental);
+            result.push('\n');
+        }
+
+        for source in sources {
+            result.push_str("\n\n");
+            result.push_str(&source);
+        }
+
+        Ok(format!("{}\n", utils::RE_THREE_OR_MORE_NEWLINES.replace_all(&result, "\n\n").trim()))
+    }
+
+    /// Attempts to autodetect the artifacts directory based on the given root path
+    ///
+    /// Dapptools layout takes precedence over hardhat style.
+    /// This will return:
+    ///   - `<root>/out` if it exists or `<root>/artifacts` does not exist,
+    ///   - `<root>/artifacts` if it exists and `<root>/out` does not exist.
+    pub fn find_artifacts_dir(root: impl AsRef<Path>) -> PathBuf {
+        utils::find_fave_or_alt_path(root, "out", "artifacts")
+    }
+
+    /// Attempts to autodetect the source directory based on the given root path
+    ///
+    /// Dapptools layout takes precedence over hardhat style.
+    /// This will return:
+    ///   - `<root>/src` if it exists or `<root>/contracts` does not exist,
+    ///   - `<root>/contracts` if it exists and `<root>/src` does not exist.
+    pub fn find_source_dir(root: impl AsRef<Path>) -> PathBuf {
+        utils::find_fave_or_alt_path(root, "src", "contracts")
+    }
+
+    /// Attempts to autodetect the lib directory based on the given root path
+    ///
+    /// Dapptools layout takes precedence over hardhat style.
+    /// This will return:
+    ///   - `<root>/lib` if it exists or `<root>/node_modules` does not exist,
+    ///   - `<root>/node_modules` if it exists and `<root>/lib` does not exist.
+    pub fn find_libs(root: impl AsRef<Path>) -> Vec<PathBuf> {
+        vec![utils::find_fave_or_alt_path(root, "lib", "node_modules")]
+    }
+}
+
+impl<C> ProjectPathsConfig<C> {
     /// Creates a new hardhat style config instance which points to the canonicalized root path
     pub fn hardhat(root: impl AsRef<Path>) -> Result<Self> {
         PathStyle::HardHat.paths(root)
@@ -103,50 +258,6 @@ impl ProjectPathsConfig {
             fs::create_dir_all(lib).map_err(|err| SolcIoError::new(err, lib))?;
         }
         Ok(())
-    }
-
-    /// Returns all sources found under the project's configured `sources` path
-    pub fn read_sources(&self) -> Result<Sources> {
-        trace!("reading all sources from \"{}\"", self.sources.display());
-        Ok(Source::read_all_from(&self.sources)?)
-    }
-
-    /// Returns all sources found under the project's configured `test` path
-    pub fn read_tests(&self) -> Result<Sources> {
-        trace!("reading all tests from \"{}\"", self.tests.display());
-        Ok(Source::read_all_from(&self.tests)?)
-    }
-
-    /// Returns all sources found under the project's configured `script` path
-    pub fn read_scripts(&self) -> Result<Sources> {
-        trace!("reading all scripts from \"{}\"", self.scripts.display());
-        Ok(Source::read_all_from(&self.scripts)?)
-    }
-
-    /// Returns true if the there is at least one solidity file in this config.
-    ///
-    /// See also, `Self::input_files()`
-    pub fn has_input_files(&self) -> bool {
-        self.input_files_iter().next().is_some()
-    }
-
-    /// Returns an iterator that yields all solidity file paths for `Self::sources`, `Self::tests`
-    /// and `Self::scripts`
-    pub fn input_files_iter(&self) -> impl Iterator<Item = PathBuf> + '_ {
-        utils::source_files_iter(&self.sources)
-            .chain(utils::source_files_iter(&self.tests))
-            .chain(utils::source_files_iter(&self.scripts))
-    }
-
-    /// Returns the combined set solidity file paths for `Self::sources`, `Self::tests` and
-    /// `Self::scripts`
-    pub fn input_files(&self) -> Vec<PathBuf> {
-        self.input_files_iter().collect()
-    }
-
-    /// Returns the combined set of `Self::read_sources` + `Self::read_tests` + `Self::read_scripts`
-    pub fn read_input_files(&self) -> Result<Sources> {
-        Ok(Source::read_all_files(self.input_files())?)
     }
 
     /// Converts all `\\` separators in _all_ paths to `/`
@@ -382,154 +493,51 @@ impl ProjectPathsConfig {
             utils::resolve_library(&self.libraries, import)
         }
     }
+}
 
-    /// Attempts to autodetect the artifacts directory based on the given root path
-    ///
-    /// Dapptools layout takes precedence over hardhat style.
-    /// This will return:
-    ///   - `<root>/out` if it exists or `<root>/artifacts` does not exist,
-    ///   - `<root>/artifacts` if it exists and `<root>/out` does not exist.
-    pub fn find_artifacts_dir(root: impl AsRef<Path>) -> PathBuf {
-        utils::find_fave_or_alt_path(root, "out", "artifacts")
+impl<C: Compiler> ProjectPathsConfig<C> {
+    /// Returns all sources found under the project's configured `sources` path
+    pub fn read_sources(&self) -> Result<Sources> {
+        trace!("reading all sources from \"{}\"", self.sources.display());
+        Ok(Source::read_all_from(&self.sources, C::FILE_EXTENSIONS)?)
     }
 
-    /// Attempts to autodetect the source directory based on the given root path
-    ///
-    /// Dapptools layout takes precedence over hardhat style.
-    /// This will return:
-    ///   - `<root>/src` if it exists or `<root>/contracts` does not exist,
-    ///   - `<root>/contracts` if it exists and `<root>/src` does not exist.
-    pub fn find_source_dir(root: impl AsRef<Path>) -> PathBuf {
-        utils::find_fave_or_alt_path(root, "src", "contracts")
+    /// Returns all sources found under the project's configured `test` path
+    pub fn read_tests(&self) -> Result<Sources> {
+        trace!("reading all tests from \"{}\"", self.tests.display());
+        Ok(Source::read_all_from(&self.tests, C::FILE_EXTENSIONS)?)
     }
 
-    /// Attempts to autodetect the lib directory based on the given root path
-    ///
-    /// Dapptools layout takes precedence over hardhat style.
-    /// This will return:
-    ///   - `<root>/lib` if it exists or `<root>/node_modules` does not exist,
-    ///   - `<root>/node_modules` if it exists and `<root>/lib` does not exist.
-    pub fn find_libs(root: impl AsRef<Path>) -> Vec<PathBuf> {
-        vec![utils::find_fave_or_alt_path(root, "lib", "node_modules")]
+    /// Returns all sources found under the project's configured `script` path
+    pub fn read_scripts(&self) -> Result<Sources> {
+        trace!("reading all scripts from \"{}\"", self.scripts.display());
+        Ok(Source::read_all_from(&self.scripts, C::FILE_EXTENSIONS)?)
     }
 
-    /// Flattens all file imports into a single string
-    pub fn flatten(&self, target: &Path) -> Result<String> {
-        trace!("flattening file");
-        let mut input_files = self.input_files();
+    /// Returns true if the there is at least one solidity file in this config.
+    ///
+    /// See also, `Self::input_files()`
+    pub fn has_input_files(&self) -> bool {
+        self.input_files_iter().next().is_some()
+    }
 
-        // we need to ensure that the target is part of the input set, otherwise it's not
-        // part of the graph if it's not imported by any input file
-        let flatten_target = target.to_path_buf();
-        if !input_files.contains(&flatten_target) {
-            input_files.push(flatten_target.clone());
-        }
+    /// Returns an iterator that yields all solidity file paths for `Self::sources`, `Self::tests`
+    /// and `Self::scripts`
+    pub fn input_files_iter(&self) -> impl Iterator<Item = PathBuf> + '_ {
+        utils::source_files_iter(&self.sources, C::FILE_EXTENSIONS)
+            .chain(utils::source_files_iter(&self.tests, C::FILE_EXTENSIONS))
+            .chain(utils::source_files_iter(&self.scripts, C::FILE_EXTENSIONS))
+    }
 
-        let sources = Source::read_all_files(input_files)?;
-        let graph = Graph::resolve_sources(self, sources)?;
-        let ordered_deps = collect_ordered_deps(&flatten_target, self, &graph)?;
+    /// Returns the combined set solidity file paths for `Self::sources`, `Self::tests` and
+    /// `Self::scripts`
+    pub fn input_files(&self) -> Vec<PathBuf> {
+        self.input_files_iter().collect()
+    }
 
-        let mut sources = Vec::new();
-        let mut experimental_pragma = None;
-        let mut version_pragmas = Vec::new();
-
-        let mut result = String::new();
-
-        for path in ordered_deps.iter() {
-            let node_id = graph.files().get(path).ok_or_else(|| {
-                SolcError::msg(format!("cannot resolve file at {}", path.display()))
-            })?;
-            let node = graph.node(*node_id);
-            let content = node.content();
-
-            // Firstly we strip all licesnses, verson pragmas
-            // We keep target file pragma and license placing them in the beginning of the result.
-            let mut ranges_to_remove = Vec::new();
-
-            if let Some(license) = &node.data.license {
-                ranges_to_remove.push(license.loc());
-                if *path == flatten_target {
-                    result.push_str(&content[license.loc()]);
-                    result.push('\n');
-                }
-            }
-            if let Some(version) = &node.data.version {
-                let content = &content[version.loc()];
-                ranges_to_remove.push(version.loc());
-                version_pragmas.push(content);
-            }
-            if let Some(experimental) = &node.data.experimental {
-                ranges_to_remove.push(experimental.loc());
-                if experimental_pragma.is_none() {
-                    experimental_pragma = Some(content[experimental.loc()].to_owned());
-                }
-            }
-            for import in &node.data.imports {
-                ranges_to_remove.push(import.loc());
-            }
-            ranges_to_remove.sort_by_key(|loc| loc.start);
-
-            let mut content = content.as_bytes().to_vec();
-            let mut offset = 0_isize;
-
-            for range in ranges_to_remove {
-                let repl_range = utils::range_by_offset(&range, offset);
-                offset -= repl_range.len() as isize;
-                content.splice(repl_range, std::iter::empty());
-            }
-
-            let mut content = String::from_utf8(content).map_err(|err| {
-                SolcError::msg(format!("failed to convert extended bytes to string: {err}"))
-            })?;
-
-            // Iterate over all aliased imports, and replace alias with real name via regexes
-            for alias in node.data.imports.iter().flat_map(|i| i.data().aliases()) {
-                let (alias, target) = match alias {
-                    SolImportAlias::Contract(alias, target) => (alias.clone(), target.clone()),
-                    _ => continue,
-                };
-                let name_regex = utils::create_contract_or_lib_name_regex(&alias);
-                let target_len = target.len() as isize;
-                let mut replace_offset = 0;
-                for cap in name_regex.captures_iter(&content.clone()) {
-                    if cap.name("ignore").is_some() {
-                        continue;
-                    }
-                    if let Some(name_match) =
-                        ["n1", "n2", "n3"].iter().find_map(|name| cap.name(name))
-                    {
-                        let name_match_range =
-                            utils::range_by_offset(&name_match.range(), replace_offset);
-                        replace_offset += target_len - (name_match_range.len() as isize);
-                        content.replace_range(name_match_range, &target);
-                    }
-                }
-            }
-
-            let content = format!(
-                "// {}\n{}",
-                path.strip_prefix(&self.root).unwrap_or(path).display(),
-                content
-            );
-
-            sources.push(content);
-        }
-
-        if let Some(version) = combine_version_pragmas(version_pragmas) {
-            result.push_str(&version);
-            result.push('\n');
-        }
-        if let Some(experimental) = experimental_pragma {
-            result.push_str(&experimental);
-            result.push('\n');
-        }
-
-        for source in sources {
-            result.push_str("\n\n");
-            result.push_str(&source);
-        }
-
-        Ok(format!("{}\n", utils::RE_THREE_OR_MORE_NEWLINES.replace_all(&result, "\n\n").trim()))
+    /// Returns the combined set of `Self::read_sources` + `Self::read_tests` + `Self::read_scripts`
+    pub fn read_input_files(&self) -> Result<Sources> {
+        Ok(Source::read_all_files(self.input_files())?)
     }
 }
 
@@ -627,7 +635,7 @@ pub enum PathStyle {
 
 impl PathStyle {
     /// Convert into a `ProjectPathsConfig` given the root path and based on the styled
-    pub fn paths(&self, root: impl AsRef<Path>) -> Result<ProjectPathsConfig> {
+    pub fn paths<C>(&self, root: impl AsRef<Path>) -> Result<ProjectPathsConfig<C>> {
         let root = root.as_ref();
         let root = utils::canonicalize(root)?;
 
@@ -770,7 +778,7 @@ impl ProjectPathsConfigBuilder {
         self
     }
 
-    pub fn build_with_root(self, root: impl Into<PathBuf>) -> ProjectPathsConfig {
+    pub fn build_with_root<C>(self, root: impl Into<PathBuf>) -> ProjectPathsConfig<C> {
         let root = utils::canonicalized(root);
 
         let libraries = self.libraries.unwrap_or_else(|| ProjectPathsConfig::find_libs(&root));
@@ -797,10 +805,11 @@ impl ProjectPathsConfigBuilder {
             root,
             include_paths: self.include_paths,
             allowed_paths,
+            _c: PhantomData,
         }
     }
 
-    pub fn build(self) -> std::result::Result<ProjectPathsConfig, SolcIoError> {
+    pub fn build<C>(self) -> std::result::Result<ProjectPathsConfig<C>, SolcIoError> {
         let root = self
             .root
             .clone()
@@ -906,13 +915,13 @@ mod tests {
         std::fs::create_dir_all(&contracts).unwrap();
         assert_eq!(ProjectPathsConfig::find_source_dir(root), contracts,);
         assert_eq!(
-            ProjectPathsConfig::builder().build_with_root(root).sources,
+            ProjectPathsConfig::builder().build_with_root::<()>(root).sources,
             utils::canonicalized(contracts),
         );
         std::fs::create_dir_all(&src).unwrap();
         assert_eq!(ProjectPathsConfig::find_source_dir(root), src,);
         assert_eq!(
-            ProjectPathsConfig::builder().build_with_root(root).sources,
+            ProjectPathsConfig::builder().build_with_root::<()>(root).sources,
             utils::canonicalized(src),
         );
 
@@ -920,19 +929,19 @@ mod tests {
         std::fs::create_dir_all(&artifacts).unwrap();
         assert_eq!(ProjectPathsConfig::find_artifacts_dir(root), artifacts,);
         assert_eq!(
-            ProjectPathsConfig::builder().build_with_root(root).artifacts,
+            ProjectPathsConfig::builder().build_with_root::<()>(root).artifacts,
             utils::canonicalized(artifacts),
         );
         std::fs::create_dir_all(&build_infos).unwrap();
         assert_eq!(
-            ProjectPathsConfig::builder().build_with_root(root).build_infos,
+            ProjectPathsConfig::builder().build_with_root::<()>(root).build_infos,
             utils::canonicalized(build_infos)
         );
 
         std::fs::create_dir_all(&out).unwrap();
         assert_eq!(ProjectPathsConfig::find_artifacts_dir(root), out,);
         assert_eq!(
-            ProjectPathsConfig::builder().build_with_root(root).artifacts,
+            ProjectPathsConfig::builder().build_with_root::<()>(root).artifacts,
             utils::canonicalized(out),
         );
 
@@ -940,13 +949,13 @@ mod tests {
         std::fs::create_dir_all(&node_modules).unwrap();
         assert_eq!(ProjectPathsConfig::find_libs(root), vec![node_modules.clone()],);
         assert_eq!(
-            ProjectPathsConfig::builder().build_with_root(root).libraries,
+            ProjectPathsConfig::builder().build_with_root::<()>(root).libraries,
             vec![utils::canonicalized(node_modules)],
         );
         std::fs::create_dir_all(&lib).unwrap();
         assert_eq!(ProjectPathsConfig::find_libs(root), vec![lib.clone()],);
         assert_eq!(
-            ProjectPathsConfig::builder().build_with_root(root).libraries,
+            ProjectPathsConfig::builder().build_with_root::<()>(root).libraries,
             vec![utils::canonicalized(lib)],
         );
     }
@@ -959,19 +968,19 @@ mod tests {
 
         // Set the artifacts directory without setting the
         // build info directory
-        let project = ProjectPathsConfig::builder().artifacts(&artifacts).build_with_root(root);
+        let paths = ProjectPathsConfig::builder().artifacts(&artifacts).build_with_root::<()>(root);
 
         // The artifacts should be set correctly based on the configured value
-        assert_eq!(project.artifacts, utils::canonicalized(artifacts));
+        assert_eq!(paths.artifacts, utils::canonicalized(artifacts));
 
         // The build infos should by default in the artifacts directory
-        assert_eq!(project.build_infos, utils::canonicalized(project.artifacts.join("build-info")));
+        assert_eq!(paths.build_infos, utils::canonicalized(paths.artifacts.join("build-info")));
     }
 
     #[test]
     #[cfg_attr(windows, ignore = "Windows remappings #2347")]
     fn can_find_library_ancestor() {
-        let mut config = ProjectPathsConfig::builder().lib("lib").build().unwrap();
+        let mut config = ProjectPathsConfig::builder().lib("lib").build::<()>().unwrap();
         config.root = "/root/".into();
 
         assert_eq!(config.find_library_ancestor("lib/src/Greeter.sol").unwrap(), Path::new("lib"));
@@ -997,7 +1006,7 @@ mod tests {
     #[test]
     fn can_resolve_import() {
         let dir = tempfile::tempdir().unwrap();
-        let config = ProjectPathsConfig::builder().root(dir.path()).build().unwrap();
+        let config = ProjectPathsConfig::builder().root(dir.path()).build::<()>().unwrap();
         config.create_all().unwrap();
 
         fs::write(config.sources.join("A.sol"), r"pragma solidity ^0.8.0; contract A {}").unwrap();
@@ -1030,7 +1039,7 @@ mod tests {
     #[test]
     fn can_resolve_remapped_import() {
         let dir = tempfile::tempdir().unwrap();
-        let mut config = ProjectPathsConfig::builder().root(dir.path()).build().unwrap();
+        let mut config = ProjectPathsConfig::builder().root(dir.path()).build::<()>().unwrap();
         config.create_all().unwrap();
 
         let dependency = config.root.join("dependency");

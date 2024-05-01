@@ -25,6 +25,9 @@ pub mod project;
 /// The name of the `solc` binary on the system
 pub const SOLC: &str = "solc";
 
+/// Extensions acceptable by solc compiler.
+pub const SOLC_EXTENSIONS: &[&str] = &["sol", "yul"];
+
 /// Support for configuring the EVM version
 /// <https://blog.soliditylang.org/2018/03/08/solidity-0.4.21-release-announcement/>
 pub const BYZANTIUM_SOLC: Version = Version::new(0, 4, 21);
@@ -283,9 +286,11 @@ impl Solc {
     pub fn compile_source(&self, path: impl AsRef<Path>) -> Result<CompilerOutput> {
         let path = path.as_ref();
         let mut res: CompilerOutput = Default::default();
-        for input in
-            SolcInput::build(Source::read_all_from(path)?, Default::default(), &self.version)
-        {
+        for input in SolcInput::build(
+            Source::read_all_from(path, SOLC_EXTENSIONS)?,
+            Default::default(),
+            &self.version,
+        ) {
             let output = self.compile(&input)?;
             res.merge(output)
         }
@@ -414,7 +419,7 @@ impl Solc {
     /// Convenience function for compiling all sources under the given path
     pub async fn async_compile_source(&self, path: impl AsRef<Path>) -> Result<CompilerOutput> {
         self.async_compile(&SolcInput::build(
-            Source::async_read_all_from(path).await?,
+            Source::async_read_all_from(path, SOLC_EXTENSIONS).await?,
             Default::default(),
             &self.version,
         ))

@@ -22,7 +22,7 @@ impl ParsedSource for VyperParsedSource {
         self.version_req.as_ref()
     }
 
-    fn resolve_imports(&self, _paths: &ProjectPathsConfig) -> Vec<PathBuf> {
+    fn resolve_imports<C>(&self, _paths: &ProjectPathsConfig<C>) -> Vec<PathBuf> {
         vec![]
     }
 }

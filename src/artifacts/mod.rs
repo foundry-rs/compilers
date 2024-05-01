@@ -1423,8 +1423,11 @@ impl Source {
     }
 
     /// Recursively finds all source files under the given dir path and reads them all
-    pub fn read_all_from(dir: impl AsRef<Path>) -> Result<Sources, SolcIoError> {
-        Self::read_all_files(utils::source_files(dir))
+    pub fn read_all_from(
+        dir: impl AsRef<Path>,
+        extensions: &[&str],
+    ) -> Result<Sources, SolcIoError> {
+        Self::read_all_files(utils::source_files(dir, extensions))
     }
 
     /// Reads all source files of the given vec
@@ -1496,8 +1499,11 @@ impl Source {
     }
 
     /// Finds all source files under the given dir path and reads them all
-    pub async fn async_read_all_from(dir: impl AsRef<Path>) -> Result<Sources, SolcIoError> {
-        Self::async_read_all(utils::source_files(dir.as_ref())).await
+    pub async fn async_read_all_from(
+        dir: impl AsRef<Path>,
+        extensions: &[&str],
+    ) -> Result<Sources, SolcIoError> {
+        Self::async_read_all(utils::source_files(dir.as_ref(), extensions)).await
     }
 
     /// async version of `Self::read_all`

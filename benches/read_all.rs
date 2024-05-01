@@ -4,7 +4,7 @@ extern crate criterion;
 extern crate rand;
 
 use criterion::Criterion;
-use foundry_compilers::{artifacts::Source, project_util::TempProject};
+use foundry_compilers::{artifacts::Source, project_util::TempProject, SOLC_EXTENSIONS};
 use rand::{distributions::Alphanumeric, Rng};
 use std::{
     fs::File,
@@ -31,7 +31,7 @@ fn read_all_benchmark(c: &mut Criterion) {
 
 fn read_solmate(c: &mut Criterion) {
     let prj = TempProject::checkout("transmissions11/solmate").unwrap();
-    let inputs = foundry_compilers::utils::source_files(prj.sources_path());
+    let inputs = foundry_compilers::utils::source_files(prj.sources_path(), SOLC_EXTENSIONS);
 
     let mut group = c.benchmark_group("read solmate");
     group.bench_function("sequential", |b| {

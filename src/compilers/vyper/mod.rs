@@ -20,6 +20,9 @@ pub use settings::VyperSettings;
 
 type VyperCompilerOutput = CompilerOutput<VyperCompilationError>;
 
+/// File extensions that are recognized as Vyper source files.
+pub const VYPER_EXTENSIONS: &[&str] = &["vy"];
+
 #[derive(Debug, Clone)]
 pub struct Vyper {
     pub path: PathBuf,
@@ -37,9 +40,11 @@ impl Vyper {
     pub fn compile_source(&self, path: impl AsRef<Path>) -> Result<VyperCompilerOutput> {
         let path = path.as_ref();
         let mut res: VyperCompilerOutput = Default::default();
-        for input in
-            VyperInput::build(Source::read_all_from(path)?, Default::default(), &self.version)
-        {
+        for input in VyperInput::build(
+            Source::read_all_from(path, VYPER_EXTENSIONS)?,
+            Default::default(),
+            &self.version,
+        ) {
             let output = self.compile(&input)?;
             res.merge(output)
         }
@@ -137,6 +142,8 @@ impl Vyper {
 }
 
 impl Compiler for Vyper {
+    const FILE_EXTENSIONS: &'static [&'static str] = VYPER_EXTENSIONS;
+
     type Settings = VyperSettings;
     type CompilationError = VyperCompilationError;
     type ParsedSource = VyperParsedSource;

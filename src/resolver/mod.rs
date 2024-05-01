@@ -299,7 +299,10 @@ impl<D: ParsedSource> Graph<D> {
     }
 
     /// Resolves a number of sources within the given config
-    pub fn resolve_sources(paths: &ProjectPathsConfig, sources: Sources) -> Result<Graph<D>> {
+    pub fn resolve_sources<C: Compiler<ParsedSource = D>>(
+        paths: &ProjectPathsConfig<C>,
+        sources: Sources,
+    ) -> Result<Graph<D>> {
         /// checks if the given target path was already resolved, if so it adds its id to the list
         /// of resolved imports. If it hasn't been resolved yet, it queues in the file for
         /// processing
@@ -439,7 +442,9 @@ impl<D: ParsedSource> Graph<D> {
     }
 
     /// Resolves the dependencies of a project's source contracts
-    pub fn resolve(paths: &ProjectPathsConfig) -> Result<Graph<D>> {
+    pub fn resolve<C: Compiler<ParsedSource = D>>(
+        paths: &ProjectPathsConfig<C>,
+    ) -> Result<Graph<D>> {
         Self::resolve_sources(paths, paths.read_input_files()?)
     }
 }
@@ -919,14 +924,16 @@ enum SourceVersionError {
 
 #[cfg(test)]
 mod tests {
+    use crate::Solc;
+
     use super::*;
 
     #[test]
     fn can_resolve_hardhat_dependency_graph() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/hardhat-sample");
-        let paths = ProjectPathsConfig::hardhat(root).unwrap();
+        let paths = ProjectPathsConfig::<Solc>::hardhat(root).unwrap();
 
-        let graph = Graph::<SolData>::resolve(&paths).unwrap();
+        let graph = Graph::resolve(&paths).unwrap();
 
         assert_eq!(graph.edges.num_input_files, 1);
         assert_eq!(graph.files().len(), 2);
@@ -943,9 +950,9 @@ mod tests {
     #[test]
     fn can_resolve_dapp_dependency_graph() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
-        let paths = ProjectPathsConfig::dapptools(root).unwrap();
+        let paths = ProjectPathsConfig::<Solc>::dapptools(root).unwrap();
 
-        let graph = Graph::<SolData>::resolve(&paths).unwrap();
+        let graph = Graph::resolve(&paths).unwrap();
 
         assert_eq!(graph.edges.num_input_files, 2);
         assert_eq!(graph.files().len(), 3);
@@ -970,9 +977,11 @@ mod tests {
     #[test]
     #[cfg(not(target_os = "windows"))]
     fn can_print_dapp_sample_graph() {
+        use crate::Solc;
+
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
-        let paths = ProjectPathsConfig::dapptools(root).unwrap();
-        let graph = Graph::<SolData>::resolve(&paths).unwrap();
+        let paths = ProjectPathsConfig::<Solc>::dapptools(root).unwrap();
+        let graph = Graph::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();
         tree::print(&graph, &Default::default(), &mut out).unwrap();
 
@@ -993,9 +1002,11 @@ src/Dapp.t.sol >=0.6.6
     #[test]
     #[cfg(not(target_os = "windows"))]
     fn can_print_hardhat_sample_graph() {
+        use crate::Solc;
+
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/hardhat-sample");
-        let paths = ProjectPathsConfig::hardhat(root).unwrap();
-        let graph = Graph::<SolData>::resolve(&paths).unwrap();
+        let paths = ProjectPathsConfig::<Solc>::hardhat(root).unwrap();
+        let graph = Graph::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();
         tree::print(&graph, &Default::default(), &mut out).unwrap();
         assert_eq!(

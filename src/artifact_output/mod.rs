@@ -607,11 +607,11 @@ pub trait ArtifactOutput {
     ///
     /// This will be invoked with all aggregated contracts from (multiple) solc `CompilerOutput`.
     /// See [`crate::AggregatedCompilerOutput`]
-    fn on_output(
+    fn on_output<C>(
         &self,
         contracts: &VersionedContracts,
         sources: &VersionedSourceFiles,
-        layout: &ProjectPathsConfig,
+        layout: &ProjectPathsConfig<C>,
         ctx: OutputContext<'_>,
     ) -> Result<Artifacts<Self::Artifact>> {
         let mut artifacts = self.output_to_artifacts(contracts, sources, ctx, layout);
@@ -814,12 +814,12 @@ pub trait ArtifactOutput {
     ///
     /// **Note:** This does only convert, but _NOT_ write the artifacts to disk, See
     /// [`Self::on_output()`]
-    fn output_to_artifacts(
+    fn output_to_artifacts<C>(
         &self,
         contracts: &VersionedContracts,
         sources: &VersionedSourceFiles,
         ctx: OutputContext<'_>,
-        layout: &ProjectPathsConfig,
+        layout: &ProjectPathsConfig<C>,
     ) -> Artifacts<Self::Artifact> {
         let mut artifacts = ArtifactsMap::new();
 
@@ -1068,11 +1068,11 @@ pub struct MinimalCombinedArtifactsHardhatFallback {
 impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
     type Artifact = CompactContractBytecode;
 
-    fn on_output(
+    fn on_output<C>(
         &self,
         output: &VersionedContracts,
         sources: &VersionedSourceFiles,
-        layout: &ProjectPathsConfig,
+        layout: &ProjectPathsConfig<C>,
         ctx: OutputContext<'_>,
     ) -> Result<Artifacts<Self::Artifact>> {
         MinimalCombinedArtifacts::default().on_output(output, sources, layout, ctx)

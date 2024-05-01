@@ -466,7 +466,7 @@ impl<C: Compiler> FilteredCompilerSources<C> {
     fn compile(
         self,
         settings: &<C::Input as CompilerInput>::Settings,
-        paths: &ProjectPathsConfig,
+        paths: &ProjectPathsConfig<C>,
         sparse_output: SparseOutputFilter,
         graph: &GraphEdges<C::ParsedSource>,
         create_build_info: bool,
@@ -495,7 +495,7 @@ impl<C: Compiler> FilteredCompilerSources<C> {
 fn compile_sequential<C: Compiler>(
     input: VersionedFilteredSources<C>,
     settings: &C::Settings,
-    paths: &ProjectPathsConfig,
+    paths: &ProjectPathsConfig<C>,
     sparse_output: SparseOutputFilter,
     graph: &GraphEdges<C::ParsedSource>,
     create_build_info: bool,
@@ -577,7 +577,7 @@ fn compile_parallel<C: Compiler>(
     versioned_sources: VersionedFilteredSources<C>,
     num_jobs: usize,
     settings: &C::Settings,
-    paths: &ProjectPathsConfig,
+    paths: &ProjectPathsConfig<C>,
     sparse_output: SparseOutputFilter,
     graph: &GraphEdges<C::ParsedSource>,
     create_build_info: bool,

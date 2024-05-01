@@ -91,7 +91,7 @@ impl Default for CompilerConfig<Solc> {
 pub struct Project<T: ArtifactOutput = ConfigurableArtifacts, C: Compiler = Solc> {
     pub compiler_config: CompilerConfig<C>,
     /// The layout of the project
-    pub paths: ProjectPathsConfig,
+    pub paths: ProjectPathsConfig<C>,
     /// The compiler settings
     pub settings: C::Settings,
     /// Whether caching is enabled
@@ -205,6 +205,18 @@ impl<T: ArtifactOutput> Project<T> {
         let input = StandardJsonCompilerInput::new(sources, settings);
 
         Ok(input)
+    }
+
+    /// Flattens the target solidity file into a single string suitable for verification.
+    ///
+    /// This method uses a dependency graph to resolve imported files and substitute
+    /// import directives with the contents of target files. It will strip the pragma
+    /// version directives and SDPX license identifiers from all imported files.
+    ///
+    /// NB: the SDPX license identifier will be removed from the imported file
+    /// only if it is found at the beginning of the file.
+    pub fn flatten(&self, target: &Path) -> Result<String> {
+        self.paths.flatten(target)
     }
 }
 
@@ -551,18 +563,6 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
         Ok(())
     }
 
-    /// Flattens the target solidity file into a single string suitable for verification.
-    ///
-    /// This method uses a dependency graph to resolve imported files and substitute
-    /// import directives with the contents of target files. It will strip the pragma
-    /// version directives and SDPX license identifiers from all imported files.
-    ///
-    /// NB: the SDPX license identifier will be removed from the imported file
-    /// only if it is found at the beginning of the file.
-    pub fn flatten(&self, target: &Path) -> Result<String> {
-        self.paths.flatten(target)
-    }
-
     /// Runs solc compiler without requesting any output and collects a mapping from contract names
     /// to source files containing artifact with given name.
     fn collect_contract_names_solc(&self) -> Result<HashMap<String, Vec<PathBuf>>>
@@ -600,7 +600,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
         T: Clone,
         C: Clone,
     {
-        let graph = Graph::<SolData>::resolve(&self.paths)?;
+        let graph = Graph::resolve(&self.paths)?;
         let mut contracts: HashMap<String, Vec<PathBuf>> = HashMap::new();
 
         for file in graph.files().keys() {
@@ -650,7 +650,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
 
 pub struct ProjectBuilder<T: ArtifactOutput = ConfigurableArtifacts, C: Compiler = Solc> {
     /// The layout of the
-    paths: Option<ProjectPathsConfig>,
+    paths: Option<ProjectPathsConfig<C>>,
     /// How solc invocation should be configured.
     settings: Option<C::Settings>,
     /// Whether caching is enabled, default is true.
@@ -694,7 +694,7 @@ impl<T: ArtifactOutput, C: Compiler> ProjectBuilder<T, C> {
     }
 
     #[must_use]
-    pub fn paths(mut self, paths: ProjectPathsConfig) -> Self {
+    pub fn paths(mut self, paths: ProjectPathsConfig<C>) -> Self {
         self.paths = Some(paths);
         self
     }
@@ -889,11 +889,11 @@ impl<T: ArtifactOutput + Default> Default for ProjectBuilder<T> {
 impl<T: ArtifactOutput, C: Compiler> ArtifactOutput for Project<T, C> {
     type Artifact = T::Artifact;
 
-    fn on_output(
+    fn on_output<CP>(
         &self,
         contracts: &VersionedContracts,
         sources: &VersionedSourceFiles,
-        layout: &ProjectPathsConfig,
+        layout: &ProjectPathsConfig<CP>,
         ctx: OutputContext<'_>,
     ) -> Result<Artifacts<Self::Artifact>> {
         self.artifacts_handler().on_output(contracts, sources, layout, ctx)
@@ -961,12 +961,12 @@ impl<T: ArtifactOutput, C: Compiler> ArtifactOutput for Project<T, C> {
         self.artifacts_handler().contract_to_artifact(file, name, contract, source_file)
     }
 
-    fn output_to_artifacts(
+    fn output_to_artifacts<CP>(
         &self,
         contracts: &VersionedContracts,
         sources: &VersionedSourceFiles,
         ctx: OutputContext<'_>,
-        layout: &ProjectPathsConfig,
+        layout: &ProjectPathsConfig<CP>,
     ) -> Artifacts<Self::Artifact> {
         self.artifacts_handler().output_to_artifacts(contracts, sources, ctx, layout)
     }

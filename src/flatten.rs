@@ -744,9 +744,9 @@ impl Flattener {
 }
 
 /// Performs DFS to collect all dependencies of a target
-fn collect_deps(
+fn collect_deps<C>(
     path: &PathBuf,
-    paths: &ProjectPathsConfig,
+    paths: &ProjectPathsConfig<C>,
     graph: &Graph,
     deps: &mut HashSet<PathBuf>,
 ) -> Result<()> {
@@ -778,9 +778,9 @@ fn collect_deps(
 /// Instead, we sort files by the number of their dependencies (imports of any depth) in ascending
 /// order. If files have the same number of dependencies, we sort them alphabetically.
 /// Target file is always placed last.
-pub fn collect_ordered_deps(
+pub fn collect_ordered_deps<C>(
     path: &PathBuf,
-    paths: &ProjectPathsConfig,
+    paths: &ProjectPathsConfig<C>,
     graph: &Graph,
 ) -> Result<Vec<PathBuf>> {
     let mut deps = HashSet::new();

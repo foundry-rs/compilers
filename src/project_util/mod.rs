@@ -11,7 +11,7 @@ use crate::{
     utils::{self, tempdir},
     Artifact, ArtifactOutput, Artifacts, CompilerCache, ConfigurableArtifacts,
     ConfigurableContractArtifact, FileFilter, PathStyle, Project, ProjectCompileOutput,
-    ProjectPathsConfig, Solc, SolcIoError,
+    ProjectPathsConfig, Solc, SolcIoError, SOLC_EXTENSIONS,
 };
 use fs_extra::{dir, file};
 use std::{
@@ -327,7 +327,7 @@ contract {} {{}}
 
     /// Returns a list of all source files in the project's `src` directory
     pub fn list_source_files(&self) -> Vec<PathBuf> {
-        utils::source_files(self.project().sources_path())
+        utils::source_files(self.project().sources_path(), SOLC_EXTENSIONS)
     }
 
     pub fn compile(&self) -> Result<ProjectCompileOutput<Error, T>> {

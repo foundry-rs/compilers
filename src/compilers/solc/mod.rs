@@ -12,7 +12,7 @@ use crate::{
     error::Result,
     remappings::Remapping,
     resolver::parse::SolData,
-    Solc,
+    Solc, SOLC_EXTENSIONS,
 };
 use semver::Version;
 use std::{
@@ -21,6 +21,8 @@ use std::{
 };
 
 impl Compiler for Solc {
+    const FILE_EXTENSIONS: &'static [&'static str] = SOLC_EXTENSIONS;
+
     type Input = SolcInput;
     type CompilationError = crate::artifacts::Error;
     type ParsedSource = SolData;
@@ -161,7 +163,7 @@ impl ParsedSource for SolData {
         self.version_req.as_ref()
     }
 
-    fn resolve_imports(&self, _paths: &crate::ProjectPathsConfig) -> Vec<PathBuf> {
+    fn resolve_imports<C>(&self, _paths: &crate::ProjectPathsConfig<C>) -> Vec<PathBuf> {
         return self.imports.iter().map(|i| i.data().path().to_path_buf()).collect_vec();
     }
 }

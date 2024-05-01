@@ -1,6 +1,6 @@
 //! Utility functions
 
-use crate::{error::SolcError, SolcIoError};
+use crate::{error::SolcError, SolcIoError, SOLC_EXTENSIONS};
 use alloy_primitives::{hex, keccak256};
 use cfg_if::cfg_if;
 use once_cell::sync::Lazy;
@@ -82,17 +82,17 @@ pub fn find_version_pragma(contract: &str) -> Option<Match<'_>> {
 /// `root` itself, if it is a sol/yul file
 ///
 /// This also follows symlinks.
-pub fn source_files_iter(root: impl AsRef<Path>) -> impl Iterator<Item = PathBuf> {
+pub fn source_files_iter<'a>(
+    root: impl AsRef<Path>,
+    extensions: &'a [&'a str],
+) -> impl Iterator<Item = PathBuf> + 'a {
     WalkDir::new(root)
         .follow_links(true)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file())
         .filter(|e| {
-            e.path()
-                .extension()
-                .map(|ext| (ext == "sol") || (ext == "yul") || (ext == "vy"))
-                .unwrap_or_default()
+            e.path().extension().map(|ext| extensions.iter().any(|e| ext == *e)).unwrap_or_default()
         })
         .map(|e| e.path().into())
 }
@@ -110,8 +110,8 @@ pub fn source_files_iter(root: impl AsRef<Path>) -> impl Iterator<Item = PathBuf
 /// use foundry_compilers::utils;
 /// let sources = utils::source_files("./contracts");
 /// ```
-pub fn source_files(root: impl AsRef<Path>) -> Vec<PathBuf> {
-    source_files_iter(root).collect()
+pub fn source_files(root: impl AsRef<Path>, extensions: &[&str]) -> Vec<PathBuf> {
+    source_files_iter(root, extensions).collect()
 }
 
 /// Returns a list of _unique_ paths to all folders under `root` that contain at least one solidity
@@ -144,7 +144,7 @@ pub fn source_files(root: impl AsRef<Path>) -> Vec<PathBuf> {
 ///         └── token.sol
 /// ```
 pub fn solidity_dirs(root: impl AsRef<Path>) -> Vec<PathBuf> {
-    let sources = source_files(root);
+    let sources = source_files(root, SOLC_EXTENSIONS);
     sources
         .iter()
         .filter_map(|p| p.parent())
@@ -658,7 +658,7 @@ contract A {}
         File::create(&file_c).unwrap();
         File::create(&file_d).unwrap();
 
-        let files: HashSet<_> = source_files(tmp_dir.path()).into_iter().collect();
+        let files: HashSet<_> = source_files(tmp_dir.path(), SOLC_EXTENSIONS).into_iter().collect();
         let expected: HashSet<_> = [file_a, file_b, file_c, file_d].into();
         assert_eq!(files, expected);
     }
