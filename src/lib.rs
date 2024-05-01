@@ -80,6 +80,7 @@ pub enum CompilerConfig<C: Compiler> {
     AutoDetect(Arc<dyn CompilerVersionManager<Compiler = C>>),
 }
 
+#[cfg(feature = "svm-solc")]
 impl Default for CompilerConfig<Solc> {
     fn default() -> Self {
         CompilerConfig::AutoDetect(Arc::new(compilers::solc::SolcVersionManager))

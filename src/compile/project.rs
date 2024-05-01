@@ -144,7 +144,6 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     ///
     /// Multiple (`Solc` -> `Sources`) pairs can be compiled in parallel if the `Project` allows
     /// multiple `jobs`, see [`crate::Project::set_solc_jobs()`].
-    #[cfg(feature = "svm-solc")]
     pub fn with_sources<VM: CompilerVersionManager<Compiler = C>>(
         project: &'a Project<T, C>,
         sources: Sources,

@@ -54,8 +54,8 @@ rand = { version = "0.8", optional = true }
 
 # svm
 home = "0.5"
-svm = { package = "svm-rs", version = "0.5", default-features = false }
-svm-builds = { package = "svm-rs-builds", version = "0.5", default-features = false}
+svm = { package = "svm-rs", version = "0.5", default-features = false, optional = true }
+svm-builds = { package = "svm-rs-builds", version = "0.5", default-features = false, optional = true }
 sha2 = { version = "0.10", default-features = false, optional = true }
 itertools = "0.12"
 auto_impl = "1"
@@ -90,16 +90,16 @@ path = "tests/mocked.rs"
 required-features = ["full", "project-util"]
 
 [features]
-default = ["rustls", "svm-solc"]
+default = ["rustls"]
 
 full = ["async", "svm-solc"]
 
 # Adds extra `async` methods using `tokio` to some types.
 async = ["dep:futures-util", "dep:tokio", "tokio/fs", "tokio/process", "tokio/io-util"]
 # Enables `svm` to auto-detect and manage `solc` builds.
-svm-solc = ["dep:sha2", "dep:tokio"]
+svm-solc = ["dep:svm", "dep:svm-builds", "dep:sha2", "dep:tokio"]
 # Utilities for creating and testing project workspaces.
 project-util = ["dep:tempfile", "dep:fs_extra", "dep:rand"]
 
-rustls = ["svm/rustls"]
-openssl = ["svm/openssl"]
+rustls = ["svm?/rustls"]
+openssl = ["svm?/openssl"]

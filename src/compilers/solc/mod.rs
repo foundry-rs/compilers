@@ -1,6 +1,9 @@
+#[cfg(feature = "svm-solc")]
 mod vm;
-use itertools::Itertools;
+#[cfg(feature = "svm-solc")]
 pub use vm::SolcVersionManager;
+
+use itertools::Itertools;
 
 use super::{
     CompilationError, Compiler, CompilerInput, CompilerOutput, CompilerSettings, ParsedSource,

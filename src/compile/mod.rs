@@ -88,6 +88,7 @@ pub(crate) fn take_solc_installer_lock() -> impl Drop {
 /// A list of upstream Solc releases, used to check which version
 /// we should download.
 /// The boolean value marks whether there was an error accessing the release list
+#[cfg(feature = "svm-solc")]
 pub static RELEASES: Lazy<(svm::Releases, Vec<Version>, bool)> =
     Lazy::new(|| match serde_json::from_str::<svm::Releases>(svm_builds::RELEASE_LIST_JSON) {
         Ok(releases) => {
