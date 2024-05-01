@@ -2524,6 +2524,7 @@ fn can_compile_sparse_with_link_references() {
     let lib = dup.remove(&my_lib_path, "MyLib");
     assert!(lib.is_none());
 
+    println!("{:?}", output.contracts.keys());
     let info = ContractInfo::new(format!("{}:{}", my_lib_path.to_slash_lossy(), "MyLib"));
     let lib = output.remove_contract(&info);
     assert!(lib.is_some());
@@ -2624,6 +2625,7 @@ fn can_compile_std_json_input() {
     let source = tmp.list_source_files().into_iter().find(|p| p.ends_with("Dapp.t.sol")).unwrap();
     let input = tmp.project().standard_json_input(source).unwrap();
 
+    println!("{:?}", input.settings.remappings);
     assert!(input.settings.remappings.contains(&"ds-test/=lib/ds-test/src/".parse().unwrap()));
     let input: SolcInput = input.into();
     assert!(input.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
