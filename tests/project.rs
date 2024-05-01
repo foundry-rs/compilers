@@ -2599,7 +2599,7 @@ fn can_create_standard_json_input_with_external_file() {
         ]
     );
 
-    let solc = SolcVersionManager::default().get_installed(&Version::new(0, 8, 24)).unwrap();
+    let solc = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)).unwrap();
 
     // can compile using the created json
     let compiler_errors = solc
@@ -2624,7 +2624,7 @@ fn can_compile_std_json_input() {
     assert!(input.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
 
     // should be installed
-    if let Ok(solc) = SolcVersionManager::default().get_installed(&Version::new(0, 8, 10)) {
+    if let Ok(solc) = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 10)) {
         let out = solc.compile(&input).unwrap();
         assert!(!out.errors.is_empty());
         assert!(out.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
@@ -2688,7 +2688,7 @@ fn can_create_standard_json_input_with_symlink() {
         ]
     );
 
-    let solc = SolcVersionManager::default().get_installed(&Version::new(0, 8, 24)).unwrap();
+    let solc = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)).unwrap();
 
     // can compile using the created json
     let compiler_errors = solc
