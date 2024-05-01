@@ -2,7 +2,7 @@
 
 use crate::{
     artifacts::{Error, Settings},
-    compilers::{solc::SolcVersionManager, Compiler},
+    compilers::Compiler,
     config::ProjectPathsConfigBuilder,
     error::{Result, SolcError},
     hh::HardhatArtifacts,
@@ -46,12 +46,14 @@ impl<T: ArtifactOutput> TempProject<T> {
 
     /// Creates a new temp project using the provided paths and artifacts handler.
     /// sets the project root to a temp dir
+    #[cfg(feature = "svm-solc")]
     pub fn with_artifacts(paths: ProjectPathsConfigBuilder, artifacts: T) -> Result<Self> {
         Self::prefixed_with_artifacts("temp-project", paths, artifacts)
     }
 
     /// Creates a new temp project inside a tempdir with a prefixed directory and the given
     /// artifacts handler
+    #[cfg(feature = "svm-solc")]
     pub fn prefixed_with_artifacts(
         prefix: &str,
         paths: ProjectPathsConfigBuilder,
@@ -76,8 +78,9 @@ impl<T: ArtifactOutput> TempProject<T> {
         use crate::{compilers::CompilerVersionManager, CompilerConfig};
         use semver::Version;
 
-        let solc =
-            SolcVersionManager.get_or_install(&Version::parse(solc.as_ref()).unwrap()).unwrap();
+        let solc = crate::compilers::solc::SolcVersionManager
+            .get_or_install(&Version::parse(solc.as_ref()).unwrap())
+            .unwrap();
         self.inner.compiler_config = CompilerConfig::Specific(solc);
         self
     }
@@ -344,11 +347,13 @@ contract {} {{}}
 
 impl<T: ArtifactOutput + Default> TempProject<T> {
     /// Creates a new temp project inside a tempdir with a prefixed directory
+    #[cfg(feature = "svm-solc")]
     pub fn prefixed(prefix: &str, paths: ProjectPathsConfigBuilder) -> Result<Self> {
         Self::prefixed_with_artifacts(prefix, paths, T::default())
     }
 
     /// Creates a new temp project for the given `PathStyle`
+    #[cfg(feature = "svm-solc")]
     pub fn with_style(prefix: &str, style: PathStyle) -> Result<Self> {
         let tmp_dir = tempdir(prefix)?;
         let paths = style.paths(tmp_dir.path())?;
@@ -359,6 +364,7 @@ impl<T: ArtifactOutput + Default> TempProject<T> {
 
     /// Creates a new temp project using the provided paths and setting the project root to a temp
     /// dir
+    #[cfg(feature = "svm-solc")]
     pub fn new(paths: ProjectPathsConfigBuilder) -> Result<Self> {
         Self::prefixed("temp-project", paths)
     }
@@ -388,6 +394,7 @@ fn contract_file_name(name: impl AsRef<str>) -> String {
     }
 }
 
+#[cfg(feature = "svm-solc")]
 impl TempProject<HardhatArtifacts> {
     /// Creates an empty new hardhat style workspace in a new temporary dir
     pub fn hardhat() -> Result<Self> {
@@ -403,6 +410,7 @@ impl TempProject<HardhatArtifacts> {
     }
 }
 
+#[cfg(feature = "svm-solc")]
 impl TempProject<ConfigurableArtifacts> {
     /// Creates an empty new dapptools style workspace in a new temporary dir
     pub fn dapptools() -> Result<Self> {
@@ -538,6 +546,7 @@ pub fn clone_remote(
 }
 
 #[cfg(test)]
+#[cfg(feature = "svm-solc")]
 mod tests {
     use super::*;
 

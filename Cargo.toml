@@ -77,7 +77,7 @@ harness = false
 
 [[bench]]
 name = "read_all"
-required-features = ["project-util"]
+required-features = ["project-util", "svm-solc"]
 harness = false
 
 [[test]]
@@ -100,7 +100,7 @@ async = ["dep:futures-util", "dep:tokio", "tokio/fs", "tokio/process", "tokio/io
 # Enables `svm` to auto-detect and manage `solc` builds.
 svm-solc = ["dep:svm", "dep:svm-builds", "dep:sha2", "dep:tokio"]
 # Utilities for creating and testing project workspaces.
-project-util = ["dep:tempfile", "dep:fs_extra", "dep:rand"]
+project-util = ["dep:tempfile", "dep:fs_extra", "dep:rand", "svm-solc"]
 
 rustls = ["svm?/rustls"]
 openssl = ["svm?/openssl"]

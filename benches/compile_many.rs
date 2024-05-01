@@ -5,7 +5,7 @@ extern crate criterion;
 use criterion::Criterion;
 use foundry_compilers::{
     compilers::{solc::SolcVersionManager, CompilerVersionManager},
-    Solc, SolcInput,
+    SolcInput,
 };
 use semver::Version;
 use std::path::Path;
@@ -30,7 +30,10 @@ fn compile_many_benchmark(c: &mut Criterion) {
         let num = tasks.len();
         group.bench_function("concurrently", |b| {
             b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
-                let _ = Solc::compile_many(tasks.clone(), num).await.flattened().unwrap();
+                let _ = foundry_compilers::Solc::compile_many(tasks.clone(), num)
+                    .await
+                    .flattened()
+                    .unwrap();
             });
         });
     }
