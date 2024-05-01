@@ -114,6 +114,11 @@ pub fn source_files(root: impl AsRef<Path>, extensions: &[&str]) -> Vec<PathBuf>
     source_files_iter(root, extensions).collect()
 }
 
+/// Same as [source_files] but only returns files acceptable by Solc compiler.
+pub fn sol_source_files(root: impl AsRef<Path>) -> Vec<PathBuf> {
+    source_files(root, SOLC_EXTENSIONS)
+}
+
 /// Returns a list of _unique_ paths to all folders under `root` that contain at least one solidity
 /// file (`*.sol`).
 ///
@@ -144,7 +149,7 @@ pub fn source_files(root: impl AsRef<Path>, extensions: &[&str]) -> Vec<PathBuf>
 ///         └── token.sol
 /// ```
 pub fn solidity_dirs(root: impl AsRef<Path>) -> Vec<PathBuf> {
-    let sources = source_files(root, SOLC_EXTENSIONS);
+    let sources = sol_source_files(root);
     sources
         .iter()
         .filter_map(|p| p.parent())
@@ -658,7 +663,7 @@ contract A {}
         File::create(&file_c).unwrap();
         File::create(&file_d).unwrap();
 
-        let files: HashSet<_> = source_files(tmp_dir.path(), SOLC_EXTENSIONS).into_iter().collect();
+        let files: HashSet<_> = sol_source_files(tmp_dir.path()).into_iter().collect();
         let expected: HashSet<_> = [file_a, file_b, file_c, file_d].into();
         assert_eq!(files, expected);
     }
