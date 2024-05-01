@@ -860,6 +860,7 @@ pub trait ArtifactOutput {
         // this tracks all the `SourceFile`s that we successfully mapped to a contract
         let mut non_standalone_sources = HashSet::new();
 
+        // prepopulate taken paths set with cached artifacts
         let mut taken_paths_lowercase = ctx
             .existing_artifacts
             .values()
