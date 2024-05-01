@@ -25,6 +25,7 @@ use foundry_compilers::{
     ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, SolcInput, SolcSparseFileFilter,
     TestFileFilter,
 };
+use path_slash::PathBufExt;
 use pretty_assertions::assert_eq;
 use semver::Version;
 use std::{
@@ -2523,7 +2524,7 @@ fn can_compile_sparse_with_link_references() {
     let lib = dup.remove(&my_lib_path, "MyLib");
     assert!(lib.is_none());
 
-    let info = ContractInfo::new(format!("{}:{}", my_lib_path.display(), "MyLib"));
+    let info = ContractInfo::new(format!("{}:{}", my_lib_path.to_slash_lossy(), "MyLib"));
     let lib = output.remove_contract(&info);
     assert!(lib.is_some());
     let lib = output.remove_contract(&info);
