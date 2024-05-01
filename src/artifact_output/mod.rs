@@ -14,6 +14,7 @@ use crate::{
 };
 use alloy_json_abi::JsonAbi;
 use alloy_primitives::Bytes;
+use path_slash::PathBufExt;
 use semver::Version;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
@@ -679,7 +680,7 @@ pub trait ArtifactOutput {
             // this is problematic if both files are absolute
             candidate = Path::new(parent_name).join(&candidate);
             let out_path = artifacts_folder.join(&candidate);
-            if !already_taken.contains(&out_path.to_string_lossy().to_lowercase()) {
+            if !already_taken.contains(&out_path.to_slash_lossy().to_lowercase()) {
                 trace!("found alternative output file={:?} for {:?}", out_path, contract_file);
                 return out_path;
             }
@@ -709,7 +710,7 @@ pub trait ArtifactOutput {
                 .into_iter()
                 .chain(components.map(|c| c.as_os_str()))
                 .collect();
-            if !already_taken.contains(&candidate.to_string_lossy().to_lowercase()) {
+            if !already_taken.contains(&candidate.to_slash_lossy().to_lowercase()) {
                 trace!("found alternative output file={:?} for {:?}", candidate, contract_file);
                 return candidate;
             }
@@ -834,7 +835,7 @@ pub trait ArtifactOutput {
 
             let path = artifacts_folder.join(path);
 
-            let path = if already_taken.contains(&path.to_string_lossy().to_lowercase()) {
+            let path = if already_taken.contains(&path.to_slash_lossy().to_lowercase()) {
                 // preventing conflict
                 Self::conflict_free_output_file(&already_taken, path, file, artifacts_folder)
             } else {
@@ -866,7 +867,7 @@ pub trait ArtifactOutput {
             .existing_artifacts
             .values()
             .flat_map(|artifacts| artifacts.values().flat_map(|artifacts| artifacts.values()))
-            .map(|p| p.to_string_lossy().to_lowercase())
+            .map(|p| p.to_slash_lossy().to_lowercase())
             .collect::<HashSet<_>>();
 
         let mut files = contracts.keys().collect::<Vec<_>>();
@@ -894,7 +895,7 @@ pub trait ArtifactOutput {
                         versioned_contracts.len() > 1,
                     );
 
-                    taken_paths_lowercase.insert(artifact_path.to_string_lossy().to_lowercase());
+                    taken_paths_lowercase.insert(artifact_path.to_slash_lossy().to_lowercase());
 
                     trace!(
                         "use artifact file {:?} for contract file {} {}",
@@ -966,7 +967,7 @@ pub trait ArtifactOutput {
 
                             if entries.iter().all(|entry| entry.version != source.version) {
                                 taken_paths_lowercase
-                                    .insert(artifact_path.to_string_lossy().to_lowercase());
+                                    .insert(artifact_path.to_slash_lossy().to_lowercase());
 
                                 entries.push(ArtifactFile {
                                     artifact,
@@ -1172,7 +1173,7 @@ mod tests {
             file,
             "out",
         );
-        assert_eq!(alternative, PathBuf::from("out/tokens/Greeter.sol/Greeter.json"));
+        assert_eq!(alternative.to_slash_lossy(), "out/tokens/Greeter.sol/Greeter.json");
 
         already_taken.insert("out/tokens/Greeter.sol/Greeter.json".to_lowercase());
         let alternative = ConfigurableArtifacts::conflict_free_output_file(
@@ -1181,7 +1182,7 @@ mod tests {
             file,
             "out",
         );
-        assert_eq!(alternative, PathBuf::from("out/v1/tokens/Greeter.sol/Greeter.json"));
+        assert_eq!(alternative.to_slash_lossy(), "out/v1/tokens/Greeter.sol/Greeter.json");
 
         already_taken.insert("out/v1/tokens/Greeter.sol/Greeter.json".to_lowercase());
         let alternative =
@@ -1204,6 +1205,6 @@ mod tests {
             "/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts",
         );
 
-        assert_eq!(alternative, PathBuf::from("/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts/utils/BaseMainnetForkingTest.t.sol/BaseMainnetForkingTest.json"));
+        assert_eq!(alternative.to_slash_lossy(), "/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts/utils/BaseMainnetForkingTest.t.sol/BaseMainnetForkingTest.json");
     }
 }
