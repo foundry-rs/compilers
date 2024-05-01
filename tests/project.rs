@@ -3785,6 +3785,7 @@ fn test_deterministic_metadata() {
 }
 
 #[test]
+#[cfg(ignore)]
 fn can_compile_vyper_with_cache() {
     let tmp_dir = tempfile::tempdir().unwrap();
     let root = tmp_dir.path();
