@@ -31,11 +31,13 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs::{self, Permissions},
     io::{self},
-    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     str::FromStr,
 };
 use svm::{platform, Platform};
+
+#[cfg(target_family = "unix")]
+use std::os::unix::fs::PermissionsExt;
 
 async fn install_vyper() -> Vyper {
     let url = match platform() {
