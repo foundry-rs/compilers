@@ -1980,6 +1980,7 @@ library MyLib {
         BTreeMap::from([("MyLib".to_string(), format!("{:?}", Address::ZERO))]),
     )])
     .into();
+    tmp.project_mut().settings.libraries.slash_paths();
 
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
@@ -2097,6 +2098,7 @@ library MyLib {
     let libs =
         Libraries::parse(&[format!("remapping/MyLib.sol:MyLib:{:?}", Address::ZERO)]).unwrap(); // provide the library settings to let solc link
     tmp.project_mut().settings.libraries = libs.with_applied_remappings(tmp.paths());
+    tmp.project_mut().settings.libraries.slash_paths();
 
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();

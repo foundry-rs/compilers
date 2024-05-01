@@ -606,6 +606,19 @@ impl Libraries {
             .collect();
         self
     }
+
+    /// Converts all `\\` separators in _all_ paths to `/`
+    pub fn slash_paths(&mut self) {
+        #[cfg(windows)]
+        {
+            use path_slash::PathBufExt;
+
+            self.0 = std::mem::take(&mut self.libs)
+                .into_iter()
+                .map(|(path, files)| (PathBuf::from(path.to_slash_lossy().as_ref()), files))
+                .collect()
+        }
+    }
 }
 
 impl From<BTreeMap<PathBuf, BTreeMap<String, String>>> for Libraries {
