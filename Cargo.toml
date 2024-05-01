@@ -69,6 +69,7 @@ serde_path_to_error = "0.1"
 tempfile = "3.9"
 tokio = { version = "1.35", features = ["rt-multi-thread", "macros"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+reqwest = "0.12"
 
 [[bench]]
 name = "compile_many"

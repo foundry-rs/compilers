@@ -3,29 +3,61 @@
 use alloy_primitives::{Address, Bytes};
 use foundry_compilers::{
     artifacts::{
-        BytecodeHash, DevDoc, Error, ErrorDoc, EventDoc, Libraries, MethodDoc,
-        ModelCheckerEngine::CHC, ModelCheckerSettings, Settings, Severity, UserDoc, UserDocNotice,
+        output_selection::OutputSelection, BytecodeHash, DevDoc, Error, ErrorDoc, EventDoc,
+        Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings, Settings, Severity,
+        UserDoc, UserDocNotice,
     },
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
-    compilers::{solc::SolcVersionManager, CompilerOutput, CompilerVersionManager},
+    compilers::{
+        solc::SolcVersionManager,
+        vyper::{Vyper, VyperSettings},
+        CompilerOutput, CompilerVersionManager,
+    },
     error::SolcError,
     flatten::Flattener,
     info::ContractInfo,
     project_util::*,
     remappings::Remapping,
     resolver::parse::SolData,
-    utils, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectCompileOutput, ProjectPathsConfig, SolcInput, TestFileFilter,
+    utils::{self, RuntimeOrHandle},
+    Artifact, CompilerConfig, ConfigurableArtifacts, EvmVersion, ExtraOutputValues, Graph, Project,
+    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, SolcInput, TestFileFilter,
 };
 use pretty_assertions::assert_eq;
 use semver::Version;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    fs, io,
+    fs::{self, Permissions},
+    io::{self},
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     str::FromStr,
 };
+use svm::{platform, Platform};
+
+async fn install_vyper() -> Vyper {
+    let url = match platform() {
+        Platform::MacOsAarch64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.darwin",
+        Platform::LinuxAarch64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux",
+        Platform::WindowsAmd64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.windows.exe",
+        _ => panic!("unsupported")
+    };
+
+    let res = reqwest::Client::builder().build().unwrap().get(url).send().await.unwrap();
+
+    assert!(res.status().is_success());
+
+    let bytes = res.bytes().await.unwrap();
+    let path = std::env::temp_dir().join("vyper");
+
+    std::fs::write(&path, bytes).unwrap();
+
+    #[cfg(target_family = "unix")]
+    std::fs::set_permissions(&path, Permissions::from_mode(0o755)).unwrap();
+
+    Vyper::new(path).unwrap()
+}
 
 #[test]
 fn can_get_versioned_linkrefs() {
@@ -3750,4 +3782,52 @@ fn test_deterministic_metadata() {
     )
     .unwrap();
     assert_eq!(bytecode, expected_bytecode);
+}
+
+#[test]
+fn can_compile_vyper_with_cache() {
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let root = tmp_dir.path();
+    let cache = root.join("cache").join(SOLIDITY_FILES_CACHE_FILENAME);
+
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let orig_root = manifest_dir.join("test-data/vyper-sample");
+    copy_dir_all(orig_root, &tmp_dir).unwrap();
+
+    let paths = ProjectPathsConfig::builder()
+        .cache(cache)
+        .sources(root.join("src"))
+        .artifacts(root.join("out"))
+        .root(root)
+        .build::<Vyper>()
+        .unwrap();
+
+    let compiler = RuntimeOrHandle::new().block_on(install_vyper());
+
+    let settings = VyperSettings {
+        output_selection: OutputSelection::default_output_selection(),
+        ..Default::default()
+    };
+
+    // first compile
+    let project = ProjectBuilder::<ConfigurableArtifacts, Vyper>::new(Default::default())
+        .settings(settings)
+        .paths(paths)
+        .build(CompilerConfig::Specific(compiler))
+        .unwrap();
+
+    let compiled = project.compile().unwrap();
+    assert!(compiled.find_first("Counter").is_some());
+    compiled.assert_success();
+
+    // cache is used when nothing to compile
+    let compiled = project.compile().unwrap();
+    assert!(compiled.find_first("Counter").is_some());
+    assert!(compiled.is_unchanged());
+
+    // deleted artifacts cause recompile even with cache
+    std::fs::remove_dir_all(project.artifacts_path()).unwrap();
+    let compiled = project.compile().unwrap();
+    assert!(compiled.find_first("Counter").is_some());
+    assert!(!compiled.is_unchanged());
 }

@@ -11,16 +11,18 @@ use serde::{Deserialize, Serialize};
 pub struct VyperSourceLocation {
     file: PathBuf,
     #[serde(rename = "lineno")]
-    line: u64,
+    line: Option<u64>,
     #[serde(rename = "col_offset")]
-    offset: u64,
+    offset: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct VyperCompilationError {
     pub message: String,
     pub severity: Severity,
     pub source_location: Option<VyperSourceLocation>,
+    pub formatted_message: Option<String>,
 }
 
 impl CompilationError for VyperCompilationError {

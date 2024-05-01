@@ -31,9 +31,10 @@ pub struct Vyper {
 
 impl Vyper {
     /// Creates a new instance of the Vyper compiler. Uses the `vyper` binary in the system `PATH`.
-    pub fn new() -> Result<Self> {
-        let version = Self::version("vyper")?;
-        Ok(Self { path: "vyper".into(), version })
+    pub fn new(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
+        let version = Self::version(path)?;
+        Ok(Self { path: path.into(), version })
     }
 
     /// Convenience function for compiling all sources under the given path
