@@ -3765,11 +3765,17 @@ contract D {
 
 #[test]
 fn test_deterministic_metadata() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
-    let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-    let mut project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let root = tmp_dir.path();
+    let orig_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+    copy_dir_all(orig_root, &tmp_dir).unwrap();
 
-    project.set_solc("0.8.18");
+    let vm = SolcVersionManager::default();
+    let paths = ProjectPathsConfig::builder().root(root).build().unwrap();
+    let project = Project::builder()
+        .paths(paths)
+        .build(CompilerConfig::Specific(vm.get_or_install(&Version::new(0, 8, 18)).unwrap()))
+        .unwrap();
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();
