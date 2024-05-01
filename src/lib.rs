@@ -296,64 +296,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
     }
 
     pub fn compile(&self) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
-        let sources = self.paths.read_input_files()?;
-        let out = match self.compiler_config {
-            CompilerConfig::Specific(ref compiler) => {
-                project::ProjectCompiler::with_sources_and_compiler(
-                    self,
-                    sources,
-                    compiler.clone(),
-                )?
-                .compile()?
-            }
-            CompilerConfig::AutoDetect(ref vm) => {
-                project::ProjectCompiler::with_sources(self, sources, vm)?.compile()?
-            }
-        };
-
-        Ok(out)
-    }
-
-    /// Compiles a set of contracts using `svm` managed solc installs
-    ///
-    /// This will autodetect the appropriate `Solc` version(s) to use when compiling the provided
-    /// `Sources`. Solc auto-detection follows semver rules, see also
-    /// `Graph::get_input_node_versions`
-    ///
-    /// # Errors
-    ///
-    /// This returns an error if contracts in the `Sources` set are incompatible (violate semver
-    /// rules) with their imports, for example source contract `A(=0.8.11)` imports dependency
-    /// `C(<0.8.0)`, which are incompatible.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use foundry_compilers::{artifacts::Source, utils, Project};
-    ///
-    /// let project = Project::builder().build()?;
-    /// let files = utils::source_files("./src");
-    /// let sources = Source::read_all(files)?;
-    /// let output = project.svm_compile(sources)?;
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    pub fn svm_compile(
-        &self,
-        sources: Sources,
-    ) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
-        match self.compiler_config {
-            CompilerConfig::Specific(ref compiler) => {
-                project::ProjectCompiler::with_sources_and_compiler(
-                    self,
-                    sources,
-                    compiler.clone(),
-                )?
-                .compile()
-            }
-            CompilerConfig::AutoDetect(ref vm) => {
-                project::ProjectCompiler::with_sources(self, sources, vm)?.compile()
-            }
-        }
+        project::ProjectCompiler::new(self)?.compile()
     }
 
     /// Convenience function to compile a single solidity file with the project's settings.
@@ -374,20 +317,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
     ) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
         let file = file.into();
         let source = Source::read(&file)?;
-        match self.compiler_config {
-            CompilerConfig::Specific(ref compiler) => {
-                project::ProjectCompiler::with_sources_and_compiler(
-                    self,
-                    Sources::from([(file, source)]),
-                    compiler.clone(),
-                )?
-                .compile()
-            }
-            CompilerConfig::AutoDetect(ref vm) => {
-                project::ProjectCompiler::with_sources(self, Sources::from([(file, source)]), vm)?
-                    .compile()
-            }
-        }
+        project::ProjectCompiler::with_sources(self, Sources::from([(file, source)]))?.compile()
     }
 
     /// Convenience function to compile a series of solidity files with the project's settings.
@@ -412,19 +342,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
     {
         let sources = Source::read_all(files)?;
 
-        match self.compiler_config {
-            CompilerConfig::Specific(ref compiler) => {
-                project::ProjectCompiler::with_sources_and_compiler(
-                    self,
-                    sources,
-                    compiler.clone(),
-                )?
-                .compile()
-            }
-            CompilerConfig::AutoDetect(ref vm) => {
-                project::ProjectCompiler::with_sources(self, sources, vm)?.compile()
-            }
-        }
+        project::ProjectCompiler::with_sources(self, sources)?.compile()
     }
 
     /// Convenience function to compile only files that match the provided [FileFilter].
@@ -461,50 +379,8 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
         let sources =
             Source::read_all(self.paths.input_files().into_iter().filter(|p| filter.is_match(p)))?;
 
-        match self.compiler_config {
-            CompilerConfig::Specific(ref compiler) => {
-                project::ProjectCompiler::with_sources_and_compiler(
-                    self,
-                    sources,
-                    compiler.clone(),
-                )?
-                .with_sparse_output(filter)
-                .compile()
-            }
-            CompilerConfig::AutoDetect(ref vm) => {
-                project::ProjectCompiler::with_sources(self, sources, vm)?
-                    .with_sparse_output(filter)
-                    .compile()
-            }
-        }
+        project::ProjectCompiler::with_sources(self, sources)?.with_sparse_output(filter).compile()
     }
-
-    /// Compiles the given source files with the exact `Solc` executable
-    ///
-    /// First all libraries for the sources are resolved by scanning all their imports.
-    /// If caching is enabled for the `Project`, then all unchanged files are filtered from the
-    /// sources and their existing artifacts are read instead. This will also update the cache
-    /// file and cleans up entries for files which may have been removed. Unchanged files that
-    /// for which an artifact exist, are not compiled again.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use foundry_compilers::{Project, Solc};
-    ///
-    /// let project = Project::builder().build()?;
-    /// let sources = project.paths.read_sources()?;
-    /// let solc = Solc::find_svm_installed_version("0.8.11")?.unwrap();
-    /// project.compile_with_version(&solc, sources)?;
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    //pub fn compile_with_version(
-    //    &self,
-    //    solc: &Solc,
-    //    sources: Sources,
-    //) -> Result<ProjectCompileOutput<T>> {
-    //    project::ProjectCompiler::with_sources_and_solc(self, sources, solc.clone())?.compile()
-    //}
 
     /// Removes the project's artifacts and cache file
     ///

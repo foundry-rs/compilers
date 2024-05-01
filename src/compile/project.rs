@@ -111,7 +111,8 @@ use crate::{
     output::AggregatedCompilerOutput,
     report,
     resolver::GraphEdges,
-    ArtifactOutput, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Sources,
+    ArtifactOutput, CompilerConfig, Graph, Project, ProjectCompileOutput, ProjectPathsConfig,
+    Sources,
 };
 use rayon::prelude::*;
 use std::{path::PathBuf, sync::Arc, time::Instant};
@@ -130,12 +131,8 @@ pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
 impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     /// Create a new `ProjectCompiler` to bootstrap the compilation process of the project's
     /// sources.
-    #[cfg(feature = "svm-solc")]
-    pub fn new<VM: CompilerVersionManager<Compiler = C>>(
-        project: &'a Project<T, C>,
-        version_manager: VM,
-    ) -> Result<Self> {
-        Self::with_sources(project, project.paths.read_input_files()?, version_manager)
+    pub fn new(project: &'a Project<T, C>) -> Result<Self> {
+        Self::with_sources(project, project.paths.read_input_files()?)
     }
 
     /// Bootstraps the compilation process by resolving the dependency graph of all sources and the
@@ -144,7 +141,19 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     ///
     /// Multiple (`Solc` -> `Sources`) pairs can be compiled in parallel if the `Project` allows
     /// multiple `jobs`, see [`crate::Project::set_solc_jobs()`].
-    pub fn with_sources<VM: CompilerVersionManager<Compiler = C>>(
+    pub fn with_sources(project: &'a Project<T, C>, sources: Sources) -> Result<Self> {
+        match &project.compiler_config {
+            CompilerConfig::Specific(compiler) => {
+                Self::with_sources_and_compiler(project, sources, compiler.clone())
+            }
+            CompilerConfig::AutoDetect(vm) => {
+                Self::with_sources_and_version_manager(project, sources, vm.clone())
+            }
+        }
+    }
+
+    /// Compiles the sources automatically detecting versions via [CompilerVersionManager]
+    pub fn with_sources_and_version_manager<VM: CompilerVersionManager<Compiler = C>>(
         project: &'a Project<T, C>,
         sources: Sources,
         version_manager: VM,
@@ -165,7 +174,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
         Ok(Self { edges, project, sources, sparse_output: Default::default() })
     }
 
-    /// Compiles the sources with a pinned `Solc` instance
+    /// Compiles the sources with a pinned [Compiler] instance
     pub fn with_sources_and_compiler(
         project: &'a Project<T, C>,
         sources: Sources,
@@ -695,8 +704,8 @@ fn compile_parallel<C: Compiler>(
 mod tests {
     use super::*;
     use crate::{
-        artifacts::output_selection::ContractOutputSelection, compilers::solc::SolcVersionManager,
-        project_util::TempProject, ConfigurableArtifacts, MinimalCombinedArtifacts,
+        artifacts::output_selection::ContractOutputSelection, project_util::TempProject,
+        ConfigurableArtifacts, MinimalCombinedArtifacts,
     };
 
     fn init_tracing() {
@@ -714,7 +723,7 @@ mod tests {
             .build(Default::default())
             .unwrap();
 
-        let compiler = ProjectCompiler::new(&project, SolcVersionManager).unwrap();
+        let compiler = ProjectCompiler::new(&project).unwrap();
         let prep = compiler.preprocess().unwrap();
         let cache = prep.cache.as_cached().unwrap();
         // ensure that we have exactly 3 empty entries which will be filled on compilation.
@@ -735,7 +744,7 @@ mod tests {
         compiled.assert_success();
 
         let inner = project.project();
-        let compiler = ProjectCompiler::new(inner, SolcVersionManager).unwrap();
+        let compiler = ProjectCompiler::new(inner).unwrap();
         let prep = compiler.preprocess().unwrap();
         assert!(prep.cache.as_cached().unwrap().dirty_sources.is_empty())
     }
@@ -794,7 +803,7 @@ mod tests {
         )
         .unwrap();
 
-        let compiler = ProjectCompiler::new(tmp.project(), SolcVersionManager).unwrap();
+        let compiler = ProjectCompiler::new(tmp.project()).unwrap();
         let state = compiler.preprocess().unwrap();
         let sources = state.sources.sources();
 
@@ -855,7 +864,7 @@ mod tests {
             .build()
             .unwrap();
         let project = Project::builder().paths(paths).build(Default::default()).unwrap();
-        let compiler = ProjectCompiler::new(&project, SolcVersionManager).unwrap();
+        let compiler = ProjectCompiler::new(&project).unwrap();
         let _out = compiler.compile().unwrap();
     }
 
