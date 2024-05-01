@@ -110,7 +110,7 @@ mod tests {
         let inputs = SolcInput::build(
             BTreeMap::from([(PathBuf::from("input.sol"), Source::new(""))]),
             Default::default(),
-            &Version::parse("0.8.4").unwrap(),
+            &Version::new(0, 8, 4),
         );
         let output = CompilerOutput::<Error>::default();
         let v: Version = "0.8.4+commit.c7e474f2".parse().unwrap();

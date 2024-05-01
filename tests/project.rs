@@ -2565,7 +2565,7 @@ fn can_create_standard_json_input_with_external_file() {
         ]
     );
 
-    let solc = SolcVersionManager.get_installed(&Version::parse("0.8.24").unwrap()).unwrap();
+    let solc = SolcVersionManager::default().get_installed(&Version::new(0, 8, 24)).unwrap();
 
     // can compile using the created json
     let compiler_errors = solc
@@ -2590,7 +2590,7 @@ fn can_compile_std_json_input() {
     assert!(input.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
 
     // should be installed
-    if let Ok(solc) = SolcVersionManager.get_installed(&Version::parse("0.8.10").unwrap()) {
+    if let Ok(solc) = SolcVersionManager::default().get_installed(&Version::new(0, 8, 10)) {
         let out = solc.compile(&input).unwrap();
         assert!(!out.errors.is_empty());
         assert!(out.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
@@ -2654,7 +2654,7 @@ fn can_create_standard_json_input_with_symlink() {
         ]
     );
 
-    let solc = SolcVersionManager.get_installed(&Version::parse("0.8.24").unwrap()).unwrap();
+    let solc = SolcVersionManager::default().get_installed(&Version::new(0, 8, 24)).unwrap();
 
     // can compile using the created json
     let compiler_errors = solc
@@ -2783,7 +2783,7 @@ fn test_compiler_severity_filter_and_ignored_error_codes() {
 }
 
 fn remove_solc_if_exists(version: &Version) {
-    if SolcVersionManager.get_installed(version).is_ok() {
+    if SolcVersionManager::default().get_installed(version).is_ok() {
         svm::remove_version(version).expect("failed to remove version")
     }
 }
@@ -2817,7 +2817,7 @@ async fn can_install_solc_and_compile_std_json_input_async() {
     tmp.assert_no_errors();
     let source = tmp.list_source_files().into_iter().find(|p| p.ends_with("Dapp.t.sol")).unwrap();
     let input = tmp.project().standard_json_input(source).unwrap();
-    let solc = SolcVersionManager.get_or_install(&Version::parse("0.8.24").unwrap()).unwrap();
+    let solc = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)).unwrap();
 
     assert!(input.settings.remappings.contains(&"ds-test/=lib/ds-test/src/".parse().unwrap()));
     let input: SolcInput = input.into();

@@ -556,7 +556,7 @@ mod tests {
     }
 
     fn solc() -> Solc {
-        SolcVersionManager.get_or_install(&Version::parse("0.8.18").unwrap()).unwrap()
+        SolcVersionManager::default().get_or_install(&Version::new(0, 8, 18)).unwrap()
     }
 
     #[test]
@@ -670,7 +670,7 @@ mod tests {
         {
             Solc::blocking_install(&version).unwrap();
         }
-        let res = SolcVersionManager.get_installed(&version).unwrap();
+        let res = SolcVersionManager::default().get_installed(&version).unwrap();
         let expected = svm::data_dir().join(ver).join(format!("solc-{ver}"));
         assert_eq!(res.solc, expected);
     }
@@ -688,7 +688,7 @@ mod tests {
     fn does_not_find_not_installed_version() {
         let ver = "1.1.1";
         let version = Version::from_str(ver).unwrap();
-        let res = SolcVersionManager.get_installed(&version);
+        let res = SolcVersionManager::default().get_installed(&version);
         assert!(matches!(res, Err(VersionManagerError::VersionNotInstalled(_))));
     }
 }

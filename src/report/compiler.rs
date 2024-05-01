@@ -177,11 +177,11 @@ mod tests {
     #[test]
     fn can_set_file_name() {
         let s = "/a/b/c/in.json";
-        let p = get_file_name(s, &Version::parse("0.8.10").unwrap());
+        let p = get_file_name(s, &Version::new(0, 8, 10));
         assert_eq!(PathBuf::from("/a/b/c/in.0.8.10.json"), p);
 
         let s = "abc.json";
-        let p = get_file_name(s, &Version::parse("0.8.10").unwrap());
+        let p = get_file_name(s, &Version::new(0, 8, 10));
         assert_eq!(PathBuf::from("abc.0.8.10.json"), p);
     }
 

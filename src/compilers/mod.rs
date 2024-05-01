@@ -15,13 +15,13 @@ use std::{
 };
 
 pub mod solc;
-mod vm;
+mod version_manager;
 pub mod vyper;
-pub use vm::{CompilerVersion, CompilerVersionManager, VersionManagerError};
+pub use version_manager::{CompilerVersion, CompilerVersionManager, VersionManagerError};
 
 /// Compilation settings including evm_version, output_selection, etc.
 pub trait CompilerSettings:
-    Default + Serialize + DeserializeOwned + Clone + Debug + Send + Sync
+    Default + Serialize + DeserializeOwned + Clone + Debug + Send + Sync + 'static
 {
     /// Returns mutable reference to configured [OutputSelection].
     fn output_selection_mut(&mut self) -> &mut OutputSelection;
@@ -35,8 +35,8 @@ pub trait CompilerSettings:
 }
 
 /// Input of a compiler, including sources and settings used for their compilation.
-pub trait CompilerInput: Serialize + Send + Sized {
-    type Settings;
+pub trait CompilerInput: Serialize + Send + Sync + Sized {
+    type Settings: CompilerSettings;
 
     /// Constructs one or multiple inputs from given sources set. Might return multiple inputs in
     /// cases when sources need to be divided into sets per language (Yul + Solidity for example).
@@ -64,7 +64,7 @@ pub trait ParsedSource: Debug + Sized + Send {
 }
 
 /// Error returned by compiler. Might also represent a warning or informational message.
-pub trait CompilationError: Serialize + DeserializeOwned + Send + Display + Debug {
+pub trait CompilationError: Serialize + DeserializeOwned + Send + Sync + Display + Debug {
     fn is_warning(&self) -> bool;
     fn is_error(&self) -> bool;
     fn source_location(&self) -> Option<crate::artifacts::error::SourceLocation>;
@@ -120,9 +120,13 @@ pub trait Compiler: Send + Sync + Clone {
     /// Extensions of source files recognized by the compiler.
     const FILE_EXTENSIONS: &'static [&'static str];
 
+    /// Input type for the compiler. Contains settings and sources to be compiled.
     type Input: CompilerInput<Settings = Self::Settings>;
+    /// Error type returned by the compiler.
     type CompilationError: CompilationError;
+    /// Source parser used for resolving imports and version requirements.
     type ParsedSource: ParsedSource;
+    /// Compiler settings.
     type Settings: CompilerSettings;
 
     /// Main entrypoint for the compiler. Compiles given input into [CompilerOutput]. Takes

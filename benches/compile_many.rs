@@ -12,7 +12,7 @@ use std::path::Path;
 
 fn compile_many_benchmark(c: &mut Criterion) {
     let inputs = load_compiler_inputs();
-    let solc = SolcVersionManager.get_or_install(&Version::parse("0.8.0").unwrap()).unwrap();
+    let solc = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 0)).unwrap();
 
     let mut group = c.benchmark_group("compile many");
     group.sample_size(10);

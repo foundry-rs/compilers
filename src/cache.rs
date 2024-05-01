@@ -311,7 +311,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
 }
 
 #[cfg(feature = "async")]
-impl<S: CompilerSettings + 'static> CompilerCache<S> {
+impl<S: CompilerSettings> CompilerCache<S> {
     pub async fn async_read(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref().to_owned();
         Self::asyncify(move || Self::read(path)).await
@@ -802,6 +802,7 @@ pub(crate) enum ArtifactsCache<'a, T: ArtifactOutput, C: Compiler> {
 }
 
 impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
+    /// Create a new cache instance with the given files
     pub fn new(project: &'a Project<T, C>, edges: GraphEdges<C::ParsedSource>) -> Result<Self> {
         /// Returns the [SolFilesCache] to use
         ///

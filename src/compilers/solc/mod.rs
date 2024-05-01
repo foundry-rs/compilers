@@ -1,7 +1,7 @@
 #[cfg(feature = "svm-solc")]
-mod vm;
+mod version_manager;
 #[cfg(feature = "svm-solc")]
-pub use vm::SolcVersionManager;
+pub use version_manager::SolcVersionManager;
 
 use itertools::Itertools;
 
