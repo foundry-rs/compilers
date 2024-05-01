@@ -539,6 +539,7 @@ impl AsRef<Path> for Solc {
 }
 
 #[cfg(test)]
+#[cfg(feature = "svm-solc")]
 mod tests {
     use super::*;
     use crate::{
