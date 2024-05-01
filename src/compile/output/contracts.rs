@@ -3,8 +3,7 @@ use crate::{
         contract::{CompactContractRef, Contract},
         CompactContractBytecode, FileToContractsMap,
     },
-    files::{MappedArtifactFile, MappedArtifactFiles, MappedContract},
-    ArtifactId, ArtifactOutput, OutputContext,
+    ArtifactId,
 };
 use semver::Version;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -42,54 +41,6 @@ impl VersionedContracts {
     /// Returns an iterator over all files
     pub fn files(&self) -> impl Iterator<Item = &PathBuf> + '_ {
         self.0.keys()
-    }
-
-    /// Returns all the artifact files mapped with their contracts
-    ///
-    /// This will compute the appropriate output file paths but will _not_ write them.
-    /// The `ctx` is used to avoid possible conflicts
-    pub(crate) fn artifact_files<T: ArtifactOutput + ?Sized>(
-        &self,
-        ctx: &OutputContext<'_>,
-    ) -> MappedArtifactFiles<'_> {
-        let mut output_files = MappedArtifactFiles::with_capacity(self.len());
-        for (file, contracts) in self.iter() {
-            for (name, versioned_contracts) in contracts {
-                for contract in versioned_contracts {
-                    // if an artifact for the contract already exists (from a previous compile job)
-                    // we reuse the path, this will make sure that even if there are conflicting
-                    // files (files for witch `T::output_file()` would return the same path) we use
-                    // consistent output paths
-                    let artifact_path = if let Some(existing_artifact) =
-                        ctx.existing_artifact(file, name, &contract.version).cloned()
-                    {
-                        trace!("use existing artifact file {:?}", existing_artifact,);
-                        existing_artifact
-                    } else if versioned_contracts.len() > 1 {
-                        T::output_file_versioned(file, name, &contract.version)
-                    } else {
-                        T::output_file(file, name)
-                    };
-
-                    trace!(
-                        "use artifact file {:?} for contract file {} {}",
-                        artifact_path,
-                        file.display(),
-                        contract.version
-                    );
-                    let artifact = MappedArtifactFile::new(&artifact_path);
-                    let contract = MappedContract {
-                        file: file.as_path(),
-                        name: name.as_str(),
-                        contract,
-                        artifact_path,
-                    };
-                    output_files.entry(artifact).or_default().push(contract);
-                }
-            }
-        }
-
-        output_files
     }
 
     /// Finds the _first_ contract with the given name
