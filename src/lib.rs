@@ -247,7 +247,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
     }
 
     /// Convenience function to read the cache file.
-    /// See also [SolFilesCache::read_joined()]
+    /// See also [CompilerCache::read_joined()]
     pub fn read_cache_file(&self) -> Result<CompilerCache<C::Settings>> {
         CompilerCache::read_joined(&self.paths)
     }

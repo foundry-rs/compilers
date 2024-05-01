@@ -78,7 +78,7 @@
 //! ### Caching and Change detection
 //!
 //! If caching is enabled in the [Project] a cache file will be created upon a successful solc
-//! build. The [cache file](crate::cache::SolFilesCache) stores metadata for all the files that were
+//! build. The [cache file](crate::cache::CompilerCache) stores metadata for all the files that were
 //! provided to solc.
 //! For every file the cache file contains a dedicated [cache entry](crate::cache::CacheEntry),
 //! which represents the state of the file. A solidity file can contain several contracts, for every

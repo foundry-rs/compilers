@@ -77,13 +77,13 @@ impl Default for SolcInput {
 }
 
 impl SolcInput {
-    /// This will remove/adjust values in the `CompilerInput` that are not compatible with this
+    /// This will remove/adjust values in the [`SolcInput`] that are not compatible with this
     /// version
     pub fn sanitize(&mut self, version: &Version) {
         self.settings.sanitize(version)
     }
 
-    /// Consumes the type and returns a [CompilerInput::sanitized] version
+    /// Consumes the type and returns a [SolcInput::sanitized] version
     pub fn sanitized(mut self, version: &Version) -> Self {
         self.settings.sanitize(version);
         self
@@ -151,7 +151,7 @@ impl SolcInput {
         self.settings.strip_prefix(base);
     }
 
-    /// The flag indicating whether the current [CompilerInput] is
+    /// The flag indicating whether the current [SolcInput] is
     /// constructed for the yul sources
     pub fn is_yul(&self) -> bool {
         self.language == YUL

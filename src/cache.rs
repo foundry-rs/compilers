@@ -539,7 +539,7 @@ impl GroupedSources {
     }
 }
 
-/// A helper abstraction over the [`SolFilesCache`] used to determine what files need to compiled
+/// A helper abstraction over the [`CompilerCache`] used to determine what files need to compiled
 /// and which `Artifacts` can be reused.
 #[derive(Debug)]
 pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput, C: Compiler> {

@@ -65,8 +65,8 @@ impl SparseOutputFilter {
     /// output everything for those dirty files as currently configured in the settings, but output
     /// nothing for the other files that are _not_ dirty.
     ///
-    /// This will modify the [OutputSelection] of the [Settings] so that we explicitly select the
-    /// files' output based on their state.
+    /// This will modify the [OutputSelection] of the [CompilerSettings] so that we explicitly
+    /// select the files' output based on their state.
     ///
     /// This also takes the project's graph as input, this allows us to check if the files the
     /// filter matches depend on libraries that need to be linked

@@ -94,18 +94,13 @@ where
 ///
 /// A `Reporter` is entirely passive and only listens to incoming "events".
 pub trait Reporter: 'static + std::fmt::Debug {
-    /// Callback invoked right before [`Solc::compile()`] is called
+    /// Callback invoked right before [Compiler::compile] is called
     ///
-    /// This contains the [Solc] its [Version] the complete [CompilerInput] and all files that
-    /// triggered the compile job. The dirty files are only provided to give a better feedback what
-    /// was actually compiled.
+    /// This contains the [Compiler] its [Version] and all files that triggered the compile job. The
+    /// dirty files are only provided to give a better feedback what was actually compiled.
     ///
-    /// If caching is enabled and there has been a previous successful solc run, the dirty files set
-    /// contains the files that absolutely must be recompiled, while the [CompilerInput] contains
-    /// all files, the dirty files and all their dependencies.
-    ///
-    /// If this is a fresh compile then the [crate::artifacts::Sources] set of the [CompilerInput]
-    /// matches the dirty files set.
+    /// [Compiler]: crate::compilers::Compiler
+    /// [Compiler::compile]: crate::compilers::Compiler::compile
     fn on_compiler_spawn(
         &self,
         _compiler_name: &str,
@@ -114,16 +109,18 @@ pub trait Reporter: 'static + std::fmt::Debug {
     ) {
     }
 
-    /// Invoked with the `CompilerOutput` if [`Solc::compile()`] was successful
+    /// Invoked with the `CompilerOutput` if [`Compiler::compile()`] was successful
+    ///
+    /// [`Compiler::compile()`]: crate::compilers::Compiler::compile
     fn on_compiler_success(&self, _compiler_name: &str, _version: &Version, _duration: &Duration) {}
 
-    /// Invoked before a new [`Solc`] bin is installed
+    /// Invoked before a new compiler version is installed
     fn on_solc_installation_start(&self, _version: &Version) {}
 
-    /// Invoked after a new [`Solc`] bin was successfully installed
+    /// Invoked after a new compiler version was successfully installed
     fn on_solc_installation_success(&self, _version: &Version) {}
 
-    /// Invoked after a [`Solc`] installation failed
+    /// Invoked after a compiler installation failed
     fn on_solc_installation_error(&self, _version: &Version, _error: &str) {}
 
     /// Invoked if imports couldn't be resolved with the given remappings, where `imports` is the
@@ -319,7 +316,9 @@ pub struct BasicStdoutReporter {
 }
 
 impl Reporter for BasicStdoutReporter {
-    /// Callback invoked right before [`Solc::compile()`] is called
+    /// Callback invoked right before [`Compiler::compile()`] is called
+    ///
+    /// [`Compiler::compile()`]: crate::compilers::Compiler::compile
     fn on_compiler_spawn(&self, compiler_name: &str, version: &Version, dirty_files: &[PathBuf]) {
         println!(
             "Compiling {} files with {} {}.{}.{}",
@@ -338,12 +337,12 @@ impl Reporter for BasicStdoutReporter {
         );
     }
 
-    /// Invoked before a new [`Solc`] bin is installed
+    /// Invoked before a new compiler is installed
     fn on_solc_installation_start(&self, version: &Version) {
         println!("installing solc version \"{version}\"");
     }
 
-    /// Invoked before a new [`Solc`] bin was successfully installed
+    /// Invoked before a new compiler was successfully installed
     fn on_solc_installation_success(&self, version: &Version) {
         println!("Successfully installed solc {version}");
     }

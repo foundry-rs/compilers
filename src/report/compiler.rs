@@ -1,4 +1,4 @@
-//! Additional logging [CompilerInput] and [CompilerOutput]
+//! Additional logging [SolcInput] and [CompilerOutput]
 //!
 //! Useful for debugging purposes.
 //! As solc compiler input and output can become quite large (in the tens of MB) we still want a way
@@ -9,7 +9,7 @@ use crate::{CompilerOutput, SolcInput};
 use semver::Version;
 use std::{env, path::PathBuf, str::FromStr};
 
-/// Debug Helper type that can be used to write the [crate::Solc] [CompilerInput] and
+/// Debug Helper type that can be used to write the [crate::Solc] [SolcInput] and
 /// [CompilerOutput] to disk if configured.
 ///
 /// # Examples

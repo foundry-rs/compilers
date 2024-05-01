@@ -18,7 +18,7 @@ pub mod parser;
 pub mod settings;
 pub use settings::VyperSettings;
 
-type VyperCompilerOutput = CompilerOutput<VyperCompilationError>;
+pub type VyperCompilerOutput = CompilerOutput<VyperCompilationError>;
 
 /// File extensions that are recognized as Vyper source files.
 pub const VYPER_EXTENSIONS: &[&str] = &["vy"];
