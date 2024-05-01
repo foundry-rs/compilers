@@ -47,7 +47,9 @@ pub use config::{PathStyle, ProjectPaths, ProjectPathsConfig, SolcConfig};
 pub mod remappings;
 
 mod filter;
-pub use filter::{FileFilter, SolcSparseFileFilter, SparseOutputFilter, TestFileFilter};
+pub use filter::{
+    FileFilter, FilteredSources, SolcSparseFileFilter, SparseOutputFilter, TestFileFilter,
+};
 use solang_parser::pt::SourceUnitPart;
 
 pub mod report;
