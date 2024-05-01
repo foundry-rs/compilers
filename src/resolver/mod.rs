@@ -791,6 +791,7 @@ impl VersionedSources {
     ) -> Result<Vec<(VM::Compiler, semver::Version, Sources)>> {
         // we take the installer lock here to ensure installation checking is done in sync
         #[cfg(test)]
+        #[cfg(feature = "svm-solc")]
         let _lock = crate::compile::take_solc_installer_lock();
 
         let mut sources_by_version = Vec::new();
