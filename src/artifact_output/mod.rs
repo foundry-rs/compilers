@@ -1173,7 +1173,7 @@ mod tests {
         );
         assert_eq!(alternative, PathBuf::from("out/tokens/Greeter.sol/Greeter.json"));
 
-        already_taken.insert("out/tokens/Greeter.sol/Greeter.json".into());
+        already_taken.insert("out/tokens/Greeter.sol/Greeter.json".to_lowercase());
         let alternative = ConfigurableArtifacts::conflict_free_output_file(
             &already_taken,
             conflict.clone(),
@@ -1182,7 +1182,7 @@ mod tests {
         );
         assert_eq!(alternative, PathBuf::from("out/v1/tokens/Greeter.sol/Greeter.json"));
 
-        already_taken.insert("out/v1/tokens/Greeter.sol/Greeter.json".into());
+        already_taken.insert("out/v1/tokens/Greeter.sol/Greeter.json".to_lowercase());
         let alternative =
             ConfigurableArtifacts::conflict_free_output_file(&already_taken, conflict, file, "out");
         assert_eq!(alternative, PathBuf::from("Greeter.sol_1/Greeter.json"));
