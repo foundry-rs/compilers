@@ -570,7 +570,7 @@ mod tests {
     }
 
     #[cfg(feature = "async")]
-    #[tokio::test(flavor = "multi_thread")]
+    #[tokio::test]
     async fn async_solc_version_works() {
         Solc::async_version(solc().solc).await.unwrap();
     }
