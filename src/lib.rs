@@ -26,6 +26,7 @@ pub mod flatten;
 
 pub mod hh;
 use compilers::{Compiler, CompilerSettings, CompilerVersionManager};
+use filter::SparseOutputFileFilter;
 pub use hh::{HardhatArtifact, HardhatArtifacts};
 
 pub mod resolver;
@@ -46,7 +47,7 @@ pub use config::{PathStyle, ProjectPaths, ProjectPathsConfig, SolcConfig};
 pub mod remappings;
 
 mod filter;
-pub use filter::{FileFilter, TestFileFilter};
+pub use filter::{FileFilter, SolcSparseFileFilter, SparseOutputFilter, TestFileFilter};
 use solang_parser::pt::SourceUnitPart;
 
 pub mod report;
@@ -373,7 +374,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
     /// ```
     pub fn compile_sparse(
         &self,
-        filter: Box<dyn FileFilter>,
+        filter: Box<dyn SparseOutputFileFilter<C::ParsedSource>>,
     ) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
         let sources =
             Source::read_all(self.paths.input_files().into_iter().filter(|p| filter.is_match(p)))?;

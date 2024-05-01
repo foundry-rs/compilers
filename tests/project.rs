@@ -22,7 +22,8 @@ use foundry_compilers::{
     resolver::parse::SolData,
     utils::{self, RuntimeOrHandle},
     Artifact, CompilerConfig, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, SolcInput, TestFileFilter,
+    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, SolcInput, SolcSparseFileFilter,
+    TestFileFilter,
 };
 use pretty_assertions::assert_eq;
 use semver::Version;
@@ -2493,7 +2494,8 @@ fn can_compile_sparse_with_link_references() {
         )
         .unwrap();
 
-    let mut compiled = tmp.compile_sparse(Box::<TestFileFilter>::default()).unwrap();
+    let filter = SolcSparseFileFilter::new(TestFileFilter::default());
+    let mut compiled = tmp.compile_sparse(Box::new(filter)).unwrap();
     compiled.assert_success();
 
     let mut output = compiled.clone().into_output();

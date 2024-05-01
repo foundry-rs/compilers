@@ -5,13 +5,15 @@ use crate::{
     compilers::Compiler,
     config::ProjectPathsConfigBuilder,
     error::{Result, SolcError},
+    filter::SparseOutputFileFilter,
     hh::HardhatArtifacts,
     project_util::mock::{MockProjectGenerator, MockProjectSettings},
     remappings::Remapping,
+    resolver::parse::SolData,
     utils::{self, tempdir},
     Artifact, ArtifactOutput, Artifacts, CompilerCache, ConfigurableArtifacts,
-    ConfigurableContractArtifact, FileFilter, PathStyle, Project, ProjectCompileOutput,
-    ProjectPathsConfig, Solc, SolcIoError,
+    ConfigurableContractArtifact, PathStyle, Project, ProjectCompileOutput, ProjectPathsConfig,
+    Solc, SolcIoError,
 };
 use fs_extra::{dir, file};
 use std::{
@@ -339,7 +341,7 @@ contract {} {{}}
 
     pub fn compile_sparse(
         &self,
-        filter: Box<dyn FileFilter>,
+        filter: Box<dyn SparseOutputFileFilter<SolData>>,
     ) -> Result<ProjectCompileOutput<Error, T>> {
         self.project().compile_sparse(filter)
     }

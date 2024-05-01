@@ -189,6 +189,11 @@ impl<D> GraphEdges<D> {
             .and_then(|idx| self.versions.get(idx))
             .and_then(|v| v.as_ref())
     }
+
+    /// Returns the parsed source data for the given file
+    pub fn get_parsed_source(&self, file: impl AsRef<Path>) -> Option<&D> {
+        self.indices.get(file.as_ref()).and_then(|idx| self.data.get(idx))
+    }
 }
 
 /// Represents a fully-resolved solidity dependency graph. Each node in the graph

@@ -125,7 +125,7 @@ pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
     /// how to compile all the sources
     sources: CompilerSources<C>,
     /// How to select solc [`crate::artifacts::CompilerOutput`] for files
-    sparse_output: SparseOutputFilter,
+    sparse_output: SparseOutputFilter<C::ParsedSource>,
 }
 
 impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
@@ -191,7 +191,10 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
 
     /// Applies the specified filter to be applied when selecting solc output for
     /// specific files to be compiled
-    pub fn with_sparse_output(mut self, sparse_output: impl Into<SparseOutputFilter>) -> Self {
+    pub fn with_sparse_output(
+        mut self,
+        sparse_output: impl Into<SparseOutputFilter<C::ParsedSource>>,
+    ) -> Self {
         self.sparse_output = sparse_output.into();
         self
     }
@@ -256,7 +259,7 @@ struct PreprocessedState<'a, T: ArtifactOutput, C: Compiler> {
     /// Cache that holds `CacheEntry` objects if caching is enabled and the project is recompiled
     cache: ArtifactsCache<'a, T, C>,
 
-    sparse_output: SparseOutputFilter,
+    sparse_output: SparseOutputFilter<C::ParsedSource>,
 }
 
 impl<'a, T: ArtifactOutput, C: Compiler> PreprocessedState<'a, T, C> {
@@ -475,7 +478,7 @@ impl<C: Compiler> FilteredCompilerSources<C> {
         self,
         settings: &<C::Input as CompilerInput>::Settings,
         paths: &ProjectPathsConfig<C>,
-        sparse_output: SparseOutputFilter,
+        sparse_output: SparseOutputFilter<C::ParsedSource>,
         graph: &GraphEdges<C::ParsedSource>,
         create_build_info: bool,
     ) -> Result<AggregatedCompilerOutput<C::CompilationError>> {
@@ -504,7 +507,7 @@ fn compile_sequential<C: Compiler>(
     input: VersionedFilteredSources<C>,
     settings: &C::Settings,
     paths: &ProjectPathsConfig<C>,
-    sparse_output: SparseOutputFilter,
+    sparse_output: SparseOutputFilter<C::ParsedSource>,
     graph: &GraphEdges<C::ParsedSource>,
     create_build_info: bool,
 ) -> Result<AggregatedCompilerOutput<C::CompilationError>> {
@@ -533,7 +536,7 @@ fn compile_sequential<C: Compiler>(
         // depending on the composition of the filtered sources, the output selection can be
         // optimized
         let mut opt_settings = settings.clone();
-        let sources = sparse_output.sparse_sources(filtered_sources, &mut opt_settings);
+        let sources = sparse_output.sparse_sources(filtered_sources, &mut opt_settings, graph);
 
         for input in C::Input::build(sources, opt_settings, &version) {
             let actually_dirty = input
@@ -586,7 +589,7 @@ fn compile_parallel<C: Compiler>(
     num_jobs: usize,
     settings: &C::Settings,
     paths: &ProjectPathsConfig<C>,
-    sparse_output: SparseOutputFilter,
+    sparse_output: SparseOutputFilter<C::ParsedSource>,
     graph: &GraphEdges<C::ParsedSource>,
     create_build_info: bool,
 ) -> Result<AggregatedCompilerOutput<C::CompilationError>> {
@@ -620,7 +623,7 @@ fn compile_parallel<C: Compiler>(
         // depending on the composition of the filtered sources, the output selection can be
         // optimized
         let mut opt_settings = settings.clone();
-        let sources = sparse_output.sparse_sources(filtered_sources, &mut opt_settings);
+        let sources = sparse_output.sparse_sources(filtered_sources, &mut opt_settings, graph);
 
         for input in C::Input::build(sources, settings.clone(), &version) {
             let actually_dirty = input
