@@ -570,7 +570,7 @@ mod tests {
     }
 
     #[cfg(feature = "async")]
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn async_solc_version_works() {
         Solc::async_version(solc().solc).await.unwrap();
     }
@@ -620,7 +620,7 @@ mod tests {
     }
 
     #[cfg(feature = "async")]
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn async_solc_compile_works() {
         let input = include_str!("../../test-data/in/compiler-in-1.json");
         let input: SolcInput = serde_json::from_str(input).unwrap();
@@ -630,7 +630,7 @@ mod tests {
     }
 
     #[cfg(feature = "async")]
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn async_solc_compile_works2() {
         let input = include_str!("../../test-data/in/compiler-in-2.json");
         let input: SolcInput = serde_json::from_str(input).unwrap();
