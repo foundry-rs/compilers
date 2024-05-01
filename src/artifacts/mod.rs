@@ -613,9 +613,9 @@ impl Libraries {
         {
             use path_slash::PathBufExt;
 
-            self.0 = std::mem::take(&mut self.libs)
+            self.libs = std::mem::take(&mut self.libs)
                 .into_iter()
-                .map(|(path, files)| (PathBuf::from(path.to_slash_lossy().as_ref()), files))
+                .map(|(path, libs)| (PathBuf::from(path.to_slash_lossy().as_ref()), libs))
                 .collect()
         }
     }
