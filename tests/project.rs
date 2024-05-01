@@ -21,7 +21,7 @@ use foundry_compilers::{
     remappings::Remapping,
     resolver::parse::SolData,
     utils::{self, RuntimeOrHandle},
-    Artifact, CompilerConfig, ConfigurableArtifacts, EvmVersion, ExtraOutputValues, Graph, Project,
+    Artifact, CompilerConfig, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
     ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, SolcInput, TestFileFilter,
 };
 use pretty_assertions::assert_eq;
