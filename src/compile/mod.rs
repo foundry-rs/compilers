@@ -556,6 +556,7 @@ mod tests {
     }
 
     fn solc() -> Solc {
+        let _lock = take_solc_installer_lock();
         SolcVersionManager::default().get_or_install(&Version::new(0, 8, 18)).unwrap()
     }
 
