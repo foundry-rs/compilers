@@ -807,7 +807,8 @@ pub trait ArtifactOutput {
         source_file: Option<&SourceFile>,
     ) -> Self::Artifact;
 
-    /// Generates a path for an artifact based on already taken paths by either cached or compiled artifacts.
+    /// Generates a path for an artifact based on already taken paths by either cached or compiled
+    /// artifacts.
     fn get_artifact_path(
         ctx: &OutputContext<'_>,
         already_taken: &HashSet<String>,
