@@ -57,10 +57,11 @@ impl<S: CompilerSettings> CompilerCache<S> {
 
     /// Removes entry for the given file
     pub fn remove(&mut self, file: &Path) -> Option<CacheEntry<S>> {
-        self.files.remove(file).inspect(|entry| {
+        self.files.remove(file).map(|entry| {
             for artifact in entry.artifacts() {
                 let _ = fs::remove_file(artifact);
             }
+            entry
         })
     }
 
