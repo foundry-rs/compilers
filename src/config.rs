@@ -70,10 +70,12 @@ impl ProjectPathsConfig {
         #[cfg(windows)]
         let ordered_deps = {
             use path_slash::PathBufExt;
-            ordered_deps
-                .iter()
-                .map(|p| PathBuf::from(p.to_slash_lossy().to_string()))
-                .collect::<Vec<_>>()
+
+            let mut deps = ordered_deps;
+            for p in &mut deps {
+                *p = PathBuf::from(p.to_slash_lossy().to_string());
+            }
+            deps
         };
 
         let mut sources = Vec::new();

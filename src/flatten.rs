@@ -193,11 +193,12 @@ impl Flattener {
 
         #[cfg(windows)]
         let ordered_sources = {
+            let mut sources = ordered_sources;
             use path_slash::PathBufExt;
-            ordered_sources
-                .into_iter()
-                .map(|path| PathBuf::from(path.to_slash_lossy().to_string()))
-                .collect::<Vec<_>>()
+            for p in &mut sources {
+                *p = PathBuf::from(p.to_slash_lossy().to_string());
+            }
+            sources
         };
 
         let sources = Source::read_all(&ordered_sources)?;
