@@ -834,14 +834,12 @@ pub trait ArtifactOutput {
 
             let path = artifacts_folder.join(path);
 
-            let path = if already_taken.contains(&path.to_slash_lossy().to_lowercase()) {
+            if already_taken.contains(&path.to_slash_lossy().to_lowercase()) {
                 // preventing conflict
-                Self::conflict_free_output_file(&already_taken, path, file, artifacts_folder)
+                Self::conflict_free_output_file(already_taken, path, file, artifacts_folder)
             } else {
                 path
-            };
-
-            path
+            }
         }
     }
 
