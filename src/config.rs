@@ -63,18 +63,18 @@ impl ProjectPathsConfig {
             input_files.push(flatten_target.clone());
         }
 
+        let sources = Source::read_all_files(input_files)?;
+        let graph = Graph::resolve_sources(self, sources)?;
+        let ordered_deps = collect_ordered_deps(&flatten_target, self, &graph)?;
+
         #[cfg(windows)]
-        let input_files = {
+        let ordered_deps = {
             use path_slash::PathBufExt;
-            input_files
+            ordered_deps
                 .iter()
                 .map(|p| PathBuf::from(p.to_slash_lossy().to_string()))
                 .collect::<Vec<_>>()
         };
-
-        let sources = Source::read_all_files(input_files)?;
-        let graph = Graph::resolve_sources(self, sources)?;
-        let ordered_deps = collect_ordered_deps(&flatten_target, self, &graph)?;
 
         let mut sources = Vec::new();
         let mut experimental_pragma = None;
