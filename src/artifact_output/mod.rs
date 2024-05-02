@@ -47,7 +47,6 @@ impl ArtifactId {
     pub fn slash_paths(&mut self) {
         #[cfg(windows)]
         {
-            use path_slash::PathBufExt;
             self.path = self.path.to_slash_lossy().as_ref().into();
             self.source = self.source.to_slash_lossy().as_ref().into();
         }
