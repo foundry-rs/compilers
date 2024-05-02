@@ -2526,6 +2526,7 @@ fn can_compile_sparse_with_link_references() {
 
     println!("{:?}", output.contracts.keys());
     let info = ContractInfo::new(format!("{}:{}", my_lib_path.to_slash_lossy(), "MyLib"));
+    println!("{:?} {:?}", info, my_lib_path.to_slash_lossy());
     let lib = output.remove_contract(&info);
     assert!(lib.is_some());
     let lib = output.remove_contract(&info);
