@@ -186,19 +186,19 @@ impl Flattener {
             .into_iter()
             .collect::<Vec<_>>();
 
-        #[cfg(windows)]
-        let input_files = {
-            use path_slash::PathBufExt;
-            input_files
-                .into_iter()
-                .map(|path| PathBuf::from(path.to_slash_lossy().to_string()))
-                .collect::<Vec<_>>()
-        };
-
         let sources = Source::read_all_files(input_files)?;
         let graph = Graph::resolve_sources(&project.paths, sources)?;
 
         let ordered_sources = collect_ordered_deps(&target.to_path_buf(), &project.paths, &graph)?;
+
+        #[cfg(windows)]
+        let ordered_sources = {
+            use path_slash::PathBufExt;
+            ordered_sources
+                .into_iter()
+                .map(|path| PathBuf::from(path.to_slash_lossy().to_string()))
+                .collect::<Vec<_>>()
+        };
 
         let sources = Source::read_all(&ordered_sources)?;
 
