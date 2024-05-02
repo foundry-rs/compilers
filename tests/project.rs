@@ -31,8 +31,8 @@ use semver::Version;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs::{self, Permissions},
-    io::{self},
-    path::{Path, PathBuf},
+    io,
+    path::{Path, PathBuf, MAIN_SEPARATOR},
     str::FromStr,
 };
 use svm::{platform, Platform};
@@ -2122,7 +2122,7 @@ fn can_detect_invalid_version() {
     let out = tmp.compile().unwrap_err();
     match out {
         SolcError::Message(err) => {
-            assert_eq!(err, "Encountered invalid solc version in src/A.sol: No solc version exists that matches the version requirement: ^0.100.10");
+            assert_eq!(err, format!("Encountered invalid solc version in src{MAIN_SEPARATOR}A.sol: No solc version exists that matches the version requirement: ^0.100.10"));
         }
         _ => {
             unreachable!()
@@ -2523,7 +2523,7 @@ fn can_compile_sparse_with_link_references() {
     assert!(lib.is_some());
     let lib = dup.remove(&my_lib_path, "MyLib");
     assert!(lib.is_none());
-    
+
     #[cfg(not(windows))]
     let info = ContractInfo::new(format!("{}:{}", my_lib_path.display(), "MyLib"));
     #[cfg(windows)]
