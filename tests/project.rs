@@ -3,21 +3,27 @@
 use alloy_primitives::{Address, Bytes};
 use foundry_compilers::{
     artifacts::{
-        BytecodeHash, DevDoc, Error, ErrorDoc, EventDoc, Libraries, MethodDoc,
-        ModelCheckerEngine::CHC, ModelCheckerSettings, Settings, Severity, UserDoc, UserDocNotice,
+        output_selection::OutputSelection, BytecodeHash, DevDoc, Error, ErrorDoc, EventDoc,
+        Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings, Settings, Severity,
+        UserDoc, UserDocNotice,
     },
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
-    compilers::{solc::SolcVersionManager, CompilerOutput, CompilerVersionManager},
+    compilers::{
+        solc::SolcVersionManager,
+        vyper::{Vyper, VyperSettings},
+        CompilerOutput, CompilerVersionManager,
+    },
     error::SolcError,
     flatten::Flattener,
     info::ContractInfo,
     project_util::*,
     remappings::Remapping,
     resolver::parse::SolData,
-    utils::{self},
+    utils::{self, RuntimeOrHandle},
     Artifact, CompilerConfig, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectCompileOutput, ProjectPathsConfig, SolcInput, SolcSparseFileFilter, TestFileFilter,
+    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, SolcInput, SolcSparseFileFilter,
+    TestFileFilter,
 };
 use pretty_assertions::assert_eq;
 use semver::Version;
@@ -28,6 +34,33 @@ use std::{
     path::{Path, PathBuf, MAIN_SEPARATOR},
     str::FromStr,
 };
+use svm::{platform, Platform};
+
+async fn install_vyper() -> Vyper {
+    #[cfg(target_family = "unix")]
+    use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+
+    let url = match platform() {
+        Platform::MacOsAarch64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.darwin",
+        Platform::LinuxAarch64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux",
+        Platform::WindowsAmd64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.windows.exe",
+        _ => panic!("unsupported")
+    };
+
+    let res = reqwest::Client::builder().build().unwrap().get(url).send().await.unwrap();
+
+    assert!(res.status().is_success());
+
+    let bytes = res.bytes().await.unwrap();
+    let path = std::env::temp_dir().join("vyper");
+
+    std::fs::write(&path, bytes).unwrap();
+
+    #[cfg(target_family = "unix")]
+    std::fs::set_permissions(&path, Permissions::from_mode(0o755)).unwrap();
+
+    Vyper::new(path).unwrap()
+}
 
 #[test]
 fn can_get_versioned_linkrefs() {
@@ -3773,7 +3806,6 @@ fn test_deterministic_metadata() {
 }
 
 #[test]
-#[cfg(ignore)]
 fn can_compile_vyper_with_cache() {
     let tmp_dir = tempfile::tempdir().unwrap();
     let root = tmp_dir.path();
