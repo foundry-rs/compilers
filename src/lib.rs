@@ -26,7 +26,7 @@ pub mod flatten;
 
 pub mod hh;
 use compilers::{Compiler, CompilerSettings, CompilerVersionManager};
-use filter::SparseOutputFileFilter;
+pub use filter::SparseOutputFileFilter;
 pub use hh::{HardhatArtifact, HardhatArtifacts};
 
 pub mod resolver;
