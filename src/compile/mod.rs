@@ -80,9 +80,14 @@ pub static SUPPORTS_INCLUDE_PATH: Lazy<VersionReq> =
 /// installation is detected.
 #[cfg(feature = "svm-solc")]
 #[cfg(test)]
-pub(crate) fn take_solc_installer_lock() -> impl Drop {
-    static LOCK: Lazy<std::sync::Mutex<()>> = Lazy::new(|| std::sync::Mutex::new(()));
-    LOCK.lock().unwrap()
+#[macro_export]
+macro_rules! take_solc_installer_lock {
+    () => {{
+        let lock_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".lock");
+        let lock_file = std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(false).open(lock_path).unwrap();
+        let mut lock = fd_lock::RwLock::new(lock_file);
+        let _ = lock.write();
+    }};
 }
 
 /// A list of upstream Solc releases, used to check which version
@@ -556,7 +561,7 @@ mod tests {
     }
 
     fn solc() -> Solc {
-        let _lock = take_solc_installer_lock();
+        let _lock = take_solc_installer_lock!();
         SolcVersionManager::default().get_or_install(&Version::new(0, 8, 18)).unwrap()
     }
 
@@ -662,7 +667,7 @@ mod tests {
     #[cfg(feature = "full")]
     fn test_find_installed_version_path() {
         // This test does not take the lock by default, so we need to manually add it here.
-        let _lock = take_solc_installer_lock();
+        let _lock = take_solc_installer_lock!();
         let ver = "0.8.6";
         let version = Version::from_str(ver).unwrap();
         if utils::installed_versions(svm::data_dir())

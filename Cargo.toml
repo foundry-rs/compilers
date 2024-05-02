@@ -70,6 +70,7 @@ tempfile = "3.9"
 tokio = { version = "1.35", features = ["rt-multi-thread", "macros"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
 reqwest = "0.12"
+fd-lock = "4.0.0"
 
 [[bench]]
 name = "compile_many"

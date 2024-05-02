@@ -47,9 +47,7 @@
 //! which is defined on a per source file basis.
 
 use crate::{
-    compilers::{Compiler, CompilerVersion, CompilerVersionManager, ParsedSource},
-    error::Result,
-    utils, ProjectPathsConfig, SolcError, Source, Sources,
+    compilers::{Compiler, CompilerVersion, CompilerVersionManager, ParsedSource}, error::Result, utils, ProjectPathsConfig, SolcError, Source, Sources
 };
 use core::fmt;
 use parse::SolData;
@@ -797,7 +795,7 @@ impl VersionedSources {
         // we take the installer lock here to ensure installation checking is done in sync
         #[cfg(test)]
         #[cfg(feature = "svm-solc")]
-        let _lock = crate::compile::take_solc_installer_lock();
+        let _lock = crate::take_solc_installer_lock!();
 
         let mut sources_by_version = Vec::new();
         for (version, sources) in self.inner {
