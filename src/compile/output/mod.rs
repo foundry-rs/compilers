@@ -733,7 +733,6 @@ impl<E: CompilationError> AggregatedCompilerOutput<E> {
         path: impl AsRef<Path>,
         contract: impl AsRef<str>,
     ) -> Option<Contract> {
-        println!("{:?}", path.as_ref());
         self.contracts.remove(path, contract)
     }
 
