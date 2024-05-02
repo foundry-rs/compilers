@@ -2528,7 +2528,7 @@ fn can_compile_sparse_with_link_references() {
     let info = ContractInfo::new(format!("{}:{}", my_lib_path.display(), "MyLib"));
     #[cfg(windows)]
     let info = ContractInfo {
-        path: my_lib_path.to_slash_lossy(),
+        path: my_lib_path.to_slash_lossy().to_string(),
         name: "MyLib".to_string(),
     };
     let lib = output.remove_contract(&info);
