@@ -1,6 +1,0 @@
-[test-groups]
-resource-limited = { max-threads = 4 }
-
-[[profile.default.overrides]]
-filter = 'test(compile::tests::) + kind(test)'
-test-group = 'resource-limited'
