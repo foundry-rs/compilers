@@ -3,16 +3,12 @@
 use alloy_primitives::{Address, Bytes};
 use foundry_compilers::{
     artifacts::{
-        BytecodeHash, DevDoc, Error, ErrorDoc, EventDoc,
-        Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings, Settings, Severity,
-        UserDoc, UserDocNotice,
+        BytecodeHash, DevDoc, Error, ErrorDoc, EventDoc, Libraries, MethodDoc,
+        ModelCheckerEngine::CHC, ModelCheckerSettings, Settings, Severity, UserDoc, UserDocNotice,
     },
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
-    compilers::{
-        solc::SolcVersionManager,
-        CompilerOutput, CompilerVersionManager,
-    },
+    compilers::{solc::SolcVersionManager, CompilerOutput, CompilerVersionManager},
     error::SolcError,
     flatten::Flattener,
     info::ContractInfo,
@@ -21,8 +17,7 @@ use foundry_compilers::{
     resolver::parse::SolData,
     utils::{self},
     Artifact, CompilerConfig, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectCompileOutput, ProjectPathsConfig, SolcInput, SolcSparseFileFilter,
-    TestFileFilter,
+    ProjectCompileOutput, ProjectPathsConfig, SolcInput, SolcSparseFileFilter, TestFileFilter,
 };
 use pretty_assertions::assert_eq;
 use semver::Version;
