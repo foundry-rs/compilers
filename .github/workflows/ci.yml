@@ -45,7 +45,6 @@ jobs:
         run: |
           cargo nextest run \
           ${{ matrix.flags }} \
-          -E "!(kind(test))" \
           --retries 2
 
   feature-checks:

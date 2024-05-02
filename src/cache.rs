@@ -57,7 +57,12 @@ impl<S: CompilerSettings> CompilerCache<S> {
 
     /// Removes entry for the given file
     pub fn remove(&mut self, file: &Path) -> Option<CacheEntry<S>> {
-        self.files.remove(file)
+        self.files.remove(file).map(|entry| {
+            for artifact in entry.artifacts() {
+                let _ = fs::remove_file(artifact);
+            }
+            entry
+        })
     }
 
     /// How many entries the cache contains where each entry represents a sourc file

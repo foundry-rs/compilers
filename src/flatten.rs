@@ -191,6 +191,16 @@ impl Flattener {
 
         let ordered_sources = collect_ordered_deps(&target.to_path_buf(), &project.paths, &graph)?;
 
+        #[cfg(windows)]
+        let ordered_sources = {
+            let mut sources = ordered_sources;
+            use path_slash::PathBufExt;
+            for p in &mut sources {
+                *p = PathBuf::from(p.to_slash_lossy().to_string());
+            }
+            sources
+        };
+
         let sources = Source::read_all(&ordered_sources)?;
 
         // Convert all ASTs from artifacts to strongly typed ASTs

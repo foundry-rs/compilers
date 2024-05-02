@@ -440,6 +440,7 @@ impl TempProject<ConfigurableArtifacts> {
         let orig_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
         copy_dir(orig_root, project.root())?;
         project.project_mut().paths.remappings = Remapping::find_many(project.root());
+        project.project_mut().paths.remappings.iter_mut().for_each(|r| r.slash_path());
 
         Ok(project)
     }

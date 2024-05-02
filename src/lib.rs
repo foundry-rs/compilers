@@ -48,7 +48,8 @@ pub mod remappings;
 
 mod filter;
 pub use filter::{
-    FileFilter, FilteredSources, SolcSparseFileFilter, SparseOutputFilter, TestFileFilter,
+    FileFilter, FilteredSources, SolcSparseFileFilter, SourceCompilationKind, SparseOutputFilter,
+    TestFileFilter,
 };
 use solang_parser::pt::SourceUnitPart;
 

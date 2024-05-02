@@ -67,6 +67,17 @@ impl ProjectPathsConfig {
         let graph = Graph::resolve_sources(self, sources)?;
         let ordered_deps = collect_ordered_deps(&flatten_target, self, &graph)?;
 
+        #[cfg(windows)]
+        let ordered_deps = {
+            use path_slash::PathBufExt;
+
+            let mut deps = ordered_deps;
+            for p in &mut deps {
+                *p = PathBuf::from(p.to_slash_lossy().to_string());
+            }
+            deps
+        };
+
         let mut sources = Vec::new();
         let mut experimental_pragma = None;
         let mut version_pragmas = Vec::new();

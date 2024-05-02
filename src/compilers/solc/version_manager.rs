@@ -37,6 +37,9 @@ impl CompilerVersionManager for SolcVersionManager {
     }
 
     fn get_installed(&self, version: &Version) -> Result<Self::Compiler, VersionManagerError> {
+        #[cfg(test)]
+        crate::take_solc_installer_lock!(_lock);
+
         let s_version = version.to_string();
 
         let solc = Solc::svm_home()
@@ -52,6 +55,9 @@ impl CompilerVersionManager for SolcVersionManager {
 
     fn install(&self, version: &Version) -> Result<Self::Compiler, VersionManagerError> {
         use crate::utils::RuntimeOrHandle;
+
+        #[cfg(test)]
+        crate::take_solc_installer_lock!(_lock);
 
         let version = if !version.pre.is_empty() || !version.build.is_empty() {
             Version::new(version.major, version.minor, version.patch)

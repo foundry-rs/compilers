@@ -3,62 +3,31 @@
 use alloy_primitives::{Address, Bytes};
 use foundry_compilers::{
     artifacts::{
-        output_selection::OutputSelection, BytecodeHash, DevDoc, Error, ErrorDoc, EventDoc,
-        Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings, Settings, Severity,
-        UserDoc, UserDocNotice,
+        BytecodeHash, DevDoc, Error, ErrorDoc, EventDoc, Libraries, MethodDoc,
+        ModelCheckerEngine::CHC, ModelCheckerSettings, Settings, Severity, UserDoc, UserDocNotice,
     },
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
-    compilers::{
-        solc::SolcVersionManager,
-        vyper::{Vyper, VyperSettings},
-        CompilerOutput, CompilerVersionManager,
-    },
+    compilers::{solc::SolcVersionManager, CompilerOutput, CompilerVersionManager},
     error::SolcError,
     flatten::Flattener,
     info::ContractInfo,
     project_util::*,
     remappings::Remapping,
     resolver::parse::SolData,
-    utils::{self, RuntimeOrHandle},
+    utils::{self},
     Artifact, CompilerConfig, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, SolcInput, SolcSparseFileFilter,
-    TestFileFilter,
+    ProjectCompileOutput, ProjectPathsConfig, SolcInput, SolcSparseFileFilter, TestFileFilter,
 };
 use pretty_assertions::assert_eq;
 use semver::Version;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    fs::{self, Permissions},
-    io::{self},
-    os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
+    fs::{self},
+    io,
+    path::{Path, PathBuf, MAIN_SEPARATOR},
     str::FromStr,
 };
-use svm::{platform, Platform};
-
-async fn install_vyper() -> Vyper {
-    let url = match platform() {
-        Platform::MacOsAarch64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.darwin",
-        Platform::LinuxAarch64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux",
-        Platform::WindowsAmd64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.windows.exe",
-        _ => panic!("unsupported")
-    };
-
-    let res = reqwest::Client::builder().build().unwrap().get(url).send().await.unwrap();
-
-    assert!(res.status().is_success());
-
-    let bytes = res.bytes().await.unwrap();
-    let path = std::env::temp_dir().join("vyper");
-
-    std::fs::write(&path, bytes).unwrap();
-
-    #[cfg(target_family = "unix")]
-    std::fs::set_permissions(&path, Permissions::from_mode(0o755)).unwrap();
-
-    Vyper::new(path).unwrap()
-}
 
 #[test]
 fn can_get_versioned_linkrefs() {
@@ -1978,6 +1947,7 @@ library MyLib {
         BTreeMap::from([("MyLib".to_string(), format!("{:?}", Address::ZERO))]),
     )])
     .into();
+    tmp.project_mut().settings.libraries.slash_paths();
 
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
@@ -2095,6 +2065,7 @@ library MyLib {
     let libs =
         Libraries::parse(&[format!("remapping/MyLib.sol:MyLib:{:?}", Address::ZERO)]).unwrap(); // provide the library settings to let solc link
     tmp.project_mut().settings.libraries = libs.with_applied_remappings(tmp.paths());
+    tmp.project_mut().settings.libraries.slash_paths();
 
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
@@ -2117,7 +2088,7 @@ fn can_detect_invalid_version() {
     let out = tmp.compile().unwrap_err();
     match out {
         SolcError::Message(err) => {
-            assert_eq!(err, "Encountered invalid solc version in src/A.sol: No solc version exists that matches the version requirement: ^0.100.10");
+            assert_eq!(err, format!("Encountered invalid solc version in src{MAIN_SEPARATOR}A.sol: No solc version exists that matches the version requirement: ^0.100.10"));
         }
         _ => {
             unreachable!()
@@ -2519,7 +2490,16 @@ fn can_compile_sparse_with_link_references() {
     let lib = dup.remove(&my_lib_path, "MyLib");
     assert!(lib.is_none());
 
+    #[cfg(not(windows))]
     let info = ContractInfo::new(format!("{}:{}", my_lib_path.display(), "MyLib"));
+    #[cfg(windows)]
+    let info = {
+        use path_slash::PathBufExt;
+        ContractInfo {
+            path: Some(my_lib_path.to_slash_lossy().to_string()),
+            name: "MyLib".to_string(),
+        }
+    };
     let lib = output.remove_contract(&info);
     assert!(lib.is_some());
     let lib = output.remove_contract(&info);
@@ -2599,7 +2579,7 @@ fn can_create_standard_json_input_with_external_file() {
         ]
     );
 
-    let solc = SolcVersionManager::default().get_installed(&Version::new(0, 8, 24)).unwrap();
+    let solc = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)).unwrap();
 
     // can compile using the created json
     let compiler_errors = solc
@@ -2624,9 +2604,9 @@ fn can_compile_std_json_input() {
     assert!(input.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
 
     // should be installed
-    if let Ok(solc) = SolcVersionManager::default().get_installed(&Version::new(0, 8, 10)) {
+    if let Ok(solc) = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)) {
         let out = solc.compile(&input).unwrap();
-        assert!(!out.errors.is_empty());
+        assert!(out.errors.is_empty());
         assert!(out.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
     }
 }
@@ -2688,7 +2668,7 @@ fn can_create_standard_json_input_with_symlink() {
         ]
     );
 
-    let solc = SolcVersionManager::default().get_installed(&Version::new(0, 8, 24)).unwrap();
+    let solc = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)).unwrap();
 
     // can compile using the created json
     let compiler_errors = solc
@@ -3765,11 +3745,17 @@ contract D {
 
 #[test]
 fn test_deterministic_metadata() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
-    let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-    let mut project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let root = tmp_dir.path();
+    let orig_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+    copy_dir_all(orig_root, &tmp_dir).unwrap();
 
-    project.set_solc("0.8.18");
+    let vm = SolcVersionManager::default();
+    let paths = ProjectPathsConfig::builder().root(root).build().unwrap();
+    let project = Project::builder()
+        .paths(paths)
+        .build(CompilerConfig::Specific(vm.get_or_install(&Version::new(0, 8, 18)).unwrap()))
+        .unwrap();
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();
