@@ -185,11 +185,11 @@ impl SolLibrary {
     pub fn is_inlined(&self) -> bool {
         for f in self.functions.iter() {
             for attr in f.attributes.iter() {
-                if let FunctionAttribute::Visibility(vis) = attr {
-                    match vis {
-                        Visibility::External(_) | Visibility::Public(_) => return false,
-                        _ => {}
-                    }
+                if let FunctionAttribute::Visibility(
+                    Visibility::External(_) | Visibility::Public(_),
+                ) = attr
+                {
+                    return false;
                 }
             }
         }
