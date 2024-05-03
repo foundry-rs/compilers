@@ -393,6 +393,9 @@ impl Solc {
         move |err| SolcError::io(err, &self.solc)
     }
 
+    /// Configures [Command] object depeending on settings and solc version used.
+    /// Some features are only supported by newer versions of solc, so we have to disable them for
+    /// older ones.
     pub fn configure_cmd(&self) -> Command {
         let mut cmd = Command::new(&self.solc);
         cmd.stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
