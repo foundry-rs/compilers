@@ -1121,7 +1121,7 @@ mod tests {
         ];
         mkdir_or_touch(tmp_dir.path(), &paths[..]);
         let remappings = Remapping::find_many(tmp_dir_node_modules);
-        let mut paths = ProjectPathsConfig::hardhat(tmp_dir.path()).unwrap();
+        let mut paths = ProjectPathsConfig::<()>::hardhat(tmp_dir.path()).unwrap();
         paths.remappings = remappings;
 
         let resolved = paths

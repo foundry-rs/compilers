@@ -40,7 +40,7 @@ pub use serde_helpers::{deserialize_bytes, deserialize_opt_bytes};
 ///
 /// This types represents this mapping as `file name -> (contract name -> T)`, where the generic is
 /// intended to represent contract specific information, like [`Contract`] itself, See [`Contracts`]
-pub type FileToContractsMap<T> = BTreeMap<String, BTreeMap<String, T>>;
+pub type FileToContractsMap<T> = BTreeMap<PathBuf, BTreeMap<String, T>>;
 
 /// file -> (contract name -> Contract)
 pub type Contracts = FileToContractsMap<Contract>;
@@ -49,26 +49,26 @@ pub type Contracts = FileToContractsMap<Contract>;
 pub type Sources = BTreeMap<PathBuf, Source>;
 
 /// A set of different Solc installations with their version and the sources to be compiled
-pub(crate) type VersionedSources = BTreeMap<Solc, (Version, Sources)>;
+pub(crate) type VersionedSources<C> = Vec<(C, Version, Sources)>;
 
 /// A set of different Solc installations with their version and the sources to be compiled
-pub(crate) type VersionedFilteredSources = BTreeMap<Solc, (Version, FilteredSources)>;
+pub(crate) type VersionedFilteredSources<C> = Vec<(C, Version, FilteredSources)>;
 
 const SOLIDITY: &str = "Solidity";
 const YUL: &str = "Yul";
 
 /// Input type `solc` expects.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CompilerInput {
+pub struct SolcInput {
     pub language: String,
     pub sources: Sources,
     pub settings: Settings,
 }
 
 /// Default `language` field is set to `"Solidity"`.
-impl Default for CompilerInput {
+impl Default for SolcInput {
     fn default() -> Self {
-        CompilerInput {
+        SolcInput {
             language: SOLIDITY.to_string(),
             sources: Sources::default(),
             settings: Settings::default(),
@@ -76,51 +76,14 @@ impl Default for CompilerInput {
     }
 }
 
-impl CompilerInput {
-    /// Reads all contracts found under the path
-    pub fn new(path: impl AsRef<Path>) -> Result<Vec<Self>, SolcIoError> {
-        Source::read_all_from(path.as_ref()).map(Self::with_sources)
-    }
-
-    /// Creates a new [CompilerInput]s with default settings and the given sources
-    ///
-    /// A [CompilerInput] expects a language setting, supported by solc are solidity or yul.
-    /// In case the `sources` is a mix of solidity and yul files, 2 CompilerInputs are returned
-    pub fn with_sources(sources: Sources) -> Vec<Self> {
-        let mut solidity_sources = BTreeMap::new();
-        let mut yul_sources = BTreeMap::new();
-        for (path, source) in sources {
-            if path.extension() == Some(std::ffi::OsStr::new("yul")) {
-                yul_sources.insert(path, source);
-            } else {
-                solidity_sources.insert(path, source);
-            }
-        }
-        let mut res = Vec::new();
-        if !solidity_sources.is_empty() {
-            res.push(Self {
-                language: SOLIDITY.to_string(),
-                sources: solidity_sources,
-                settings: Default::default(),
-            });
-        }
-        if !yul_sources.is_empty() {
-            res.push(Self {
-                language: YUL.to_string(),
-                sources: yul_sources,
-                settings: Default::default(),
-            });
-        }
-        res
-    }
-
-    /// This will remove/adjust values in the `CompilerInput` that are not compatible with this
+impl SolcInput {
+    /// This will remove/adjust values in the [`SolcInput`] that are not compatible with this
     /// version
     pub fn sanitize(&mut self, version: &Version) {
         self.settings.sanitize(version)
     }
 
-    /// Consumes the type and returns a [CompilerInput::sanitized] version
+    /// Consumes the type and returns a [SolcInput::sanitized] version
     pub fn sanitized(mut self, version: &Version) -> Self {
         self.settings.sanitize(version);
         self
@@ -159,16 +122,6 @@ impl CompilerInput {
         self
     }
 
-    /// Normalizes the EVM version used in the settings to be up to the latest one
-    /// supported by the provided compiler version.
-    #[must_use]
-    pub fn normalize_evm_version(mut self, version: &Version) -> Self {
-        if let Some(evm_version) = &mut self.settings.evm_version {
-            self.settings.evm_version = evm_version.normalize_version(version);
-        }
-        self
-    }
-
     #[must_use]
     pub fn with_remappings(mut self, remappings: Vec<Remapping>) -> Self {
         if self.is_yul() {
@@ -188,27 +141,17 @@ impl CompilerInput {
     }
 
     /// Removes the `base` path from all source files
-    pub fn strip_prefix(mut self, base: impl AsRef<Path>) -> Self {
+    pub fn strip_prefix(&mut self, base: impl AsRef<Path>) {
         let base = base.as_ref();
-        self.sources = self
-            .sources
+        self.sources = std::mem::take(&mut self.sources)
             .into_iter()
             .map(|(path, s)| (path.strip_prefix(base).map(Into::into).unwrap_or(path), s))
             .collect();
-        self
+
+        self.settings.strip_prefix(base);
     }
 
-    /// Similar to `Self::strip_prefix()`. Remove a base path from all
-    /// sources _and_ all paths in solc settings such as remappings
-    ///
-    /// See also `solc --base-path`
-    pub fn with_base_path(mut self, base: impl AsRef<Path>) -> Self {
-        let base = base.as_ref();
-        self.settings = self.settings.with_base_path(base);
-        self.strip_prefix(base)
-    }
-
-    /// The flag indicating whether the current [CompilerInput] is
+    /// The flag indicating whether the current [SolcInput] is
     /// constructed for the yul sources
     pub fn is_yul(&self) -> bool {
         self.language == YUL
@@ -241,22 +184,22 @@ impl StandardJsonCompilerInput {
     #[must_use]
     pub fn normalize_evm_version(mut self, version: &Version) -> Self {
         if let Some(evm_version) = &mut self.settings.evm_version {
-            self.settings.evm_version = evm_version.normalize_version(version);
+            self.settings.evm_version = evm_version.normalize_version_solc(version);
         }
         self
     }
 }
 
-impl From<StandardJsonCompilerInput> for CompilerInput {
+impl From<StandardJsonCompilerInput> for SolcInput {
     fn from(input: StandardJsonCompilerInput) -> Self {
         let StandardJsonCompilerInput { language, sources, settings } = input;
-        CompilerInput { language, sources: sources.into_iter().collect(), settings }
+        SolcInput { language, sources: sources.into_iter().collect(), settings }
     }
 }
 
-impl From<CompilerInput> for StandardJsonCompilerInput {
-    fn from(input: CompilerInput) -> Self {
-        let CompilerInput { language, sources, settings } = input;
+impl From<SolcInput> for StandardJsonCompilerInput {
+    fn from(input: SolcInput) -> Self {
+        let SolcInput { language, sources, settings, .. } = input;
         StandardJsonCompilerInput { language, sources: sources.into_iter().collect(), settings }
     }
 }
@@ -507,23 +450,19 @@ impl Settings {
         self
     }
 
-    /// Strips `base` from all paths
-    pub fn with_base_path(mut self, base: impl AsRef<Path>) -> Self {
+    pub fn strip_prefix(&mut self, base: impl AsRef<Path>) {
         let base = base.as_ref();
         self.remappings.iter_mut().for_each(|r| {
             r.strip_prefix(base);
         });
 
-        self.libraries.libs = self
-            .libraries
-            .libs
+        self.libraries.libs = std::mem::take(&mut self.libraries.libs)
             .into_iter()
             .map(|(file, libs)| (file.strip_prefix(base).map(Into::into).unwrap_or(file), libs))
             .collect();
 
         self.output_selection = OutputSelection(
-            self.output_selection
-                .0
+            std::mem::take(&mut self.output_selection.0)
                 .into_iter()
                 .map(|(file, selection)| {
                     (
@@ -553,7 +492,11 @@ impl Settings {
                 .collect();
             self.model_checker = Some(model_checker);
         }
+    }
 
+    /// Strips `base` from all paths
+    pub fn with_base_path(mut self, base: impl AsRef<Path>) -> Self {
+        self.strip_prefix(base);
         self
     }
 }
@@ -662,6 +605,19 @@ impl Libraries {
             .map(|(f, l)| (utils::source_name(&f, base).to_path_buf(), l))
             .collect();
         self
+    }
+
+    /// Converts all `\\` separators in _all_ paths to `/`
+    pub fn slash_paths(&mut self) {
+        #[cfg(windows)]
+        {
+            use path_slash::PathBufExt;
+
+            self.libs = std::mem::take(&mut self.libs)
+                .into_iter()
+                .map(|(path, libs)| (PathBuf::from(path.to_slash_lossy().as_ref()), libs))
+                .collect()
+        }
     }
 }
 
@@ -831,7 +787,7 @@ pub enum EvmVersion {
 
 impl EvmVersion {
     /// Normalizes this EVM version by checking against the given Solc [`Version`].
-    pub fn normalize_version(self, version: &Version) -> Option<Self> {
+    pub fn normalize_version_solc(self, version: &Version) -> Option<Self> {
         // The EVM version flag was only added in 0.4.21; we work our way backwards
         if *version >= BYZANTIUM_SOLC {
             // If the Solc version is the latest, it supports all EVM versions.
@@ -1480,8 +1436,11 @@ impl Source {
     }
 
     /// Recursively finds all source files under the given dir path and reads them all
-    pub fn read_all_from(dir: impl AsRef<Path>) -> Result<Sources, SolcIoError> {
-        Self::read_all_files(utils::source_files(dir))
+    pub fn read_all_from(
+        dir: impl AsRef<Path>,
+        extensions: &[&str],
+    ) -> Result<Sources, SolcIoError> {
+        Self::read_all_files(utils::source_files(dir, extensions))
     }
 
     /// Reads all source files of the given vec
@@ -1553,8 +1512,11 @@ impl Source {
     }
 
     /// Finds all source files under the given dir path and reads them all
-    pub async fn async_read_all_from(dir: impl AsRef<Path>) -> Result<Sources, SolcIoError> {
-        Self::async_read_all(utils::source_files(dir.as_ref())).await
+    pub async fn async_read_all_from(
+        dir: impl AsRef<Path>,
+        extensions: &[&str],
+    ) -> Result<Sources, SolcIoError> {
+        Self::async_read_all(utils::source_files(dir.as_ref(), extensions)).await
     }
 
     /// async version of `Self::read_all`
@@ -1593,7 +1555,7 @@ pub struct CompilerOutput {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<Error>,
     #[serde(default)]
-    pub sources: BTreeMap<String, SourceFile>,
+    pub sources: BTreeMap<PathBuf, SourceFile>,
     #[serde(default)]
     pub contracts: Contracts,
 }
@@ -1653,7 +1615,7 @@ impl CompilerOutput {
 
     /// Given the contract file's path and the contract's name, tries to return the contract's
     /// bytecode, runtime bytecode, and abi
-    pub fn get(&self, path: &str, contract: &str) -> Option<CompactContractRef<'_>> {
+    pub fn get(&self, path: &Path, contract: &str) -> Option<CompactContractRef<'_>> {
         self.contracts
             .get(path)
             .and_then(|contracts| contracts.get(contract))
@@ -1671,19 +1633,32 @@ impl CompilerOutput {
     /// In other words, removes all contracts for files not included in the iterator
     pub fn retain_files<'a, I>(&mut self, files: I)
     where
-        I: IntoIterator<Item = &'a str>,
+        I: IntoIterator<Item = &'a Path>,
     {
         // Note: use `to_lowercase` here because solc not necessarily emits the exact file name,
         // e.g. `src/utils/upgradeProxy.sol` is emitted as `src/utils/UpgradeProxy.sol`
-        let files: HashSet<_> = files.into_iter().map(|s| s.to_lowercase()).collect();
-        self.contracts.retain(|f, _| files.contains(f.to_lowercase().as_str()));
-        self.sources.retain(|f, _| files.contains(f.to_lowercase().as_str()));
+        let files: HashSet<_> =
+            files.into_iter().map(|s| s.to_string_lossy().to_lowercase()).collect();
+        self.contracts.retain(|f, _| files.contains(&f.to_string_lossy().to_lowercase()));
+        self.sources.retain(|f, _| files.contains(&f.to_string_lossy().to_lowercase()));
     }
 
     pub fn merge(&mut self, other: CompilerOutput) {
         self.errors.extend(other.errors);
         self.contracts.extend(other.contracts);
         self.sources.extend(other.sources);
+    }
+
+    pub fn join_all(&mut self, root: impl AsRef<Path>) {
+        let root = root.as_ref();
+        self.contracts = std::mem::take(&mut self.contracts)
+            .into_iter()
+            .map(|(path, contracts)| (root.join(path), contracts))
+            .collect();
+        self.sources = std::mem::take(&mut self.sources)
+            .into_iter()
+            .map(|(path, source)| (root.join(path), source))
+            .collect();
     }
 }
 
@@ -1972,16 +1947,16 @@ impl SourceFile {
 
 /// A wrapper type for a list of source files: `path -> SourceFile`.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
-pub struct SourceFiles(pub BTreeMap<String, SourceFile>);
+pub struct SourceFiles(pub BTreeMap<PathBuf, SourceFile>);
 
 impl SourceFiles {
     /// Returns an iterator over the source files' IDs and path.
-    pub fn into_ids(self) -> impl Iterator<Item = (u32, String)> {
+    pub fn into_ids(self) -> impl Iterator<Item = (u32, PathBuf)> {
         self.0.into_iter().map(|(k, v)| (v.id, k))
     }
 
     /// Returns an iterator over the source files' paths and IDs.
-    pub fn into_paths(self) -> impl Iterator<Item = (String, u32)> {
+    pub fn into_paths(self) -> impl Iterator<Item = (PathBuf, u32)> {
         self.0.into_iter().map(|(k, v)| (k, v.id))
     }
 }
@@ -2016,8 +1991,14 @@ mod tests {
         let out: CompilerOutput = serde_json::from_str(s).unwrap();
         assert_eq!(out.errors.len(), 1);
 
+        let out_converted = crate::compilers::CompilerOutput {
+            errors: out.errors,
+            contracts: Default::default(),
+            sources: Default::default(),
+        };
+
         let mut aggregated = AggregatedCompilerOutput::default();
-        aggregated.extend("0.8.12".parse().unwrap(), out);
+        aggregated.extend("0.8.12".parse().unwrap(), out_converted);
         assert!(!aggregated.is_unchanged());
     }
 
@@ -2091,7 +2072,7 @@ mod tests {
         for path in fs::read_dir(dir).unwrap() {
             let path = path.unwrap().path();
             let compiler_input = fs::read_to_string(&path).unwrap();
-            serde_json::from_str::<CompilerInput>(&compiler_input).unwrap_or_else(|err| {
+            serde_json::from_str::<SolcInput>(&compiler_input).unwrap_or_else(|err| {
                 panic!("Failed to read compiler input of {} {}", path.display(), err)
             });
         }
@@ -2111,7 +2092,7 @@ mod tests {
                 });
 
             let pretty = serde_json::to_string_pretty(&val).unwrap();
-            serde_json::from_str::<CompilerInput>(&pretty).unwrap_or_else(|err| {
+            serde_json::from_str::<SolcInput>(&pretty).unwrap_or_else(|err| {
                 panic!("Failed to read converted compiler input of {} {}", path.display(), err)
             });
         }
@@ -2162,7 +2143,7 @@ mod tests {
         ] {
             let version = Version::from_str(solc_version).unwrap();
             assert_eq!(
-                evm_version.normalize_version(&version),
+                evm_version.normalize_version_solc(&version),
                 expected,
                 "({version}, {evm_version:?})"
             )
@@ -2175,11 +2156,8 @@ mod tests {
 
         let settings = Settings { metadata: Some(BytecodeHash::Ipfs.into()), ..Default::default() };
 
-        let input = CompilerInput {
-            language: "Solidity".to_string(),
-            sources: Default::default(),
-            settings,
-        };
+        let input =
+            SolcInput { language: "Solidity".to_string(), sources: Default::default(), settings };
 
         let i = input.clone().sanitized(&version);
         assert_eq!(i.settings.metadata.unwrap().bytecode_hash, Some(BytecodeHash::Ipfs));
@@ -2198,11 +2176,8 @@ mod tests {
             ..Default::default()
         };
 
-        let input = CompilerInput {
-            language: "Solidity".to_string(),
-            sources: Default::default(),
-            settings,
-        };
+        let input =
+            SolcInput { language: "Solidity".to_string(), sources: Default::default(), settings };
 
         let i = input.clone().sanitized(&version);
         assert_eq!(i.settings.metadata.unwrap().cbor_metadata, Some(true));

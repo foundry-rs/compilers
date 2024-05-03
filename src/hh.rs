@@ -10,7 +10,7 @@ use crate::{
 };
 use alloy_json_abi::JsonAbi;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, collections::btree_map::BTreeMap};
+use std::{borrow::Cow, collections::btree_map::BTreeMap, path::Path};
 
 const HH_ARTIFACT_VERSION: &str = "hh-sol-artifact-1";
 
@@ -100,7 +100,7 @@ impl ArtifactOutput for HardhatArtifacts {
 
     fn contract_to_artifact(
         &self,
-        file: &str,
+        file: &Path,
         name: &str,
         contract: Contract,
         _source_file: Option<&SourceFile>,
@@ -128,7 +128,7 @@ impl ArtifactOutput for HardhatArtifacts {
         HardhatArtifact {
             format: HH_ARTIFACT_VERSION.to_string(),
             contract_name: name.to_string(),
-            source_name: file.to_string(),
+            source_name: file.to_string_lossy().to_string(),
             abi: contract.abi.unwrap_or_default(),
             bytecode,
             deployed_bytecode,
@@ -139,7 +139,7 @@ impl ArtifactOutput for HardhatArtifacts {
 
     fn standalone_source_file_to_artifact(
         &self,
-        _path: &str,
+        _path: &Path,
         _file: &VersionedSourceFile,
     ) -> Option<Self::Artifact> {
         None

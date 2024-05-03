@@ -2,11 +2,12 @@ use crate::{
     artifacts::{
         ast::SourceLocation,
         visitor::{Visitor, Walk},
-        ContractDefinitionPart, ExternalInlineAssemblyReference, Identifier, IdentifierPath,
+        ContractDefinitionPart, Error, ExternalInlineAssemblyReference, Identifier, IdentifierPath,
         MemberAccess, Source, SourceUnit, SourceUnitPart, Sources,
     },
     error::SolcError,
-    utils, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Result, Solc,
+    resolver::parse::SolData,
+    utils, ConfigurableArtifacts, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Result,
 };
 use itertools::Itertools;
 use std::{
@@ -173,7 +174,11 @@ impl Flattener {
     /// Compilation output is expected to contain all artifacts for all sources.
     /// Flattener caller is expected to resolve all imports of target file, compile them and pass
     /// into this function.
-    pub fn new(project: &Project, output: &ProjectCompileOutput, target: &Path) -> Result<Self> {
+    pub fn new(
+        project: &Project,
+        output: &ProjectCompileOutput<Error, ConfigurableArtifacts>,
+        target: &Path,
+    ) -> Result<Self> {
         let input_files = output
             .artifacts_with_files()
             .map(|(file, _, _)| PathBuf::from(file))
@@ -185,6 +190,16 @@ impl Flattener {
         let graph = Graph::resolve_sources(&project.paths, sources)?;
 
         let ordered_sources = collect_ordered_deps(&target.to_path_buf(), &project.paths, &graph)?;
+
+        #[cfg(windows)]
+        let ordered_sources = {
+            let mut sources = ordered_sources;
+            use path_slash::PathBufExt;
+            for p in &mut sources {
+                *p = PathBuf::from(p.to_slash_lossy().to_string());
+            }
+            sources
+        };
 
         let sources = Source::read_all(&ordered_sources)?;
 
@@ -739,9 +754,9 @@ impl Flattener {
 }
 
 /// Performs DFS to collect all dependencies of a target
-fn collect_deps(
+fn collect_deps<C>(
     path: &PathBuf,
-    paths: &ProjectPathsConfig,
+    paths: &ProjectPathsConfig<C>,
     graph: &Graph,
     deps: &mut HashSet<PathBuf>,
 ) -> Result<()> {
@@ -755,7 +770,7 @@ fn collect_deps(
             .get(path)
             .ok_or_else(|| SolcError::msg(format!("cannot resolve file at {}", path.display())))?;
 
-        for import in graph.node(*node_id).imports() {
+        for import in &graph.node(*node_id).data.imports {
             let path = paths.resolve_import(target_dir, import.data().path())?;
             collect_deps(&path, paths, graph, deps)?;
         }
@@ -773,9 +788,9 @@ fn collect_deps(
 /// Instead, we sort files by the number of their dependencies (imports of any depth) in ascending
 /// order. If files have the same number of dependencies, we sort them alphabetically.
 /// Target file is always placed last.
-pub fn collect_ordered_deps(
+pub fn collect_ordered_deps<C>(
     path: &PathBuf,
-    paths: &ProjectPathsConfig,
+    paths: &ProjectPathsConfig<C>,
     graph: &Graph,
 ) -> Result<Vec<PathBuf>> {
     let mut deps = HashSet::new();
@@ -806,7 +821,7 @@ pub fn combine_version_pragmas(pragmas: Vec<&str>) -> Option<String> {
     let mut versions = pragmas
         .into_iter()
         .filter_map(|p| {
-            Solc::version_req(
+            SolData::parse_version_req(
                 p.replace("pragma", "").replace("solidity", "").replace(';', "").trim(),
             )
             .ok()

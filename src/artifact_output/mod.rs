@@ -10,10 +10,11 @@ use crate::{
     error::Result,
     sourcemap::{SourceMap, SyntaxError},
     sources::VersionedSourceFile,
-    utils, HardhatArtifact, ProjectPathsConfig, SolFilesCache, SolcError, SolcIoError,
+    utils, CompilerCache, HardhatArtifact, ProjectPathsConfig, SolcError, SolcIoError,
 };
 use alloy_json_abi::JsonAbi;
 use alloy_primitives::Bytes;
+use path_slash::PathBufExt;
 use semver::Version;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
@@ -27,9 +28,6 @@ use std::{
 };
 
 mod configurable;
-pub(crate) mod files;
-
-use crate::files::MappedContract;
 pub use configurable::*;
 
 /// Represents unique artifact metadata for identifying artifacts on output
@@ -49,7 +47,6 @@ impl ArtifactId {
     pub fn slash_paths(&mut self) {
         #[cfg(windows)]
         {
-            use path_slash::PathBufExt;
             self.path = self.path.to_slash_lossy().as_ref().into();
             self.source = self.source.to_slash_lossy().as_ref().into();
         }
@@ -135,9 +132,9 @@ impl<T> From<ArtifactsMap<T>> for Artifacts<T> {
 }
 
 impl<'a, T> IntoIterator for &'a Artifacts<T> {
-    type Item = (&'a String, &'a BTreeMap<String, Vec<ArtifactFile<T>>>);
+    type Item = (&'a PathBuf, &'a BTreeMap<String, Vec<ArtifactFile<T>>>);
     type IntoIter =
-        std::collections::btree_map::Iter<'a, String, BTreeMap<String, Vec<ArtifactFile<T>>>>;
+        std::collections::btree_map::Iter<'a, PathBuf, BTreeMap<String, Vec<ArtifactFile<T>>>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
@@ -145,9 +142,9 @@ impl<'a, T> IntoIterator for &'a Artifacts<T> {
 }
 
 impl<T> IntoIterator for Artifacts<T> {
-    type Item = (String, BTreeMap<String, Vec<ArtifactFile<T>>>);
+    type Item = (PathBuf, BTreeMap<String, Vec<ArtifactFile<T>>>);
     type IntoIter =
-        std::collections::btree_map::IntoIter<String, BTreeMap<String, Vec<ArtifactFile<T>>>>;
+        std::collections::btree_map::IntoIter<PathBuf, BTreeMap<String, Vec<ArtifactFile<T>>>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -195,10 +192,9 @@ impl<T> Artifacts<T> {
     pub fn slash_paths(&mut self) {
         #[cfg(windows)]
         {
-            use path_slash::PathExt;
             self.0 = std::mem::take(&mut self.0)
                 .into_iter()
-                .map(|(path, files)| (Path::new(&path).to_slash_lossy().to_string(), files))
+                .map(|(path, files)| (PathBuf::from(path.to_slash_lossy().as_ref()), files))
                 .collect()
         }
     }
@@ -229,7 +225,7 @@ impl<T> Artifacts<T> {
     /// Returns the `Artifact` with matching file, contract name and version
     pub fn find_artifact(
         &self,
-        file: &str,
+        file: &Path,
         contract_name: &str,
         version: &Version,
     ) -> Option<&ArtifactFile<T>> {
@@ -269,7 +265,7 @@ impl<T> Artifacts<T> {
     ) -> impl Iterator<Item = (ArtifactId, &T)> + '_ {
         self.0.iter().flat_map(|(file, contract_artifacts)| {
             contract_artifacts.iter().flat_map(move |(_contract_name, artifacts)| {
-                let source = PathBuf::from(file.clone());
+                let source = file.clone();
                 artifacts.iter().filter_map(move |artifact| {
                     O::contract_name(&artifact.file).map(|name| {
                         (
@@ -294,7 +290,7 @@ impl<T> Artifacts<T> {
     ) -> impl Iterator<Item = (ArtifactId, T)> {
         self.0.into_iter().flat_map(|(file, contract_artifacts)| {
             contract_artifacts.into_iter().flat_map(move |(_contract_name, artifacts)| {
-                let source = PathBuf::from(file.clone());
+                let source = file.clone();
                 artifacts.into_iter().filter_map(move |artifact| {
                     O::contract_name(&artifact.file).map(|name| {
                         (
@@ -318,7 +314,7 @@ impl<T> Artifacts<T> {
     /// **NOTE** this returns the path as is
     ///
     /// Borrowed version of [`Self::into_artifacts_with_files`].
-    pub fn artifacts_with_files(&self) -> impl Iterator<Item = (&String, &String, &T)> + '_ {
+    pub fn artifacts_with_files(&self) -> impl Iterator<Item = (&PathBuf, &String, &T)> + '_ {
         self.0.iter().flat_map(|(f, contract_artifacts)| {
             contract_artifacts.iter().flat_map(move |(name, artifacts)| {
                 artifacts.iter().map(move |artifact| (f, name, &artifact.artifact))
@@ -329,7 +325,7 @@ impl<T> Artifacts<T> {
     /// Returns an iterator that yields the tuple `(file, contract name, artifact)`
     ///
     /// **NOTE** this returns the path as is
-    pub fn into_artifacts_with_files(self) -> impl Iterator<Item = (String, String, T)> {
+    pub fn into_artifacts_with_files(self) -> impl Iterator<Item = (PathBuf, String, T)> {
         self.0.into_iter().flat_map(|(f, contract_artifacts)| {
             contract_artifacts.into_iter().flat_map(move |(name, artifacts)| {
                 let contract_name = name;
@@ -351,7 +347,7 @@ impl<T> Artifacts<T> {
             .map(|(file, c)| {
                 let file_path = Path::new(&file);
                 if let Ok(p) = file_path.strip_prefix(base) {
-                    (p.to_string_lossy().to_string(), c)
+                    (p.to_path_buf(), c)
                 } else {
                     (file, c)
                 }
@@ -370,10 +366,10 @@ impl<T> Artifacts<T> {
     }
 
     ///  Finds the artifact with matching path and name
-    pub fn find(&self, path: impl AsRef<str>, contract: impl AsRef<str>) -> Option<&T> {
+    pub fn find(&self, path: impl AsRef<Path>, contract: impl AsRef<str>) -> Option<&T> {
         let contract_path = path.as_ref();
         let contract_name = contract.as_ref();
-        self.0.iter().filter(|(path, _)| path.as_str() == contract_path).find_map(
+        self.0.iter().filter(|(path, _)| path.as_path() == contract_path).find_map(
             |(_file, contracts)| {
                 contracts.get(contract_name).and_then(|c| c.first().map(|a| &a.artifact))
             },
@@ -381,10 +377,10 @@ impl<T> Artifacts<T> {
     }
 
     /// Removes the artifact with matching file and name
-    pub fn remove(&mut self, path: impl AsRef<str>, contract: impl AsRef<str>) -> Option<T> {
+    pub fn remove(&mut self, path: impl AsRef<Path>, contract: impl AsRef<str>) -> Option<T> {
         let contract_path = path.as_ref();
         let contract_name = contract.as_ref();
-        self.0.iter_mut().filter(|(path, _)| path.as_str() == contract_path).find_map(
+        self.0.iter_mut().filter(|(path, _)| path.as_path() == contract_path).find_map(
             |(_file, contracts)| {
                 let mut artifact = None;
                 if let Some((c, mut artifacts)) = contracts.remove_entry(contract_name) {
@@ -607,11 +603,11 @@ pub trait ArtifactOutput {
     ///
     /// This will be invoked with all aggregated contracts from (multiple) solc `CompilerOutput`.
     /// See [`crate::AggregatedCompilerOutput`]
-    fn on_output(
+    fn on_output<C>(
         &self,
         contracts: &VersionedContracts,
         sources: &VersionedSourceFiles,
-        layout: &ProjectPathsConfig,
+        layout: &ProjectPathsConfig<C>,
         ctx: OutputContext<'_>,
     ) -> Result<Artifacts<Self::Artifact>> {
         let mut artifacts = self.output_to_artifacts(contracts, sources, ctx, layout);
@@ -663,7 +659,7 @@ pub trait ArtifactOutput {
     ///
     /// This return a unique output file
     fn conflict_free_output_file(
-        already_taken: &HashSet<PathBuf>,
+        already_taken: &HashSet<String>,
         conflict: PathBuf,
         contract_file: impl AsRef<Path>,
         artifacts_folder: impl AsRef<Path>,
@@ -682,7 +678,7 @@ pub trait ArtifactOutput {
             // this is problematic if both files are absolute
             candidate = Path::new(parent_name).join(&candidate);
             let out_path = artifacts_folder.join(&candidate);
-            if !already_taken.contains(&out_path) {
+            if !already_taken.contains(&out_path.to_slash_lossy().to_lowercase()) {
                 trace!("found alternative output file={:?} for {:?}", out_path, contract_file);
                 return out_path;
             }
@@ -712,7 +708,7 @@ pub trait ArtifactOutput {
                 .into_iter()
                 .chain(components.map(|c| c.as_os_str()))
                 .collect();
-            if !already_taken.contains(&candidate) {
+            if !already_taken.contains(&candidate.to_slash_lossy().to_lowercase()) {
                 trace!("found alternative output file={:?} for {:?}", candidate, contract_file);
                 return candidate;
             }
@@ -804,85 +800,126 @@ pub trait ArtifactOutput {
     /// The `SourceFile` is also provided
     fn contract_to_artifact(
         &self,
-        _file: &str,
+        _file: &Path,
         _name: &str,
         contract: Contract,
         source_file: Option<&SourceFile>,
     ) -> Self::Artifact;
 
+    /// Generates a path for an artifact based on already taken paths by either cached or compiled
+    /// artifacts.
+    fn get_artifact_path(
+        ctx: &OutputContext<'_>,
+        already_taken: &HashSet<String>,
+        file: &Path,
+        name: &str,
+        artifacts_folder: &Path,
+        version: &Version,
+        versioned: bool,
+    ) -> PathBuf {
+        // if an artifact for the contract already exists (from a previous compile job)
+        // we reuse the path, this will make sure that even if there are conflicting
+        // files (files for witch `T::output_file()` would return the same path) we use
+        // consistent output paths
+        if let Some(existing_artifact) = ctx.existing_artifact(file, name, version).cloned() {
+            trace!("use existing artifact file {:?}", existing_artifact,);
+            existing_artifact
+        } else {
+            let path = if versioned {
+                Self::output_file_versioned(file, name, version)
+            } else {
+                Self::output_file(file, name)
+            };
+
+            let path = artifacts_folder.join(path);
+
+            if already_taken.contains(&path.to_slash_lossy().to_lowercase()) {
+                // preventing conflict
+                Self::conflict_free_output_file(already_taken, path, file, artifacts_folder)
+            } else {
+                path
+            }
+        }
+    }
+
     /// Convert the compiler output into a set of artifacts
     ///
     /// **Note:** This does only convert, but _NOT_ write the artifacts to disk, See
     /// [`Self::on_output()`]
-    fn output_to_artifacts(
+    fn output_to_artifacts<C>(
         &self,
         contracts: &VersionedContracts,
         sources: &VersionedSourceFiles,
         ctx: OutputContext<'_>,
-        layout: &ProjectPathsConfig,
+        layout: &ProjectPathsConfig<C>,
     ) -> Artifacts<Self::Artifact> {
         let mut artifacts = ArtifactsMap::new();
 
         // this tracks all the `SourceFile`s that we successfully mapped to a contract
         let mut non_standalone_sources = HashSet::new();
 
-        // this holds all output files and the contract(s) it belongs to
-        let artifact_files = contracts.artifact_files::<Self>(&ctx);
+        // prepopulate taken paths set with cached artifacts
+        let mut taken_paths_lowercase = ctx
+            .existing_artifacts
+            .values()
+            .flat_map(|artifacts| artifacts.values().flat_map(|artifacts| artifacts.values()))
+            .map(|p| p.to_slash_lossy().to_lowercase())
+            .collect::<HashSet<_>>();
 
-        // this tracks the final artifacts, which we use as lookup for checking conflicts when
-        // converting stand-alone artifacts in the next step
-        let mut final_artifact_paths = HashSet::new();
+        let mut files = contracts.keys().collect::<Vec<_>>();
+        // Iterate starting with top-most files to ensure that they get the shortest paths.
+        files.sort_by(|file1, file2| {
+            (file1.components().count(), file1).cmp(&(file2.components().count(), file2))
+        });
+        for file in files {
+            for (name, versioned_contracts) in &contracts[file] {
+                for contract in versioned_contracts {
+                    // track `SourceFile`s that can be mapped to contracts
+                    let source_file = sources.find_file_and_version(file, &contract.version);
 
-        for contracts in artifact_files.files.into_values() {
-            for (idx, mapped_contract) in contracts.iter().enumerate() {
-                let MappedContract { file, name, contract, artifact_path } = mapped_contract;
-                // track `SourceFile`s that can be mapped to contracts
-                let source_file = sources.find_file_and_version(file, &contract.version);
-
-                if let Some(source) = source_file {
-                    non_standalone_sources.insert((source.id, &contract.version));
-                }
-
-                let mut artifact_path = artifact_path.clone();
-
-                if contracts.len() > 1 {
-                    // naming conflict where the `artifact_path` belongs to two conflicting
-                    // contracts need to adjust the paths properly
-
-                    // we keep the top most conflicting file unchanged
-                    let is_top_most =
-                        contracts.iter().enumerate().filter(|(i, _)| *i != idx).all(|(_, c)| {
-                            Path::new(file).components().count()
-                                < Path::new(c.file).components().count()
-                        });
-                    if !is_top_most {
-                        // we resolve the conflicting by finding a new unique, alternative path
-                        artifact_path = Self::conflict_free_output_file(
-                            &final_artifact_paths,
-                            artifact_path,
-                            file,
-                            &layout.artifacts,
-                        );
+                    if let Some(source) = source_file {
+                        non_standalone_sources.insert((source.id, &contract.version));
                     }
+
+                    let artifact_path = Self::get_artifact_path(
+                        &ctx,
+                        &taken_paths_lowercase,
+                        file,
+                        name,
+                        layout.artifacts.as_path(),
+                        &contract.version,
+                        versioned_contracts.len() > 1,
+                    );
+
+                    taken_paths_lowercase.insert(artifact_path.to_slash_lossy().to_lowercase());
+
+                    trace!(
+                        "use artifact file {:?} for contract file {} {}",
+                        artifact_path,
+                        file.display(),
+                        contract.version
+                    );
+
+                    let artifact = self.contract_to_artifact(
+                        file,
+                        name,
+                        contract.contract.clone(),
+                        source_file,
+                    );
+
+                    let artifact = ArtifactFile {
+                        artifact,
+                        file: artifact_path,
+                        version: contract.version.clone(),
+                    };
+
+                    artifacts
+                        .entry(file.to_path_buf())
+                        .or_default()
+                        .entry(name.to_string())
+                        .or_default()
+                        .push(artifact);
                 }
-
-                final_artifact_paths.insert(artifact_path.clone());
-
-                let artifact =
-                    self.contract_to_artifact(file, name, contract.contract.clone(), source_file);
-
-                let artifact = ArtifactFile {
-                    artifact,
-                    file: artifact_path,
-                    version: contract.version.clone(),
-                };
-
-                artifacts
-                    .entry(file.to_string())
-                    .or_default()
-                    .entry(name.to_string())
-                    .or_default()
-                    .push(artifact);
             }
         }
 
@@ -908,30 +945,26 @@ pub trait ArtifactOutput {
                         if let Some(artifact) =
                             self.standalone_source_file_to_artifact(file, source)
                         {
-                            let mut artifact_path = if sources.len() > 1 {
-                                Self::output_file_versioned(file, name, &source.version)
-                            } else {
-                                Self::output_file(file, name)
-                            };
-
-                            if final_artifact_paths.contains(&artifact_path) {
-                                // preventing conflict
-                                artifact_path = Self::conflict_free_output_file(
-                                    &final_artifact_paths,
-                                    artifact_path,
-                                    file,
-                                    &layout.artifacts,
-                                );
-                                final_artifact_paths.insert(artifact_path.clone());
-                            }
+                            let artifact_path = Self::get_artifact_path(
+                                &ctx,
+                                &taken_paths_lowercase,
+                                file,
+                                name,
+                                &layout.artifacts,
+                                &source.version,
+                                sources.len() > 1,
+                            );
 
                             let entries = artifacts
-                                .entry(file.to_string())
+                                .entry(file.clone())
                                 .or_default()
                                 .entry(name.to_string())
                                 .or_default();
 
                             if entries.iter().all(|entry| entry.version != source.version) {
+                                taken_paths_lowercase
+                                    .insert(artifact_path.to_slash_lossy().to_lowercase());
+
                                 entries.push(ArtifactFile {
                                     artifact,
                                     file: artifact_path,
@@ -958,7 +991,7 @@ pub trait ArtifactOutput {
     /// because other tools depend on this, such as slither.
     fn standalone_source_file_to_artifact(
         &self,
-        _path: &str,
+        _path: &Path,
         _file: &VersionedSourceFile,
     ) -> Option<Self::Artifact>;
 
@@ -988,15 +1021,21 @@ pub struct OutputContext<'a> {
     /// └── inner
     ///     └── a.sol
     /// ```
-    pub cache: Cow<'a, SolFilesCache>,
+    pub existing_artifacts: BTreeMap<&'a Path, &'a BTreeMap<String, BTreeMap<Version, PathBuf>>>,
 }
 
 // === impl OutputContext
 
 impl<'a> OutputContext<'a> {
     /// Create a new context with the given cache file
-    pub fn new(cache: &'a SolFilesCache) -> Self {
-        Self { cache: Cow::Borrowed(cache) }
+    pub fn new<S>(cache: &'a CompilerCache<S>) -> Self {
+        let existing_artifacts = cache
+            .files
+            .iter()
+            .map(|(file, entry)| (file.as_path(), &entry.artifacts))
+            .collect::<BTreeMap<_, _>>();
+
+        Self { existing_artifacts }
     }
 
     /// Returns the path of the already existing artifact for the `contract` of the `file` compiled
@@ -1009,7 +1048,9 @@ impl<'a> OutputContext<'a> {
         contract: &str,
         version: &Version,
     ) -> Option<&PathBuf> {
-        self.cache.entry(file)?.find_artifact(contract, version)
+        self.existing_artifacts.get(file.as_ref()).and_then(|contracts| {
+            contracts.get(contract).and_then(|versions| versions.get(version))
+        })
     }
 }
 
@@ -1033,7 +1074,7 @@ impl ArtifactOutput for MinimalCombinedArtifacts {
 
     fn contract_to_artifact(
         &self,
-        _file: &str,
+        _file: &Path,
         _name: &str,
         contract: Contract,
         _source_file: Option<&SourceFile>,
@@ -1043,7 +1084,7 @@ impl ArtifactOutput for MinimalCombinedArtifacts {
 
     fn standalone_source_file_to_artifact(
         &self,
-        _path: &str,
+        _path: &Path,
         _file: &VersionedSourceFile,
     ) -> Option<Self::Artifact> {
         None
@@ -1060,11 +1101,11 @@ pub struct MinimalCombinedArtifactsHardhatFallback {
 impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
     type Artifact = CompactContractBytecode;
 
-    fn on_output(
+    fn on_output<C>(
         &self,
         output: &VersionedContracts,
         sources: &VersionedSourceFiles,
-        layout: &ProjectPathsConfig,
+        layout: &ProjectPathsConfig<C>,
         ctx: OutputContext<'_>,
     ) -> Result<Artifacts<Self::Artifact>> {
         MinimalCombinedArtifacts::default().on_output(output, sources, layout, ctx)
@@ -1086,7 +1127,7 @@ impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
 
     fn contract_to_artifact(
         &self,
-        file: &str,
+        file: &Path,
         name: &str,
         contract: Contract,
         source_file: Option<&SourceFile>,
@@ -1096,7 +1137,7 @@ impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
 
     fn standalone_source_file_to_artifact(
         &self,
-        path: &str,
+        path: &Path,
         file: &VersionedSourceFile,
     ) -> Option<Self::Artifact> {
         MinimalCombinedArtifacts::default().standalone_source_file_to_artifact(path, file)
@@ -1128,18 +1169,18 @@ mod tests {
             file,
             "out",
         );
-        assert_eq!(alternative, PathBuf::from("out/tokens/Greeter.sol/Greeter.json"));
+        assert_eq!(alternative.to_slash_lossy(), "out/tokens/Greeter.sol/Greeter.json");
 
-        already_taken.insert("out/tokens/Greeter.sol/Greeter.json".into());
+        already_taken.insert("out/tokens/Greeter.sol/Greeter.json".to_lowercase());
         let alternative = ConfigurableArtifacts::conflict_free_output_file(
             &already_taken,
             conflict.clone(),
             file,
             "out",
         );
-        assert_eq!(alternative, PathBuf::from("out/v1/tokens/Greeter.sol/Greeter.json"));
+        assert_eq!(alternative.to_slash_lossy(), "out/v1/tokens/Greeter.sol/Greeter.json");
 
-        already_taken.insert("out/v1/tokens/Greeter.sol/Greeter.json".into());
+        already_taken.insert("out/v1/tokens/Greeter.sol/Greeter.json".to_lowercase());
         let alternative =
             ConfigurableArtifacts::conflict_free_output_file(&already_taken, conflict, file, "out");
         assert_eq!(alternative, PathBuf::from("Greeter.sol_1/Greeter.json"));
@@ -1160,6 +1201,6 @@ mod tests {
             "/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts",
         );
 
-        assert_eq!(alternative, PathBuf::from("/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts/utils/BaseMainnetForkingTest.t.sol/BaseMainnetForkingTest.json"));
+        assert_eq!(alternative.to_slash_lossy(), "/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts/utils/BaseMainnetForkingTest.t.sol/BaseMainnetForkingTest.json");
     }
 }

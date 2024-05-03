@@ -1,17 +1,19 @@
 //! Utilities for mocking project workspaces.
 
 use crate::{
-    artifacts::Settings,
+    artifacts::{Error, Settings},
+    compilers::Compiler,
     config::ProjectPathsConfigBuilder,
     error::{Result, SolcError},
+    filter::SparseOutputFileFilter,
     hh::HardhatArtifacts,
     project_util::mock::{MockProjectGenerator, MockProjectSettings},
     remappings::Remapping,
-    utils,
-    utils::tempdir,
-    Artifact, ArtifactOutput, Artifacts, ConfigurableArtifacts, ConfigurableContractArtifact,
-    FileFilter, PathStyle, Project, ProjectCompileOutput, ProjectPathsConfig, SolFilesCache,
-    SolcIoError,
+    resolver::parse::SolData,
+    utils::{self, tempdir},
+    Artifact, ArtifactOutput, Artifacts, CompilerCache, ConfigurableArtifacts,
+    ConfigurableContractArtifact, PathStyle, Project, ProjectCompileOutput, ProjectPathsConfig,
+    Solc, SolcIoError,
 };
 use fs_extra::{dir, file};
 use std::{
@@ -27,11 +29,11 @@ pub mod mock;
 /// A [`Project`] wrapper that lives in a new temporary directory
 ///
 /// Once `TempProject` is dropped, the temp dir is automatically removed, see [`TempDir::drop()`]
-pub struct TempProject<T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct TempProject<T: ArtifactOutput = ConfigurableArtifacts, C: Compiler = Solc> {
     /// temporary workspace root
     _root: TempDir,
     /// actual project workspace with the `root` tempdir as its root
-    inner: Project<T>,
+    inner: Project<T, C>,
 }
 
 impl<T: ArtifactOutput> TempProject<T> {
@@ -46,12 +48,14 @@ impl<T: ArtifactOutput> TempProject<T> {
 
     /// Creates a new temp project using the provided paths and artifacts handler.
     /// sets the project root to a temp dir
+    #[cfg(feature = "svm-solc")]
     pub fn with_artifacts(paths: ProjectPathsConfigBuilder, artifacts: T) -> Result<Self> {
         Self::prefixed_with_artifacts("temp-project", paths, artifacts)
     }
 
     /// Creates a new temp project inside a tempdir with a prefixed directory and the given
     /// artifacts handler
+    #[cfg(feature = "svm-solc")]
     pub fn prefixed_with_artifacts(
         prefix: &str,
         paths: ProjectPathsConfigBuilder,
@@ -59,34 +63,32 @@ impl<T: ArtifactOutput> TempProject<T> {
     ) -> Result<Self> {
         let tmp_dir = tempdir(prefix)?;
         let paths = paths.build_with_root(tmp_dir.path());
-        let inner = Project::builder().artifacts(artifacts).paths(paths).build()?;
+        let inner =
+            Project::builder().artifacts(artifacts).paths(paths).build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 
     /// Overwrites the settings to pass to `solc`
     pub fn with_settings(mut self, settings: impl Into<Settings>) -> Self {
-        self.inner.solc_config.settings = settings.into();
+        self.inner.settings = settings.into();
         self
     }
 
     /// Explicitly sets the solc version for the project
     #[cfg(feature = "svm-solc")]
     pub fn set_solc(&mut self, solc: impl AsRef<str>) -> &mut Self {
-        self.inner.solc = crate::Solc::find_or_install_svm_version(solc).unwrap();
-        self.inner.auto_detect = false;
+        use crate::{compilers::CompilerVersionManager, CompilerConfig};
+        use semver::Version;
+
+        let solc = crate::compilers::solc::SolcVersionManager
+            .get_or_install(&Version::parse(solc.as_ref()).unwrap())
+            .unwrap();
+        self.inner.compiler_config = CompilerConfig::Specific(solc);
         self
     }
 
     pub fn project(&self) -> &Project<T> {
         &self.inner
-    }
-
-    pub fn compile(&self) -> Result<ProjectCompileOutput<T>> {
-        self.project().compile()
-    }
-
-    pub fn compile_sparse(&self, filter: Box<dyn FileFilter>) -> Result<ProjectCompileOutput<T>> {
-        self.project().compile_sparse(filter)
     }
 
     pub fn flatten(&self, target: &Path) -> Result<String> {
@@ -251,7 +253,7 @@ contract {} {{}}
     }
 
     /// Returns a snapshot of all cached artifacts
-    pub fn artifacts_snapshot(&self) -> Result<ArtifactsSnapshot<T::Artifact>> {
+    pub fn artifacts_snapshot(&self) -> Result<ArtifactsSnapshot<T::Artifact, Settings>> {
         let cache = self.project().read_cache_file()?;
         let artifacts = cache.read_artifacts::<T::Artifact>()?;
         Ok(ArtifactsSnapshot { cache, artifacts })
@@ -330,26 +332,41 @@ contract {} {{}}
 
     /// Returns a list of all source files in the project's `src` directory
     pub fn list_source_files(&self) -> Vec<PathBuf> {
-        utils::source_files(self.project().sources_path())
+        utils::sol_source_files(self.project().sources_path())
+    }
+
+    pub fn compile(&self) -> Result<ProjectCompileOutput<Error, T>> {
+        self.project().compile()
+    }
+
+    pub fn compile_sparse(
+        &self,
+        filter: Box<dyn SparseOutputFileFilter<SolData>>,
+    ) -> Result<ProjectCompileOutput<Error, T>> {
+        self.project().compile_sparse(filter)
     }
 }
 
 impl<T: ArtifactOutput + Default> TempProject<T> {
     /// Creates a new temp project inside a tempdir with a prefixed directory
+    #[cfg(feature = "svm-solc")]
     pub fn prefixed(prefix: &str, paths: ProjectPathsConfigBuilder) -> Result<Self> {
         Self::prefixed_with_artifacts(prefix, paths, T::default())
     }
 
     /// Creates a new temp project for the given `PathStyle`
+    #[cfg(feature = "svm-solc")]
     pub fn with_style(prefix: &str, style: PathStyle) -> Result<Self> {
         let tmp_dir = tempdir(prefix)?;
         let paths = style.paths(tmp_dir.path())?;
-        let inner = Project::builder().artifacts(T::default()).paths(paths).build()?;
+        let inner =
+            Project::builder().artifacts(T::default()).paths(paths).build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 
     /// Creates a new temp project using the provided paths and setting the project root to a temp
     /// dir
+    #[cfg(feature = "svm-solc")]
     pub fn new(paths: ProjectPathsConfigBuilder) -> Result<Self> {
         Self::prefixed("temp-project", paths)
     }
@@ -379,6 +396,7 @@ fn contract_file_name(name: impl AsRef<str>) -> String {
     }
 }
 
+#[cfg(feature = "svm-solc")]
 impl TempProject<HardhatArtifacts> {
     /// Creates an empty new hardhat style workspace in a new temporary dir
     pub fn hardhat() -> Result<Self> {
@@ -386,19 +404,22 @@ impl TempProject<HardhatArtifacts> {
 
         let paths = ProjectPathsConfig::hardhat(tmp_dir.path())?;
 
-        let inner =
-            Project::builder().artifacts(HardhatArtifacts::default()).paths(paths).build()?;
+        let inner = Project::builder()
+            .artifacts(HardhatArtifacts::default())
+            .paths(paths)
+            .build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 }
 
+#[cfg(feature = "svm-solc")]
 impl TempProject<ConfigurableArtifacts> {
     /// Creates an empty new dapptools style workspace in a new temporary dir
     pub fn dapptools() -> Result<Self> {
         let tmp_dir = tempdir("tmp_dapp")?;
         let paths = ProjectPathsConfig::dapptools(tmp_dir.path())?;
 
-        let inner = Project::builder().paths(paths).build()?;
+        let inner = Project::builder().paths(paths).build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 
@@ -406,7 +427,10 @@ impl TempProject<ConfigurableArtifacts> {
         let tmp_dir = tempdir("tmp_dapp")?;
         let paths = ProjectPathsConfig::dapptools(tmp_dir.path())?;
 
-        let inner = Project::builder().paths(paths).ignore_paths(paths_to_ignore).build()?;
+        let inner = Project::builder()
+            .paths(paths)
+            .ignore_paths(paths_to_ignore)
+            .build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 
@@ -416,6 +440,7 @@ impl TempProject<ConfigurableArtifacts> {
         let orig_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
         copy_dir(orig_root, project.root())?;
         project.project_mut().paths.remappings = Remapping::find_many(project.root());
+        project.project_mut().paths.remappings.iter_mut().for_each(|r| r.slash_path());
 
         Ok(project)
     }
@@ -427,7 +452,7 @@ impl TempProject<ConfigurableArtifacts> {
             .map_err(|err| SolcIoError::new(err, tmp_dir.path()))?;
         let paths = ProjectPathsConfig::dapptools(tmp_dir.path())?;
 
-        let inner = Project::builder().paths(paths).build()?;
+        let inner = Project::builder().paths(paths).build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 
@@ -455,12 +480,12 @@ impl<T: ArtifactOutput> AsRef<Project<T>> for TempProject<T> {
 
 /// The cache file and all the artifacts it references
 #[derive(Debug, Clone)]
-pub struct ArtifactsSnapshot<T> {
-    pub cache: SolFilesCache,
+pub struct ArtifactsSnapshot<T, S> {
+    pub cache: CompilerCache<S>,
     pub artifacts: Artifacts<T>,
 }
 
-impl ArtifactsSnapshot<ConfigurableContractArtifact> {
+impl ArtifactsSnapshot<ConfigurableContractArtifact, Settings> {
     /// Ensures that all artifacts have abi, bytecode, deployedbytecode
     pub fn assert_artifacts_essentials_present(&self) {
         for artifact in self.artifacts.artifact_files() {
@@ -524,6 +549,7 @@ pub fn clone_remote(
 }
 
 #[cfg(test)]
+#[cfg(feature = "svm-solc")]
 mod tests {
     use super::*;
 

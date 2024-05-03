@@ -1,15 +1,15 @@
-//! Additional logging [CompilerInput] and [CompilerOutput]
+//! Additional logging [SolcInput] and [CompilerOutput]
 //!
 //! Useful for debugging purposes.
 //! As solc compiler input and output can become quite large (in the tens of MB) we still want a way
 //! to get this info when debugging an issue. Most convenient way to look at these object is as a
 //! separate json file
 
-use crate::{CompilerInput, CompilerOutput};
+use crate::{CompilerOutput, SolcInput};
 use semver::Version;
 use std::{env, path::PathBuf, str::FromStr};
 
-/// Debug Helper type that can be used to write the [crate::Solc] [CompilerInput] and
+/// Debug Helper type that can be used to write the [crate::Solc] [SolcInput] and
 /// [CompilerOutput] to disk if configured.
 ///
 /// # Examples
@@ -55,7 +55,7 @@ impl SolcCompilerIoReporter {
     }
 
     /// Callback to write the input to disk if target is set
-    pub fn log_compiler_input(&self, input: &CompilerInput, version: &Version) {
+    pub fn log_compiler_input(&self, input: &SolcInput, version: &Version) {
         if let Some(ref target) = self.target {
             target.write_input(input, version)
         }
@@ -88,7 +88,7 @@ struct Target {
 }
 
 impl Target {
-    fn write_input(&self, input: &CompilerInput, version: &Version) {
+    fn write_input(&self, input: &SolcInput, version: &Version) {
         trace!("logging compiler input to {}", self.dest_input.display());
         match serde_json::to_string_pretty(input) {
             Ok(json) => {
@@ -177,11 +177,11 @@ mod tests {
     #[test]
     fn can_set_file_name() {
         let s = "/a/b/c/in.json";
-        let p = get_file_name(s, &Version::parse("0.8.10").unwrap());
+        let p = get_file_name(s, &Version::new(0, 8, 10));
         assert_eq!(PathBuf::from("/a/b/c/in.0.8.10.json"), p);
 
         let s = "abc.json";
-        let p = get_file_name(s, &Version::parse("0.8.10").unwrap());
+        let p = get_file_name(s, &Version::new(0, 8, 10));
         assert_eq!(PathBuf::from("abc.0.8.10.json"), p);
     }
 
@@ -215,7 +215,7 @@ mod tests {
     fn check_no_write_when_no_target() {
         let reporter = SolcCompilerIoReporter::default();
         let version = Version::parse("0.8.10").unwrap();
-        let input = CompilerInput::default();
+        let input = SolcInput::default();
         let output = CompilerOutput::default();
 
         reporter.log_compiler_input(&input, &version);
@@ -230,7 +230,7 @@ mod tests {
         let version = Version::parse("0.8.10").unwrap();
         let target = Target { dest_input: input_path.clone(), dest_output: output_path.clone() };
 
-        let input = CompilerInput::default();
+        let input = SolcInput::default();
         let output = CompilerOutput::default();
 
         target.write_input(&input, &version);

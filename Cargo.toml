@@ -58,6 +58,7 @@ svm = { package = "svm-rs", version = "0.5", default-features = false, optional 
 svm-builds = { package = "svm-rs-builds", version = "0.5", default-features = false, optional = true }
 sha2 = { version = "0.10", default-features = false, optional = true }
 itertools = "0.12"
+auto_impl = "1"
 
 [dev-dependencies]
 alloy-primitives = { version = "0.7", features = ["serde", "rand"] }
@@ -68,14 +69,17 @@ serde_path_to_error = "0.1"
 tempfile = "3.9"
 tokio = { version = "1.35", features = ["rt-multi-thread", "macros"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+reqwest = "0.12"
+fd-lock = "4.0.0"
 
 [[bench]]
 name = "compile_many"
+required-features = ["svm-solc"]
 harness = false
 
 [[bench]]
 name = "read_all"
-required-features = ["project-util"]
+required-features = ["project-util", "svm-solc"]
 harness = false
 
 [[test]]
@@ -98,7 +102,7 @@ async = ["dep:futures-util", "dep:tokio", "tokio/fs", "tokio/process", "tokio/io
 # Enables `svm` to auto-detect and manage `solc` builds.
 svm-solc = ["dep:svm", "dep:svm-builds", "dep:sha2", "dep:tokio"]
 # Utilities for creating and testing project workspaces.
-project-util = ["dep:tempfile", "dep:fs_extra", "dep:rand"]
+project-util = ["dep:tempfile", "dep:fs_extra", "dep:rand", "svm-solc"]
 
 rustls = ["svm?/rustls"]
 openssl = ["svm?/openssl"]

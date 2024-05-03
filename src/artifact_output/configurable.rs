@@ -256,7 +256,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
 
     fn contract_to_artifact(
         &self,
-        _file: &str,
+        _file: &Path,
         _name: &str,
         contract: Contract,
         source_file: Option<&SourceFile>,
@@ -375,7 +375,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
 
     fn standalone_source_file_to_artifact(
         &self,
-        _path: &str,
+        _path: &Path,
         file: &VersionedSourceFile,
     ) -> Option<Self::Artifact> {
         file.source_file.ast.clone().map(|ast| ConfigurableContractArtifact {

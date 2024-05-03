@@ -1,6 +1,6 @@
 //! Utility functions
 
-use crate::{error::SolcError, SolcIoError};
+use crate::{error::SolcError, SolcIoError, SOLC_EXTENSIONS};
 use alloy_primitives::{hex, keccak256};
 use cfg_if::cfg_if;
 use once_cell::sync::Lazy;
@@ -42,6 +42,10 @@ pub static RE_SOL_SDPX_LICENSE_IDENTIFIER: Lazy<Regex> =
 /// A regex used to remove extra lines in flatenned files
 pub static RE_THREE_OR_MORE_NEWLINES: Lazy<Regex> = Lazy::new(|| Regex::new("\n{3,}").unwrap());
 
+/// A regex that matches version pragma in a Vyper
+pub static RE_VYPER_VERSION: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"#(?:pragma version|@version)\s+(?P<version>.+)").unwrap());
+
 /// Create a regex that matches any library or contract name inside a file
 pub fn create_contract_or_lib_name_regex(name: &str) -> Regex {
     Regex::new(&format!(r#"(?:using\s+(?P<n1>{name})\s+|is\s+(?:\w+\s*,\s*)*(?P<n2>{name})(?:\s*,\s*\w+)*|(?:(?P<ignore>(?:function|error|as)\s+|\n[^\n]*(?:"([^"\n]|\\")*|'([^'\n]|\\')*))|\W+)(?P<n3>{name})(?:\.|\(| ))"#)).unwrap()
@@ -78,14 +82,17 @@ pub fn find_version_pragma(contract: &str) -> Option<Match<'_>> {
 /// `root` itself, if it is a sol/yul file
 ///
 /// This also follows symlinks.
-pub fn source_files_iter(root: impl AsRef<Path>) -> impl Iterator<Item = PathBuf> {
+pub fn source_files_iter<'a>(
+    root: impl AsRef<Path>,
+    extensions: &'a [&'a str],
+) -> impl Iterator<Item = PathBuf> + 'a {
     WalkDir::new(root)
         .follow_links(true)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file())
         .filter(|e| {
-            e.path().extension().map(|ext| (ext == "sol") || (ext == "yul")).unwrap_or_default()
+            e.path().extension().map(|ext| extensions.iter().any(|e| ext == *e)).unwrap_or_default()
         })
         .map(|e| e.path().into())
 }
@@ -103,8 +110,13 @@ pub fn source_files_iter(root: impl AsRef<Path>) -> impl Iterator<Item = PathBuf
 /// use foundry_compilers::utils;
 /// let sources = utils::source_files("./contracts");
 /// ```
-pub fn source_files(root: impl AsRef<Path>) -> Vec<PathBuf> {
-    source_files_iter(root).collect()
+pub fn source_files(root: impl AsRef<Path>, extensions: &[&str]) -> Vec<PathBuf> {
+    source_files_iter(root, extensions).collect()
+}
+
+/// Same as [source_files] but only returns files acceptable by Solc compiler.
+pub fn sol_source_files(root: impl AsRef<Path>) -> Vec<PathBuf> {
+    source_files(root, SOLC_EXTENSIONS)
 }
 
 /// Returns a list of _unique_ paths to all folders under `root` that contain at least one solidity
@@ -137,7 +149,7 @@ pub fn source_files(root: impl AsRef<Path>) -> Vec<PathBuf> {
 ///         └── token.sol
 /// ```
 pub fn solidity_dirs(root: impl AsRef<Path>) -> Vec<PathBuf> {
-    let sources = source_files(root);
+    let sources = sol_source_files(root);
     sources
         .iter()
         .filter_map(|p| p.parent())
@@ -580,6 +592,8 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn can_read_different_case() {
+        use crate::resolver::parse::SolData;
+
         let tmp_dir = tempdir("out").unwrap();
         let path = tmp_dir.path().join("forge-std");
         create_dir_all(&path).unwrap();
@@ -596,7 +610,7 @@ contract A {}
 
         assert!(!non_existing.exists());
 
-        let found = crate::resolver::Node::read(&non_existing).unwrap_err();
+        let found = crate::resolver::Node::<SolData>::read(&non_existing).unwrap_err();
         matches!(found, SolcError::ResolveCaseSensitiveFileName { .. });
     }
 
@@ -649,7 +663,7 @@ contract A {}
         File::create(&file_c).unwrap();
         File::create(&file_d).unwrap();
 
-        let files: HashSet<_> = source_files(tmp_dir.path()).into_iter().collect();
+        let files: HashSet<_> = sol_source_files(tmp_dir.path()).into_iter().collect();
         let expected: HashSet<_> = [file_a, file_b, file_c, file_d].into();
         assert_eq!(files, expected);
     }

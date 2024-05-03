@@ -3,27 +3,64 @@
 use alloy_primitives::{Address, Bytes};
 use foundry_compilers::{
     artifacts::{
-        BytecodeHash, DevDoc, ErrorDoc, EventDoc, Libraries, MethodDoc, ModelCheckerEngine::CHC,
-        ModelCheckerSettings, Severity, UserDoc, UserDocNotice,
+        output_selection::OutputSelection, BytecodeHash, DevDoc, Error, ErrorDoc, EventDoc,
+        Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings, Settings, Severity,
+        UserDoc, UserDocNotice,
     },
     buildinfo::BuildInfo,
-    cache::{SolFilesCache, SOLIDITY_FILES_CACHE_FILENAME},
+    cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
+    compilers::{
+        solc::SolcVersionManager,
+        vyper::{Vyper, VyperSettings},
+        CompilerOutput, CompilerVersionManager,
+    },
     error::SolcError,
     flatten::Flattener,
     info::ContractInfo,
     project_util::*,
     remappings::Remapping,
-    utils, Artifact, CompilerInput, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectCompileOutput, ProjectPathsConfig, Solc, TestFileFilter,
+    resolver::parse::SolData,
+    utils::{self, RuntimeOrHandle},
+    Artifact, CompilerConfig, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
+    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, SolcInput, SolcSparseFileFilter,
+    TestFileFilter,
 };
 use pretty_assertions::assert_eq;
 use semver::Version;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    fs::{self},
+    io,
+    path::{Path, PathBuf, MAIN_SEPARATOR},
     str::FromStr,
 };
+use svm::{platform, Platform};
+
+async fn install_vyper() -> Vyper {
+    #[cfg(target_family = "unix")]
+    use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+
+    let url = match platform() {
+        Platform::MacOsAarch64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.darwin",
+        Platform::LinuxAmd64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux",
+        Platform::WindowsAmd64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.windows.exe",
+        _ => panic!("unsupported")
+    };
+
+    let res = reqwest::Client::builder().build().unwrap().get(url).send().await.unwrap();
+
+    assert!(res.status().is_success());
+
+    let bytes = res.bytes().await.unwrap();
+    let path = std::env::temp_dir().join("vyper");
+
+    std::fs::write(&path, bytes).unwrap();
+
+    #[cfg(target_family = "unix")]
+    std::fs::set_permissions(&path, Permissions::from_mode(0o755)).unwrap();
+
+    Vyper::new(path).unwrap()
+}
 
 #[test]
 fn can_get_versioned_linkrefs() {
@@ -34,7 +71,12 @@ fn can_get_versioned_linkrefs() {
         .build()
         .unwrap();
 
-    let project = Project::builder().paths(paths).ephemeral().no_artifacts().build().unwrap();
+    let project = Project::builder()
+        .paths(paths)
+        .ephemeral()
+        .no_artifacts()
+        .build(Default::default())
+        .unwrap();
     project.compile().unwrap().assert_success();
 }
 
@@ -80,7 +122,7 @@ fn can_compile_dapp_sample() {
     assert!(compiled.find_first("Dapp").is_some());
     assert!(compiled.is_unchanged());
 
-    let cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
 
     // delete artifacts
     std::fs::remove_dir_all(&project.paths().artifacts).unwrap();
@@ -88,7 +130,7 @@ fn can_compile_dapp_sample() {
     assert!(compiled.find_first("Dapp").is_some());
     assert!(!compiled.is_unchanged());
 
-    let updated_cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let updated_cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
     assert_eq!(cache, updated_cache);
 }
 
@@ -109,7 +151,7 @@ fn can_compile_yul_sample() {
     assert!(compiled.find_first("SimpleStore").is_some());
     assert!(compiled.is_unchanged());
 
-    let cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
 
     // delete artifacts
     std::fs::remove_dir_all(&project.paths().artifacts).unwrap();
@@ -118,7 +160,7 @@ fn can_compile_yul_sample() {
     assert!(compiled.find_first("SimpleStore").is_some());
     assert!(!compiled.is_unchanged());
 
-    let updated_cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let updated_cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
     assert_eq!(cache, updated_cache);
 }
 
@@ -182,7 +224,7 @@ fn can_compile_dapp_detect_changes_in_libs() {
         )
         .unwrap();
 
-    let graph = Graph::resolve(project.paths()).unwrap();
+    let graph = Graph::<SolData>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
     assert_eq!(graph.files().clone(), HashMap::from([(src, 0), (lib, 1),]));
 
@@ -196,7 +238,7 @@ fn can_compile_dapp_detect_changes_in_libs() {
     assert!(compiled.find_first("Foo").is_some());
     assert!(compiled.is_unchanged());
 
-    let cache = SolFilesCache::read(&project.paths().cache).unwrap();
+    let cache = CompilerCache::<Settings>::read(&project.paths().cache).unwrap();
     assert_eq!(cache.files.len(), 2);
 
     // overwrite lib
@@ -212,7 +254,7 @@ fn can_compile_dapp_detect_changes_in_libs() {
         )
         .unwrap();
 
-    let graph = Graph::resolve(project.paths()).unwrap();
+    let graph = Graph::<SolData>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
 
     let compiled = project.compile().unwrap();
@@ -254,7 +296,7 @@ fn can_compile_dapp_detect_changes_in_sources() {
         )
         .unwrap();
 
-    let graph = Graph::resolve(project.paths()).unwrap();
+    let graph = Graph::<SolData>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
     assert_eq!(graph.files().clone(), HashMap::from([(base, 0), (src, 1),]));
     assert_eq!(graph.imported_nodes(1).to_vec(), vec![0]);
@@ -270,7 +312,7 @@ fn can_compile_dapp_detect_changes_in_sources() {
     assert!(compiled.find_first("DssSpellTest").is_some());
     assert!(compiled.find_first("DssSpellTestBase").is_some());
 
-    let cache = SolFilesCache::read(&project.paths().cache).unwrap();
+    let cache = CompilerCache::<Settings>::read(&project.paths().cache).unwrap();
     assert_eq!(cache.files.len(), 2);
 
     let mut artifacts = compiled.into_artifacts().collect::<HashMap<_, _>>();
@@ -291,7 +333,7 @@ fn can_compile_dapp_detect_changes_in_sources() {
    ",
         )
         .unwrap();
-    let graph = Graph::resolve(project.paths()).unwrap();
+    let graph = Graph::<SolData>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
 
     let compiled = project.compile().unwrap();
@@ -340,7 +382,8 @@ contract B { }
 
     let mut build_info_count = 0;
     for entry in fs::read_dir(info_dir).unwrap() {
-        let _info = BuildInfo::read(entry.unwrap().path()).unwrap();
+        let _info =
+            BuildInfo::<SolcInput, CompilerOutput<Error>>::read(entry.unwrap().path()).unwrap();
         build_info_count += 1;
     }
     assert_eq!(build_info_count, 1);
@@ -381,7 +424,8 @@ contract B { }
 
     let mut build_info_count = 0;
     for entry in fs::read_dir(info_dir).unwrap() {
-        let _info = BuildInfo::read(entry.unwrap().path()).unwrap();
+        let _info =
+            BuildInfo::<SolcInput, CompilerOutput<Error>>::read(entry.unwrap().path()).unwrap();
         build_info_count += 1;
     }
     assert_eq!(build_info_count, 1);
@@ -412,7 +456,7 @@ fn can_compile_dapp_sample_with_cache() {
         .unwrap();
 
     // first compile
-    let project = Project::builder().paths(paths).build().unwrap();
+    let project = Project::builder().paths(paths).build(Default::default()).unwrap();
     let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Dapp").is_some());
     compiled.assert_success();
@@ -1931,11 +1975,12 @@ library MyLib {
     assert!(bytecode.is_unlinked());
 
     // provide the library settings to let solc link
-    tmp.project_mut().solc_config.settings.libraries = BTreeMap::from([(
+    tmp.project_mut().settings.libraries = BTreeMap::from([(
         lib,
         BTreeMap::from([("MyLib".to_string(), format!("{:?}", Address::ZERO))]),
     )])
     .into();
+    tmp.project_mut().settings.libraries.slash_paths();
 
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
@@ -1947,7 +1992,7 @@ library MyLib {
 
     let libs = Libraries::parse(&[format!("./src/MyLib.sol:MyLib:{:?}", Address::ZERO)]).unwrap();
     // provide the library settings to let solc link
-    tmp.project_mut().solc_config.settings.libraries = libs.with_applied_remappings(tmp.paths());
+    tmp.project_mut().settings.libraries = libs.with_applied_remappings(tmp.paths());
 
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
@@ -2052,7 +2097,8 @@ library MyLib {
 
     let libs =
         Libraries::parse(&[format!("remapping/MyLib.sol:MyLib:{:?}", Address::ZERO)]).unwrap(); // provide the library settings to let solc link
-    tmp.project_mut().solc_config.settings.libraries = libs.with_applied_remappings(tmp.paths());
+    tmp.project_mut().settings.libraries = libs.with_applied_remappings(tmp.paths());
+    tmp.project_mut().settings.libraries.slash_paths();
 
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
@@ -2075,7 +2121,7 @@ fn can_detect_invalid_version() {
     let out = tmp.compile().unwrap_err();
     match out {
         SolcError::Message(err) => {
-            assert_eq!(err, "Encountered invalid solc version in src/A.sol: No solc version exists that matches the version requirement: ^0.100.10");
+            assert_eq!(err, format!("Encountered invalid solc version in src{MAIN_SEPARATOR}A.sol: No solc version exists that matches the version requirement: ^0.100.10"));
         }
         _ => {
             unreachable!()
@@ -2126,7 +2172,7 @@ fn test_severity_warnings() {
 #[test]
 fn can_recompile_with_changes() {
     let mut tmp = TempProject::dapptools().unwrap();
-    tmp.project_mut().allowed_paths = vec![tmp.root().join("modules")].into();
+    tmp.project_mut().paths.allowed_paths = BTreeSet::from([tmp.root().join("modules")]);
 
     let content = r#"
     pragma solidity ^0.8.10;
@@ -2309,8 +2355,7 @@ contract Contract {
 
     assert_eq!(artifacts.artifacts.as_ref().len(), 2);
 
-    let mut top_level =
-        artifacts.artifacts.as_mut().remove(top_level.to_string_lossy().as_ref()).unwrap();
+    let mut top_level = artifacts.artifacts.as_mut().remove(&top_level).unwrap();
 
     assert_eq!(top_level.len(), 1);
 
@@ -2404,23 +2449,22 @@ fn can_detect_contract_def_source_files() {
     compiled.assert_success();
 
     let mut sources = compiled.into_output().sources;
-    let myfunc = sources.remove_by_path(myfunc.to_string_lossy()).unwrap();
+    let myfunc = sources.remove_by_path(myfunc).unwrap();
     assert!(!myfunc.contains_contract_definition());
 
-    let myerr = sources.remove_by_path(myerr.to_string_lossy()).unwrap();
+    let myerr = sources.remove_by_path(myerr).unwrap();
     assert!(!myerr.contains_contract_definition());
 
-    let mylib = sources.remove_by_path(mylib.to_string_lossy()).unwrap();
+    let mylib = sources.remove_by_path(mylib).unwrap();
     assert!(mylib.contains_contract_definition());
 
-    let myabstract_contract =
-        sources.remove_by_path(myabstract_contract.to_string_lossy()).unwrap();
+    let myabstract_contract = sources.remove_by_path(myabstract_contract).unwrap();
     assert!(myabstract_contract.contains_contract_definition());
 
-    let myinterface = sources.remove_by_path(myinterface.to_string_lossy()).unwrap();
+    let myinterface = sources.remove_by_path(myinterface).unwrap();
     assert!(myinterface.contains_contract_definition());
 
-    let mycontract = sources.remove_by_path(mycontract.to_string_lossy()).unwrap();
+    let mycontract = sources.remove_by_path(mycontract).unwrap();
     assert!(mycontract.contains_contract_definition());
 }
 
@@ -2454,7 +2498,8 @@ fn can_compile_sparse_with_link_references() {
         )
         .unwrap();
 
-    let mut compiled = tmp.compile_sparse(Box::<TestFileFilter>::default()).unwrap();
+    let filter = SolcSparseFileFilter::new(TestFileFilter::default());
+    let mut compiled = tmp.compile_sparse(Box::new(filter)).unwrap();
     compiled.assert_success();
 
     let mut output = compiled.clone().into_output();
@@ -2473,12 +2518,21 @@ fn can_compile_sparse_with_link_references() {
     assert!(lib.is_none());
 
     dup = output.clone();
-    let lib = dup.remove(my_lib_path.to_string_lossy(), "MyLib");
+    let lib = dup.remove(&my_lib_path, "MyLib");
     assert!(lib.is_some());
-    let lib = dup.remove(my_lib_path.to_string_lossy(), "MyLib");
+    let lib = dup.remove(&my_lib_path, "MyLib");
     assert!(lib.is_none());
 
-    let info = ContractInfo::new(format!("{}:{}", my_lib_path.to_string_lossy(), "MyLib"));
+    #[cfg(not(windows))]
+    let info = ContractInfo::new(format!("{}:{}", my_lib_path.display(), "MyLib"));
+    #[cfg(windows)]
+    let info = {
+        use path_slash::PathBufExt;
+        ContractInfo {
+            path: Some(my_lib_path.to_slash_lossy().to_string()),
+            name: "MyLib".to_string(),
+        }
+    };
     let lib = output.remove_contract(&info);
     assert!(lib.is_some());
     let lib = output.remove_contract(&info);
@@ -2488,7 +2542,7 @@ fn can_compile_sparse_with_link_references() {
 #[test]
 fn can_sanitize_bytecode_hash() {
     let mut tmp = TempProject::dapptools().unwrap();
-    tmp.project_mut().solc_config.settings.metadata = Some(BytecodeHash::Ipfs.into());
+    tmp.project_mut().settings.metadata = Some(BytecodeHash::Ipfs.into());
 
     tmp.add_source(
         "A",
@@ -2524,7 +2578,7 @@ fn can_create_standard_json_input_with_external_file() {
 
     let mut verif_project = Project::builder()
         .paths(ProjectPathsConfig::dapptools(&verif_dir).unwrap())
-        .build()
+        .build(Default::default())
         .unwrap();
 
     verif_project.paths.remappings.push(Remapping {
@@ -2532,7 +2586,7 @@ fn can_create_standard_json_input_with_external_file() {
         name: "@remapped/".into(),
         path: "../remapped/".into(),
     });
-    verif_project.allowed_paths.insert(remapped_dir.clone());
+    verif_project.paths.allowed_paths.insert(remapped_dir.clone());
 
     fs::write(remapped_dir.join("Parent.sol"), "pragma solidity >=0.8.0; import './Child.sol';")
         .unwrap();
@@ -2558,8 +2612,10 @@ fn can_create_standard_json_input_with_external_file() {
         ]
     );
 
+    let solc = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)).unwrap();
+
     // can compile using the created json
-    let compiler_errors = Solc::default()
+    let compiler_errors = solc
         .compile(&std_json)
         .unwrap()
         .errors
@@ -2577,14 +2633,14 @@ fn can_compile_std_json_input() {
     let input = tmp.project().standard_json_input(source).unwrap();
 
     assert!(input.settings.remappings.contains(&"ds-test/=lib/ds-test/src/".parse().unwrap()));
-    let input: CompilerInput = input.into();
+    let input: SolcInput = input.into();
     assert!(input.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
 
     // should be installed
-    if let Some(solc) = Solc::find_svm_installed_version("0.8.10").ok().flatten() {
+    if let Ok(solc) = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)) {
         let out = solc.compile(&input).unwrap();
-        assert!(!out.has_error());
-        assert!(out.sources.contains_key("lib/ds-test/src/test.sol"));
+        assert!(out.errors.is_empty());
+        assert!(out.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
     }
 }
 
@@ -2645,8 +2701,10 @@ fn can_create_standard_json_input_with_symlink() {
         ]
     );
 
+    let solc = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)).unwrap();
+
     // can compile using the created json
-    let compiler_errors = Solc::default()
+    let compiler_errors = solc
         .compile(&std_json)
         .unwrap()
         .errors
@@ -2662,7 +2720,7 @@ fn can_compile_model_checker_sample() {
     let paths = ProjectPathsConfig::builder().sources(root);
 
     let mut project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
-    project.project_mut().solc_config.settings.model_checker = Some(ModelCheckerSettings {
+    project.project_mut().settings.model_checker = Some(ModelCheckerSettings {
         engine: Some(CHC),
         timeout: Some(10000),
         ..Default::default()
@@ -2687,7 +2745,7 @@ fn test_compiler_severity_filter() {
         .no_artifacts()
         .paths(gen_test_data_warning_path())
         .ephemeral()
-        .build()
+        .build(Default::default())
         .unwrap();
     let compiled = project.compile().unwrap();
     assert!(compiled.has_compiler_warnings());
@@ -2698,7 +2756,7 @@ fn test_compiler_severity_filter() {
         .paths(gen_test_data_warning_path())
         .ephemeral()
         .set_compiler_severity_filter(foundry_compilers::artifacts::Severity::Warning)
-        .build()
+        .build(Default::default())
         .unwrap();
     let compiled = project.compile().unwrap();
     assert!(compiled.has_compiler_warnings());
@@ -2716,7 +2774,7 @@ fn compile_project_with_options(
     severity_filter: Option<foundry_compilers::artifacts::Severity>,
     ignore_paths: Option<Vec<PathBuf>>,
     ignore_error_code: Option<u64>,
-) -> ProjectCompileOutput {
+) -> ProjectCompileOutput<Error> {
     let mut builder =
         Project::builder().no_artifacts().paths(gen_test_data_licensing_warning()).ephemeral();
 
@@ -2730,7 +2788,7 @@ fn compile_project_with_options(
         builder = builder.set_compiler_severity_filter(severity);
     }
 
-    let project = builder.build().unwrap();
+    let project = builder.build(Default::default()).unwrap();
     project.compile().unwrap()
 }
 
@@ -2772,7 +2830,7 @@ fn test_compiler_severity_filter_and_ignored_error_codes() {
 }
 
 fn remove_solc_if_exists(version: &Version) {
-    if Solc::find_svm_installed_version(version.to_string()).unwrap().is_some() {
+    if SolcVersionManager::default().get_installed(version).is_ok() {
         svm::remove_version(version).expect("failed to remove version")
     }
 }
@@ -2806,17 +2864,15 @@ async fn can_install_solc_and_compile_std_json_input_async() {
     tmp.assert_no_errors();
     let source = tmp.list_source_files().into_iter().find(|p| p.ends_with("Dapp.t.sol")).unwrap();
     let input = tmp.project().standard_json_input(source).unwrap();
-    let solc = &tmp.project().solc;
+    let solc = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)).unwrap();
 
     assert!(input.settings.remappings.contains(&"ds-test/=lib/ds-test/src/".parse().unwrap()));
-    let input: CompilerInput = input.into();
+    let input: SolcInput = input.into();
     assert!(input.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
-
-    remove_solc_if_exists(&solc.version().expect("failed to get version"));
 
     let out = solc.async_compile(&input).await.unwrap();
     assert!(!out.has_error());
-    assert!(out.sources.contains_key("lib/ds-test/src/test.sol"));
+    assert!(out.sources.contains_key(&PathBuf::from("lib/ds-test/src/test.sol")));
 }
 
 #[test]
@@ -2854,7 +2910,7 @@ fn can_purge_obsolete_artifacts() {
 fn can_parse_notice() {
     let mut project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
     project.project_mut().artifacts.additional_values.userdoc = true;
-    project.project_mut().solc_config.settings = project.project_mut().artifacts.settings();
+    project.project_mut().settings = project.project_mut().artifacts.settings();
 
     let contract = r"
     pragma solidity $VERSION;
@@ -2934,7 +2990,7 @@ fn can_parse_doc() {
     let mut project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
     project.project_mut().artifacts.additional_values.userdoc = true;
     project.project_mut().artifacts.additional_values.devdoc = true;
-    project.project_mut().solc_config.settings = project.project_mut().artifacts.settings();
+    project.project_mut().settings = project.project_mut().artifacts.settings();
 
     let contract = r"
 // SPDX-License-Identifier: GPL-3.0-only
@@ -3156,7 +3212,7 @@ contract D { }
     let compiled = project.compile().unwrap();
     compiled.assert_success();
 
-    let cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
 
     let entries = vec![
         PathBuf::from("src/A.sol"),
@@ -3166,7 +3222,7 @@ contract D { }
     ];
     assert_eq!(entries, cache.files.keys().cloned().collect::<Vec<_>>());
 
-    let cache = SolFilesCache::read_joined(project.paths()).unwrap();
+    let cache = CompilerCache::<Settings>::read_joined(project.paths()).unwrap();
 
     assert_eq!(
         entries.into_iter().map(|p| project.root().join(p)).collect::<Vec<_>>(),
@@ -3255,7 +3311,7 @@ fn can_handle_conflicting_files() {
     let artifacts = compiled.artifacts().count();
     assert_eq!(artifacts, 2);
 
-    let cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
 
     let mut source_files = cache.files.keys().cloned().collect::<Vec<_>>();
     source_files.sort_unstable();
@@ -3324,7 +3380,7 @@ fn can_handle_conflicting_files_recompile() {
     let artifacts = compiled.artifacts().count();
     assert_eq!(artifacts, 2);
 
-    let cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
 
     let mut source_files = cache.files.keys().cloned().collect::<Vec<_>>();
     source_files.sort_unstable();
@@ -3421,7 +3477,7 @@ fn can_handle_conflicting_files_case_sensitive_recompile() {
     let artifacts = compiled.artifacts().count();
     assert_eq!(artifacts, 2);
 
-    let cache = SolFilesCache::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
 
     let mut source_files = cache.files.keys().cloned().collect::<Vec<_>>();
     source_files.sort_unstable();
@@ -3519,20 +3575,20 @@ fn can_detect_config_changes() {
     let compiled = project.compile().unwrap();
     compiled.assert_success();
 
-    let cache_before = SolFilesCache::read(&project.paths().cache).unwrap();
+    let cache_before = CompilerCache::<Settings>::read(&project.paths().cache).unwrap();
     assert_eq!(cache_before.files.len(), 2);
 
     // nothing to compile
     let compiled = project.compile().unwrap();
     assert!(compiled.is_unchanged());
 
-    project.project_mut().solc_config.settings.optimizer.enabled = Some(true);
+    project.project_mut().settings.optimizer.enabled = Some(true);
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();
     assert!(!compiled.is_unchanged());
 
-    let cache_after = SolFilesCache::read(&project.paths().cache).unwrap();
+    let cache_after = CompilerCache::<Settings>::read(&project.paths().cache).unwrap();
     assert_ne!(cache_before, cache_after);
 }
 
@@ -3550,7 +3606,7 @@ fn can_add_basic_contract_and_library() {
 
     let lib = project.add_basic_source("Bar", "^0.8.0").unwrap();
 
-    let graph = Graph::resolve(project.paths()).unwrap();
+    let graph = Graph::<SolData>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
     assert!(graph.files().contains_key(&src));
     assert!(graph.files().contains_key(&lib));
@@ -3722,11 +3778,17 @@ contract D {
 
 #[test]
 fn test_deterministic_metadata() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
-    let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-    let mut project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let root = tmp_dir.path();
+    let orig_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+    copy_dir_all(orig_root, &tmp_dir).unwrap();
 
-    project.set_solc("0.8.18");
+    let vm = SolcVersionManager::default();
+    let paths = ProjectPathsConfig::builder().root(root).build().unwrap();
+    let project = Project::builder()
+        .paths(paths)
+        .build(CompilerConfig::Specific(vm.get_or_install(&Version::new(0, 8, 18)).unwrap()))
+        .unwrap();
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();
@@ -3741,4 +3803,52 @@ fn test_deterministic_metadata() {
     )
     .unwrap();
     assert_eq!(bytecode, expected_bytecode);
+}
+
+#[test]
+fn can_compile_vyper_with_cache() {
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let root = tmp_dir.path();
+    let cache = root.join("cache").join(SOLIDITY_FILES_CACHE_FILENAME);
+
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let orig_root = manifest_dir.join("test-data/vyper-sample");
+    copy_dir_all(orig_root, &tmp_dir).unwrap();
+
+    let paths = ProjectPathsConfig::builder()
+        .cache(cache)
+        .sources(root.join("src"))
+        .artifacts(root.join("out"))
+        .root(root)
+        .build::<Vyper>()
+        .unwrap();
+
+    let compiler = RuntimeOrHandle::new().block_on(install_vyper());
+
+    let settings = VyperSettings {
+        output_selection: OutputSelection::default_output_selection(),
+        ..Default::default()
+    };
+
+    // first compile
+    let project = ProjectBuilder::<ConfigurableArtifacts, Vyper>::new(Default::default())
+        .settings(settings)
+        .paths(paths)
+        .build(CompilerConfig::Specific(compiler))
+        .unwrap();
+
+    let compiled = project.compile().unwrap();
+    assert!(compiled.find_first("Counter").is_some());
+    compiled.assert_success();
+
+    // cache is used when nothing to compile
+    let compiled = project.compile().unwrap();
+    assert!(compiled.find_first("Counter").is_some());
+    assert!(compiled.is_unchanged());
+
+    // deleted artifacts cause recompile even with cache
+    std::fs::remove_dir_all(project.artifacts_path()).unwrap();
+    let compiled = project.compile().unwrap();
+    assert!(compiled.find_first("Counter").is_some());
+    assert!(!compiled.is_unchanged());
 }

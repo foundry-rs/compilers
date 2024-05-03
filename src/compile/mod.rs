@@ -1,13 +1,15 @@
 use crate::{
     artifacts::Source,
+    compilers::CompilerInput,
     error::{Result, SolcError},
-    utils, CompilerInput, CompilerOutput,
+    utils, CompilerOutput, SolcInput,
 };
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
-    fmt,
+    collections::BTreeSet,
     path::{Path, PathBuf},
     process::{Command, Output, Stdio},
     str::FromStr,
@@ -22,6 +24,9 @@ pub mod project;
 
 /// The name of the `solc` binary on the system
 pub const SOLC: &str = "solc";
+
+/// Extensions acceptable by solc compiler.
+pub const SOLC_EXTENSIONS: &[&str] = &["sol", "yul"];
 
 /// Support for configuring the EVM version
 /// <https://blog.soliditylang.org/2018/03/08/solidity-0.4.21-release-announcement/>
@@ -75,9 +80,20 @@ pub static SUPPORTS_INCLUDE_PATH: Lazy<VersionReq> =
 /// installation is detected.
 #[cfg(feature = "svm-solc")]
 #[cfg(test)]
-pub(crate) fn take_solc_installer_lock() -> impl Drop {
-    static LOCK: Lazy<std::sync::Mutex<()>> = Lazy::new(|| std::sync::Mutex::new(()));
-    LOCK.lock().unwrap()
+#[macro_export]
+macro_rules! take_solc_installer_lock {
+    ($lock:ident) => {
+        let lock_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".lock");
+        let lock_file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(lock_path)
+            .unwrap();
+        let mut lock = fd_lock::RwLock::new(lock_file);
+        let $lock = lock.write().unwrap();
+    };
 }
 
 /// A list of upstream Solc releases, used to check which version
@@ -96,44 +112,6 @@ pub static RELEASES: Lazy<(svm::Releases, Vec<Version>, bool)> =
         }
     });
 
-/// A `Solc` version is either installed (available locally) or can be downloaded, from the remote
-/// endpoint
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum SolcVersion {
-    Installed(Version),
-    Remote(Version),
-}
-
-impl SolcVersion {
-    /// Whether this version is installed
-    pub fn is_installed(&self) -> bool {
-        matches!(self, SolcVersion::Installed(_))
-    }
-}
-
-impl AsRef<Version> for SolcVersion {
-    fn as_ref(&self) -> &Version {
-        match self {
-            SolcVersion::Installed(v) | SolcVersion::Remote(v) => v,
-        }
-    }
-}
-
-impl From<SolcVersion> for Version {
-    fn from(s: SolcVersion) -> Version {
-        match s {
-            SolcVersion::Installed(v) | SolcVersion::Remote(v) => v,
-        }
-    }
-}
-
-impl fmt::Display for SolcVersion {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_ref())
-    }
-}
-
 /// Abstraction over `solc` command line utility
 ///
 /// Supports sync and async functions.
@@ -147,71 +125,35 @@ impl fmt::Display for SolcVersion {
 pub struct Solc {
     /// Path to the `solc` executable
     pub solc: PathBuf,
-    /// The base path to set when invoking solc, see also <https://docs.soliditylang.org/en/v0.8.11/path-resolution.html#base-path-and-include-paths>
+    /// Compiler version.
+    pub version: Version,
+    /// Value for --base-path arg.
     pub base_path: Option<PathBuf>,
-    /// Additional arguments passed to the `solc` exectuable
-    pub args: Vec<String>,
-}
-
-impl Default for Solc {
-    fn default() -> Self {
-        if let Ok(solc) = std::env::var("SOLC_PATH") {
-            return Solc::new(solc);
-        }
-
-        if let Some(solc) = Solc::svm_global_version()
-            .and_then(|vers| Solc::find_svm_installed_version(vers.to_string()).ok())
-            .flatten()
-        {
-            return solc;
-        }
-
-        Solc::new(SOLC)
-    }
-}
-
-impl fmt::Display for Solc {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.solc.display())?;
-        if !self.args.is_empty() {
-            write!(f, " {}", self.args.join(" "))?;
-        }
-        Ok(())
-    }
+    /// Value for --allow-paths arg.
+    pub allow_paths: BTreeSet<PathBuf>,
+    /// Value for --include-paths arg.
+    pub include_paths: BTreeSet<PathBuf>,
 }
 
 impl Solc {
-    /// A new instance which points to `solc`
-    pub fn new(path: impl Into<PathBuf>) -> Self {
-        Solc { solc: path.into(), base_path: None, args: Vec::new() }
-    }
-
-    /// Sets solc's base path
+    /// A new instance which points to `solc`. Invokes `solc --version` to determine the version.
     ///
-    /// Ref: <https://docs.soliditylang.org/en/v0.8.11/path-resolution.html#base-path-and-include-paths>
-    pub fn with_base_path(mut self, base_path: impl Into<PathBuf>) -> Self {
-        self.base_path = Some(base_path.into());
-        self
+    /// Returns error if `solc` is not found in the system or if the version cannot be retrieved.
+    pub fn new(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
+        let version = Self::version(path)?;
+        Ok(Self::new_with_version(path, version))
     }
 
-    /// Adds an argument to pass to the `solc` command.
-    #[must_use]
-    pub fn arg<T: Into<String>>(mut self, arg: T) -> Self {
-        self.args.push(arg.into());
-        self
-    }
-
-    /// Adds multiple arguments to pass to the `solc`.
-    #[must_use]
-    pub fn args<I, S>(mut self, args: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        for arg in args {
-            self = self.arg(arg);
+    /// A new instance which points to `solc` with the given version
+    pub fn new_with_version(path: impl Into<PathBuf>, version: Version) -> Self {
+        Solc {
+            solc: path.into(),
+            version,
+            base_path: None,
+            allow_paths: Default::default(),
+            include_paths: Default::default(),
         }
-        self
     }
 
     /// Returns the directory in which [svm](https://github.com/roynalnaruto/svm-rs) stores all versions
@@ -241,169 +183,16 @@ impl Solc {
     }
 
     /// Returns the list of all solc instances installed at `SVM_HOME`
-    pub fn installed_versions() -> Vec<SolcVersion> {
+    pub fn installed_versions() -> Vec<Version> {
         Self::svm_home()
-            .map(|home| {
-                utils::installed_versions(home)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(SolcVersion::Installed)
-                    .collect()
-            })
+            .map(|home| utils::installed_versions(home).unwrap_or_default())
             .unwrap_or_default()
     }
 
-    /// Returns the list of all versions that are available to download and marking those which are
-    /// already installed.
+    /// Returns the list of all versions that are available to download
     #[cfg(feature = "svm-solc")]
-    pub fn all_versions() -> Vec<SolcVersion> {
-        let mut all_versions = Self::installed_versions();
-        let mut uniques = all_versions
-            .iter()
-            .map(|v| {
-                let v = v.as_ref();
-                (v.major, v.minor, v.patch)
-            })
-            .collect::<std::collections::HashSet<_>>();
-        all_versions.extend(
-            RELEASES
-                .1
-                .clone()
-                .into_iter()
-                .filter(|v| uniques.insert((v.major, v.minor, v.patch)))
-                .map(SolcVersion::Remote),
-        );
-        all_versions.sort_unstable();
-        all_versions
-    }
-
-    /// Returns the path for a [svm](https://github.com/roynalnaruto/svm-rs) installed version.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use foundry_compilers::Solc;
-    ///
-    /// let solc = Solc::find_svm_installed_version("0.8.9")?;
-    /// assert_eq!(solc, Some(Solc::new("~/.svm/0.8.9/solc-0.8.9")));
-    /// # Ok::<_, Box<dyn std::error::Error>>(())
-    /// ```
-    pub fn find_svm_installed_version(version: impl AsRef<str>) -> Result<Option<Self>> {
-        let version = version.as_ref();
-        let solc = Self::svm_home()
-            .ok_or_else(|| SolcError::msg("svm home dir not found"))?
-            .join(version)
-            .join(format!("solc-{version}"));
-
-        if !solc.is_file() {
-            return Ok(None);
-        }
-        Ok(Some(Solc::new(solc)))
-    }
-
-    /// Returns the path for a [svm](https://github.com/roynalnaruto/svm-rs) installed version.
-    ///
-    /// If the version is not installed yet, it will install it.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use foundry_compilers::Solc;
-    ///
-    /// let solc = Solc::find_or_install_svm_version("0.8.9")?;
-    /// assert_eq!(solc, Solc::new("~/.svm/0.8.9/solc-0.8.9"));
-    /// # Ok::<_, Box<dyn std::error::Error>>(())
-    /// ```
-    #[cfg(feature = "svm-solc")]
-    pub fn find_or_install_svm_version(version: impl AsRef<str>) -> Result<Self> {
-        let version = version.as_ref();
-        if let Some(solc) = Solc::find_svm_installed_version(version)? {
-            Ok(solc)
-        } else {
-            Ok(Solc::blocking_install(&version.parse::<Version>()?)?)
-        }
-    }
-
-    /// Assuming the `versions` array is sorted, it returns the first element which satisfies
-    /// the provided [`VersionReq`]
-    pub fn find_matching_installation(
-        versions: &[Version],
-        required_version: &VersionReq,
-    ) -> Option<Version> {
-        // iterate in reverse to find the last match
-        versions.iter().rev().find(|version| required_version.matches(version)).cloned()
-    }
-
-    /// Given a Solidity source, it detects the latest compiler version which can be used
-    /// to build it, and returns it.
-    ///
-    /// If the required compiler version is not installed, it also proceeds to install it.
-    #[cfg(feature = "svm-solc")]
-    pub fn detect_version(source: &Source) -> Result<Version> {
-        // detects the required solc version
-        let sol_version = Self::source_version_req(source)?;
-        Self::ensure_installed(&sol_version)
-    }
-
-    /// Given a Solidity version requirement, it detects the latest compiler version which can be
-    /// used to build it, and returns it.
-    ///
-    /// If the required compiler version is not installed, it also proceeds to install it.
-    #[cfg(feature = "svm-solc")]
-    pub fn ensure_installed(sol_version: &VersionReq) -> Result<Version> {
-        #[cfg(test)]
-        let _lock = take_solc_installer_lock();
-
-        // load the local / remote versions
-        let versions = utils::installed_versions(svm::data_dir()).unwrap_or_default();
-
-        let local_versions = Self::find_matching_installation(&versions, sol_version);
-        let remote_versions = Self::find_matching_installation(&RELEASES.1, sol_version);
-        // if there's a better upstream version than the one we have, install it
-        Ok(match (local_versions, remote_versions) {
-            (Some(local), None) => local,
-            (Some(local), Some(remote)) => {
-                if remote > local {
-                    Self::blocking_install(&remote)?;
-                    remote
-                } else {
-                    local
-                }
-            }
-            (None, Some(version)) => {
-                Self::blocking_install(&version)?;
-                version
-            }
-            // do nothing otherwise
-            _ => return Err(SolcError::VersionNotFound),
-        })
-    }
-
-    /// Parses the given source looking for the `pragma` definition and
-    /// returns the corresponding SemVer version requirement.
-    pub fn source_version_req(source: &Source) -> Result<VersionReq> {
-        let version =
-            utils::find_version_pragma(&source.content).ok_or(SolcError::PragmaNotFound)?;
-        Self::version_req(version.as_str())
-    }
-
-    /// Returns the corresponding SemVer version requirement for the solidity version.
-    ///
-    /// Note: This is a workaround for the fact that `VersionReq::parse` does not support whitespace
-    /// separators and requires comma separated operators. See [VersionReq].
-    pub fn version_req(version: &str) -> Result<VersionReq> {
-        let version = version.replace(' ', ",");
-
-        // Somehow, Solidity semver without an operator is considered to be "exact",
-        // but lack of operator automatically marks the operator as Caret, so we need
-        // to manually patch it? :shrug:
-        let exact = !matches!(&version[0..1], "*" | "^" | "=" | ">" | "<" | "~");
-        let mut version = VersionReq::parse(&version)?;
-        if exact {
-            version.comparators[0].op = semver::Op::Exact;
-        }
-
-        Ok(version)
+    pub fn released_versions() -> Vec<Version> {
+        RELEASES.1.clone().into_iter().collect()
     }
 
     /// Installs the provided version of Solc in the machine under the svm dir and returns the
@@ -426,7 +215,7 @@ impl Solc {
         match svm::install(version).await {
             Ok(path) => {
                 crate::report::solc_installation_success(version);
-                Ok(Solc::new(path))
+                Ok(Solc::new_with_version(path, version.clone()))
             }
             Err(err) => {
                 crate::report::solc_installation_error(version, &err.to_string());
@@ -448,7 +237,7 @@ impl Solc {
         match RuntimeOrHandle::new().block_on(svm::install(version)) {
             Ok(path) => {
                 crate::report::solc_installation_success(version);
-                Ok(Solc::new(path))
+                Ok(Solc::new_with_version(path, version.clone()))
             }
             Err(err) => {
                 crate::report::solc_installation_error(version, &err.to_string());
@@ -461,7 +250,7 @@ impl Solc {
     /// checksum from the build information published by [binaries.soliditylang.org](https://binaries.soliditylang.org/)
     #[cfg(feature = "svm-solc")]
     pub fn verify_checksum(&self) -> Result<()> {
-        let version = self.version_short()?;
+        let version = self.version_short();
         let mut version_path = svm::version_path(version.to_string().as_str());
         version_path.push(format!("solc-{}", version.to_string().as_str()));
         trace!(target:"solc", "reading solc binary for checksum {:?}", version_path);
@@ -509,7 +298,11 @@ impl Solc {
     pub fn compile_source(&self, path: impl AsRef<Path>) -> Result<CompilerOutput> {
         let path = path.as_ref();
         let mut res: CompilerOutput = Default::default();
-        for input in CompilerInput::new(path)? {
+        for input in SolcInput::build(
+            Source::read_all_from(path, SOLC_EXTENSIONS)?,
+            Default::default(),
+            &self.version,
+        ) {
             let output = self.compile(&input)?;
             res.merge(output)
         }
@@ -523,18 +316,9 @@ impl Solc {
     /// in the provided `CompilerInput`.
     ///
     /// # Examples
-    ///
-    /// ```no_run
-    /// use foundry_compilers::{CompilerInput, Solc};
-    ///
-    /// let solc = Solc::default();
-    /// let input = CompilerInput::new("./contracts")?[0].clone();
-    /// let output = solc.compile_exact(&input)?;
-    /// # Ok::<_, Box<dyn std::error::Error>>(())
-    /// ```
-    pub fn compile_exact(&self, input: &CompilerInput) -> Result<CompilerOutput> {
+    pub fn compile_exact(&self, input: &SolcInput) -> Result<CompilerOutput> {
         let mut out = self.compile(input)?;
-        out.retain_files(input.sources.keys().filter_map(|p| p.to_str()));
+        out.retain_files(input.sources.keys().map(|p| p.as_path()));
         Ok(out)
     }
 
@@ -567,13 +351,7 @@ impl Solc {
     /// Compiles with `--standard-json` and returns the raw `stdout` output.
     #[instrument(name = "compile", level = "debug", skip_all)]
     pub fn compile_output<T: Serialize>(&self, input: &T) -> Result<Vec<u8>> {
-        let mut cmd = Command::new(&self.solc);
-        if let Some(base_path) = &self.base_path {
-            cmd.current_dir(base_path);
-            cmd.arg("--base-path").arg(base_path);
-        }
-        cmd.args(&self.args).arg("--standard-json");
-        cmd.stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
+        let mut cmd = self.configure_cmd();
 
         trace!(input=%serde_json::to_string(input).unwrap_or_else(|e| e.to_string()));
         debug!(?cmd, "compiling");
@@ -593,18 +371,18 @@ impl Solc {
 
     /// Invokes `solc --version` and parses the output as a SemVer [`Version`], stripping the
     /// pre-release and build metadata.
-    pub fn version_short(&self) -> Result<Version> {
-        let version = self.version()?;
-        Ok(Version::new(version.major, version.minor, version.patch))
+    pub fn version_short(&self) -> Version {
+        Version::new(self.version.major, self.version.minor, self.version.patch)
     }
 
     /// Invokes `solc --version` and parses the output as a SemVer [`Version`].
     #[instrument(level = "debug", skip_all)]
-    pub fn version(&self) -> Result<Version> {
-        let mut cmd = Command::new(&self.solc);
+    pub fn version(solc: impl Into<PathBuf>) -> Result<Version> {
+        let solc = solc.into();
+        let mut cmd = Command::new(solc.clone());
         cmd.arg("--version").stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
         debug!(?cmd, "getting Solc version");
-        let output = cmd.output().map_err(self.map_io_err())?;
+        let output = cmd.output().map_err(|e| SolcError::io(e, solc))?;
         trace!(?output);
         let version = version_from_output(output)?;
         debug!(%version);
@@ -614,14 +392,53 @@ impl Solc {
     fn map_io_err(&self) -> impl FnOnce(std::io::Error) -> SolcError + '_ {
         move |err| SolcError::io(err, &self.solc)
     }
+
+    /// Configures [Command] object depeending on settings and solc version used.
+    /// Some features are only supported by newer versions of solc, so we have to disable them for
+    /// older ones.
+    pub fn configure_cmd(&self) -> Command {
+        let mut cmd = Command::new(&self.solc);
+        cmd.stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
+
+        if !self.allow_paths.is_empty() {
+            cmd.arg("--allow-paths");
+            cmd.arg(self.allow_paths.iter().map(|p| p.display()).join(","));
+        }
+        if let Some(base_path) = &self.base_path {
+            if SUPPORTS_BASE_PATH.matches(&self.version) {
+                if SUPPORTS_INCLUDE_PATH.matches(&self.version) {
+                    // `--base-path` and `--include-path` conflict if set to the same path, so
+                    // as a precaution, we ensure here that the `--base-path` is not also used
+                    // for `--include-path`
+                    for path in
+                        self.include_paths.iter().filter(|p| p.as_path() != base_path.as_path())
+                    {
+                        cmd.arg("--include-path").arg(path);
+                    }
+                }
+
+                cmd.arg("--base-path").arg(base_path);
+            }
+
+            cmd.current_dir(base_path);
+        }
+
+        cmd.arg("--standard-json");
+
+        cmd
+    }
 }
 
 #[cfg(feature = "async")]
 impl Solc {
     /// Convenience function for compiling all sources under the given path
     pub async fn async_compile_source(&self, path: impl AsRef<Path>) -> Result<CompilerOutput> {
-        self.async_compile(&CompilerInput::with_sources(Source::async_read_all_from(path).await?))
-            .await
+        self.async_compile(&SolcInput::build(
+            Source::async_read_all_from(path, SOLC_EXTENSIONS).await?,
+            Default::default(),
+            &self.version,
+        ))
+        .await
     }
 
     /// Run `solc --stand-json` and return the `solc`'s output as
@@ -641,31 +458,25 @@ impl Solc {
     }
 
     pub async fn async_compile_output<T: Serialize>(&self, input: &T) -> Result<Vec<u8>> {
-        use tokio::io::AsyncWriteExt;
-        let content = serde_json::to_vec(input)?;
-        let mut cmd = tokio::process::Command::new(&self.solc);
-        if let Some(ref base_path) = self.base_path {
-            cmd.current_dir(base_path);
-        }
-        let mut child = cmd
-            .args(&self.args)
-            .arg("--standard-json")
-            .stdin(Stdio::piped())
-            .stderr(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .map_err(self.map_io_err())?;
+        use tokio::{io::AsyncWriteExt, process::Command};
+
+        let mut cmd: Command = self.configure_cmd().into();
+        let mut child = cmd.spawn().map_err(self.map_io_err())?;
         let stdin = child.stdin.as_mut().unwrap();
+
+        let content = serde_json::to_vec(input)?;
+
         stdin.write_all(&content).await.map_err(self.map_io_err())?;
         stdin.flush().await.map_err(self.map_io_err())?;
+
         compile_output(child.wait_with_output().await.map_err(self.map_io_err())?)
     }
 
-    pub async fn async_version(&self) -> Result<Version> {
-        let mut cmd = tokio::process::Command::new(&self.solc);
+    pub async fn async_version(solc: impl AsRef<Path>) -> Result<Version> {
+        let mut cmd = tokio::process::Command::new(solc.as_ref());
         cmd.arg("--version").stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
         debug!(?cmd, "getting version");
-        let output = cmd.output().await.map_err(self.map_io_err())?;
+        let output = cmd.output().await.map_err(|e| SolcError::io(e, solc.as_ref()))?;
         let version = version_from_output(output)?;
         debug!(%version);
         Ok(version)
@@ -696,7 +507,7 @@ impl Solc {
     /// ```
     pub async fn compile_many<I>(jobs: I, n: usize) -> crate::many::CompiledMany
     where
-        I: IntoIterator<Item = (Solc, CompilerInput)>,
+        I: IntoIterator<Item = (Solc, SolcInput)>,
     {
         use futures_util::stream::StreamExt;
 
@@ -741,31 +552,30 @@ impl AsRef<Path> for Solc {
     }
 }
 
-impl<T: Into<PathBuf>> From<T> for Solc {
-    fn from(solc: T) -> Self {
-        Solc::new(solc.into())
-    }
-}
-
 #[cfg(test)]
+#[cfg(feature = "svm-solc")]
 mod tests {
     use super::*;
-    use crate::Artifact;
+    use crate::{
+        compilers::{solc::SolcVersionManager, CompilerVersionManager, VersionManagerError},
+        resolver::parse::SolData,
+        Artifact,
+    };
 
     #[test]
     fn test_version_parse() {
-        let req = Solc::version_req(">=0.6.2 <0.8.21").unwrap();
+        let req = SolData::parse_version_req(">=0.6.2 <0.8.21").unwrap();
         let semver_req: VersionReq = ">=0.6.2,<0.8.21".parse().unwrap();
         assert_eq!(req, semver_req);
     }
 
     fn solc() -> Solc {
-        Solc::default()
+        SolcVersionManager::default().get_or_install(&Version::new(0, 8, 18)).unwrap()
     }
 
     #[test]
     fn solc_version_works() {
-        solc().version().unwrap();
+        Solc::version(solc().solc).unwrap();
     }
 
     #[test]
@@ -774,15 +584,15 @@ mod tests {
     }
 
     #[cfg(feature = "async")]
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn async_solc_version_works() {
-        let _version = solc().async_version().await.unwrap();
+        Solc::async_version(solc().solc).await.unwrap();
     }
 
     #[test]
     fn solc_compile_works() {
         let input = include_str!("../../test-data/in/compiler-in-1.json");
-        let input: CompilerInput = serde_json::from_str(input).unwrap();
+        let input: SolcInput = serde_json::from_str(input).unwrap();
         let out = solc().compile(&input).unwrap();
         let other = solc().compile(&serde_json::json!(input)).unwrap();
         assert_eq!(out, other);
@@ -791,7 +601,7 @@ mod tests {
     #[test]
     fn solc_metadata_works() {
         let input = include_str!("../../test-data/in/compiler-in-1.json");
-        let mut input: CompilerInput = serde_json::from_str(input).unwrap();
+        let mut input: SolcInput = serde_json::from_str(input).unwrap();
         input.settings.push_output_selection("metadata");
         let out = solc().compile(&input).unwrap();
         for (_, c) in out.split().1.contracts_iter() {
@@ -801,7 +611,7 @@ mod tests {
 
     #[test]
     fn can_compile_with_remapped_links() {
-        let input: CompilerInput =
+        let input: SolcInput =
             serde_json::from_str(include_str!("../../test-data/library-remapping-in.json"))
                 .unwrap();
         let out = solc().compile(&input).unwrap();
@@ -813,7 +623,7 @@ mod tests {
 
     #[test]
     fn can_compile_with_remapped_links_temp_dir() {
-        let input: CompilerInput =
+        let input: SolcInput =
             serde_json::from_str(include_str!("../../test-data/library-remapping-in-2.json"))
                 .unwrap();
         let out = solc().compile(&input).unwrap();
@@ -824,20 +634,20 @@ mod tests {
     }
 
     #[cfg(feature = "async")]
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn async_solc_compile_works() {
         let input = include_str!("../../test-data/in/compiler-in-1.json");
-        let input: CompilerInput = serde_json::from_str(input).unwrap();
+        let input: SolcInput = serde_json::from_str(input).unwrap();
         let out = solc().async_compile(&input).await.unwrap();
         let other = solc().async_compile(&serde_json::json!(input)).await.unwrap();
         assert_eq!(out, other);
     }
 
     #[cfg(feature = "async")]
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn async_solc_compile_works2() {
         let input = include_str!("../../test-data/in/compiler-in-2.json");
-        let input: CompilerInput = serde_json::from_str(input).unwrap();
+        let input: SolcInput = serde_json::from_str(input).unwrap();
         let out = solc().async_compile(&input).await.unwrap();
         let other = solc().async_compile(&serde_json::json!(input)).await.unwrap();
         assert_eq!(out, other);
@@ -848,48 +658,24 @@ mod tests {
     #[test]
     fn test_version_req() {
         let versions = ["=0.1.2", "^0.5.6", ">=0.7.1", ">0.8.0"];
-        let sources = versions.iter().map(|version| source(version));
 
-        sources.zip(versions).for_each(|(source, version)| {
-            let version_req = Solc::source_version_req(&source).unwrap();
+        versions.iter().for_each(|version| {
+            let version_req = SolData::parse_version_req(version).unwrap();
             assert_eq!(version_req, VersionReq::from_str(version).unwrap());
         });
 
         // Solidity defines version ranges with a space, whereas the semver package
         // requires them to be separated with a comma
         let version_range = ">=0.8.0 <0.9.0";
-        let source = source(version_range);
-        let version_req = Solc::source_version_req(&source).unwrap();
+        let version_req = SolData::parse_version_req(version_range).unwrap();
         assert_eq!(version_req, VersionReq::from_str(">=0.8.0,<0.9.0").unwrap());
-    }
-
-    #[test]
-    #[cfg(feature = "svm-solc")]
-    fn test_detect_version() {
-        for (pragma, expected) in [
-            // pinned
-            ("=0.4.14", "0.4.14"),
-            // pinned too
-            ("0.4.14", "0.4.14"),
-            // The latest patch is 0.4.26
-            ("^0.4.14", "0.4.26"),
-            // range
-            (">=0.4.0 <0.5.0", "0.4.26"),
-            // latest - this has to be updated every time a new version is released.
-            // Requires the SVM version list to be updated as well.
-            (">=0.5.0", "0.8.25"),
-        ] {
-            let source = source(pragma);
-            let res = Solc::detect_version(&source).unwrap();
-            assert_eq!(res, Version::from_str(expected).unwrap());
-        }
     }
 
     #[test]
     #[cfg(feature = "full")]
     fn test_find_installed_version_path() {
         // This test does not take the lock by default, so we need to manually add it here.
-        let _lock = take_solc_installer_lock();
+        take_solc_installer_lock!(_lock);
         let ver = "0.8.6";
         let version = Version::from_str(ver).unwrap();
         if utils::installed_versions(svm::data_dir())
@@ -898,7 +684,8 @@ mod tests {
         {
             Solc::blocking_install(&version).unwrap();
         }
-        let res = Solc::find_svm_installed_version(version.to_string()).unwrap().unwrap();
+        drop(_lock);
+        let res = SolcVersionManager::default().get_installed(&version).unwrap();
         let expected = svm::data_dir().join(ver).join(format!("solc-{ver}"));
         assert_eq!(res.solc, expected);
     }
@@ -916,38 +703,7 @@ mod tests {
     fn does_not_find_not_installed_version() {
         let ver = "1.1.1";
         let version = Version::from_str(ver).unwrap();
-        let res = Solc::find_svm_installed_version(version.to_string()).unwrap();
-        assert!(res.is_none());
-    }
-
-    #[test]
-    fn test_find_latest_matching_installation() {
-        let versions = ["0.4.24", "0.5.1", "0.5.2"]
-            .iter()
-            .map(|version| Version::from_str(version).unwrap())
-            .collect::<Vec<_>>();
-
-        let required = VersionReq::from_str(">=0.4.24").unwrap();
-
-        let got = Solc::find_matching_installation(&versions, &required).unwrap();
-        assert_eq!(got, versions[2]);
-    }
-
-    #[test]
-    fn test_no_matching_installation() {
-        let versions = ["0.4.24", "0.5.1", "0.5.2"]
-            .iter()
-            .map(|version| Version::from_str(version).unwrap())
-            .collect::<Vec<_>>();
-
-        let required = VersionReq::from_str(">=0.6.0").unwrap();
-        let got = Solc::find_matching_installation(&versions, &required);
-        assert!(got.is_none());
-    }
-
-    ///// helpers
-
-    fn source(version: &str) -> Source {
-        Source::new(format!("pragma solidity {version};\n"))
+        let res = SolcVersionManager::default().get_installed(&version);
+        assert!(matches!(res, Err(VersionManagerError::VersionNotInstalled(_))));
     }
 }

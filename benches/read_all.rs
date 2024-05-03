@@ -31,7 +31,7 @@ fn read_all_benchmark(c: &mut Criterion) {
 
 fn read_solmate(c: &mut Criterion) {
     let prj = TempProject::checkout("transmissions11/solmate").unwrap();
-    let inputs = foundry_compilers::utils::source_files(prj.sources_path());
+    let inputs = foundry_compilers::utils::sol_source_files(prj.sources_path());
 
     let mut group = c.benchmark_group("read solmate");
     group.bench_function("sequential", |b| {
