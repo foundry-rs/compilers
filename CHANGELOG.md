@@ -5,12 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0](https://github.com/foundry-rs/compilers/releases/tag/v0.4.0) - 2024-05-03
+
+### Features
+
+- Compiler abstraction ([#115](https://github.com/foundry-rs/compilers/issues/115))
+
 ## [0.3.20](https://github.com/foundry-rs/compilers/releases/tag/v0.3.20) - 2024-04-30
 
 ### Bug Fixes
 
 - Short-circuit symlink cycle ([#117](https://github.com/foundry-rs/compilers/issues/117))
 - Add checks for != root folder ([#116](https://github.com/foundry-rs/compilers/issues/116))
+
+### Miscellaneous Tasks
+
+- Release 0.3.20
 
 ## [0.3.19](https://github.com/foundry-rs/compilers/releases/tag/v0.3.19) - 2024-04-22
 
