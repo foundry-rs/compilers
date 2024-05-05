@@ -54,8 +54,6 @@ impl CompilerVersionManager for SolcVersionManager {
     }
 
     fn install(&self, version: &Version) -> Result<Self::Compiler, VersionManagerError> {
-        use crate::utils::RuntimeOrHandle;
-
         #[cfg(test)]
         crate::take_solc_installer_lock!(_lock);
 
@@ -65,20 +63,7 @@ impl CompilerVersionManager for SolcVersionManager {
             version.clone()
         };
 
-        trace!("blocking installing solc version \"{}\"", version);
-        crate::report::solc_installation_start(&version);
-        // The async version `svm::install` is used instead of `svm::blocking_intsall`
-        // because the underlying `reqwest::blocking::Client` does not behave well
-        // inside of a Tokio runtime. See: https://github.com/seanmonstar/reqwest/issues/1017
-        match RuntimeOrHandle::new().block_on(svm::install(&version)) {
-            Ok(path) => {
-                crate::report::solc_installation_success(&version);
-                Ok(Solc::new_with_version(path, version))
-            }
-            Err(err) => {
-                crate::report::solc_installation_error(&version, &err.to_string());
-                Err(VersionManagerError::IntallationFailed(Box::new(err)))
-            }
-        }
+        Solc::blocking_install(&version)
+            .map_err(|e| VersionManagerError::IntallationFailed(e.into()))
     }
 }

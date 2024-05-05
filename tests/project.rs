@@ -20,8 +20,7 @@ use foundry_compilers::{
     project_util::*,
     remappings::Remapping,
     resolver::parse::SolData,
-    utils::{self, RuntimeOrHandle},
-    Artifact, CompilerConfig, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
+    utils, Artifact, CompilerConfig, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
     ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, SolcInput, SolcSparseFileFilter,
     TestFileFilter,
 };
@@ -3805,8 +3804,8 @@ fn test_deterministic_metadata() {
     assert_eq!(bytecode, expected_bytecode);
 }
 
-#[test]
-fn can_compile_vyper_with_cache() {
+#[tokio::test]
+async fn can_compile_vyper_with_cache() {
     let tmp_dir = tempfile::tempdir().unwrap();
     let root = tmp_dir.path();
     let cache = root.join("cache").join(SOLIDITY_FILES_CACHE_FILENAME);
@@ -3823,7 +3822,7 @@ fn can_compile_vyper_with_cache() {
         .build::<Vyper>()
         .unwrap();
 
-    let compiler = RuntimeOrHandle::new().block_on(install_vyper());
+    let compiler = install_vyper().await;
 
     let settings = VyperSettings {
         output_selection: OutputSelection::default_output_selection(),

@@ -227,14 +227,14 @@ impl Solc {
     /// Blocking version of `Self::install`
     #[cfg(feature = "svm-solc")]
     pub fn blocking_install(version: &Version) -> std::result::Result<Self, svm::SvmError> {
-        use crate::utils::RuntimeOrHandle;
-
-        trace!("blocking installing solc version \"{}\"", version);
+        trace!(%version, "blocking installing solc");
         crate::report::solc_installation_start(version);
         // The async version `svm::install` is used instead of `svm::blocking_intsall`
         // because the underlying `reqwest::blocking::Client` does not behave well
         // inside of a Tokio runtime. See: https://github.com/seanmonstar/reqwest/issues/1017
-        match RuntimeOrHandle::new().block_on(svm::install(version)) {
+        match tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(svm::install(version))
+        }) {
             Ok(path) => {
                 crate::report::solc_installation_success(version);
                 Ok(Solc::new_with_version(path, version.clone()))
