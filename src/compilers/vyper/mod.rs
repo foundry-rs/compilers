@@ -150,10 +150,8 @@ impl Compiler for Vyper {
     type ParsedSource = VyperParsedSource;
     type Input = VyperInput;
 
-    fn compile(&self, input: Self::Input) -> Result<(Self::Input, VyperCompilerOutput)> {
-        let output = self.compile(&input)?;
-
-        Ok((input, output))
+    fn compile(&self, input: &Self::Input) -> Result<VyperCompilerOutput> {
+        self.compile(input)
     }
 
     fn version(&self) -> &Version {

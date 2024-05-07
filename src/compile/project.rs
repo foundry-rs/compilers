@@ -558,7 +558,8 @@ fn compile_sequential<C: Compiler>(
                 input.sources().keys()
             );
 
-            let input = input.with_remappings(paths.remappings.clone());
+            let mut input = input.with_remappings(paths.remappings.clone());
+            input.strip_prefix(paths.root.as_path());
 
             let start = Instant::now();
             report::compiler_spawn(
@@ -566,7 +567,7 @@ fn compile_sequential<C: Compiler>(
                 compiler.version(),
                 actually_dirty.as_slice(),
             );
-            let (input, output) = compiler.compile(input)?;
+            let mut output = compiler.compile(&input)?;
             report::compiler_success(&input.compiler_name(), compiler.version(), &start.elapsed());
             // trace!("compiled input, output has error: {}", output.has_error());
             trace!("received compiler output: {:?}", output.contracts.keys());
@@ -576,6 +577,8 @@ fn compile_sequential<C: Compiler>(
                 let build_info = RawBuildInfo::new(&input, &output, &version)?;
                 aggregated.build_infos.insert(version.clone(), build_info);
             }
+
+            output.join_all(paths.root.as_path());
 
             aggregated.extend(version.clone(), output);
         }
@@ -645,7 +648,8 @@ fn compile_parallel<C: Compiler>(
                 input.sources().keys()
             );
 
-            let input = input.with_remappings(paths.remappings.clone());
+            let mut input = input.with_remappings(paths.remappings.clone());
+            input.strip_prefix(paths.root.as_path());
 
             jobs.push((compiler.clone(), version.clone(), input, actually_dirty));
         }
@@ -677,7 +681,7 @@ fn compile_parallel<C: Compiler>(
                     compiler.version(),
                     actually_dirty.as_slice(),
                 );
-                compiler.compile(input).map(move |(input, output)| {
+                compiler.compile(&input).map(move |output| {
                     report::compiler_success(
                         &input.compiler_name(),
                         compiler.version(),
@@ -690,12 +694,13 @@ fn compile_parallel<C: Compiler>(
     })?;
 
     let mut aggregated = AggregatedCompilerOutput::default();
-    for (version, input, output) in outputs {
+    for (version, input, mut output) in outputs {
         // if configured also create the build info
         if create_build_info {
             let build_info = RawBuildInfo::new(&input, &output, &version)?;
             aggregated.build_infos.insert(version.clone(), build_info);
         }
+        output.join_all(paths.root.as_path());
         aggregated.extend(version, output);
     }
 

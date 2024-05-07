@@ -1648,18 +1648,6 @@ impl CompilerOutput {
         self.contracts.extend(other.contracts);
         self.sources.extend(other.sources);
     }
-
-    pub fn join_all(&mut self, root: impl AsRef<Path>) {
-        let root = root.as_ref();
-        self.contracts = std::mem::take(&mut self.contracts)
-            .into_iter()
-            .map(|(path, contracts)| (root.join(path), contracts))
-            .collect();
-        self.sources = std::mem::take(&mut self.sources)
-            .into_iter()
-            .map(|(path, source)| (root.join(path), source))
-            .collect();
-    }
 }
 
 /// A wrapper helper type for the `Contracts` type alias
