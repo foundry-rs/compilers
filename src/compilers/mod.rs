@@ -52,6 +52,9 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized {
 
     /// Returns compiler name used by reporters to display output during compilation.
     fn compiler_name(&self) -> String;
+
+    /// Strips given prefix from all paths.
+    fn strip_prefix(&mut self, base: &Path);
 }
 
 /// Parser of the source files which is used to identify imports and version requirements of the
@@ -105,6 +108,18 @@ impl<E> CompilerOutput<E> {
         self.contracts.extend(other.contracts);
         self.sources.extend(other.sources);
     }
+
+    pub fn join_all(&mut self, root: impl AsRef<Path>) {
+        let root = root.as_ref();
+        self.contracts = std::mem::take(&mut self.contracts)
+            .into_iter()
+            .map(|(path, contracts)| (root.join(path), contracts))
+            .collect();
+        self.sources = std::mem::take(&mut self.sources)
+            .into_iter()
+            .map(|(path, source)| (root.join(path), source))
+            .collect();
+    }
 }
 
 impl<E> Default for CompilerOutput<E> {
@@ -132,10 +147,7 @@ pub trait Compiler: Send + Sync + Clone {
     /// Main entrypoint for the compiler. Compiles given input into [CompilerOutput]. Takes
     /// ownership over the input and returns back version with potential modifications made to it.
     /// Returned input is always the one which was seen by the binary.
-    fn compile(
-        &self,
-        input: Self::Input,
-    ) -> Result<(Self::Input, CompilerOutput<Self::CompilationError>)>;
+    fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>>;
 
     /// Returns the version of the compiler.
     fn version(&self) -> &Version;

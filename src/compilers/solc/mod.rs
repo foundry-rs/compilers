@@ -20,7 +20,7 @@ use crate::{
 use semver::Version;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 impl Compiler for Solc {
@@ -31,20 +31,8 @@ impl Compiler for Solc {
     type ParsedSource = SolData;
     type Settings = SolcSettings;
 
-    fn compile(
-        &self,
-        mut input: Self::Input,
-    ) -> Result<(Self::Input, CompilerOutput<Self::CompilationError>)> {
-        if let Some(base_path) = self.base_path.clone() {
-            // Strip prefix from all sources to ensure deterministic metadata.
-            input.strip_prefix(base_path);
-        }
-
-        let mut solc_output = self.compile(&input)?;
-
-        if let Some(ref base_path) = self.base_path {
-            solc_output.join_all(base_path);
-        }
+    fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>> {
+        let solc_output = self.compile(&input)?;
 
         let output = CompilerOutput {
             errors: solc_output.errors,
@@ -52,7 +40,7 @@ impl Compiler for Solc {
             sources: solc_output.sources,
         };
 
-        Ok((input, output))
+        Ok(output)
     }
 
     fn version(&self) -> &Version {
@@ -122,6 +110,10 @@ impl CompilerInput for SolcInput {
 
     fn compiler_name(&self) -> String {
         "Solc".to_string()
+    }
+
+    fn strip_prefix(&mut self, base: &Path) {
+        self.strip_prefix(base)
     }
 }
 

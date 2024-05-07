@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use super::settings::VyperSettings;
 use crate::{artifacts::Sources, compilers::CompilerInput};
 use semver::Version;
@@ -23,5 +25,12 @@ impl CompilerInput for VyperInput {
 
     fn compiler_name(&self) -> String {
         "Vyper".to_string()
+    }
+
+    fn strip_prefix(&mut self, base: &Path) {
+        self.sources = std::mem::take(&mut self.sources)
+            .into_iter()
+            .map(|(path, s)| (path.strip_prefix(base).map(Into::into).unwrap_or(path), s))
+            .collect();
     }
 }
