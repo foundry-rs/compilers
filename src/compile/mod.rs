@@ -2,6 +2,7 @@ use crate::{
     artifacts::Source,
     compilers::CompilerInput,
     error::{Result, SolcError},
+    resolver::parse::SolData,
     utils, CompilerOutput, SolcInput,
 };
 use itertools::Itertools;
@@ -156,6 +157,93 @@ impl Solc {
         }
     }
 
+    /// Parses the given source looking for the `pragma` definition and
+    /// returns the corresponding SemVer version requirement.
+    pub fn source_version_req(source: &Source) -> Result<VersionReq> {
+        let version =
+            utils::find_version_pragma(&source.content).ok_or(SolcError::PragmaNotFound)?;
+        Ok(SolData::parse_version_req(version.as_str())?)
+    }
+
+    /// Given a Solidity source, it detects the latest compiler version which can be used
+    /// to build it, and returns it.
+    ///
+    /// If the required compiler version is not installed, it also proceeds to install it.
+    #[cfg(feature = "svm-solc")]
+    pub fn detect_version(source: &Source) -> Result<Version> {
+        // detects the required solc version
+        let sol_version = Self::source_version_req(source)?;
+        Self::ensure_installed(&sol_version)
+    }
+
+    /// Given a Solidity version requirement, it detects the latest compiler version which can be
+    /// used to build it, and returns it.
+    ///
+    /// If the required compiler version is not installed, it also proceeds to install it.
+    #[cfg(feature = "svm-solc")]
+    pub fn ensure_installed(sol_version: &VersionReq) -> Result<Version> {
+        #[cfg(test)]
+        take_solc_installer_lock!(_lock);
+
+        // load the local / remote versions
+        let versions = Self::installed_versions();
+
+        let local_versions = Self::find_matching_installation(&versions, sol_version);
+        let remote_versions = Self::find_matching_installation(&RELEASES.1, sol_version);
+
+        // if there's a better upstream version than the one we have, install it
+        Ok(match (local_versions, remote_versions) {
+            (Some(local), None) => local,
+            (Some(local), Some(remote)) => {
+                if remote > local {
+                    Self::blocking_install(&remote)?;
+                    remote
+                } else {
+                    local
+                }
+            }
+            (None, Some(version)) => {
+                Self::blocking_install(&version)?;
+                version
+            }
+            // do nothing otherwise
+            _ => return Err(SolcError::VersionNotFound),
+        })
+    }
+
+    /// Assuming the `versions` array is sorted, it returns the first element which satisfies
+    /// the provided [`VersionReq`]
+    pub fn find_matching_installation(
+        versions: &[Version],
+        required_version: &VersionReq,
+    ) -> Option<Version> {
+        // iterate in reverse to find the last match
+        versions.iter().rev().find(|version| required_version.matches(version)).cloned()
+    }
+
+    /// Returns the path for a [svm](https://github.com/roynalnaruto/svm-rs) installed version.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use foundry_compilers::Solc;
+    ///
+    /// let solc = Solc::find_svm_installed_version("0.8.9")?;
+    /// assert_eq!(solc, Some(Solc::new("~/.svm/0.8.9/solc-0.8.9")));
+    /// ```
+    pub fn find_svm_installed_version(version: impl AsRef<str>) -> Result<Option<Self>> {
+        let version = version.as_ref();
+        let solc = Self::svm_home()
+            .ok_or_else(|| SolcError::msg("svm home dir not found"))?
+            .join(version)
+            .join(format!("solc-{version}"));
+
+        if !solc.is_file() {
+            return Ok(None);
+        }
+        Self::new(solc).map(Some)
+    }
+
     /// Returns the directory in which [svm](https://github.com/roynalnaruto/svm-rs) stores all versions
     ///
     /// This will be:
@@ -298,11 +386,9 @@ impl Solc {
     pub fn compile_source(&self, path: impl AsRef<Path>) -> Result<CompilerOutput> {
         let path = path.as_ref();
         let mut res: CompilerOutput = Default::default();
-        for input in SolcInput::build(
-            Source::read_all_from(path, SOLC_EXTENSIONS)?,
-            Default::default(),
-            &self.version,
-        ) {
+        for input in
+            SolcInput::build(Source::read_sol_yul_from(path)?, Default::default(), &self.version)
+        {
             let output = self.compile(&input)?;
             res.merge(output)
         }
@@ -327,10 +413,15 @@ impl Solc {
     /// # Examples
     ///
     /// ```no_run
-    /// use foundry_compilers::{CompilerInput, Solc};
+    /// use foundry_compilers::{artifacts::Source, compilers::CompilerInput, Solc, SolcInput};
     ///
     /// let solc = Solc::default();
-    /// let input = CompilerInput::new("./contracts")?;
+    /// let input = SolcInput::build(
+    ///     Source::read_sol_yul_from("./contracts").unwrap(),
+    ///     Default::default(),
+    ///     &("0.8.12".parse().unwrap()),
+    /// )
+    /// .unwrap();
     /// let output = solc.compile(&input)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -487,24 +578,6 @@ impl Solc {
     /// This will buffer up to `n` `solc` processes and then return the `CompilerOutput`s in the
     /// order in which they complete. No more than `n` futures will be buffered at any point in
     /// time, and less than `n` may also be buffered depending on the state of each future.
-    ///
-    /// # Examples
-    ///
-    /// Compile 2 `CompilerInput`s at once
-    ///
-    /// ```no_run
-    /// use foundry_compilers::{CompilerInput, Solc};
-    ///
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let solc1 = Solc::default();
-    /// let solc2 = Solc::default();
-    /// let input1 = CompilerInput::new("contracts")?[0].clone();
-    /// let input2 = CompilerInput::new("src")?[0].clone();
-    ///
-    /// let outputs = Solc::compile_many([(solc1, input1), (solc2, input2)], 2).await.flattened()?;
-    /// # Ok(())
-    /// # }
-    /// ```
     pub async fn compile_many<I>(jobs: I, n: usize) -> crate::many::CompiledMany
     where
         I: IntoIterator<Item = (Solc, SolcInput)>,
