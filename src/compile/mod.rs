@@ -2,6 +2,7 @@ use crate::{
     artifacts::Source,
     compilers::CompilerInput,
     error::{Result, SolcError},
+    resolver::parse::SolData,
     utils, CompilerOutput, SolcInput,
 };
 use itertools::Itertools;
@@ -18,7 +19,6 @@ use std::{
 pub mod many;
 
 pub mod output;
-use crate::resolver::parse::SolData;
 pub use output::{contracts, info, sources};
 
 pub mod project;
