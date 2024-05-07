@@ -36,23 +36,6 @@ impl CompilerVersionManager for SolcVersionManager {
         Solc::installed_versions().into_iter().map(CompilerVersion::Installed).collect()
     }
 
-    fn get_installed(&self, version: &Version) -> Result<Self::Compiler, VersionManagerError> {
-        #[cfg(test)]
-        crate::take_solc_installer_lock!(_lock);
-
-        let s_version = version.to_string();
-
-        let solc = Solc::svm_home()
-            .ok_or_else(|| VersionManagerError::msg("svm home dir not found"))?
-            .join(s_version.as_str())
-            .join(format!("solc-{s_version}"));
-
-        if !solc.is_file() {
-            return Err(VersionManagerError::VersionNotInstalled(version.clone()));
-        }
-        Ok(Solc::new_with_version(solc, version.clone()))
-    }
-
     fn install(&self, version: &Version) -> Result<Self::Compiler, VersionManagerError> {
         use crate::utils::RuntimeOrHandle;
 
@@ -80,5 +63,22 @@ impl CompilerVersionManager for SolcVersionManager {
                 Err(VersionManagerError::IntallationFailed(Box::new(err)))
             }
         }
+    }
+
+    fn get_installed(&self, version: &Version) -> Result<Self::Compiler, VersionManagerError> {
+        #[cfg(test)]
+        crate::take_solc_installer_lock!(_lock);
+
+        let s_version = version.to_string();
+
+        let solc = Solc::svm_home()
+            .ok_or_else(|| VersionManagerError::msg("svm home dir not found"))?
+            .join(s_version.as_str())
+            .join(format!("solc-{s_version}"));
+
+        if !solc.is_file() {
+            return Err(VersionManagerError::VersionNotInstalled(version.clone()));
+        }
+        Ok(Solc::new_with_version(solc, version.clone()))
     }
 }

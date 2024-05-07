@@ -1443,6 +1443,11 @@ impl Source {
         Self::read_all_files(utils::source_files(dir, extensions))
     }
 
+    /// Recursively finds all solidity and yul files under the given dir path and reads them all
+    pub fn read_sol_yul_from(dir: impl AsRef<Path>) -> Result<Sources, SolcIoError> {
+        Self::read_all_from(dir, SOLC_EXTENSIONS)
+    }
+
     /// Reads all source files of the given vec
     ///
     /// Depending on the len of the vec it will try to read the files in parallel
