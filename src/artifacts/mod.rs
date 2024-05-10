@@ -54,8 +54,8 @@ pub(crate) type VersionedSources<C> = Vec<(C, Version, Sources)>;
 /// A set of different Solc installations with their version and the sources to be compiled
 pub(crate) type VersionedFilteredSources<C> = Vec<(C, Version, FilteredSources)>;
 
-const SOLIDITY: &str = "Solidity";
-const YUL: &str = "Yul";
+pub const SOLIDITY: &str = "Solidity";
+pub const YUL: &str = "Yul";
 
 /// Input type `solc` expects.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -89,25 +89,6 @@ impl SolcInput {
         self
     }
 
-    /// Sets the settings for compilation
-    #[must_use]
-    pub fn settings(mut self, mut settings: Settings) -> Self {
-        if self.is_yul() {
-            if !settings.remappings.is_empty() {
-                warn!("omitting remappings supplied for the yul sources");
-                settings.remappings = vec![];
-            }
-            if let Some(debug) = settings.debug.as_mut() {
-                if debug.revert_strings.is_some() {
-                    warn!("omitting revertStrings supplied for the yul sources");
-                    debug.revert_strings = None;
-                }
-            }
-        }
-        self.settings = settings;
-        self
-    }
-
     /// Sets the EVM version for compilation
     #[must_use]
     pub fn evm_version(mut self, version: EvmVersion) -> Self {
@@ -119,16 +100,6 @@ impl SolcInput {
     #[must_use]
     pub fn optimizer(mut self, runs: usize) -> Self {
         self.settings.optimizer.runs(runs);
-        self
-    }
-
-    #[must_use]
-    pub fn with_remappings(mut self, remappings: Vec<Remapping>) -> Self {
-        if self.is_yul() {
-            warn!("omitting remappings supplied for the yul sources");
-        } else {
-            self.settings.remappings = remappings;
-        }
         self
     }
 
