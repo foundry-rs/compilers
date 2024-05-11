@@ -57,12 +57,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
 
     /// Removes entry for the given file
     pub fn remove(&mut self, file: &Path) -> Option<CacheEntry<S>> {
-        self.files.remove(file).map(|entry| {
-            for artifact in entry.artifacts() {
-                let _ = fs::remove_file(artifact);
-            }
-            entry
-        })
+        self.files.remove(file)
     }
 
     /// How many entries the cache contains where each entry represents a sourc file
@@ -708,7 +703,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
 
         let mut sources = BTreeMap::new();
 
-        // Read all sources, removing entries on I/O errors.
+        // Read all sources, marking entries as dirty on I/O errors.
         for file in &files {
             let Ok(source) = Source::read(file) else {
                 self.dirty_sources.insert(file.clone());
@@ -719,32 +714,31 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
 
         // Build a temporary graph for walking imports. We need this because `self.edges`
         // only contains graph data for in-scope sources but we are operating on cache entries.
-        let Ok(graph) = Graph::<C::ParsedSource>::resolve_sources(&self.project.paths, sources)
-        else {
+        if let Ok(graph) = Graph::<C::ParsedSource>::resolve_sources(&self.project.paths, sources) {
+            let (sources, edges) = graph.into_sources();
+
+            // Calculate content hashes for later comparison.
+            self.fill_hashes(&sources);
+
+            // Pre-add all sources that are guaranteed to be dirty
+            for file in sources.keys() {
+                if self.is_dirty_impl(file) {
+                    self.dirty_sources.insert(file.clone());
+                }
+            }
+
+            // Perform DFS to find direct/indirect importers of dirty files.
+            for file in self.dirty_sources.clone().iter() {
+                populate_dirty_files(file, &mut self.dirty_sources, &edges);
+            }
+        } else {
             // Purge all sources on graph resolution error.
             self.dirty_sources.extend(files);
-            return;
-        };
-
-        let (sources, edges) = graph.into_sources();
-
-        // Calculate content hashes for later comparison.
-        self.fill_hashes(&sources);
-
-        // Pre-add all sources that are guaranteed to be dirty
-        for file in sources.keys() {
-            if self.is_dirty_impl(file) {
-                self.dirty_sources.insert(file.clone());
-            }
-        }
-
-        // Perform DFS to find direct/indirect importers of dirty files.
-        for file in self.dirty_sources.clone().iter() {
-            populate_dirty_files(file, &mut self.dirty_sources, &edges);
         }
 
         // Remove all dirty files from cache.
         for file in &self.dirty_sources {
+            debug!("removing dirty file from cache: {}", file.display());
             self.cache.remove(file);
         }
     }
