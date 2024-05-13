@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2](https://github.com/foundry-rs/compilers/releases/tag/v0.4.2) - 2024-05-13
+
+### Bug Fixes
+
+- Do not remove dirty artifacts from disk ([#123](https://github.com/foundry-rs/compilers/issues/123))
+
 ## [0.4.1](https://github.com/foundry-rs/compilers/releases/tag/v0.4.1) - 2024-05-07
 
 ### Bug Fixes
@@ -14,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 - Add a few Solc install helpers back ([#120](https://github.com/foundry-rs/compilers/issues/120))
+
+### Miscellaneous Tasks
+
+- Release 0.4.1
 
 ## [0.4.0](https://github.com/foundry-rs/compilers/releases/tag/v0.4.0) - 2024-05-03
 
