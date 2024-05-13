@@ -3852,3 +3852,18 @@ fn can_compile_vyper_with_cache() {
     assert!(compiled.find_first("Counter").is_some());
     assert!(!compiled.is_unchanged());
 }
+
+#[test]
+fn yul_remappings_ignored() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/yul-sample");
+    // Add dummy remapping.
+    let paths = ProjectPathsConfig::builder().sources(root.clone()).remapping(Remapping {
+        context: None,
+        name: "@openzeppelin".to_string(),
+        path: root.to_string_lossy().to_string(),
+    });
+    let project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+
+    let compiled = project.compile().unwrap();
+    compiled.assert_success();
+}

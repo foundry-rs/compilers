@@ -11,6 +11,7 @@ use super::{
 use crate::{
     artifacts::{
         output_selection::OutputSelection, Error, Settings as SolcSettings, SolcInput, Sources,
+        SOLIDITY, YUL,
     },
     error::Result,
     remappings::Remapping,
@@ -88,13 +89,24 @@ impl CompilerInput for SolcInput {
         let mut res = Vec::new();
         if !solidity_sources.is_empty() {
             res.push(Self {
-                language: "Solidity".to_string(),
+                language: SOLIDITY.to_string(),
                 sources: solidity_sources,
                 settings: settings.clone(),
             });
         }
         if !yul_sources.is_empty() {
-            res.push(Self { language: "Yul".to_string(), sources: yul_sources, settings });
+            if !settings.remappings.is_empty() {
+                warn!("omitting remappings supplied for the yul sources");
+                settings.remappings = vec![];
+            }
+
+            if let Some(debug) = settings.debug.as_mut() {
+                if debug.revert_strings.is_some() {
+                    warn!("omitting revertStrings supplied for the yul sources");
+                    debug.revert_strings = None;
+                }
+            }
+            res.push(Self { language: YUL.to_string(), sources: yul_sources, settings });
         }
         res
     }
@@ -104,7 +116,13 @@ impl CompilerInput for SolcInput {
     }
 
     fn with_remappings(mut self, remappings: Vec<Remapping>) -> Self {
-        self.settings.remappings = remappings;
+        if self.language == YUL {
+            if !remappings.is_empty() {
+                warn!("omitting remappings supplied for the yul sources");
+            }
+        } else {
+            self.settings.remappings = remappings;
+        }
         self
     }
 
