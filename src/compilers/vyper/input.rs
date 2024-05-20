@@ -32,5 +32,7 @@ impl CompilerInput for VyperInput {
             .into_iter()
             .map(|(path, s)| (path.strip_prefix(base).map(Into::into).unwrap_or(path), s))
             .collect();
+
+        self.settings.strip_prefix(base)
     }
 }

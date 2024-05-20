@@ -362,14 +362,14 @@ impl<D: ParsedSource> Graph<D> {
         // now we need to resolve all imports for the source file and those imported from other
         // locations
         while let Some((path, node)) = unresolved.pop_front() {
-            let mut resolved_imports = Vec::with_capacity(node.data.resolve_imports(paths).len());
+            let mut resolved_imports = Vec::with_capacity(node.data.resolve_imports(paths)?.len());
             // parent directory of the current file
             let cwd = match path.parent() {
                 Some(inner) => inner,
                 None => continue,
             };
 
-            for import_path in node.data.resolve_imports(paths) {
+            for import_path in node.data.resolve_imports(paths)? {
                 match paths.resolve_import_and_include_paths(
                     cwd,
                     &import_path,
