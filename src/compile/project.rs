@@ -121,7 +121,7 @@ use std::{path::PathBuf, sync::Arc, time::Instant};
 pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
     /// Contains the relationship of the source files and their imports
     edges: GraphEdges<C::ParsedSource>,
-    project: &'a Project<T, C>,
+    project: &'a Project<C, T>,
     /// how to compile all the sources
     sources: CompilerSources<C>,
     /// How to select solc [`crate::artifacts::CompilerOutput`] for files
@@ -131,7 +131,7 @@ pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
 impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     /// Create a new `ProjectCompiler` to bootstrap the compilation process of the project's
     /// sources.
-    pub fn new(project: &'a Project<T, C>) -> Result<Self> {
+    pub fn new(project: &'a Project<C, T>) -> Result<Self> {
         Self::with_sources(project, project.paths.read_input_files()?)
     }
 
@@ -141,7 +141,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     ///
     /// Multiple (`Solc` -> `Sources`) pairs can be compiled in parallel if the `Project` allows
     /// multiple `jobs`, see [`crate::Project::set_solc_jobs()`].
-    pub fn with_sources(project: &'a Project<T, C>, sources: Sources) -> Result<Self> {
+    pub fn with_sources(project: &'a Project<C, T>, sources: Sources) -> Result<Self> {
         match &project.compiler_config {
             CompilerConfig::Specific(compiler) => {
                 Self::with_sources_and_compiler(project, sources, compiler.clone())
@@ -154,7 +154,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
 
     /// Compiles the sources automatically detecting versions via [CompilerVersionManager]
     pub fn with_sources_and_version_manager<VM: CompilerVersionManager<Compiler = C>>(
-        project: &'a Project<T, C>,
+        project: &'a Project<C, T>,
         sources: Sources,
         version_manager: VM,
     ) -> Result<Self> {
@@ -176,7 +176,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
 
     /// Compiles the sources with a pinned [Compiler] instance
     pub fn with_sources_and_compiler(
-        project: &'a Project<T, C>,
+        project: &'a Project<C, T>,
         sources: Sources,
         compiler: C,
     ) -> Result<Self> {

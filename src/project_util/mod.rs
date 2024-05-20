@@ -33,12 +33,12 @@ pub struct TempProject<T: ArtifactOutput = ConfigurableArtifacts, C: Compiler = 
     /// temporary workspace root
     _root: TempDir,
     /// actual project workspace with the `root` tempdir as its root
-    inner: Project<T, C>,
+    inner: Project<C, T>,
 }
 
 impl<T: ArtifactOutput> TempProject<T> {
     /// Makes sure all resources are created
-    pub fn create_new(root: TempDir, inner: Project<T>) -> std::result::Result<Self, SolcIoError> {
+    pub fn create_new(root: TempDir, inner: Project<Solc, T>) -> std::result::Result<Self, SolcIoError> {
         let mut project = Self { _root: root, inner };
         project.paths().create_all()?;
         // ignore license warnings
@@ -87,7 +87,7 @@ impl<T: ArtifactOutput> TempProject<T> {
         self
     }
 
-    pub fn project(&self) -> &Project<T> {
+    pub fn project(&self) -> &Project<Solc, T> {
         &self.inner
     }
 
@@ -95,7 +95,7 @@ impl<T: ArtifactOutput> TempProject<T> {
         self.project().flatten(target)
     }
 
-    pub fn project_mut(&mut self) -> &mut Project<T> {
+    pub fn project_mut(&mut self) -> &mut Project<Solc, T> {
         &mut self.inner
     }
 
@@ -472,8 +472,8 @@ impl TempProject<ConfigurableArtifacts> {
     }
 }
 
-impl<T: ArtifactOutput> AsRef<Project<T>> for TempProject<T> {
-    fn as_ref(&self) -> &Project<T> {
+impl<T: ArtifactOutput> AsRef<Project<Solc, T>> for TempProject<T> {
+    fn as_ref(&self) -> &Project<Solc, T> {
         self.project()
     }
 }

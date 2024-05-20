@@ -22,8 +22,10 @@ pub struct VyperSettings {
     )]
     pub evm_version: Option<EvmVersion>,
     /// Optimization mode
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub optimize: Option<VyperOptimizationMode>,
     /// Whether or not the bytecode should include Vyper's signature
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub bytecode_metadata: Option<bool>,
     pub output_selection: OutputSelection,
 }

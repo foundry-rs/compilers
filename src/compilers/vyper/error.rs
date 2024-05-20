@@ -7,7 +7,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VyperSourceLocation {
     file: PathBuf,
     #[serde(rename = "lineno")]
@@ -16,7 +16,7 @@ pub struct VyperSourceLocation {
     offset: Option<u64>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct VyperCompilationError {
     pub message: String,
