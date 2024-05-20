@@ -38,7 +38,10 @@ pub struct TempProject<T: ArtifactOutput = ConfigurableArtifacts, C: Compiler = 
 
 impl<T: ArtifactOutput> TempProject<T> {
     /// Makes sure all resources are created
-    pub fn create_new(root: TempDir, inner: Project<Solc, T>) -> std::result::Result<Self, SolcIoError> {
+    pub fn create_new(
+        root: TempDir,
+        inner: Project<Solc, T>,
+    ) -> std::result::Result<Self, SolcIoError> {
         let mut project = Self { _root: root, inner };
         project.paths().create_all()?;
         // ignore license warnings
