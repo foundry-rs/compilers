@@ -88,6 +88,8 @@ impl Vyper {
         // Only run UTF-8 validation once.
         let output = std::str::from_utf8(&output).map_err(|_| SolcError::InvalidUtf8)?;
 
+        trace!("vyper compiler output: {}", output);
+
         Ok(serde_json::from_str(output)?)
     }
 

@@ -553,7 +553,7 @@ pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput, C: Compiler> {
     pub edges: GraphEdges<C::ParsedSource>,
 
     /// The project.
-    pub project: &'a Project<T, C>,
+    pub project: &'a Project<C, T>,
 
     /// Files that were invalidated and removed from cache.
     /// Those are not grouped by version and purged completely.
@@ -795,19 +795,19 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
 #[derive(Debug)]
 pub(crate) enum ArtifactsCache<'a, T: ArtifactOutput, C: Compiler> {
     /// Cache nothing on disk
-    Ephemeral(GraphEdges<C::ParsedSource>, &'a Project<T, C>),
+    Ephemeral(GraphEdges<C::ParsedSource>, &'a Project<C, T>),
     /// Handles the actual cached artifacts, detects artifacts that can be reused
     Cached(ArtifactsCacheInner<'a, T, C>),
 }
 
 impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
     /// Create a new cache instance with the given files
-    pub fn new(project: &'a Project<T, C>, edges: GraphEdges<C::ParsedSource>) -> Result<Self> {
+    pub fn new(project: &'a Project<C, T>, edges: GraphEdges<C::ParsedSource>) -> Result<Self> {
         /// Returns the [SolFilesCache] to use
         ///
         /// Returns a new empty cache if the cache does not exist or `invalidate_cache` is set.
         fn get_cache<T: ArtifactOutput, C: Compiler>(
-            project: &Project<T, C>,
+            project: &Project<C, T>,
             invalidate_cache: bool,
         ) -> CompilerCache<C::Settings> {
             // the currently configured paths
@@ -893,7 +893,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
         }
     }
 
-    pub fn project(&self) -> &'a Project<T, C> {
+    pub fn project(&self) -> &'a Project<C, T> {
         match self {
             ArtifactsCache::Ephemeral(_, project) => project,
             ArtifactsCache::Cached(cache) => cache.project,

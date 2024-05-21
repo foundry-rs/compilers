@@ -29,16 +29,19 @@ pub mod mock;
 /// A [`Project`] wrapper that lives in a new temporary directory
 ///
 /// Once `TempProject` is dropped, the temp dir is automatically removed, see [`TempDir::drop()`]
-pub struct TempProject<T: ArtifactOutput = ConfigurableArtifacts, C: Compiler = Solc> {
+pub struct TempProject<C: Compiler = Solc, T: ArtifactOutput = ConfigurableArtifacts> {
     /// temporary workspace root
     _root: TempDir,
     /// actual project workspace with the `root` tempdir as its root
-    inner: Project<T, C>,
+    inner: Project<C, T>,
 }
 
-impl<T: ArtifactOutput> TempProject<T> {
+impl<T: ArtifactOutput> TempProject<Solc, T> {
     /// Makes sure all resources are created
-    pub fn create_new(root: TempDir, inner: Project<T>) -> std::result::Result<Self, SolcIoError> {
+    pub fn create_new(
+        root: TempDir,
+        inner: Project<Solc, T>,
+    ) -> std::result::Result<Self, SolcIoError> {
         let mut project = Self { _root: root, inner };
         project.paths().create_all()?;
         // ignore license warnings
@@ -87,7 +90,7 @@ impl<T: ArtifactOutput> TempProject<T> {
         self
     }
 
-    pub fn project(&self) -> &Project<T> {
+    pub fn project(&self) -> &Project<Solc, T> {
         &self.inner
     }
 
@@ -95,7 +98,7 @@ impl<T: ArtifactOutput> TempProject<T> {
         self.project().flatten(target)
     }
 
-    pub fn project_mut(&mut self) -> &mut Project<T> {
+    pub fn project_mut(&mut self) -> &mut Project<Solc, T> {
         &mut self.inner
     }
 
@@ -347,7 +350,7 @@ contract {} {{}}
     }
 }
 
-impl<T: ArtifactOutput + Default> TempProject<T> {
+impl<T: ArtifactOutput + Default> TempProject<Solc, T> {
     /// Creates a new temp project inside a tempdir with a prefixed directory
     #[cfg(feature = "svm-solc")]
     pub fn prefixed(prefix: &str, paths: ProjectPathsConfigBuilder) -> Result<Self> {
@@ -372,7 +375,7 @@ impl<T: ArtifactOutput + Default> TempProject<T> {
     }
 }
 
-impl<T: ArtifactOutput> fmt::Debug for TempProject<T> {
+impl<T: ArtifactOutput> fmt::Debug for TempProject<Solc, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TempProject").field("paths", self.paths()).finish()
     }
@@ -397,7 +400,7 @@ fn contract_file_name(name: impl AsRef<str>) -> String {
 }
 
 #[cfg(feature = "svm-solc")]
-impl TempProject<HardhatArtifacts> {
+impl TempProject<Solc, HardhatArtifacts> {
     /// Creates an empty new hardhat style workspace in a new temporary dir
     pub fn hardhat() -> Result<Self> {
         let tmp_dir = tempdir("tmp_hh")?;
@@ -413,7 +416,7 @@ impl TempProject<HardhatArtifacts> {
 }
 
 #[cfg(feature = "svm-solc")]
-impl TempProject<ConfigurableArtifacts> {
+impl TempProject {
     /// Creates an empty new dapptools style workspace in a new temporary dir
     pub fn dapptools() -> Result<Self> {
         let tmp_dir = tempdir("tmp_dapp")?;
@@ -472,8 +475,8 @@ impl TempProject<ConfigurableArtifacts> {
     }
 }
 
-impl<T: ArtifactOutput> AsRef<Project<T>> for TempProject<T> {
-    fn as_ref(&self) -> &Project<T> {
+impl<T: ArtifactOutput> AsRef<Project<Solc, T>> for TempProject<Solc, T> {
+    fn as_ref(&self) -> &Project<Solc, T> {
         self.project()
     }
 }

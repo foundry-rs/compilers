@@ -93,7 +93,7 @@ impl Default for CompilerConfig<Solc> {
 
 /// Represents a project workspace and handles `solc` compiling of all contracts in that workspace.
 #[derive(Clone, Debug)]
-pub struct Project<T: ArtifactOutput = ConfigurableArtifacts, C: Compiler = Solc> {
+pub struct Project<C: Compiler = Solc, T: ArtifactOutput = ConfigurableArtifacts> {
     pub compiler_config: CompilerConfig<C>,
     /// The layout of the project
     pub paths: ProjectPathsConfig<C>,
@@ -159,14 +159,14 @@ impl Project {
     }
 }
 
-impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
+impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// Returns the handler that takes care of processing all artifacts
     pub fn artifacts_handler(&self) -> &T {
         &self.artifacts
     }
 }
 
-impl<T: ArtifactOutput> Project<T> {
+impl<T: ArtifactOutput> Project<Solc, T> {
     /// Returns standard-json-input to compile the target contract
     pub fn standard_json_input(
         &self,
@@ -225,7 +225,7 @@ impl<T: ArtifactOutput> Project<T> {
     }
 }
 
-impl<T: ArtifactOutput, C: Compiler> Project<T, C> {
+impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// Returns the path to the artifacts directory
     pub fn artifacts_path(&self) -> &PathBuf {
         &self.paths.artifacts
@@ -745,7 +745,7 @@ impl<T: ArtifactOutput, C: Compiler> ProjectBuilder<T, C> {
         }
     }
 
-    pub fn build(self, compiler_config: CompilerConfig<C>) -> Result<Project<T, C>> {
+    pub fn build(self, compiler_config: CompilerConfig<C>) -> Result<Project<C, T>> {
         let Self {
             paths,
             cached,
@@ -794,7 +794,7 @@ impl<T: ArtifactOutput + Default> Default for ProjectBuilder<T> {
     }
 }
 
-impl<T: ArtifactOutput, C: Compiler> ArtifactOutput for Project<T, C> {
+impl<T: ArtifactOutput, C: Compiler> ArtifactOutput for Project<C, T> {
     type Artifact = T::Artifact;
 
     fn on_output<CP>(
