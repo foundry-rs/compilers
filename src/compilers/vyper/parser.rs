@@ -55,7 +55,7 @@ impl ParsedSource for VyperParsedSource {
             }
 
             let mut dots_cnt = 0;
-            while dots_cnt < import.len() && import[dots_cnt] == "" {
+            while dots_cnt < import.len() && import[dots_cnt].is_empty() {
                 dots_cnt += 1;
             }
 
@@ -109,7 +109,7 @@ impl ParsedSource for VyperParsedSource {
     }
 }
 
-fn parse_imports<'a>(content: &'a str) -> Result<Vec<Vec<&'a str>>> {
+fn parse_imports(content: &str) -> Result<Vec<Vec<&str>>> {
     let mut imports = Vec::new();
 
     for mut line in content.split('\n') {
