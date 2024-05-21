@@ -6,11 +6,24 @@ use foundry_compilers::{
         output_selection::OutputSelection, BytecodeHash, DevDoc, Error, ErrorDoc, EventDoc,
         Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings, Settings, Severity,
         UserDoc, UserDocNotice,
-    }, buildinfo::BuildInfo, cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME}, compilers::{
+    },
+    buildinfo::BuildInfo,
+    cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
+    compilers::{
         solc::SolcVersionManager,
         vyper::{Vyper, VyperSettings},
         CompilerOutput, CompilerVersionManager,
-    }, error::SolcError, flatten::Flattener, info::ContractInfo, project_util::*, remappings::Remapping, resolver::parse::SolData, utils::{self, RuntimeOrHandle}, Artifact, CompilerConfig, ConfigurableArtifacts, ExtraOutputValues, Graph, Project, ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, Solc, SolcInput, SolcSparseFileFilter, TestFileFilter
+    },
+    error::SolcError,
+    flatten::Flattener,
+    info::ContractInfo,
+    project_util::*,
+    remappings::Remapping,
+    resolver::parse::SolData,
+    utils::{self, RuntimeOrHandle},
+    Artifact, CompilerConfig, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
+    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, Solc, SolcInput,
+    SolcSparseFileFilter, TestFileFilter,
 };
 use pretty_assertions::assert_eq;
 use semver::Version;
