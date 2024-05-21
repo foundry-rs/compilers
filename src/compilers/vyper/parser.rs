@@ -59,8 +59,11 @@ impl ParsedSource for VyperParsedSource {
                 dots_cnt += 1;
             }
 
+            // Potential locations of imported source.
             let mut candidate_dirs = Vec::new();
 
+            // For relative imports, vyper always checks only directory containing contract which
+            // includes given import.
             if dots_cnt > 0 {
                 let mut candidate_dir = Some(self.path.as_path());
 
@@ -78,6 +81,7 @@ impl ParsedSource for VyperParsedSource {
 
                 candidate_dirs.push(candidate_dir);
             } else {
+                // For absolute imports, Vyper firstly checks current directory, and then root.
                 if let Some(parent) = self.path.parent() {
                     candidate_dirs.push(parent);
                 }
@@ -109,6 +113,7 @@ impl ParsedSource for VyperParsedSource {
     }
 }
 
+/// Parses given source trying to find all import directives.
 fn parse_imports(content: &str) -> Result<Vec<Vec<&str>>> {
     let mut imports = Vec::new();
 
@@ -121,6 +126,7 @@ fn parse_imports(content: &str) -> Result<Vec<Vec<&str>>> {
     Ok(imports)
 }
 
+/// Parses given input, trying to find (import|from) <part1>.<part2>.<oart3> (import <part4>)?
 fn parse_import<'a>(input: &mut &'a str) -> PResult<Vec<&'a str>> {
     (
         preceded(
