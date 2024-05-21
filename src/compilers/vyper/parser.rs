@@ -126,7 +126,7 @@ fn parse_imports(content: &str) -> Result<Vec<Vec<&str>>> {
     Ok(imports)
 }
 
-/// Parses given input, trying to find (import|from) <part1>.<part2>.<oart3> (import <part4>)?
+/// Parses given input, trying to find (import|from) part1.part2.part3 (import part4)?
 fn parse_import<'a>(input: &mut &'a str) -> PResult<Vec<&'a str>> {
     (
         preceded(
