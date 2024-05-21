@@ -1,5 +1,10 @@
+use std::{collections::BTreeMap, path::Path};
+
 use crate::{
-    artifacts::{output_selection::OutputSelection, serde_helpers},
+    artifacts::{
+        output_selection::{FileOutputSelection, OutputSelection},
+        serde_helpers,
+    },
     compilers::CompilerSettings,
     EvmVersion,
 };
@@ -30,6 +35,27 @@ pub struct VyperSettings {
     pub output_selection: OutputSelection,
 }
 
+impl VyperSettings {
+    pub fn strip_prefix(&mut self, base: impl AsRef<Path>) {
+        let base = base.as_ref();
+
+        self.output_selection = OutputSelection(
+            std::mem::take(&mut self.output_selection.0)
+                .into_iter()
+                .map(|(file, selection)| {
+                    (
+                        Path::new(&file)
+                            .strip_prefix(base)
+                            .map(|p| format!("{}", p.display()))
+                            .unwrap_or(file),
+                        selection,
+                    )
+                })
+                .collect(),
+        );
+    }
+}
+
 impl CompilerSettings for VyperSettings {
     fn output_selection_mut(&mut self) -> &mut OutputSelection {
         &mut self.output_selection
@@ -41,5 +67,10 @@ impl CompilerSettings for VyperSettings {
             && optimize == &other.optimize
             && bytecode_metadata == &other.bytecode_metadata
             && output_selection.is_subset_of(&other.output_selection)
+    }
+
+    fn minimal_output_selection() -> FileOutputSelection {
+        // Vyper throws an error if empty selection is specified, so we are only requesting ABI.
+        BTreeMap::from([("*".to_string(), vec!["abi".to_string()])])
     }
 }

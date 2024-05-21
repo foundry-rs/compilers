@@ -60,6 +60,8 @@ sha2 = { version = "0.10", default-features = false, optional = true }
 itertools = "0.12"
 auto_impl = "1"
 
+winnow = "0.6"
+
 [dev-dependencies]
 alloy-primitives = { version = "0.7", features = ["serde", "rand"] }
 criterion = { version = "0.5", features = ["async_tokio"] }

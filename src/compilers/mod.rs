@@ -1,6 +1,7 @@
 use crate::{
     artifacts::{
-        output_selection::OutputSelection, Contract, FileToContractsMap, SourceFile, Sources,
+        output_selection::{FileOutputSelection, OutputSelection},
+        Contract, FileToContractsMap, SourceFile, Sources,
     },
     error::Result,
     remappings::Remapping,
@@ -32,6 +33,11 @@ pub trait CompilerSettings:
     /// Ensures that all settings fields are equal except for `output_selection` which is required
     /// to be a subset of `cached.output_selection`.
     fn can_use_cached(&self, other: &Self) -> bool;
+
+    /// Returns minimal output selection which can be used to optimize compilation.
+    fn minimal_output_selection() -> FileOutputSelection {
+        BTreeMap::from([("*".to_string(), vec![])])
+    }
 }
 
 /// Input of a compiler, including sources and settings used for their compilation.
@@ -63,7 +69,7 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized {
 pub trait ParsedSource: Debug + Sized + Send {
     fn parse(content: &str, file: &Path) -> Self;
     fn version_req(&self) -> Option<&VersionReq>;
-    fn resolve_imports<C>(&self, paths: &ProjectPathsConfig<C>) -> Vec<PathBuf>;
+    fn resolve_imports<C>(&self, paths: &ProjectPathsConfig<C>) -> Result<Vec<PathBuf>>;
 }
 
 /// Error returned by compiler. Might also represent a warning or informational message.
