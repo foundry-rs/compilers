@@ -6,24 +6,11 @@ use foundry_compilers::{
         output_selection::OutputSelection, BytecodeHash, DevDoc, Error, ErrorDoc, EventDoc,
         Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings, Settings, Severity,
         UserDoc, UserDocNotice,
-    },
-    buildinfo::BuildInfo,
-    cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
-    compilers::{
+    }, buildinfo::BuildInfo, cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME}, compilers::{
         solc::SolcVersionManager,
         vyper::{Vyper, VyperSettings},
         CompilerOutput, CompilerVersionManager,
-    },
-    error::SolcError,
-    flatten::Flattener,
-    info::ContractInfo,
-    project_util::*,
-    remappings::Remapping,
-    resolver::parse::SolData,
-    utils::{self, RuntimeOrHandle},
-    Artifact, CompilerConfig, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, SolcInput, SolcSparseFileFilter,
-    TestFileFilter,
+    }, error::SolcError, flatten::Flattener, info::ContractInfo, project_util::*, remappings::Remapping, resolver::parse::SolData, utils::{self, RuntimeOrHandle}, Artifact, CompilerConfig, ConfigurableArtifacts, ExtraOutputValues, Graph, Project, ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, Solc, SolcInput, SolcSparseFileFilter, TestFileFilter
 };
 use pretty_assertions::assert_eq;
 use semver::Version;
@@ -86,7 +73,7 @@ fn can_compile_hardhat_sample() {
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("contracts"))
         .lib(root.join("node_modules"));
-    let project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
 
     let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Greeter").is_some());
@@ -111,7 +98,7 @@ fn can_compile_hardhat_sample() {
 fn can_compile_dapp_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-    let project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
 
     let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Dapp").is_some());
@@ -138,7 +125,7 @@ fn can_compile_dapp_sample() {
 fn can_compile_yul_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/yul-sample");
     let paths = ProjectPathsConfig::builder().sources(root);
-    let project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
 
     let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Dapp").is_some());
@@ -193,7 +180,7 @@ fn can_compile_configured() {
 
 #[test]
 fn can_compile_dapp_detect_changes_in_libs() {
-    let mut project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
+    let mut project = TempProject::dapptools().unwrap();
 
     let remapping = project.paths().libraries[0].join("remapping");
     project
@@ -266,7 +253,7 @@ fn can_compile_dapp_detect_changes_in_libs() {
 
 #[test]
 fn can_compile_dapp_detect_changes_in_sources() {
-    let project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
+    let project = TempProject::dapptools().unwrap();
 
     let src = project
         .add_source(
@@ -540,7 +527,7 @@ fn can_flatten_file_with_external_lib() {
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("contracts"))
         .lib(root.join("node_modules"));
-    let project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
 
     let target = root.join("contracts").join("Greeter.sol");
 
@@ -555,7 +542,7 @@ fn can_flatten_file_with_external_lib() {
 fn can_flatten_file_in_dapp_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-    let project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
 
     let target = root.join("src/Dapp.t.sol");
 
@@ -1412,7 +1399,7 @@ contract B is A {}
 
 #[test]
 fn can_detect_type_error() {
-    let project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
+    let project = TempProject::dapptools().unwrap();
 
     project
         .add_source(
@@ -2719,7 +2706,7 @@ fn can_compile_model_checker_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/model-checker-sample");
     let paths = ProjectPathsConfig::builder().sources(root);
 
-    let mut project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+    let mut project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
     project.project_mut().settings.model_checker = Some(ModelCheckerSettings {
         engine: Some(CHC),
         timeout: Some(10000),
@@ -2877,7 +2864,7 @@ async fn can_install_solc_and_compile_std_json_input_async() {
 
 #[test]
 fn can_purge_obsolete_artifacts() {
-    let mut project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
+    let mut project = TempProject::dapptools().unwrap();
     project.set_solc("0.8.10");
     project
         .add_source(
@@ -2908,7 +2895,7 @@ fn can_purge_obsolete_artifacts() {
 
 #[test]
 fn can_parse_notice() {
-    let mut project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
+    let mut project = TempProject::dapptools().unwrap();
     project.project_mut().artifacts.additional_values.userdoc = true;
     project.project_mut().settings = project.project_mut().artifacts.settings();
 
@@ -2987,7 +2974,7 @@ fn can_parse_notice() {
 
 #[test]
 fn can_parse_doc() {
-    let mut project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
+    let mut project = TempProject::dapptools().unwrap();
     project.project_mut().artifacts.additional_values.userdoc = true;
     project.project_mut().artifacts.additional_values.devdoc = true;
     project.project_mut().settings = project.project_mut().artifacts.settings();
@@ -3275,7 +3262,7 @@ contract C { }
 
 #[test]
 fn can_handle_conflicting_files() {
-    let project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
+    let project = TempProject::dapptools().unwrap();
 
     project
         .add_source(
@@ -3340,7 +3327,7 @@ fn can_handle_conflicting_files() {
 // <https://github.com/foundry-rs/foundry/issues/2843>
 #[test]
 fn can_handle_conflicting_files_recompile() {
-    let project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
+    let project = TempProject::dapptools().unwrap();
 
     project
         .add_source(
@@ -3437,7 +3424,7 @@ fn can_handle_conflicting_files_recompile() {
 // <https://github.com/foundry-rs/foundry/issues/2843>
 #[test]
 fn can_handle_conflicting_files_case_sensitive_recompile() {
-    let project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
+    let project = TempProject::dapptools().unwrap();
 
     project
         .add_source(
@@ -3542,7 +3529,7 @@ fn can_checkout_repo() {
 
 #[test]
 fn can_detect_config_changes() {
-    let mut project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
+    let mut project = TempProject::dapptools().unwrap();
 
     let remapping = project.paths().libraries[0].join("remapping");
     project
@@ -3594,7 +3581,7 @@ fn can_detect_config_changes() {
 
 #[test]
 fn can_add_basic_contract_and_library() {
-    let mut project = TempProject::<ConfigurableArtifacts>::dapptools().unwrap();
+    let mut project = TempProject::dapptools().unwrap();
 
     let remapping = project.paths().libraries[0].join("remapping");
     project
@@ -3862,7 +3849,7 @@ fn yul_remappings_ignored() {
         name: "@openzeppelin".to_string(),
         path: root.to_string_lossy().to_string(),
     });
-    let project = TempProject::<ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();
