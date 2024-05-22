@@ -54,6 +54,7 @@ allow = [
     "LicenseRef-ring",
     # https://github.com/briansmith/webpki/issues/148
     "LicenseRef-webpki",
+    "BSL-1.0",
 ]
 
 # Allow 1 or more licenses on a per-crate basis, so that particular licenses
