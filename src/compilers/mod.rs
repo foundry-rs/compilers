@@ -73,7 +73,9 @@ pub trait ParsedSource: Debug + Sized + Send {
 }
 
 /// Error returned by compiler. Might also represent a warning or informational message.
-pub trait CompilationError: Serialize + DeserializeOwned + Send + Sync + Display + Debug {
+pub trait CompilationError:
+    Serialize + DeserializeOwned + Send + Sync + Display + Debug + Clone + 'static
+{
     fn is_warning(&self) -> bool;
     fn is_error(&self) -> bool;
     fn source_location(&self) -> Option<crate::artifacts::error::SourceLocation>;

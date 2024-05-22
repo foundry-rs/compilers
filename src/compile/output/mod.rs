@@ -9,7 +9,7 @@ use crate::{
     compilers::{CompilationError, CompilerOutput},
     info::ContractInfoRef,
     sources::{VersionedSourceFile, VersionedSourceFiles},
-    ArtifactId, ArtifactOutput, Artifacts, ConfigurableArtifacts, SolcIoError,
+    Artifact, ArtifactId, ArtifactOutput, Artifacts, ConfigurableArtifacts, SolcIoError,
 };
 use contracts::{VersionedContract, VersionedContracts};
 use semver::Version;
@@ -44,7 +44,7 @@ pub struct ProjectCompileOutput<E = Error, T: ArtifactOutput = ConfigurableArtif
     pub(crate) compiler_severity_filter: Severity,
 }
 
-impl<T: ArtifactOutput, E: CompilationError> ProjectCompileOutput<E, T> {
+impl<T: ArtifactOutput, E> ProjectCompileOutput<E, T> {
     /// Converts all `\\` separators in _all_ paths to `/`
     pub fn slash_paths(&mut self) {
         self.compiler_output.slash_paths();
@@ -251,34 +251,6 @@ impl<T: ArtifactOutput, E: CompilationError> ProjectCompileOutput<E, T> {
         self.compiler_output.is_unchanged()
     }
 
-    /// Returns whether any errors were emitted by the compiler.
-    pub fn has_compiler_errors(&self) -> bool {
-        self.compiler_output.has_error(
-            &self.ignored_error_codes,
-            &self.ignored_file_paths,
-            &self.compiler_severity_filter,
-        )
-    }
-
-    /// Returns whether any warnings were emitted by the compiler.
-    pub fn has_compiler_warnings(&self) -> bool {
-        let filter = ErrorFilter::new(&self.ignored_error_codes, &self.ignored_file_paths);
-        self.compiler_output.has_warning(filter)
-    }
-
-    /// Panics if any errors were emitted by the compiler.
-    #[track_caller]
-    pub fn succeeded(self) -> Self {
-        self.assert_success();
-        self
-    }
-
-    /// Panics if any errors were emitted by the compiler.
-    #[track_caller]
-    pub fn assert_success(&self) {
-        assert!(!self.has_compiler_errors(), "\n{self}\n");
-    }
-
     /// Returns the set of `Artifacts` that were cached and got reused during
     /// [`crate::Project::compile()`]
     pub fn cached_artifacts(&self) -> &Artifacts<T::Artifact> {
@@ -443,9 +415,7 @@ impl<T: ArtifactOutput, E: CompilationError> ProjectCompileOutput<E, T> {
             self.remove_first(name)
         }
     }
-}
 
-impl<E: CompilationError> ProjectCompileOutput<E, ConfigurableArtifacts> {
     /// A helper functions that extracts the underlying [`CompactContractBytecode`] from the
     /// [`crate::ConfigurableContractArtifact`]
     ///
@@ -467,6 +437,36 @@ impl<E: CompilationError> ProjectCompileOutput<E, ConfigurableArtifacts> {
     ) -> impl Iterator<Item = (ArtifactId, CompactContractBytecode)> {
         self.into_artifacts()
             .map(|(artifact_id, artifact)| (artifact_id, artifact.into_contract_bytecode()))
+    }
+}
+
+impl<E: CompilationError, T: ArtifactOutput> ProjectCompileOutput<E, T> {
+    /// Returns whether any errors were emitted by the compiler.
+    pub fn has_compiler_errors(&self) -> bool {
+        self.compiler_output.has_error(
+            &self.ignored_error_codes,
+            &self.ignored_file_paths,
+            &self.compiler_severity_filter,
+        )
+    }
+
+    /// Returns whether any warnings were emitted by the compiler.
+    pub fn has_compiler_warnings(&self) -> bool {
+        let filter = ErrorFilter::new(&self.ignored_error_codes, &self.ignored_file_paths);
+        self.compiler_output.has_warning(filter)
+    }
+
+    /// Panics if any errors were emitted by the compiler.
+    #[track_caller]
+    pub fn succeeded(self) -> Self {
+        self.assert_success();
+        self
+    }
+
+    /// Panics if any errors were emitted by the compiler.
+    #[track_caller]
+    pub fn assert_success(&self) {
+        assert!(!self.has_compiler_errors(), "\n{self}\n");
     }
 }
 
@@ -552,63 +552,11 @@ impl<'a> From<&'a [u64]> for ErrorFilter<'a> {
     }
 }
 
-impl<E: CompilationError> AggregatedCompilerOutput<E> {
+impl<E> AggregatedCompilerOutput<E> {
     /// Converts all `\\` separators in _all_ paths to `/`
     pub fn slash_paths(&mut self) {
         self.sources.slash_paths();
         self.contracts.slash_paths();
-    }
-
-    /// Whether the output contains a compiler error
-    ///
-    /// This adheres to the given `compiler_severity_filter` and also considers [Error] with the
-    /// given [Severity] as errors. For example [Severity::Warning] will consider [Error]s with
-    /// [Severity::Warning] and [Severity::Error] as errors.
-    pub fn has_error(
-        &self,
-        ignored_error_codes: &[u64],
-        ignored_file_paths: &[PathBuf],
-        compiler_severity_filter: &Severity,
-    ) -> bool {
-        self.errors.iter().any(|err| {
-            if err.is_error() {
-                // [Severity::Error] is always treated as an error
-                return true;
-            }
-            // check if the filter is set to something higher than the error's severity
-            if compiler_severity_filter.ge(&err.severity()) {
-                if compiler_severity_filter.is_warning() {
-                    // skip ignored error codes and file path from warnings
-                    let filter = ErrorFilter::new(ignored_error_codes, ignored_file_paths);
-                    return self.has_warning(filter);
-                }
-                return true;
-            }
-            false
-        })
-    }
-
-    /// Checks if there are any compiler warnings that are not ignored by the specified error codes
-    /// and file paths.
-    pub fn has_warning<'a>(&self, filter: impl Into<ErrorFilter<'a>>) -> bool {
-        let filter: ErrorFilter<'_> = filter.into();
-        self.errors.iter().any(|error| {
-            if !error.is_warning() {
-                return false;
-            }
-
-            let is_code_ignored = filter.is_code_ignored(error.error_code());
-
-            let is_file_ignored = error
-                .source_location()
-                .as_ref()
-                .map_or(false, |location| filter.is_file_ignored(Path::new(&location.file)));
-
-            // Only consider warnings that are not ignored by either code or file path.
-            // Hence, return `true` for warnings that are not ignored, making the function
-            // return `true` if any such warnings exist.
-            !(is_code_ignored || is_file_ignored)
-        })
     }
 
     pub fn diagnostics<'a>(
@@ -878,6 +826,60 @@ impl<E: CompilationError> AggregatedCompilerOutput<E> {
         self.contracts.strip_prefix_all(base);
         self.sources.strip_prefix_all(base);
         self
+    }
+}
+
+impl<E: CompilationError> AggregatedCompilerOutput<E> {
+    /// Whether the output contains a compiler error
+    ///
+    /// This adheres to the given `compiler_severity_filter` and also considers [Error] with the
+    /// given [Severity] as errors. For example [Severity::Warning] will consider [Error]s with
+    /// [Severity::Warning] and [Severity::Error] as errors.
+    pub fn has_error(
+        &self,
+        ignored_error_codes: &[u64],
+        ignored_file_paths: &[PathBuf],
+        compiler_severity_filter: &Severity,
+    ) -> bool {
+        self.errors.iter().any(|err| {
+            if err.is_error() {
+                // [Severity::Error] is always treated as an error
+                return true;
+            }
+            // check if the filter is set to something higher than the error's severity
+            if compiler_severity_filter.ge(&err.severity()) {
+                if compiler_severity_filter.is_warning() {
+                    // skip ignored error codes and file path from warnings
+                    let filter = ErrorFilter::new(ignored_error_codes, ignored_file_paths);
+                    return self.has_warning(filter);
+                }
+                return true;
+            }
+            false
+        })
+    }
+
+    /// Checks if there are any compiler warnings that are not ignored by the specified error codes
+    /// and file paths.
+    pub fn has_warning<'a>(&self, filter: impl Into<ErrorFilter<'a>>) -> bool {
+        let filter: ErrorFilter<'_> = filter.into();
+        self.errors.iter().any(|error| {
+            if !error.is_warning() {
+                return false;
+            }
+
+            let is_code_ignored = filter.is_code_ignored(error.error_code());
+
+            let is_file_ignored = error
+                .source_location()
+                .as_ref()
+                .map_or(false, |location| filter.is_file_ignored(Path::new(&location.file)));
+
+            // Only consider warnings that are not ignored by either code or file path.
+            // Hence, return `true` for warnings that are not ignored, making the function
+            // return `true` if any such warnings exist.
+            !(is_code_ignored || is_file_ignored)
+        })
     }
 }
 
