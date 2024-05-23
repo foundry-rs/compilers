@@ -9,16 +9,23 @@ use semver::VersionReq;
 use std::path::{Path, PathBuf};
 use winnow::{
     ascii::space1,
-    combinator::{alt, opt, preceded, separated},
-    token::take_till,
+    combinator::{alt, opt, preceded},
+    token::{take_till, take_while},
     PResult, Parser,
 };
+
+#[derive(Debug, PartialEq)]
+pub struct VyperImport {
+    pub level: usize,
+    pub path: Option<String>,
+    pub final_part: Option<String>,
+}
 
 #[derive(Debug)]
 pub struct VyperParsedSource {
     path: PathBuf,
     version_req: Option<VersionReq>,
-    parsed_imports: Vec<Vec<String>>,
+    imports: Vec<VyperImport>,
 }
 
 impl ParsedSource for VyperParsedSource {
@@ -27,19 +34,11 @@ impl ParsedSource for VyperParsedSource {
             .first()
             .and_then(|(cap, _)| VersionReq::parse(cap.as_str()).ok());
 
-        let parsed_imports = if let Ok(imports) = parse_imports(content) {
-            let mut parsed = Vec::new();
-            for import in imports {
-                parsed.push(import.into_iter().map(|part| part.to_string()).collect());
-            }
-            parsed
-        } else {
-            Vec::new()
-        };
+        let imports = parse_imports(content);
 
         let path = file.to_path_buf();
 
-        VyperParsedSource { path, version_req, parsed_imports }
+        VyperParsedSource { path, version_req, imports }
     }
 
     fn version_req(&self) -> Option<&VersionReq> {
@@ -48,15 +47,12 @@ impl ParsedSource for VyperParsedSource {
 
     fn resolve_imports<C>(&self, paths: &ProjectPathsConfig<C>) -> Result<Vec<PathBuf>> {
         let mut imports = Vec::new();
-        'outer: for import in &self.parsed_imports {
+        'outer: for import in &self.imports {
             // skip built-in imports
-            if import[0] == "vyper" {
+            if import.level == 0
+                && import.path.as_ref().map(|path| path.starts_with("vyper.")).unwrap_or_default()
+            {
                 continue;
-            }
-
-            let mut dots_cnt = 0;
-            while dots_cnt < import.len() && import[dots_cnt].is_empty() {
-                dots_cnt += 1;
             }
 
             // Potential locations of imported source.
@@ -64,17 +60,17 @@ impl ParsedSource for VyperParsedSource {
 
             // For relative imports, vyper always checks only directory containing contract which
             // includes given import.
-            if dots_cnt > 0 {
+            if import.level > 0 {
                 let mut candidate_dir = Some(self.path.as_path());
 
-                for _ in 0..dots_cnt {
+                for _ in 0..import.level {
                     candidate_dir = candidate_dir.and_then(|dir| dir.parent());
                 }
 
                 let candidate_dir = candidate_dir.ok_or_else(|| {
                     SolcError::msg(format!(
                         "Could not go {} levels up for import at {}",
-                        dots_cnt,
+                        import.level,
                         self.path.display()
                     ))
                 })?;
@@ -88,14 +84,24 @@ impl ParsedSource for VyperParsedSource {
                 candidate_dirs.push(paths.root.as_path());
             }
 
-            for candidate_dir in candidate_dirs {
-                let mut candidate = candidate_dir.to_path_buf();
+            let import_path = {
+                let mut path = PathBuf::new();
 
-                for part in &import[dots_cnt..] {
-                    candidate = candidate.join(part);
+                if let Some(import_path) = &import.path {
+                    path = path.join(import_path.replace('.', "/"));
                 }
 
-                candidate.set_extension("vy");
+                if let Some(part) = &import.final_part {
+                    path = path.join(part);
+                }
+
+                path.set_extension("vy");
+
+                path
+            };
+
+            for candidate_dir in candidate_dirs {
+                let candidate = candidate_dir.join(&import_path);
 
                 if candidate.exists() {
                     imports.push(candidate);
@@ -105,7 +111,7 @@ impl ParsedSource for VyperParsedSource {
 
             return Err(SolcError::msg(format!(
                 "failed to resolve import {} at {}",
-                import.join("."),
+                import_path.display(),
                 self.path.display()
             )));
         }
@@ -114,7 +120,7 @@ impl ParsedSource for VyperParsedSource {
 }
 
 /// Parses given source trying to find all import directives.
-fn parse_imports(content: &str) -> Result<Vec<Vec<&str>>> {
+fn parse_imports(content: &str) -> Vec<VyperImport> {
     let mut imports = Vec::new();
 
     for mut line in content.split('\n') {
@@ -123,41 +129,72 @@ fn parse_imports(content: &str) -> Result<Vec<Vec<&str>>> {
         }
     }
 
-    Ok(imports)
+    imports
 }
 
 /// Parses given input, trying to find (import|from) part1.part2.part3 (import part4)?
-fn parse_import<'a>(input: &mut &'a str) -> PResult<Vec<&'a str>> {
+fn parse_import(input: &mut &str) -> PResult<VyperImport> {
     (
         preceded(
             (alt(["from", "import"]), space1),
-            separated(0.., take_till(0.., ['.', ' ']), '.'),
+            (take_while(0.., |c| c == '.'), take_till(0.., [' '])),
         ),
         opt(preceded((space1, "import", space1), take_till(0.., [' ']))),
     )
         .parse_next(input)
-        .map(|(mut parts, last): (Vec<&str>, Option<&str>)| {
-            if let Some(last) = last {
-                parts.push(last);
-            }
-            parts
+        .map(|((dots, path), last)| VyperImport {
+            level: dots.len(),
+            path: (!path.is_empty()).then(|| path.to_string()),
+            final_part: last.map(|p| p.to_string()),
         })
 }
 
 #[cfg(test)]
 mod tests {
+    use super::{parse_import, VyperImport};
     use winnow::Parser;
-
-    use super::parse_import;
 
     #[test]
     fn can_parse_import() {
-        assert_eq!(parse_import.parse("import one.two.three").unwrap(), ["one", "two", "three"]);
+        assert_eq!(
+            parse_import.parse("import one.two.three").unwrap(),
+            VyperImport { level: 0, path: Some("one.two.three".to_string()), final_part: None }
+        );
         assert_eq!(
             parse_import.parse("from one.two.three import four").unwrap(),
-            ["one", "two", "three", "four"]
+            VyperImport {
+                level: 0,
+                path: Some("one.two.three".to_string()),
+                final_part: Some("four".to_string()),
+            }
         );
-        assert_eq!(parse_import.parse("from one import two").unwrap(), ["one", "two"]);
-        assert_eq!(parse_import.parse("import one").unwrap(), ["one"]);
+        assert_eq!(
+            parse_import.parse("from one import two").unwrap(),
+            VyperImport {
+                level: 0,
+                path: Some("one".to_string()),
+                final_part: Some("two".to_string()),
+            }
+        );
+        assert_eq!(
+            parse_import.parse("import one").unwrap(),
+            VyperImport { level: 0, path: Some("one".to_string()), final_part: None }
+        );
+        assert_eq!(
+            parse_import.parse("from . import one").unwrap(),
+            VyperImport { level: 1, path: None, final_part: Some("one".to_string()) }
+        );
+        assert_eq!(
+            parse_import.parse("from ... import two").unwrap(),
+            VyperImport { level: 3, path: None, final_part: Some("two".to_string()) }
+        );
+        assert_eq!(
+            parse_import.parse("from ...one.two import three").unwrap(),
+            VyperImport {
+                level: 3,
+                path: Some("one.two".to_string()),
+                final_part: Some("three".to_string())
+            }
+        );
     }
 }

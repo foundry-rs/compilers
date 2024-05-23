@@ -556,7 +556,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     }
 }
 
-pub struct ProjectBuilder<T: ArtifactOutput = ConfigurableArtifacts, C: Compiler = Solc> {
+pub struct ProjectBuilder<C: Compiler = Solc, T: ArtifactOutput = ConfigurableArtifacts> {
     /// The layout of the
     paths: Option<ProjectPathsConfig<C>>,
     /// How solc invocation should be configured.
@@ -582,7 +582,7 @@ pub struct ProjectBuilder<T: ArtifactOutput = ConfigurableArtifacts, C: Compiler
     solc_jobs: Option<usize>,
 }
 
-impl<T: ArtifactOutput, C: Compiler> ProjectBuilder<T, C> {
+impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
     /// Create a new builder with the given artifacts handler
     pub fn new(artifacts: T) -> Self {
         Self {
@@ -714,7 +714,7 @@ impl<T: ArtifactOutput, C: Compiler> ProjectBuilder<T, C> {
     }
 
     /// Set arbitrary `ArtifactOutputHandler`
-    pub fn artifacts<A: ArtifactOutput>(self, artifacts: A) -> ProjectBuilder<A, C> {
+    pub fn artifacts<A: ArtifactOutput>(self, artifacts: A) -> ProjectBuilder<C, A> {
         let ProjectBuilder {
             paths,
             cached,
@@ -788,7 +788,7 @@ impl<T: ArtifactOutput, C: Compiler> ProjectBuilder<T, C> {
     }
 }
 
-impl<T: ArtifactOutput + Default> Default for ProjectBuilder<T> {
+impl<C: Compiler, T: ArtifactOutput + Default> Default for ProjectBuilder<C, T> {
     fn default() -> Self {
         Self::new(T::default())
     }

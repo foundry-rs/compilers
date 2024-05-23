@@ -25,6 +25,7 @@ use foundry_compilers::{
     ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, Solc, SolcInput,
     SolcSparseFileFilter, TestFileFilter,
 };
+use once_cell::sync::Lazy;
 use pretty_assertions::assert_eq;
 use semver::Version;
 use std::{
@@ -36,31 +37,33 @@ use std::{
 };
 use svm::{platform, Platform};
 
-async fn install_vyper() -> Vyper {
-    #[cfg(target_family = "unix")]
-    use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+pub static VYPER: Lazy<Vyper> = Lazy::new(|| {
+    RuntimeOrHandle::new().block_on(async {
+        #[cfg(target_family = "unix")]
+        use std::{fs::Permissions, os::unix::fs::PermissionsExt};
 
-    let url = match platform() {
-        Platform::MacOsAarch64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.darwin",
-        Platform::LinuxAmd64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux",
-        Platform::WindowsAmd64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.windows.exe",
-        _ => panic!("unsupported")
-    };
+        let url = match platform() {
+            Platform::MacOsAarch64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.darwin",
+            Platform::LinuxAmd64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux",
+            Platform::WindowsAmd64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.windows.exe",
+            _ => panic!("unsupported")
+        };
 
-    let res = reqwest::Client::builder().build().unwrap().get(url).send().await.unwrap();
+        let res = reqwest::Client::builder().build().unwrap().get(url).send().await.unwrap();
 
-    assert!(res.status().is_success());
+        assert!(res.status().is_success());
 
-    let bytes = res.bytes().await.unwrap();
-    let path = std::env::temp_dir().join("vyper");
+        let bytes = res.bytes().await.unwrap();
+        let path = std::env::temp_dir().join("vyper");
 
-    std::fs::write(&path, bytes).unwrap();
+        std::fs::write(&path, bytes).unwrap();
 
-    #[cfg(target_family = "unix")]
-    std::fs::set_permissions(&path, Permissions::from_mode(0o755)).unwrap();
+        #[cfg(target_family = "unix")]
+        std::fs::set_permissions(&path, Permissions::from_mode(0o755)).unwrap();
 
-    Vyper::new(path).unwrap()
-}
+        Vyper::new(path).unwrap()
+    })
+});
 
 #[test]
 fn can_get_versioned_linkrefs() {
@@ -3823,18 +3826,16 @@ fn can_compile_vyper_with_cache() {
         .build::<Vyper>()
         .unwrap();
 
-    let compiler = RuntimeOrHandle::new().block_on(install_vyper());
-
     let settings = VyperSettings {
         output_selection: OutputSelection::default_output_selection(),
         ..Default::default()
     };
 
     // first compile
-    let project = ProjectBuilder::<ConfigurableArtifacts, Vyper>::new(Default::default())
+    let project = ProjectBuilder::<Vyper>::new(Default::default())
         .settings(settings)
         .paths(paths)
-        .build(CompilerConfig::Specific(compiler))
+        .build(CompilerConfig::Specific(VYPER.clone()))
         .unwrap();
 
     let compiled = project.compile().unwrap();
@@ -3866,4 +3867,29 @@ fn yul_remappings_ignored() {
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();
+}
+
+#[test]
+fn test_vyper_imports() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/vyper-imports");
+
+    let paths = ProjectPathsConfig::builder()
+        .sources(root.join("src"))
+        .root(root)
+        .build::<Vyper>()
+        .unwrap();
+
+    let settings = VyperSettings {
+        output_selection: OutputSelection::default_output_selection(),
+        ..Default::default()
+    };
+
+    let project = ProjectBuilder::<Vyper>::new(Default::default())
+        .settings(settings)
+        .paths(paths)
+        .no_artifacts()
+        .build(CompilerConfig::Specific(VYPER.clone()))
+        .unwrap();
+
+    project.compile().unwrap().assert_success();
 }
