@@ -3884,7 +3884,6 @@ fn test_vyper_imports() {
         ..Default::default()
     };
 
-    // first compile
     let project = ProjectBuilder::<Vyper>::new(Default::default())
         .settings(settings)
         .paths(paths)
