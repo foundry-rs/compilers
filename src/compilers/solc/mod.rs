@@ -6,34 +6,75 @@ pub use version_manager::SolcVersionManager;
 use itertools::Itertools;
 
 use super::{
-    CompilationError, Compiler, CompilerInput, CompilerOutput, CompilerSettings, ParsedSource,
+    version_manager::CompilerVersion, CompilationError, Compiler, CompilerInput, CompilerOutput,
+    CompilerSettings, Language, ParsedSource,
 };
 use crate::{
     artifacts::{
         output_selection::OutputSelection, Error, Settings as SolcSettings, SolcInput, Sources,
-        SOLIDITY, YUL,
     },
-    error::Result,
+    error::{Result, SolcError},
     remappings::Remapping,
     resolver::parse::SolData,
+    utils::RuntimeOrHandle,
     Solc, SOLC_EXTENSIONS,
 };
 use semver::Version;
+use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeSet,
     path::{Path, PathBuf},
 };
 
-impl Compiler for Solc {
-    const FILE_EXTENSIONS: &'static [&'static str] = SOLC_EXTENSIONS;
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum SolcLanguages {
+    Solidity,
+    Yul,
+}
 
-    type Input = SolcInput;
+impl Language for SolcLanguages {
+    const FILE_EXTENSIONS: &'static [&'static str] = SOLC_EXTENSIONS;
+}
+
+impl Compiler for Solc {
+    type Input = SolcVerionedInput;
     type CompilationError = crate::artifacts::Error;
     type ParsedSource = SolData;
     type Settings = SolcSettings;
+    type Language = SolcLanguages;
 
     fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>> {
-        let solc_output = self.compile(&input)?;
+        let solc =
+            if let Some(solc) = Solc::find_svm_installed_version(input.version().to_string())? {
+                solc
+            } else {
+                #[cfg(test)]
+                crate::take_solc_installer_lock!(_lock);
+
+                let version = if !input.version.pre.is_empty() || !input.version.build.is_empty() {
+                    Version::new(input.version.major, input.version.minor, input.version.patch)
+                } else {
+                    input.version.clone()
+                };
+
+                trace!("blocking installing solc version \"{}\"", version);
+                crate::report::solc_installation_start(&version);
+                // The async version `svm::install` is used instead of `svm::blocking_intsall`
+                // because the underlying `reqwest::blocking::Client` does not behave well
+                // inside of a Tokio runtime. See: https://github.com/seanmonstar/reqwest/issues/1017
+                match RuntimeOrHandle::new().block_on(svm::install(&version)) {
+                    Ok(path) => {
+                        crate::report::solc_installation_success(&version);
+                        Ok(Solc::new_with_version(path, version))
+                    }
+                    Err(err) => {
+                        crate::report::solc_installation_error(&version, &err.to_string());
+                        Err(SolcError::msg(format!("failed to install {}", version)))
+                    }
+                }?
+            };
+        let solc_output = solc.compile(&input.input)?;
 
         let output = CompilerOutput {
             errors: solc_output.errors,
@@ -44,85 +85,65 @@ impl Compiler for Solc {
         Ok(output)
     }
 
-    fn version(&self) -> &Version {
-        &self.version
-    }
-
-    fn with_allowed_paths(mut self, allowed_paths: BTreeSet<PathBuf>) -> Self {
-        self.allow_paths = allowed_paths;
-        self
-    }
-
-    fn with_base_path(mut self, base_path: PathBuf) -> Self {
-        self.base_path = Some(base_path);
-        self
-    }
-
-    fn with_include_paths(mut self, include_paths: BTreeSet<PathBuf>) -> Self {
-        self.include_paths = include_paths;
-        self
+    fn available_versions(&self, _language: &Self::Language) -> Vec<CompilerVersion> {
+        Solc::installed_versions().into_iter().map(CompilerVersion::Installed).collect()
     }
 }
 
-impl CompilerInput for SolcInput {
+#[derive(Debug, Clone, Serialize)]
+pub struct SolcVerionedInput {
+    #[serde(skip)]
+    pub version: Version,
+    #[serde(flatten)]
+    pub input: SolcInput,
+    #[serde(skip)]
+    pub allowed_paths: BTreeSet<PathBuf>,
+    #[serde(skip)]
+    pub base_path: PathBuf,
+    #[serde(skip)]
+    pub include_paths: BTreeSet<PathBuf>,
+}
+
+impl CompilerInput for SolcVerionedInput {
     type Settings = SolcSettings;
+    type Language = SolcLanguages;
 
     /// Creates a new [CompilerInput]s with default settings and the given sources
     ///
     /// A [CompilerInput] expects a language setting, supported by solc are solidity or yul.
     /// In case the `sources` is a mix of solidity and yul files, 2 CompilerInputs are returned
-    fn build(sources: Sources, mut settings: Self::Settings, version: &Version) -> Vec<Self> {
-        settings.sanitize(version);
-        if let Some(ref mut evm_version) = settings.evm_version {
-            settings.evm_version = evm_version.normalize_version_solc(version);
-        }
+    fn build(
+        sources: Sources,
+        settings: Self::Settings,
+        language: Self::Language,
+        version: &Version,
+    ) -> Self {
+        let input = SolcInput::new(language, sources, settings).sanitized(version);
 
-        let mut solidity_sources = BTreeMap::new();
-        let mut yul_sources = BTreeMap::new();
-        for (path, source) in sources {
-            if path.extension() == Some(std::ffi::OsStr::new("yul")) {
-                yul_sources.insert(path, source);
-            } else {
-                solidity_sources.insert(path, source);
-            }
+        Self {
+            version: version.clone(),
+            input,
+            allowed_paths: BTreeSet::new(),
+            base_path: PathBuf::new(),
+            include_paths: BTreeSet::new(),
         }
-        let mut res = Vec::new();
-        if !solidity_sources.is_empty() {
-            res.push(Self {
-                language: SOLIDITY.to_string(),
-                sources: solidity_sources,
-                settings: settings.clone(),
-            });
-        }
-        if !yul_sources.is_empty() {
-            if !settings.remappings.is_empty() {
-                warn!("omitting remappings supplied for the yul sources");
-                settings.remappings = vec![];
-            }
-
-            if let Some(debug) = settings.debug.as_mut() {
-                if debug.revert_strings.is_some() {
-                    warn!("omitting revertStrings supplied for the yul sources");
-                    debug.revert_strings = None;
-                }
-            }
-            res.push(Self { language: YUL.to_string(), sources: yul_sources, settings });
-        }
-        res
     }
 
     fn sources(&self) -> &Sources {
-        &self.sources
+        &self.input.sources
+    }
+
+    fn language(&self) -> Self::Language {
+        self.input.language.clone()
+    }
+
+    fn version(&self) -> &Version {
+        &self.version
     }
 
     fn with_remappings(mut self, remappings: Vec<Remapping>) -> Self {
-        if self.language == YUL {
-            if !remappings.is_empty() {
-                warn!("omitting remappings supplied for the yul sources");
-            }
-        } else {
-            self.settings.remappings = remappings;
-        }
+        self.input = self.input.with_remappings(remappings);
+
         self
     }
 
@@ -131,7 +152,22 @@ impl CompilerInput for SolcInput {
     }
 
     fn strip_prefix(&mut self, base: &Path) {
-        self.strip_prefix(base)
+        self.input.strip_prefix(base);
+    }
+
+    fn with_allowed_paths(mut self, allowed_paths: BTreeSet<PathBuf>) -> Self {
+        self.allowed_paths = allowed_paths;
+        self
+    }
+
+    fn with_base_path(mut self, base_path: PathBuf) -> Self {
+        self.base_path = base_path;
+        self
+    }
+
+    fn with_include_paths(mut self, include_paths: BTreeSet<PathBuf>) -> Self {
+        self.include_paths = include_paths;
+        self
     }
 }
 
@@ -168,6 +204,8 @@ impl CompilerSettings for SolcSettings {
 }
 
 impl ParsedSource for SolData {
+    type Language = SolcLanguages;
+
     fn parse(content: &str, file: &std::path::Path) -> Self {
         SolData::parse(content, file)
     }
@@ -178,6 +216,14 @@ impl ParsedSource for SolData {
 
     fn resolve_imports<C>(&self, _paths: &crate::ProjectPathsConfig<C>) -> Result<Vec<PathBuf>> {
         return Ok(self.imports.iter().map(|i| i.data().path().to_path_buf()).collect_vec());
+    }
+
+    fn language(&self) -> Self::Language {
+        if self.is_yul {
+            SolcLanguages::Yul
+        } else {
+            SolcLanguages::Solidity
+        }
     }
 }
 

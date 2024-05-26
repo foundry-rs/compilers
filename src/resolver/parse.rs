@@ -18,6 +18,7 @@ pub struct SolData {
     pub imports: Vec<SolDataUnit<SolImport>>,
     pub version_req: Option<VersionReq>,
     pub libraries: Vec<SolLibrary>,
+    pub is_yul: bool,
 }
 
 impl SolData {
@@ -37,6 +38,7 @@ impl SolData {
     /// This will attempt to parse the solidity AST and extract the imports and version pragma. If
     /// parsing fails, we'll fall back to extract that info via regex
     pub fn parse(content: &str, file: &Path) -> Self {
+        let is_yul = file.extension().map_or(false, |ext| ext == "yul");
         let mut version = None;
         let mut experimental = None;
         let mut imports = Vec::<SolDataUnit<SolImport>>::new();
@@ -113,7 +115,7 @@ impl SolData {
         });
         let version_req = version.as_ref().and_then(|v| Self::parse_version_req(v.data()).ok());
 
-        Self { version_req, version, experimental, imports, license, libraries }
+        Self { version_req, version, experimental, imports, license, libraries, is_yul }
     }
 
     /// Returns the corresponding SemVer version requirement for the solidity version.

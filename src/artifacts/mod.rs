@@ -3,15 +3,15 @@
 #![allow(ambiguous_glob_reexports)]
 
 use crate::{
-    compile::*, error::SolcIoError, output::ErrorFilter, remappings::Remapping, utils,
-    ProjectPathsConfig, SolcError,
+    compile::*, compilers::solc::SolcLanguages, error::SolcIoError, output::ErrorFilter,
+    remappings::Remapping, utils, ProjectPathsConfig, SolcError,
 };
 use alloy_primitives::hex;
 use md5::Digest;
 use semver::Version;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt, fs,
     path::{Path, PathBuf},
     str::FromStr,
@@ -49,10 +49,10 @@ pub type Contracts = FileToContractsMap<Contract>;
 pub type Sources = BTreeMap<PathBuf, Source>;
 
 /// A set of different Solc installations with their version and the sources to be compiled
-pub(crate) type VersionedSources<C> = Vec<(C, Version, Sources)>;
+pub(crate) type VersionedSources<L> = HashMap<L, HashMap<Version, Sources>>;
 
 /// A set of different Solc installations with their version and the sources to be compiled
-pub(crate) type VersionedFilteredSources<C> = Vec<(C, Version, FilteredSources)>;
+pub(crate) type VersionedFilteredSources<L> = HashMap<L, HashMap<Version, FilteredSources>>;
 
 pub const SOLIDITY: &str = "Solidity";
 pub const YUL: &str = "Yul";
@@ -60,7 +60,7 @@ pub const YUL: &str = "Yul";
 /// Input type `solc` expects.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SolcInput {
-    pub language: String,
+    pub language: SolcLanguages,
     pub sources: Sources,
     pub settings: Settings,
 }
@@ -69,7 +69,7 @@ pub struct SolcInput {
 impl Default for SolcInput {
     fn default() -> Self {
         SolcInput {
-            language: SOLIDITY.to_string(),
+            language: SolcLanguages::Solidity,
             sources: Sources::default(),
             settings: Settings::default(),
         }
@@ -77,6 +77,16 @@ impl Default for SolcInput {
 }
 
 impl SolcInput {
+    pub fn new(language: SolcLanguages, sources: Sources, mut settings: Settings) -> Self {
+        if language == SolcLanguages::Yul {
+            if !settings.remappings.is_empty() {
+                warn!("omitting remappings supplied for the yul sources");
+                settings.remappings = vec![];
+            }
+        }
+        Self { language, sources, settings }
+    }
+
     /// This will remove/adjust values in the [`SolcInput`] that are not compatible with this
     /// version
     pub fn sanitize(&mut self, version: &Version) {
@@ -125,7 +135,19 @@ impl SolcInput {
     /// The flag indicating whether the current [SolcInput] is
     /// constructed for the yul sources
     pub fn is_yul(&self) -> bool {
-        self.language == YUL
+        self.language == SolcLanguages::Yul
+    }
+
+    pub fn with_remappings(mut self, remappings: Vec<Remapping>) -> Self {
+        if self.language == SolcLanguages::Yul {
+            if !remappings.is_empty() {
+                warn!("omitting remappings supplied for the yul sources");
+            }
+        } else {
+            self.settings.remappings = remappings;
+        }
+
+        self
     }
 }
 
@@ -137,7 +159,7 @@ impl SolcInput {
 /// the verified contracts
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StandardJsonCompilerInput {
-    pub language: String,
+    pub language: SolcLanguages,
     #[serde(with = "serde_helpers::tuple_vec_map")]
     pub sources: Vec<(PathBuf, Source)>,
     pub settings: Settings,
@@ -147,7 +169,7 @@ pub struct StandardJsonCompilerInput {
 
 impl StandardJsonCompilerInput {
     pub fn new(sources: Vec<(PathBuf, Source)>, settings: Settings) -> Self {
-        Self { language: SOLIDITY.to_string(), sources, settings }
+        Self { language: SolcLanguages::Solidity, sources, settings }
     }
 
     /// Normalizes the EVM version used in the settings to be up to the latest one
@@ -296,6 +318,10 @@ impl Settings {
                 model_checker.show_proved_safe = None;
                 model_checker.show_unsupported = None;
             }
+        }
+
+        if let Some(ref mut evm_version) = self.evm_version {
+            self.evm_version = evm_version.normalize_version_solc(version);
         }
     }
 

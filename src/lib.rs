@@ -25,7 +25,7 @@ pub mod cache;
 pub mod flatten;
 
 pub mod hh;
-use compilers::{Compiler, CompilerSettings, CompilerVersionManager};
+use compilers::{Compiler, CompilerSettings};
 pub use filter::SparseOutputFileFilter;
 pub use hh::{HardhatArtifact, HardhatArtifacts};
 
@@ -71,32 +71,18 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 
 /// Utilities for creating, mocking and testing of (temporary) projects
 #[cfg(feature = "project-util")]
 pub mod project_util;
 
-#[derive(Debug, Clone)]
-pub enum CompilerConfig<C: Compiler> {
-    Specific(C),
-    AutoDetect(Arc<dyn CompilerVersionManager<Compiler = C>>),
-}
-
-#[cfg(feature = "svm-solc")]
-impl Default for CompilerConfig<Solc> {
-    fn default() -> Self {
-        CompilerConfig::AutoDetect(Arc::new(compilers::solc::SolcVersionManager))
-    }
-}
-
 /// Represents a project workspace and handles `solc` compiling of all contracts in that workspace.
 #[derive(Clone, Debug)]
 pub struct Project<C: Compiler = Solc, T: ArtifactOutput = ConfigurableArtifacts> {
-    pub compiler_config: CompilerConfig<C>,
+    pub compiler: C,
     /// The layout of the project
-    pub paths: ProjectPathsConfig<C>,
+    pub paths: ProjectPathsConfig<C::Language>,
     /// The compiler settings
     pub settings: C::Settings,
     /// Whether caching is enabled
@@ -404,6 +390,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// project.compile_with_version(&solc, sources)?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
+    #[cfg(ignore)]
     pub fn compile_with_version(
         &self,
         compiler: &C,
@@ -508,7 +495,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
         T: Clone,
         C: Clone,
     {
-        let graph = Graph::resolve(&self.paths)?;
+        let graph = Graph::<C::ParsedSource>::resolve(&self.paths)?;
         let mut contracts: HashMap<String, Vec<PathBuf>> = HashMap::new();
 
         for file in graph.files().keys() {
@@ -558,7 +545,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
 
 pub struct ProjectBuilder<C: Compiler = Solc, T: ArtifactOutput = ConfigurableArtifacts> {
     /// The layout of the
-    paths: Option<ProjectPathsConfig<C>>,
+    paths: Option<ProjectPathsConfig<C::Language>>,
     /// How solc invocation should be configured.
     settings: Option<C::Settings>,
     /// Whether caching is enabled, default is true.
@@ -602,7 +589,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
     }
 
     #[must_use]
-    pub fn paths(mut self, paths: ProjectPathsConfig<C>) -> Self {
+    pub fn paths(mut self, paths: ProjectPathsConfig<C::Language>) -> Self {
         self.paths = Some(paths);
         self
     }
@@ -745,7 +732,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
         }
     }
 
-    pub fn build(self, compiler_config: CompilerConfig<C>) -> Result<Project<C, T>> {
+    pub fn build(self, compiler: C) -> Result<Project<C, T>> {
         let Self {
             paths,
             cached,
@@ -769,7 +756,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
         }
 
         Ok(Project {
-            compiler_config,
+            compiler,
             paths,
             cached,
             build_info,

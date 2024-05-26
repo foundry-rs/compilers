@@ -47,7 +47,8 @@
 //! which is defined on a per source file basis.
 
 use crate::{
-    compilers::{Compiler, CompilerVersion, CompilerVersionManager, ParsedSource},
+    artifacts::VersionedSources,
+    compilers::{Compiler, CompilerVersion, Language, ParsedSource},
     error::Result,
     utils, ProjectPathsConfig, SolcError, Source, Sources,
 };
@@ -304,8 +305,8 @@ impl<D: ParsedSource> Graph<D> {
     }
 
     /// Resolves a number of sources within the given config
-    pub fn resolve_sources<C: Compiler<ParsedSource = D>>(
-        paths: &ProjectPathsConfig<C>,
+    pub fn resolve_sources(
+        paths: &ProjectPathsConfig<D::Language>,
         sources: Sources,
     ) -> Result<Graph<D>> {
         /// checks if the given target path was already resolved, if so it adds its id to the list
@@ -447,27 +448,22 @@ impl<D: ParsedSource> Graph<D> {
     }
 
     /// Resolves the dependencies of a project's source contracts
-    pub fn resolve<C: Compiler<ParsedSource = D>>(
-        paths: &ProjectPathsConfig<C>,
-    ) -> Result<Graph<D>> {
+    pub fn resolve(paths: &ProjectPathsConfig<D::Language>) -> Result<Graph<D>> {
         Self::resolve_sources(paths, paths.read_input_files()?)
     }
 }
 
-impl<D: ParsedSource> Graph<D> {
+impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     /// Consumes the nodes of the graph and returns all input files together with their appropriate
     /// version and the edges of the graph
     ///
     /// First we determine the compatible version for each input file (from sources and test folder,
     /// see `Self::resolve`) and then we add all resolved library imports.
-    pub fn into_sources_by_version<VM: CompilerVersionManager>(
+    pub fn into_sources_by_version<C: Compiler<ParsedSource = D, Language = L>>(
         self,
         offline: bool,
-        version_manager: &VM,
-    ) -> Result<(VersionedSources, GraphEdges<D>)>
-    where
-        VM::Compiler: Compiler<ParsedSource = D>,
-    {
+        compiler: &C,
+    ) -> Result<(VersionedSources<C::Language>, GraphEdges<D>)> {
         /// insert the imports of the given node into the sources map
         /// There can be following graph:
         /// `A(<=0.8.10) imports C(>0.4.0)` and `B(0.8.11) imports C(>0.4.0)`
@@ -498,36 +494,43 @@ impl<D: ParsedSource> Graph<D> {
             }
         }
 
-        let versioned_nodes = self.get_input_node_versions(offline, version_manager)?;
+        let versioned_nodes_by_lang = self.get_input_node_versions(offline, compiler)?;
         let (nodes, edges) = self.split();
-
-        let mut versioned_sources = HashMap::with_capacity(versioned_nodes.len());
 
         let mut all_nodes = nodes.into_iter().enumerate().collect::<HashMap<_, _>>();
 
+        let mut resulted_sources = HashMap::new();
+
         // determine the `Sources` set for each solc version
-        for (version, input_node_indices) in versioned_nodes {
-            let mut sources = Sources::new();
+        for (language, versioned_nodes) in versioned_nodes_by_lang {
+            let mut versioned_sources = HashMap::with_capacity(versioned_nodes.len());
 
-            // all input nodes will be processed
-            let mut processed_sources = input_node_indices.iter().copied().collect();
+            for (version, input_node_indices) in versioned_nodes {
+                let mut sources = Sources::new();
 
-            // we only process input nodes (from sources, tests for example)
-            for idx in input_node_indices {
-                // insert the input node in the sources set and remove it from the available set
-                let (path, source) = all_nodes.get(&idx).cloned().expect("node is preset. qed");
-                sources.insert(path, source);
-                insert_imports(
-                    idx,
-                    &mut all_nodes,
-                    &mut sources,
-                    &edges.edges,
-                    &mut processed_sources,
-                );
+                // all input nodes will be processed
+                let mut processed_sources = input_node_indices.iter().copied().collect();
+
+                // we only process input nodes (from sources, tests for example)
+                for idx in input_node_indices {
+                    // insert the input node in the sources set and remove it from the available set
+                    let (path, source) = all_nodes.get(&idx).cloned().expect("node is preset. qed");
+                    sources.insert(path, source);
+                    insert_imports(
+                        idx,
+                        &mut all_nodes,
+                        &mut sources,
+                        &edges.edges,
+                        &mut processed_sources,
+                    );
+                }
+                versioned_sources.insert(version.into(), sources);
             }
-            versioned_sources.insert(version, sources);
+
+            resulted_sources.insert(language, versioned_sources);
         }
-        Ok((VersionedSources { inner: versioned_sources, offline }, edges))
+
+        Ok((resulted_sources, edges))
     }
 
     /// Writes the list of imported files into the given formatter:
@@ -574,6 +577,16 @@ impl<D: ParsedSource> Graph<D> {
         }
     }
 
+    fn nodes_by_language(&self) -> HashMap<D::Language, Vec<usize>> {
+        let mut nodes = HashMap::new();
+
+        for (id, node) in self.nodes.iter().enumerate() {
+            nodes.entry(node.data.language()).or_insert_with(Vec::new).push(id);
+        }
+
+        nodes
+    }
+
     /// Returns a map of versions together with the input nodes that are compatible with that
     /// version.
     ///
@@ -584,90 +597,105 @@ impl<D: ParsedSource> Graph<D> {
     ///
     /// This also attempts to prefer local installations over remote available.
     /// If `offline` is set to `true` then only already installed.
-    fn get_input_node_versions<
-        VM: CompilerVersionManager<Compiler = C>,
-        C: Compiler<ParsedSource = D>,
-    >(
+    fn get_input_node_versions<C: Compiler<Language = L>>(
         &self,
         offline: bool,
-        version_manager: &VM,
-    ) -> Result<HashMap<CompilerVersion, Vec<usize>>> {
+        compiler: &C,
+    ) -> Result<HashMap<L, HashMap<CompilerVersion, Vec<usize>>>> {
         trace!("resolving input node versions");
-        // this is likely called by an application and will be eventually printed so we don't exit
-        // on first error, instead gather all the errors and return a bundled error message instead
-        let mut errors = Vec::new();
-        // we also  don't want duplicate error diagnostic
-        let mut erroneous_nodes = HashSet::with_capacity(self.edges.num_input_files);
 
-        // the sorted list of all versions
-        let all_versions = if offline {
-            version_manager.installed_versions()
-        } else {
-            version_manager.all_versions()
-        };
+        let mut resulted_nodes = HashMap::new();
 
-        // stores all versions and their nodes that can be compiled
-        let mut versioned_nodes = HashMap::new();
+        for (language, nodes) in self.nodes_by_language() {
+            // this is likely called by an application and will be eventually printed so we don't
+            // exit on first error, instead gather all the errors and return a bundled
+            // error message instead
+            let mut errors = Vec::new();
+            // we also  don't want duplicate error diagnostic
+            let mut erroneous_nodes = HashSet::with_capacity(self.edges.num_input_files);
 
-        // stores all files and the versions they're compatible with
-        let mut all_candidates = Vec::with_capacity(self.edges.num_input_files);
-        // walking through the node's dep tree and filtering the versions along the way
-        for idx in 0..self.edges.num_input_files {
-            let mut candidates = all_versions.iter().collect::<Vec<_>>();
-            // remove all incompatible versions from the candidates list by checking the node and
-            // all its imports
-            self.retain_compatible_versions(idx, &mut candidates);
-
-            if candidates.is_empty() && !erroneous_nodes.contains(&idx) {
-                // check if the version is even valid
-                let node = self.node(idx);
-                if let Err(version_err) = node.check_available_version(&all_versions, offline) {
-                    let f = utils::source_name(&node.path, &self.root).display();
-                    errors.push(format!("Encountered invalid solc version in {f}: {version_err}"));
-                } else {
-                    let mut msg = String::new();
-                    self.format_imports_list(idx, &mut msg).unwrap();
-                    errors.push(format!("Found incompatible Solidity versions:\n{msg}"));
-                }
-
-                erroneous_nodes.insert(idx);
+            // the sorted list of all versions
+            let all_versions = if offline {
+                compiler
+                    .available_versions(&language)
+                    .into_iter()
+                    .filter(|v| v.is_installed())
+                    .collect()
             } else {
-                // found viable candidates, pick the most recent version that's already installed
-                let candidate =
-                    if let Some(pos) = candidates.iter().rposition(|v| v.is_installed()) {
-                        candidates[pos]
+                compiler.available_versions(&language)
+            };
+
+            // stores all versions and their nodes that can be compiled
+            let mut versioned_nodes = HashMap::new();
+
+            // stores all files and the versions they're compatible with
+            let mut all_candidates = Vec::with_capacity(self.edges.num_input_files);
+            // walking through the node's dep tree and filtering the versions along the way
+            for idx in nodes {
+                let mut candidates = all_versions.iter().collect::<Vec<_>>();
+                // remove all incompatible versions from the candidates list by checking the node
+                // and all its imports
+                self.retain_compatible_versions(idx, &mut candidates);
+
+                if candidates.is_empty() && !erroneous_nodes.contains(&idx) {
+                    // check if the version is even valid
+                    let node = self.node(idx);
+                    if let Err(version_err) = node.check_available_version(&all_versions, offline) {
+                        let f = utils::source_name(&node.path, &self.root).display();
+                        errors.push(format!(
+                            "Encountered invalid solc version in {f}: {version_err}"
+                        ));
                     } else {
-                        candidates.last().expect("not empty; qed.")
+                        let mut msg = String::new();
+                        self.format_imports_list(idx, &mut msg).unwrap();
+                        errors.push(format!("Found incompatible Solidity versions:\n{msg}"));
                     }
-                    .clone();
 
-                // also store all possible candidates to optimize the set
-                all_candidates.push((idx, candidates.into_iter().collect::<HashSet<_>>()));
+                    erroneous_nodes.insert(idx);
+                } else {
+                    // found viable candidates, pick the most recent version that's already
+                    // installed
+                    let candidate =
+                        if let Some(pos) = candidates.iter().rposition(|v| v.is_installed()) {
+                            candidates[pos]
+                        } else {
+                            candidates.last().expect("not empty; qed.")
+                        }
+                        .clone();
 
-                versioned_nodes.entry(candidate).or_insert_with(|| Vec::with_capacity(1)).push(idx);
+                    // also store all possible candidates to optimize the set
+                    all_candidates.push((idx, candidates.into_iter().collect::<HashSet<_>>()));
+
+                    versioned_nodes
+                        .entry(candidate)
+                        .or_insert_with(|| Vec::with_capacity(1))
+                        .push(idx);
+                }
+            }
+
+            // detected multiple versions but there might still exist a single version that
+            // satisfies all sources
+            if versioned_nodes.len() > 1 {
+                versioned_nodes = Self::resolve_multiple_versions(all_candidates);
+            }
+
+            if versioned_nodes.len() == 1 {
+                trace!(
+                    "found exact solc version for all sources  \"{}\"",
+                    versioned_nodes.keys().next().unwrap()
+                );
+            }
+
+            if errors.is_empty() {
+                trace!("resolved {} versions {:?}", versioned_nodes.len(), versioned_nodes.keys());
+                resulted_nodes.insert(language, versioned_nodes);
+            } else {
+                error!("failed to resolve versions");
+                return Err(SolcError::msg(errors.join("\n")));
             }
         }
 
-        // detected multiple versions but there might still exist a single version that satisfies
-        // all sources
-        if versioned_nodes.len() > 1 {
-            versioned_nodes = Self::resolve_multiple_versions(all_candidates);
-        }
-
-        if versioned_nodes.len() == 1 {
-            trace!(
-                "found exact solc version for all sources  \"{}\"",
-                versioned_nodes.keys().next().unwrap()
-            );
-        }
-
-        if errors.is_empty() {
-            trace!("resolved {} versions {:?}", versioned_nodes.len(), versioned_nodes.keys());
-            Ok(versioned_nodes)
-        } else {
-            error!("failed to resolve versions");
-            Err(SolcError::msg(errors.join("\n")))
-        }
+        Ok(resulted_nodes)
     }
 
     /// Tries to find the "best" set of versions to nodes, See [Solc version
@@ -778,52 +806,6 @@ impl<'a, D> Iterator for NodesIter<'a, D> {
             self.stack.extend(self.graph.imported_nodes(node).iter().copied());
         }
         Some(node)
-    }
-}
-
-/// Container type for solc versions and their compatible sources
-#[derive(Debug)]
-pub struct VersionedSources {
-    inner: HashMap<CompilerVersion, Sources>,
-    offline: bool,
-}
-
-impl VersionedSources {
-    /// Resolves or installs the corresponding `Solc` installation.
-    pub fn get<VM: CompilerVersionManager>(
-        self,
-        version_manager: &VM,
-    ) -> Result<Vec<(VM::Compiler, semver::Version, Sources)>> {
-        let mut sources_by_version = Vec::new();
-        for (version, sources) in self.inner {
-            let compiler = if !version.is_installed() {
-                if self.offline {
-                    return Err(SolcError::msg(format!(
-                        "missing solc \"{version}\" installation in offline mode"
-                    )));
-                } else {
-                    // install missing solc
-                    version_manager.install(version.as_ref())?
-                }
-            } else {
-                // find installed svm
-                version_manager.get_installed(version.as_ref())?
-            };
-
-            /*if self.offline {
-                trace!("skip verifying solc checksum for {} in offline mode", compiler.solc.display());
-            } else {
-                trace!("verifying solc checksum for {}", compiler.solc.display());
-                if let Err(err) = compiler.verify_checksum() {
-                    trace!(?err, "corrupted solc version, redownloading  \"{}\"", version);
-                    Solc::blocking_install(version.as_ref())?;
-                    trace!("reinstalled solc: \"{}\"", version);
-                }
-            }*/
-
-            sources_by_version.push((compiler, version.into(), sources));
-        }
-        Ok(sources_by_version)
     }
 }
 

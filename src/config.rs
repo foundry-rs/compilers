@@ -1,12 +1,12 @@
 use crate::{
     artifacts::{output_selection::ContractOutputSelection, Settings},
     cache::SOLIDITY_FILES_CACHE_FILENAME,
-    compilers::Compiler,
+    compilers::{solc::SolcLanguages, Language},
     error::{Result, SolcError, SolcIoError},
     flatten::{collect_ordered_deps, combine_version_pragmas},
     remappings::Remapping,
     resolver::{Graph, SolImportAlias},
-    utils, Solc, Source, Sources,
+    utils, Source, Sources,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -19,7 +19,7 @@ use std::{
 
 /// Where to find all files or where to write them
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectPathsConfig<C = Solc> {
+pub struct ProjectPathsConfig<C = SolcLanguages> {
     /// Project root
     pub root: PathBuf,
     /// Path to the cache, if any
@@ -506,23 +506,23 @@ impl<C> ProjectPathsConfig<C> {
     }
 }
 
-impl<C: Compiler> ProjectPathsConfig<C> {
+impl<L: Language> ProjectPathsConfig<L> {
     /// Returns all sources found under the project's configured `sources` path
     pub fn read_sources(&self) -> Result<Sources> {
         trace!("reading all sources from \"{}\"", self.sources.display());
-        Ok(Source::read_all_from(&self.sources, C::FILE_EXTENSIONS)?)
+        Ok(Source::read_all_from(&self.sources, L::FILE_EXTENSIONS)?)
     }
 
     /// Returns all sources found under the project's configured `test` path
     pub fn read_tests(&self) -> Result<Sources> {
         trace!("reading all tests from \"{}\"", self.tests.display());
-        Ok(Source::read_all_from(&self.tests, C::FILE_EXTENSIONS)?)
+        Ok(Source::read_all_from(&self.tests, L::FILE_EXTENSIONS)?)
     }
 
     /// Returns all sources found under the project's configured `script` path
     pub fn read_scripts(&self) -> Result<Sources> {
         trace!("reading all scripts from \"{}\"", self.scripts.display());
-        Ok(Source::read_all_from(&self.scripts, C::FILE_EXTENSIONS)?)
+        Ok(Source::read_all_from(&self.scripts, L::FILE_EXTENSIONS)?)
     }
 
     /// Returns true if the there is at least one solidity file in this config.
@@ -535,9 +535,9 @@ impl<C: Compiler> ProjectPathsConfig<C> {
     /// Returns an iterator that yields all solidity file paths for `Self::sources`, `Self::tests`
     /// and `Self::scripts`
     pub fn input_files_iter(&self) -> impl Iterator<Item = PathBuf> + '_ {
-        utils::source_files_iter(&self.sources, C::FILE_EXTENSIONS)
-            .chain(utils::source_files_iter(&self.tests, C::FILE_EXTENSIONS))
-            .chain(utils::source_files_iter(&self.scripts, C::FILE_EXTENSIONS))
+        utils::source_files_iter(&self.sources, L::FILE_EXTENSIONS)
+            .chain(utils::source_files_iter(&self.tests, L::FILE_EXTENSIONS))
+            .chain(utils::source_files_iter(&self.scripts, L::FILE_EXTENSIONS))
     }
 
     /// Returns the combined set solidity file paths for `Self::sources`, `Self::tests` and

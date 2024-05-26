@@ -86,7 +86,7 @@ impl<T: ArtifactOutput> TempProject<Solc, T> {
         let solc = crate::compilers::solc::SolcVersionManager
             .get_or_install(&Version::parse(solc.as_ref()).unwrap())
             .unwrap();
-        self.inner.compiler_config = CompilerConfig::Specific(solc);
+        self.inner.compiler = CompilerConfig::Specific(solc);
         self
     }
 

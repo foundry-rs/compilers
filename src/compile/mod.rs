@@ -1,6 +1,6 @@
 use crate::{
     artifacts::Source,
-    compilers::CompilerInput,
+    compilers::solc::SolcLanguages,
     error::{Result, SolcError},
     resolver::parse::SolData,
     utils, CompilerOutput, SolcInput,
@@ -386,12 +386,21 @@ impl Solc {
     pub fn compile_source(&self, path: impl AsRef<Path>) -> Result<CompilerOutput> {
         let path = path.as_ref();
         let mut res: CompilerOutput = Default::default();
-        for input in
-            SolcInput::build(Source::read_sol_yul_from(path)?, Default::default(), &self.version)
-        {
-            let output = self.compile(&input)?;
-            res.merge(output)
+
+        let solidity_sources = Source::read_all_from(path, &["sol"])?;
+        let yul_sources = Source::read_all_from(path, &["yul"])?;
+
+        if !solidity_sources.is_empty() {
+            let input =
+                SolcInput::new(SolcLanguages::Solidity, solidity_sources, Default::default());
+            res.merge(self.compile(&input)?)
         }
+
+        if !yul_sources.is_empty() {
+            let input = SolcInput::new(SolcLanguages::Yul, yul_sources, Default::default());
+            res.merge(self.compile(&input)?)
+        }
+
         Ok(res)
     }
 
