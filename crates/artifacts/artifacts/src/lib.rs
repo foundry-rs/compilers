@@ -5,4 +5,5 @@
 
 pub use foundry_compilers_artifacts_solc as solc;
 pub use foundry_compilers_artifacts_vyper as vyper;
+pub use foundry_compilers_artifacts_zksolc as zksolc;
 pub use solc::*;
