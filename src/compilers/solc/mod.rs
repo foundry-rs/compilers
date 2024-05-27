@@ -61,7 +61,10 @@ impl Compiler for SolcRegistry {
     }
 
     fn available_versions(&self, _language: &Self::Language) -> Vec<CompilerVersion> {
-        let mut all_versions = Solc::installed_versions().into_iter().map(CompilerVersion::Installed).collect::<Vec<_>>();
+        let mut all_versions = Solc::installed_versions()
+            .into_iter()
+            .map(CompilerVersion::Installed)
+            .collect::<Vec<_>>();
         let mut uniques = all_versions
             .iter()
             .map(|v| {

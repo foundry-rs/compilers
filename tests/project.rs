@@ -9,9 +9,7 @@ use foundry_compilers::{
     },
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
-    compilers::{
-        solc::SolcRegistry, CompilerOutput
-    },
+    compilers::{solc::SolcRegistry, CompilerOutput},
     error::SolcError,
     flatten::Flattener,
     info::ContractInfo,
@@ -19,9 +17,9 @@ use foundry_compilers::{
     remappings::Remapping,
     resolver::parse::SolData,
     utils::{self, RuntimeOrHandle},
-    Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, Solc, SolcInput,
-    SolcSparseFileFilter, TestFileFilter,
+    Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project, ProjectBuilder,
+    ProjectCompileOutput, ProjectPathsConfig, Solc, SolcInput, SolcSparseFileFilter,
+    TestFileFilter,
 };
 use once_cell::sync::Lazy;
 use pretty_assertions::assert_eq;
@@ -2910,7 +2908,6 @@ fn can_purge_obsolete_artifacts() {
 }
 
 #[test]
-#[cfg(ignore)]
 fn can_parse_notice() {
     let mut project = TempProject::dapptools().unwrap();
     project.project_mut().artifacts.additional_values.userdoc = true;
@@ -3788,10 +3785,7 @@ fn test_deterministic_metadata() {
     copy_dir_all(orig_root, &tmp_dir).unwrap();
 
     let paths = ProjectPathsConfig::builder().root(root).build().unwrap();
-    let project = Project::builder()
-        .paths(paths)
-        .build(SolcRegistry::default())
-        .unwrap();
+    let project = Project::builder().paths(paths).build(SolcRegistry::default()).unwrap();
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();

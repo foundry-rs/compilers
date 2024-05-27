@@ -560,7 +560,7 @@ fn compile_sequential<C: Compiler>(
                 .filter(|f| dirty_files.contains(f))
                 .cloned()
                 .collect::<Vec<_>>();
-            
+
             input.strip_prefix(paths.root.as_path());
 
             if actually_dirty.is_empty() {
