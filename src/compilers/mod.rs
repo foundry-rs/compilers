@@ -7,6 +7,7 @@ use crate::{
     remappings::Remapping,
     ProjectPathsConfig,
 };
+use core::fmt;
 use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
@@ -17,12 +18,46 @@ use std::{
 };
 
 pub mod solc;
-mod version_manager;
 
 #[cfg(ignore)]
 pub mod vyper;
 
-pub use version_manager::{CompilerVersion, CompilerVersionManager, VersionManagerError};
+/// A compiler version is either installed (available locally) or can be downloaded, from the remote
+/// endpoint
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CompilerVersion {
+    Installed(Version),
+    Remote(Version),
+}
+
+impl CompilerVersion {
+    pub fn is_installed(&self) -> bool {
+        matches!(self, CompilerVersion::Installed(_))
+    }
+}
+
+impl AsRef<Version> for CompilerVersion {
+    fn as_ref(&self) -> &Version {
+        match self {
+            CompilerVersion::Installed(v) | CompilerVersion::Remote(v) => v,
+        }
+    }
+}
+
+impl From<CompilerVersion> for Version {
+    fn from(s: CompilerVersion) -> Version {
+        match s {
+            CompilerVersion::Installed(v) | CompilerVersion::Remote(v) => v,
+        }
+    }
+}
+
+impl fmt::Display for CompilerVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_ref())
+    }
+}
 
 /// Compilation settings including evm_version, output_selection, etc.
 pub trait CompilerSettings:
@@ -45,7 +80,7 @@ pub trait CompilerSettings:
 }
 
 /// Input of a compiler, including sources and settings used for their compilation.
-pub trait CompilerInput: Serialize + Send + Sync + Sized {
+pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
     type Settings: CompilerSettings;
     type Language: Language;
 
@@ -81,7 +116,7 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized {
 
     /// Builder method to set the allowed paths for the compiler. Primarily used by solc
     /// implementation to set --allow-paths.
-    fn with_allowed_paths(self, _allowed_paths: BTreeSet<PathBuf>) -> Self {
+    fn with_allow_paths(self, _allowed_paths: BTreeSet<PathBuf>) -> Self {
         self
     }
 

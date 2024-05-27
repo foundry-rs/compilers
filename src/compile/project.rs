@@ -507,7 +507,7 @@ impl<L: Language> FilteredCompilerSources<L> {
 
     #[cfg(test)]
     #[cfg(all(feature = "project-util", feature = "svm-solc"))]
-    fn sources(&self) -> &VersionedFilteredSources<C> {
+    fn sources(&self) -> &VersionedFilteredSources<L> {
         match self {
             FilteredCompilerSources::Sequential(v) => v,
             FilteredCompilerSources::Parallel(v, _) => v,
@@ -550,11 +550,9 @@ fn compile_sequential<C: Compiler>(
 
             let mut input = C::Input::build(sources, opt_settings, language.clone(), &version)
                 .with_base_path(paths.root.clone())
-                .with_allowed_paths(paths.allowed_paths.clone())
+                .with_allow_paths(paths.allowed_paths.clone())
                 .with_include_paths(include_paths.clone())
                 .with_remappings(paths.remappings.clone());
-
-            input.strip_prefix(paths.root.as_path());
 
             let actually_dirty = input
                 .sources()
@@ -562,6 +560,8 @@ fn compile_sequential<C: Compiler>(
                 .filter(|f| dirty_files.contains(f))
                 .cloned()
                 .collect::<Vec<_>>();
+            
+            input.strip_prefix(paths.root.as_path());
 
             if actually_dirty.is_empty() {
                 // nothing to compile for this particular language, all dirty files are in the other
@@ -638,11 +638,9 @@ fn compile_parallel<C: Compiler>(
 
             let mut input = C::Input::build(sources, opt_settings, language.clone(), &version)
                 .with_base_path(paths.root.clone())
-                .with_allowed_paths(paths.allowed_paths.clone())
+                .with_allow_paths(paths.allowed_paths.clone())
                 .with_include_paths(include_paths.clone())
                 .with_remappings(paths.remappings.clone());
-
-            input.strip_prefix(paths.root.as_path());
 
             let actually_dirty = input
                 .sources()
@@ -650,6 +648,8 @@ fn compile_parallel<C: Compiler>(
                 .filter(|f| dirty_files.contains(f))
                 .cloned()
                 .collect::<Vec<_>>();
+
+            input.strip_prefix(paths.root.as_path());
 
             if actually_dirty.is_empty() {
                 // nothing to compile for this particular language, all dirty files are in the other
@@ -725,8 +725,8 @@ fn compile_parallel<C: Compiler>(
 mod tests {
     use super::*;
     use crate::{
-        artifacts::output_selection::ContractOutputSelection, project_util::TempProject,
-        ConfigurableArtifacts, MinimalCombinedArtifacts, Solc,
+        artifacts::output_selection::ContractOutputSelection, compilers::solc::SolcRegistry,
+        project_util::TempProject, ConfigurableArtifacts, MinimalCombinedArtifacts, Solc,
     };
 
     fn init_tracing() {
@@ -759,7 +759,7 @@ mod tests {
     fn can_detect_cached_files() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
         let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-        let project = TempProject::<Solc, MinimalCombinedArtifacts>::new(paths).unwrap();
+        let project = TempProject::<SolcRegistry, MinimalCombinedArtifacts>::new(paths).unwrap();
 
         let compiled = project.compile().unwrap();
         compiled.assert_success();
@@ -835,10 +835,11 @@ mod tests {
         assert!(cache.cache.all_artifacts_exist());
         assert_eq!(cache.dirty_sources.len(), 1);
 
+        let len = sources.values().map(|v| v.len()).sum::<usize>();
         // single solc
-        assert_eq!(sources.len(), 1);
+        assert_eq!(len, 1);
 
-        let filtered = &sources[0].2;
+        let filtered = &sources.values().next().unwrap().values().next().unwrap();
 
         // 3 contracts total
         assert_eq!(filtered.0.len(), 3);

@@ -87,6 +87,31 @@ impl SolcInput {
         Self { language, sources, settings }
     }
 
+    pub fn resolve_and_build(sources: Sources, settings: Settings) -> Vec<Self> {
+        let mut solidity_sources = BTreeMap::new();
+        let mut yul_sources = BTreeMap::new();
+
+        for (file, source) in sources {
+            if file.extension().map_or(false, |e| e == "yul") {
+                yul_sources.insert(file, source);
+            } else if file.extension().map_or(false, |e| e == "sol") {
+                solidity_sources.insert(file, source);
+            }
+        }
+
+        let mut res = Vec::new();
+
+        if !solidity_sources.is_empty() {
+            res.push(SolcInput::new(SolcLanguages::Solidity, solidity_sources, settings.clone()))
+        }
+
+        if !yul_sources.is_empty() {
+            res.push(SolcInput::new(SolcLanguages::Yul, yul_sources, settings))
+        }
+
+        res
+    }
+
     /// This will remove/adjust values in the [`SolcInput`] that are not compatible with this
     /// version
     pub fn sanitize(&mut self, version: &Version) {
@@ -2147,7 +2172,7 @@ mod tests {
         let settings = Settings { metadata: Some(BytecodeHash::Ipfs.into()), ..Default::default() };
 
         let input =
-            SolcInput { language: "Solidity".to_string(), sources: Default::default(), settings };
+            SolcInput { language: SolcLanguages::Solidity, sources: Default::default(), settings };
 
         let i = input.clone().sanitized(&version);
         assert_eq!(i.settings.metadata.unwrap().bytecode_hash, Some(BytecodeHash::Ipfs));
@@ -2167,7 +2192,7 @@ mod tests {
         };
 
         let input =
-            SolcInput { language: "Solidity".to_string(), sources: Default::default(), settings };
+            SolcInput { language: SolcLanguages::Solidity, sources: Default::default(), settings };
 
         let i = input.clone().sanitized(&version);
         assert_eq!(i.settings.metadata.unwrap().cbor_metadata, Some(true));

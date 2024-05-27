@@ -914,9 +914,9 @@ mod tests {
     #[test]
     fn can_resolve_hardhat_dependency_graph() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/hardhat-sample");
-        let paths = ProjectPathsConfig::<Solc>::hardhat(root).unwrap();
+        let paths = ProjectPathsConfig::hardhat(root).unwrap();
 
-        let graph = Graph::resolve(&paths).unwrap();
+        let graph = Graph::<SolData>::resolve(&paths).unwrap();
 
         assert_eq!(graph.edges.num_input_files, 1);
         assert_eq!(graph.files().len(), 2);
@@ -933,9 +933,9 @@ mod tests {
     #[test]
     fn can_resolve_dapp_dependency_graph() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
-        let paths = ProjectPathsConfig::<Solc>::dapptools(root).unwrap();
+        let paths = ProjectPathsConfig::dapptools(root).unwrap();
 
-        let graph = Graph::resolve(&paths).unwrap();
+        let graph = Graph::<SolData>::resolve(&paths).unwrap();
 
         assert_eq!(graph.edges.num_input_files, 2);
         assert_eq!(graph.files().len(), 3);
@@ -960,11 +960,11 @@ mod tests {
     #[test]
     #[cfg(not(target_os = "windows"))]
     fn can_print_dapp_sample_graph() {
-        use crate::Solc;
+        use crate::compilers::solc::SolcLanguages;
 
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
-        let paths = ProjectPathsConfig::<Solc>::dapptools(root).unwrap();
-        let graph = Graph::resolve(&paths).unwrap();
+        let paths = ProjectPathsConfig::dapptools(root).unwrap();
+        let graph = Graph::<SolData>::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();
         tree::print(&graph, &Default::default(), &mut out).unwrap();
 
@@ -985,11 +985,11 @@ src/Dapp.t.sol >=0.6.6
     #[test]
     #[cfg(not(target_os = "windows"))]
     fn can_print_hardhat_sample_graph() {
-        use crate::Solc;
+        use crate::{compilers::solc::SolcLanguages, Solc};
 
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/hardhat-sample");
-        let paths = ProjectPathsConfig::<Solc>::hardhat(root).unwrap();
-        let graph = Graph::resolve(&paths).unwrap();
+        let paths = ProjectPathsConfig::hardhat(root).unwrap();
+        let graph = Graph::<SolData>::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();
         tree::print(&graph, &Default::default(), &mut out).unwrap();
         assert_eq!(

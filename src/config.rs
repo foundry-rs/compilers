@@ -19,7 +19,7 @@ use std::{
 
 /// Where to find all files or where to write them
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectPathsConfig<C = SolcLanguages> {
+pub struct ProjectPathsConfig<L = SolcLanguages> {
     /// Project root
     pub root: PathBuf,
     /// Path to the cache, if any
@@ -43,7 +43,7 @@ pub struct ProjectPathsConfig<C = SolcLanguages> {
     /// The paths which will be allowed for library inclusion
     pub allowed_paths: BTreeSet<PathBuf>,
 
-    pub _c: PhantomData<C>,
+    pub _l: PhantomData<L>,
 }
 
 impl ProjectPathsConfig {
@@ -816,7 +816,7 @@ impl ProjectPathsConfigBuilder {
             root,
             include_paths: self.include_paths,
             allowed_paths,
-            _c: PhantomData,
+            _l: PhantomData,
         }
     }
 

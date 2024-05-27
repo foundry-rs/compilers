@@ -25,7 +25,7 @@ pub mod cache;
 pub mod flatten;
 
 pub mod hh;
-use compilers::{Compiler, CompilerSettings};
+use compilers::{solc::SolcRegistry, Compiler, CompilerSettings};
 pub use filter::SparseOutputFileFilter;
 pub use hh::{HardhatArtifact, HardhatArtifacts};
 
@@ -79,7 +79,7 @@ pub mod project_util;
 
 /// Represents a project workspace and handles `solc` compiling of all contracts in that workspace.
 #[derive(Clone, Debug)]
-pub struct Project<C: Compiler = Solc, T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct Project<C: Compiler = SolcRegistry, T: ArtifactOutput = ConfigurableArtifacts> {
     pub compiler: C,
     /// The layout of the project
     pub paths: ProjectPathsConfig<C::Language>,
@@ -152,7 +152,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     }
 }
 
-impl<T: ArtifactOutput> Project<Solc, T> {
+impl<T: ArtifactOutput> Project<SolcRegistry, T> {
     /// Returns standard-json-input to compile the target contract
     pub fn standard_json_input(
         &self,
@@ -543,7 +543,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     }
 }
 
-pub struct ProjectBuilder<C: Compiler = Solc, T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct ProjectBuilder<C: Compiler = SolcRegistry, T: ArtifactOutput = ConfigurableArtifacts> {
     /// The layout of the
     paths: Option<ProjectPathsConfig<C::Language>>,
     /// How solc invocation should be configured.

@@ -1,6 +1,5 @@
 use crate::{
     artifacts::Source,
-    compilers::solc::SolcLanguages,
     error::{Result, SolcError},
     resolver::parse::SolData,
     utils, CompilerOutput, SolcInput,
@@ -317,6 +316,9 @@ impl Solc {
     pub fn blocking_install(version: &Version) -> std::result::Result<Self, svm::SvmError> {
         use crate::utils::RuntimeOrHandle;
 
+        #[cfg(test)]
+        crate::take_solc_installer_lock!(_lock);
+
         trace!("blocking installing solc version \"{}\"", version);
         crate::report::solc_installation_start(version);
         // The async version `svm::install` is used instead of `svm::blocking_intsall`
@@ -386,19 +388,12 @@ impl Solc {
     pub fn compile_source(&self, path: impl AsRef<Path>) -> Result<CompilerOutput> {
         let path = path.as_ref();
         let mut res: CompilerOutput = Default::default();
-
-        let solidity_sources = Source::read_all_from(path, &["sol"])?;
-        let yul_sources = Source::read_all_from(path, &["yul"])?;
-
-        if !solidity_sources.is_empty() {
-            let input =
-                SolcInput::new(SolcLanguages::Solidity, solidity_sources, Default::default());
-            res.merge(self.compile(&input)?)
-        }
-
-        if !yul_sources.is_empty() {
-            let input = SolcInput::new(SolcLanguages::Yul, yul_sources, Default::default());
-            res.merge(self.compile(&input)?)
+        for input in
+            SolcInput::resolve_and_build(Source::read_sol_yul_from(path)?, Default::default())
+        {
+            let input = input.sanitized(&self.version);
+            let output = self.compile(&input)?;
+            res.merge(output)
         }
 
         Ok(res)
@@ -527,16 +522,25 @@ impl Solc {
 
         cmd
     }
+
+    pub fn find_or_install(version: &Version) -> Result<Self> {
+        let solc = if let Some(solc) = Self::find_svm_installed_version(version.to_string())? {
+            solc
+        } else {
+            Self::blocking_install(version)?
+        };
+
+        Ok(solc)
+    }
 }
 
 #[cfg(feature = "async")]
 impl Solc {
     /// Convenience function for compiling all sources under the given path
     pub async fn async_compile_source(&self, path: impl AsRef<Path>) -> Result<CompilerOutput> {
-        self.async_compile(&SolcInput::build(
+        self.async_compile(&SolcInput::resolve_and_build(
             Source::async_read_all_from(path, SOLC_EXTENSIONS).await?,
             Default::default(),
-            &self.version,
         ))
         .await
     }
@@ -638,11 +642,7 @@ impl AsRef<Path> for Solc {
 #[cfg(feature = "svm-solc")]
 mod tests {
     use super::*;
-    use crate::{
-        compilers::{solc::SolcVersionManager, CompilerVersionManager, VersionManagerError},
-        resolver::parse::SolData,
-        Artifact,
-    };
+    use crate::{resolver::parse::SolData, Artifact};
 
     #[test]
     fn test_version_parse() {
@@ -652,7 +652,11 @@ mod tests {
     }
 
     fn solc() -> Solc {
-        SolcVersionManager::default().get_or_install(&Version::new(0, 8, 18)).unwrap()
+        if let Some(solc) = Solc::find_svm_installed_version("0.8.18").unwrap() {
+            solc
+        } else {
+            Solc::blocking_install(&Version::new(0, 8, 18)).unwrap()
+        }
     }
 
     #[test]
@@ -767,7 +771,7 @@ mod tests {
             Solc::blocking_install(&version).unwrap();
         }
         drop(_lock);
-        let res = SolcVersionManager::default().get_installed(&version).unwrap();
+        let res = Solc::find_svm_installed_version(ver).unwrap().unwrap();
         let expected = svm::data_dir().join(ver).join(format!("solc-{ver}"));
         assert_eq!(res.solc, expected);
     }
@@ -784,8 +788,7 @@ mod tests {
     #[test]
     fn does_not_find_not_installed_version() {
         let ver = "1.1.1";
-        let version = Version::from_str(ver).unwrap();
-        let res = SolcVersionManager::default().get_installed(&version);
-        assert!(matches!(res, Err(VersionManagerError::VersionNotInstalled(_))));
+        let res = Solc::find_svm_installed_version(ver).unwrap();
+        assert!(matches!(res, None));
     }
 }

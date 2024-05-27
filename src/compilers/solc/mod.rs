@@ -1,13 +1,8 @@
-#[cfg(feature = "svm-solc")]
-mod version_manager;
-#[cfg(feature = "svm-solc")]
-pub use version_manager::SolcVersionManager;
-
 use itertools::Itertools;
 
 use super::{
-    version_manager::CompilerVersion, CompilationError, Compiler, CompilerInput, CompilerOutput,
-    CompilerSettings, Language, ParsedSource,
+    CompilationError, Compiler, CompilerInput, CompilerOutput, CompilerSettings, CompilerVersion,
+    Language, ParsedSource,
 };
 use crate::{
     artifacts::{
@@ -22,9 +17,13 @@ use crate::{
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
 };
+
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct SolcRegistry;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -37,7 +36,7 @@ impl Language for SolcLanguages {
     const FILE_EXTENSIONS: &'static [&'static str] = SOLC_EXTENSIONS;
 }
 
-impl Compiler for Solc {
+impl Compiler for SolcRegistry {
     type Input = SolcVerionedInput;
     type CompilationError = crate::artifacts::Error;
     type ParsedSource = SolData;
@@ -45,35 +44,11 @@ impl Compiler for Solc {
     type Language = SolcLanguages;
 
     fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>> {
-        let solc =
-            if let Some(solc) = Solc::find_svm_installed_version(input.version().to_string())? {
-                solc
-            } else {
-                #[cfg(test)]
-                crate::take_solc_installer_lock!(_lock);
+        let mut solc = Solc::find_or_install(&input.version)?;
+        solc.base_path = input.base_path.clone();
+        solc.allow_paths = input.allow_paths.clone();
+        solc.include_paths = input.include_paths.clone();
 
-                let version = if !input.version.pre.is_empty() || !input.version.build.is_empty() {
-                    Version::new(input.version.major, input.version.minor, input.version.patch)
-                } else {
-                    input.version.clone()
-                };
-
-                trace!("blocking installing solc version \"{}\"", version);
-                crate::report::solc_installation_start(&version);
-                // The async version `svm::install` is used instead of `svm::blocking_intsall`
-                // because the underlying `reqwest::blocking::Client` does not behave well
-                // inside of a Tokio runtime. See: https://github.com/seanmonstar/reqwest/issues/1017
-                match RuntimeOrHandle::new().block_on(svm::install(&version)) {
-                    Ok(path) => {
-                        crate::report::solc_installation_success(&version);
-                        Ok(Solc::new_with_version(path, version))
-                    }
-                    Err(err) => {
-                        crate::report::solc_installation_error(&version, &err.to_string());
-                        Err(SolcError::msg(format!("failed to install {}", version)))
-                    }
-                }?
-            };
         let solc_output = solc.compile(&input.input)?;
 
         let output = CompilerOutput {
@@ -86,7 +61,22 @@ impl Compiler for Solc {
     }
 
     fn available_versions(&self, _language: &Self::Language) -> Vec<CompilerVersion> {
-        Solc::installed_versions().into_iter().map(CompilerVersion::Installed).collect()
+        let mut all_versions = Solc::installed_versions().into_iter().map(CompilerVersion::Installed).collect::<Vec<_>>();
+        let mut uniques = all_versions
+            .iter()
+            .map(|v| {
+                let v = v.as_ref();
+                (v.major, v.minor, v.patch)
+            })
+            .collect::<HashSet<_>>();
+        all_versions.extend(
+            Solc::released_versions()
+                .into_iter()
+                .filter(|v| uniques.insert((v.major, v.minor, v.patch)))
+                .map(CompilerVersion::Remote),
+        );
+        all_versions.sort_unstable();
+        all_versions
     }
 }
 
@@ -97,9 +87,9 @@ pub struct SolcVerionedInput {
     #[serde(flatten)]
     pub input: SolcInput,
     #[serde(skip)]
-    pub allowed_paths: BTreeSet<PathBuf>,
+    pub allow_paths: BTreeSet<PathBuf>,
     #[serde(skip)]
-    pub base_path: PathBuf,
+    pub base_path: Option<PathBuf>,
     #[serde(skip)]
     pub include_paths: BTreeSet<PathBuf>,
 }
@@ -123,9 +113,9 @@ impl CompilerInput for SolcVerionedInput {
         Self {
             version: version.clone(),
             input,
-            allowed_paths: BTreeSet::new(),
-            base_path: PathBuf::new(),
-            include_paths: BTreeSet::new(),
+            base_path: None,
+            include_paths: Default::default(),
+            allow_paths: Default::default(),
         }
     }
 
@@ -155,13 +145,13 @@ impl CompilerInput for SolcVerionedInput {
         self.input.strip_prefix(base);
     }
 
-    fn with_allowed_paths(mut self, allowed_paths: BTreeSet<PathBuf>) -> Self {
-        self.allowed_paths = allowed_paths;
+    fn with_allow_paths(mut self, allowed_paths: BTreeSet<PathBuf>) -> Self {
+        self.allow_paths = allowed_paths;
         self
     }
 
     fn with_base_path(mut self, base_path: PathBuf) -> Self {
-        self.base_path = base_path;
+        self.base_path = Some(base_path);
         self
     }
 

@@ -107,10 +107,9 @@ mod tests {
 
     #[test]
     fn build_info_serde() {
-        let inputs = SolcInput::build(
+        let inputs = SolcInput::resolve_and_build(
             BTreeMap::from([(PathBuf::from("input.sol"), Source::new(""))]),
             Default::default(),
-            &Version::new(0, 8, 4),
         );
         let output = CompilerOutput::<Error>::default();
         let v: Version = "0.8.4+commit.c7e474f2".parse().unwrap();
