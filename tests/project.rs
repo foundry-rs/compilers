@@ -10,6 +10,7 @@ use foundry_compilers::{
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
     compilers::{
+        multi::{MultiCompiler, MultiCompilerLanguage, MultiCompilerSettings},
         solc::{SolcCompiler, SolcLanguage},
         vyper::{Vyper, VyperLanguage, VyperSettings},
         CompilerOutput,
@@ -3892,4 +3893,37 @@ fn test_vyper_imports() {
         .unwrap();
 
     project.compile().unwrap().assert_success();
+}
+
+#[test]
+fn test_can_compile_multi() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/multi-sample");
+
+    let paths = ProjectPathsConfig::builder()
+        .sources(root.join("src"))
+        .root(&root)
+        .build::<MultiCompilerLanguage>()
+        .unwrap();
+
+    let settings = MultiCompilerSettings {
+        vyper: VyperSettings {
+            output_selection: OutputSelection::default_output_selection(),
+            ..Default::default()
+        },
+        solc: Default::default(),
+    };
+
+    let compiler = MultiCompiler { solc: SolcCompiler::default(), vyper: VYPER.clone() };
+
+    let project = ProjectBuilder::<MultiCompiler>::new(Default::default())
+        .settings(settings)
+        .paths(paths)
+        .no_artifacts()
+        .build(compiler)
+        .unwrap();
+
+    let compiled = project.compile().unwrap();
+    assert!(compiled.find(root.join("src/Counter.sol").to_string_lossy(), "Counter").is_some());
+    assert!(compiled.find(root.join("src/Counter.vy").to_string_lossy(), "Counter").is_some());
+    compiled.assert_success();
 }

@@ -23,8 +23,8 @@ use std::{
 
 #[derive(Debug, Clone)]
 pub struct MultiCompiler {
-    solc_compiler: SolcCompiler,
-    vyper_compiler: Vyper,
+    pub solc: SolcCompiler,
+    pub vyper: Vyper,
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -61,8 +61,8 @@ impl fmt::Display for MultiCompilerLanguage {
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct MultiCompilerSettings {
-    solc: SolcSettings,
-    vyper: VyperSettings,
+    pub solc: SolcSettings,
+    pub vyper: VyperSettings,
 }
 
 impl CompilerSettings for MultiCompilerSettings {
@@ -177,22 +177,18 @@ impl Compiler for MultiCompiler {
     fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>> {
         match input {
             MultiCompilerInput::Solc(input) => {
-                self.solc_compiler.compile(input).map(|res| res.map_err(MultiCompilerError::Solc))
+                self.solc.compile(input).map(|res| res.map_err(MultiCompilerError::Solc))
             }
             MultiCompilerInput::Vyper(input) => {
-                self.vyper_compiler.compile(input).map(|res| res.map_err(MultiCompilerError::Vyper))
+                self.vyper.compile(input).map(|res| res.map_err(MultiCompilerError::Vyper))
             }
         }
     }
 
     fn available_versions(&self, language: &Self::Language) -> Vec<CompilerVersion> {
         match language {
-            MultiCompilerLanguage::Solc(language) => {
-                self.solc_compiler.available_versions(language)
-            }
-            MultiCompilerLanguage::Vyper(language) => {
-                self.vyper_compiler.available_versions(language)
-            }
+            MultiCompilerLanguage::Solc(language) => self.solc.available_versions(language),
+            MultiCompilerLanguage::Vyper(language) => self.vyper.available_versions(language),
         }
     }
 }
