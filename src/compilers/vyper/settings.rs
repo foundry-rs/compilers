@@ -57,8 +57,8 @@ impl VyperSettings {
 }
 
 impl CompilerSettings for VyperSettings {
-    fn output_selection_mut(&mut self) -> &mut OutputSelection {
-        &mut self.output_selection
+    fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection)) {
+        f(&mut self.output_selection)
     }
 
     fn can_use_cached(&self, other: &Self) -> bool {

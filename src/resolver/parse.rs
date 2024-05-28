@@ -10,7 +10,7 @@ use std::{
 };
 
 /// Represents various information about a solidity file parsed via [solang_parser]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SolData {
     pub license: Option<SolDataUnit<String>>,
     pub version: Option<SolDataUnit<String>>,
@@ -170,7 +170,7 @@ impl SolImport {
 }
 
 /// Minimal representation of a contract inside a solidity file
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SolLibrary {
     pub functions: Vec<FunctionDefinition>,
 }

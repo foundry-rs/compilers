@@ -5,14 +5,14 @@ use crate::{artifacts::Sources, compilers::CompilerInput};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VyperInput {
     pub language: String,
     pub sources: Sources,
     pub settings: VyperSettings,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct VyperVersionedInput {
     #[serde(flatten)]
     pub input: VyperInput,

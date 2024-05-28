@@ -10,7 +10,7 @@ use foundry_compilers::{
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
     compilers::{
-        solc::{SolcLanguage, SolcRegistry},
+        solc::{SolcCompiler, SolcLanguage},
         vyper::{Vyper, VyperLanguage, VyperSettings},
         CompilerOutput,
     },
@@ -89,7 +89,7 @@ fn can_compile_hardhat_sample() {
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("contracts"))
         .lib(root.join("node_modules"));
-    let project = TempProject::<SolcRegistry, ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
     let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Greeter").is_some());
@@ -114,7 +114,7 @@ fn can_compile_hardhat_sample() {
 fn can_compile_dapp_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-    let project = TempProject::<SolcRegistry, ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
     let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Dapp").is_some());
@@ -141,7 +141,7 @@ fn can_compile_dapp_sample() {
 fn can_compile_yul_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/yul-sample");
     let paths = ProjectPathsConfig::builder().sources(root);
-    let project = TempProject::<SolcRegistry, ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
     let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Dapp").is_some());
@@ -543,7 +543,7 @@ fn can_flatten_file_with_external_lib() {
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("contracts"))
         .lib(root.join("node_modules"));
-    let project = TempProject::<SolcRegistry, ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
     let target = root.join("contracts").join("Greeter.sol");
 
@@ -558,7 +558,7 @@ fn can_flatten_file_with_external_lib() {
 fn can_flatten_file_in_dapp_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-    let project = TempProject::<SolcRegistry, ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
     let target = root.join("src/Dapp.t.sol");
 
@@ -2722,7 +2722,7 @@ fn can_compile_model_checker_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/model-checker-sample");
     let paths = ProjectPathsConfig::builder().sources(root);
 
-    let mut project = TempProject::<SolcRegistry, ConfigurableArtifacts>::new(paths).unwrap();
+    let mut project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
     project.project_mut().settings.model_checker = Some(ModelCheckerSettings {
         engine: Some(CHC),
         timeout: Some(10000),
@@ -3790,7 +3790,7 @@ fn test_deterministic_metadata() {
     let project = Project::builder()
         .locked_version(SolcLanguage::Solidity, Version::new(0, 8, 18))
         .paths(paths)
-        .build(SolcRegistry::default())
+        .build(SolcCompiler::default())
         .unwrap();
 
     let compiled = project.compile().unwrap();
@@ -3863,7 +3863,7 @@ fn yul_remappings_ignored() {
         name: "@openzeppelin".to_string(),
         path: root.to_string_lossy().to_string(),
     });
-    let project = TempProject::<SolcRegistry, ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();

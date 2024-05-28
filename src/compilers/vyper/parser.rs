@@ -16,14 +16,14 @@ use winnow::{
 
 use super::VyperLanguage;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VyperImport {
     pub level: usize,
     pub path: Option<String>,
     pub final_part: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VyperParsedSource {
     path: PathBuf,
     version_req: Option<VersionReq>,
@@ -33,7 +33,7 @@ pub struct VyperParsedSource {
 impl ParsedSource for VyperParsedSource {
     type Language = VyperLanguage;
 
-    fn parse(content: &str, file: &Path) -> Self {
+    fn parse(content: &str, file: &Path) -> Result<Self> {
         let version_req = capture_outer_and_inner(content, &RE_VYPER_VERSION, &["version"])
             .first()
             .and_then(|(cap, _)| VersionReq::parse(cap.as_str()).ok());
@@ -42,7 +42,7 @@ impl ParsedSource for VyperParsedSource {
 
         let path = file.to_path_buf();
 
-        VyperParsedSource { path, version_req, imports }
+        Ok(VyperParsedSource { path, version_req, imports })
     }
 
     fn version_req(&self) -> Option<&VersionReq> {

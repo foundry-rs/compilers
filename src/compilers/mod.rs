@@ -17,6 +17,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub mod multi;
 pub mod solc;
 pub mod vyper;
 
@@ -61,8 +62,8 @@ impl fmt::Display for CompilerVersion {
 pub trait CompilerSettings:
     Default + Serialize + DeserializeOwned + Clone + Debug + Send + Sync + 'static
 {
-    /// Returns mutable reference to configured [OutputSelection].
-    fn output_selection_mut(&mut self) -> &mut OutputSelection;
+    /// Executes given fn with mutable reference to configured [OutputSelection].
+    fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy);
 
     /// Returns true if artifacts compiled with given `other` config are compatible with this
     /// config and if compilation can be skipped.
@@ -134,16 +135,14 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
 pub trait ParsedSource: Debug + Sized + Send {
     type Language: Language;
 
-    fn parse(content: &str, file: &Path) -> Self;
+    fn parse(content: &str, file: &Path) -> Result<Self>;
     fn version_req(&self) -> Option<&VersionReq>;
     fn resolve_imports<C>(&self, paths: &ProjectPathsConfig<C>) -> Result<Vec<PathBuf>>;
     fn language(&self) -> Self::Language;
 }
 
 /// Error returned by compiler. Might also represent a warning or informational message.
-pub trait CompilationError:
-    Serialize + DeserializeOwned + Send + Sync + Display + Debug + Clone + 'static
-{
+pub trait CompilationError: Serialize + Send + Sync + Display + Debug + Clone + 'static {
     fn is_warning(&self) -> bool;
     fn is_error(&self) -> bool;
     fn source_location(&self) -> Option<crate::artifacts::error::SourceLocation>;
@@ -195,6 +194,14 @@ impl<E> CompilerOutput<E> {
             .into_iter()
             .map(|(path, source)| (root.join(path), source))
             .collect();
+    }
+
+    pub fn map_err<F, O: FnMut(E) -> F>(self, op: O) -> CompilerOutput<F> {
+        CompilerOutput {
+            errors: self.errors.into_iter().map(op).collect(),
+            contracts: self.contracts,
+            sources: self.sources,
+        }
     }
 }
 

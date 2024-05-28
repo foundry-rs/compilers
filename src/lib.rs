@@ -25,7 +25,7 @@ pub mod cache;
 pub mod flatten;
 
 pub mod hh;
-use compilers::{solc::SolcRegistry, Compiler, CompilerSettings};
+use compilers::{solc::SolcCompiler, Compiler, CompilerSettings};
 pub use filter::SparseOutputFileFilter;
 pub use hh::{HardhatArtifact, HardhatArtifacts};
 
@@ -79,7 +79,7 @@ pub mod project_util;
 
 /// Represents a project workspace and handles `solc` compiling of all contracts in that workspace.
 #[derive(Clone, Debug)]
-pub struct Project<C: Compiler = SolcRegistry, T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct Project<C: Compiler = SolcCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
     pub compiler: C,
     /// Compiler versions locked for specific languages.
     pub locked_versions: HashMap<C::Language, Version>,
@@ -154,7 +154,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     }
 }
 
-impl<T: ArtifactOutput> Project<SolcRegistry, T> {
+impl<T: ArtifactOutput> Project<SolcCompiler, T> {
     /// Returns standard-json-input to compile the target contract
     pub fn standard_json_input(
         &self,
@@ -440,8 +440,9 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     {
         let mut temp_project = (*self).clone();
         temp_project.no_artifacts = true;
-        *temp_project.settings.output_selection_mut() =
-            OutputSelection::common_output_selection([]);
+        temp_project.settings.update_output_selection(|selection| {
+            *selection = OutputSelection::common_output_selection([]);
+        });
 
         let output = temp_project.compile()?;
 
@@ -516,7 +517,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     }
 }
 
-pub struct ProjectBuilder<C: Compiler = SolcRegistry, T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct ProjectBuilder<C: Compiler = SolcCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
     /// The layout of the
     paths: Option<ProjectPathsConfig<C::Language>>,
     /// Compiler versions locked for specific languages.

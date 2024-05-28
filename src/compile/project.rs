@@ -636,7 +636,7 @@ fn compile_parallel<C: Compiler<Input = I>, I: CompilerInput>(
 mod tests {
     use super::*;
     use crate::{
-        artifacts::output_selection::ContractOutputSelection, compilers::solc::SolcRegistry,
+        artifacts::output_selection::ContractOutputSelection, compilers::solc::SolcCompiler,
         project_util::TempProject, ConfigurableArtifacts, MinimalCombinedArtifacts,
     };
 
@@ -670,7 +670,7 @@ mod tests {
     fn can_detect_cached_files() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
         let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-        let project = TempProject::<SolcRegistry, MinimalCombinedArtifacts>::new(paths).unwrap();
+        let project = TempProject::<SolcCompiler, MinimalCombinedArtifacts>::new(paths).unwrap();
 
         let compiled = project.compile().unwrap();
         compiled.assert_success();

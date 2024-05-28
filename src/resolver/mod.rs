@@ -335,10 +335,10 @@ impl<D: ParsedSource> Graph<D> {
         let mut unresolved: VecDeque<_> = sources
             .into_par_iter()
             .map(|(path, source)| {
-                let data = D::parse(source.as_ref(), &path);
-                (path.clone(), Node { path, source, data })
+                let data = D::parse(source.as_ref(), &path)?;
+                Ok((path.clone(), Node { path, source, data }))
             })
-            .collect();
+            .collect::<Result<_>>()?;
 
         // identifiers of all resolved files
         let mut index: HashMap<_, _> =
@@ -853,7 +853,7 @@ impl<D: ParsedSource> Node<D> {
                 }
             }
         })?;
-        let data = D::parse(source.as_ref(), file);
+        let data = D::parse(source.as_ref(), file)?;
         Ok(Self { path: file.to_path_buf(), source, data })
     }
 

@@ -151,13 +151,6 @@ impl<D> SparseOutputFilter<D> {
         graph: &GraphEdges<D>,
         f: &dyn SparseOutputFileFilter<D>,
     ) {
-        trace!("optimizing output selection with custom filter");
-        let selection = settings
-            .output_selection_mut()
-            .as_mut()
-            .remove("*")
-            .unwrap_or_else(OutputSelection::default_file_output_selection);
-
         let mut full_compilation = HashSet::new();
 
         // populate sources which need complete compilation with data from filter
@@ -169,18 +162,23 @@ impl<D> SparseOutputFilter<D> {
             }
         }
 
-        // set output selections
-        for file in sources.0.keys() {
-            let key = format!("{}", file.display());
-            if full_compilation.contains(file) {
-                settings.output_selection_mut().as_mut().insert(key, selection.clone());
-            } else {
-                settings
-                    .output_selection_mut()
-                    .as_mut()
-                    .insert(key, OutputSelection::empty_file_output_select());
+        settings.update_output_selection(|selection| {
+            trace!("optimizing output selection with custom filter");
+            let default_selection = selection
+                .as_mut()
+                .remove("*")
+                .unwrap_or_else(OutputSelection::default_file_output_selection);
+
+            // set output selections
+            for file in sources.0.keys() {
+                let key = format!("{}", file.display());
+                if full_compilation.contains(file) {
+                    selection.as_mut().insert(key, default_selection.clone());
+                } else {
+                    selection.as_mut().insert(key, OutputSelection::empty_file_output_select());
+                }
             }
-        }
+        })
     }
 
     /// prunes all clean sources and only selects an output for dirty sources
@@ -192,31 +190,26 @@ impl<D> SparseOutputFilter<D> {
             sources.len()
         );
 
-        let default = settings
-            .output_selection_mut()
-            .as_mut()
-            .remove("*")
-            .unwrap_or_else(OutputSelection::default_file_output_selection);
+        settings.update_output_selection(|selection| {
+            let selection = selection.as_mut();
+            let default = selection
+                .remove("*")
+                .unwrap_or_else(OutputSelection::default_file_output_selection);
 
-        let optimized = S::minimal_output_selection();
+            let optimized = S::minimal_output_selection();
 
-        for (file, kind) in sources.0.iter() {
-            match kind {
-                SourceCompilationKind::Complete(_) => {
-                    settings
-                        .output_selection_mut()
-                        .as_mut()
-                        .insert(format!("{}", file.display()), default.clone());
-                }
-                SourceCompilationKind::Optimized(_) => {
-                    trace!("using pruned output selection for {}", file.display());
-                    settings
-                        .output_selection_mut()
-                        .as_mut()
-                        .insert(format!("{}", file.display()), optimized.clone());
+            for (file, kind) in sources.0.iter() {
+                match kind {
+                    SourceCompilationKind::Complete(_) => {
+                        selection.insert(format!("{}", file.display()), default.clone());
+                    }
+                    SourceCompilationKind::Optimized(_) => {
+                        trace!("using pruned output selection for {}", file.display());
+                        selection.insert(format!("{}", file.display()), optimized.clone());
+                    }
                 }
             }
-        }
+        });
     }
 }
 

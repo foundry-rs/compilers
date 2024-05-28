@@ -23,7 +23,7 @@ use std::{
 
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-pub struct SolcRegistry;
+pub struct SolcCompiler;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -45,7 +45,7 @@ impl fmt::Display for SolcLanguage {
     }
 }
 
-impl Compiler for SolcRegistry {
+impl Compiler for SolcCompiler {
     type Input = SolcVersionedInput;
     type CompilationError = crate::artifacts::Error;
     type ParsedSource = SolData;
@@ -174,8 +174,8 @@ impl CompilerInput for SolcVersionedInput {
 }
 
 impl CompilerSettings for SolcSettings {
-    fn output_selection_mut(&mut self) -> &mut OutputSelection {
-        &mut self.output_selection
+    fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy) {
+        f(&mut self.output_selection)
     }
 
     fn can_use_cached(&self, other: &Self) -> bool {
@@ -208,8 +208,8 @@ impl CompilerSettings for SolcSettings {
 impl ParsedSource for SolData {
     type Language = SolcLanguage;
 
-    fn parse(content: &str, file: &std::path::Path) -> Self {
-        SolData::parse(content, file)
+    fn parse(content: &str, file: &std::path::Path) -> Result<Self> {
+        Ok(SolData::parse(content, file))
     }
 
     fn version_req(&self) -> Option<&semver::VersionReq> {
