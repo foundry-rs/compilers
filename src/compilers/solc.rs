@@ -8,16 +8,16 @@ use crate::{
     artifacts::{
         output_selection::OutputSelection, Error, Settings as SolcSettings, SolcInput, Sources,
     },
-    error::{Result, SolcError},
+    error::Result,
     remappings::Remapping,
     resolver::parse::SolData,
-    utils::RuntimeOrHandle,
     Solc, SOLC_EXTENSIONS,
 };
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashSet},
+    fmt,
     path::{Path, PathBuf},
 };
 
@@ -27,21 +27,30 @@ pub struct SolcRegistry;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
-pub enum SolcLanguages {
+pub enum SolcLanguage {
     Solidity,
     Yul,
 }
 
-impl Language for SolcLanguages {
+impl Language for SolcLanguage {
     const FILE_EXTENSIONS: &'static [&'static str] = SOLC_EXTENSIONS;
 }
 
+impl fmt::Display for SolcLanguage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Solidity => write!(f, "Solidity"),
+            Self::Yul => write!(f, "Yul"),
+        }
+    }
+}
+
 impl Compiler for SolcRegistry {
-    type Input = SolcVerionedInput;
+    type Input = SolcVersionedInput;
     type CompilationError = crate::artifacts::Error;
     type ParsedSource = SolData;
     type Settings = SolcSettings;
-    type Language = SolcLanguages;
+    type Language = SolcLanguage;
 
     fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>> {
         let mut solc = Solc::find_or_install(&input.version)?;
@@ -84,7 +93,7 @@ impl Compiler for SolcRegistry {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct SolcVerionedInput {
+pub struct SolcVersionedInput {
     #[serde(skip)]
     pub version: Version,
     #[serde(flatten)]
@@ -97,9 +106,9 @@ pub struct SolcVerionedInput {
     pub include_paths: BTreeSet<PathBuf>,
 }
 
-impl CompilerInput for SolcVerionedInput {
+impl CompilerInput for SolcVersionedInput {
     type Settings = SolcSettings;
-    type Language = SolcLanguages;
+    type Language = SolcLanguage;
 
     /// Creates a new [CompilerInput]s with default settings and the given sources
     ///
@@ -109,12 +118,12 @@ impl CompilerInput for SolcVerionedInput {
         sources: Sources,
         settings: Self::Settings,
         language: Self::Language,
-        version: &Version,
+        version: Version,
     ) -> Self {
-        let input = SolcInput::new(language, sources, settings).sanitized(version);
+        let input = SolcInput::new(language, sources, settings).sanitized(&version);
 
         Self {
-            version: version.clone(),
+            version,
             input,
             base_path: None,
             include_paths: Default::default(),
@@ -197,7 +206,7 @@ impl CompilerSettings for SolcSettings {
 }
 
 impl ParsedSource for SolData {
-    type Language = SolcLanguages;
+    type Language = SolcLanguage;
 
     fn parse(content: &str, file: &std::path::Path) -> Self {
         SolData::parse(content, file)
@@ -213,9 +222,9 @@ impl ParsedSource for SolData {
 
     fn language(&self) -> Self::Language {
         if self.is_yul {
-            SolcLanguages::Yul
+            SolcLanguage::Yul
         } else {
-            SolcLanguages::Solidity
+            SolcLanguage::Solidity
         }
     }
 }

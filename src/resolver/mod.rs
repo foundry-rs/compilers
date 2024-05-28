@@ -55,7 +55,7 @@ use crate::{
 use core::fmt;
 use parse::SolData;
 use rayon::prelude::*;
-use semver::VersionReq;
+use semver::{Version, VersionReq};
 use std::{
     collections::{BTreeSet, HashMap, HashSet, VecDeque},
     io,
@@ -462,6 +462,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     pub fn into_sources_by_version<C: Compiler<ParsedSource = D, Language = L>>(
         self,
         offline: bool,
+        locked_versions: &HashMap<L, Version>,
         compiler: &C,
     ) -> Result<(VersionedSources<C::Language>, GraphEdges<D>)> {
         /// insert the imports of the given node into the sources map
@@ -494,7 +495,8 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             }
         }
 
-        let versioned_nodes_by_lang = self.get_input_node_versions(offline, compiler)?;
+        let versioned_nodes_by_lang =
+            self.get_input_node_versions(offline, locked_versions, compiler)?;
         let (nodes, edges) = self.split();
 
         let mut all_nodes = nodes.into_iter().enumerate().collect::<HashMap<_, _>>();
@@ -524,7 +526,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                         &mut processed_sources,
                     );
                 }
-                versioned_sources.insert(version.into(), sources);
+                versioned_sources.insert(version, sources);
             }
 
             resulted_sources.insert(language, versioned_sources);
@@ -600,13 +602,18 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     fn get_input_node_versions<C: Compiler<Language = L>>(
         &self,
         offline: bool,
+        locked_versions: &HashMap<L, Version>,
         compiler: &C,
-    ) -> Result<HashMap<L, HashMap<CompilerVersion, Vec<usize>>>> {
+    ) -> Result<HashMap<L, HashMap<Version, Vec<usize>>>> {
         trace!("resolving input node versions");
 
         let mut resulted_nodes = HashMap::new();
 
         for (language, nodes) in self.nodes_by_language() {
+            if let Some(version) = locked_versions.get(&language) {
+                resulted_nodes.insert(language, HashMap::from([(version.clone(), nodes)]));
+                continue;
+            }
             // this is likely called by an application and will be eventually printed so we don't
             // exit on first error, instead gather all the errors and return a bundled
             // error message instead
@@ -688,7 +695,13 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
 
             if errors.is_empty() {
                 trace!("resolved {} versions {:?}", versioned_nodes.len(), versioned_nodes.keys());
-                resulted_nodes.insert(language, versioned_nodes);
+                resulted_nodes.insert(
+                    language,
+                    versioned_nodes
+                        .into_iter()
+                        .map(|(v, nodes)| (Version::from(v), nodes))
+                        .collect(),
+                );
             } else {
                 error!("failed to resolve versions");
                 return Err(SolcError::msg(errors.join("\n")));
@@ -907,8 +920,6 @@ enum SourceVersionError {
 
 #[cfg(test)]
 mod tests {
-    use crate::Solc;
-
     use super::*;
 
     #[test]
@@ -960,8 +971,6 @@ mod tests {
     #[test]
     #[cfg(not(target_os = "windows"))]
     fn can_print_dapp_sample_graph() {
-        use crate::compilers::solc::SolcLanguages;
-
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
         let paths = ProjectPathsConfig::dapptools(root).unwrap();
         let graph = Graph::<SolData>::resolve(&paths).unwrap();
@@ -985,8 +994,6 @@ src/Dapp.t.sol >=0.6.6
     #[test]
     #[cfg(not(target_os = "windows"))]
     fn can_print_hardhat_sample_graph() {
-        use crate::{compilers::solc::SolcLanguages, Solc};
-
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/hardhat-sample");
         let paths = ProjectPathsConfig::hardhat(root).unwrap();
         let graph = Graph::<SolData>::resolve(&paths).unwrap();

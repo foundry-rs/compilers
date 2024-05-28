@@ -18,8 +18,6 @@ use std::{
 };
 
 pub mod solc;
-
-#[cfg(ignore)]
 pub mod vyper;
 
 /// A compiler version is either installed (available locally) or can be downloaded, from the remote
@@ -90,7 +88,7 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
         sources: Sources,
         settings: Self::Settings,
         language: Self::Language,
-        version: &Version,
+        version: Version,
     ) -> Self;
 
     /// Returns reference to sources included into this input.
@@ -206,14 +204,15 @@ impl<E> Default for CompilerOutput<E> {
     }
 }
 
-pub trait Language: Hash + Eq + Clone + Debug {
+pub trait Language: Hash + Eq + Clone + Debug + Display + 'static {
     /// Extensions of source files recognized by the language set.
     const FILE_EXTENSIONS: &'static [&'static str];
 }
 
 /// The main compiler abstraction trait. Currently mostly represents a wrapper around compiler
 /// binary aware of the version and able to compile given input into [CompilerOutput] including
-/// artifacts and errors.
+/// artifacts and errors.'
+#[auto_impl::auto_impl(&, Box, Arc)]
 pub trait Compiler: Send + Sync + Clone {
     /// Input type for the compiler. Contains settings and sources to be compiled.
     type Input: CompilerInput<Settings = Self::Settings, Language = Self::Language>;

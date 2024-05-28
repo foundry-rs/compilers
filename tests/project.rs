@@ -9,7 +9,11 @@ use foundry_compilers::{
     },
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
-    compilers::{solc::SolcRegistry, CompilerOutput},
+    compilers::{
+        solc::{SolcLanguage, SolcRegistry},
+        vyper::{Vyper, VyperLanguage, VyperSettings},
+        CompilerOutput,
+    },
     error::SolcError,
     flatten::Flattener,
     info::ContractInfo,
@@ -33,7 +37,6 @@ use std::{
 };
 use svm::{platform, Platform};
 
-#[cfg(ignore)]
 pub static VYPER: Lazy<Vyper> = Lazy::new(|| {
     RuntimeOrHandle::new().block_on(async {
         #[cfg(target_family = "unix")]
@@ -2876,7 +2879,6 @@ async fn can_install_solc_and_compile_std_json_input_async() {
 }
 
 #[test]
-#[cfg(ignore)]
 fn can_purge_obsolete_artifacts() {
     let mut project = TempProject::dapptools().unwrap();
     project.set_solc("0.8.10");
@@ -3785,7 +3787,11 @@ fn test_deterministic_metadata() {
     copy_dir_all(orig_root, &tmp_dir).unwrap();
 
     let paths = ProjectPathsConfig::builder().root(root).build().unwrap();
-    let project = Project::builder().paths(paths).build(SolcRegistry::default()).unwrap();
+    let project = Project::builder()
+        .locked_version(SolcLanguage::Solidity, Version::new(0, 8, 18))
+        .paths(paths)
+        .build(SolcRegistry::default())
+        .unwrap();
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();
@@ -3803,7 +3809,6 @@ fn test_deterministic_metadata() {
 }
 
 #[test]
-#[cfg(ignore)]
 fn can_compile_vyper_with_cache() {
     let tmp_dir = tempfile::tempdir().unwrap();
     let root = tmp_dir.path();
@@ -3818,7 +3823,7 @@ fn can_compile_vyper_with_cache() {
         .sources(root.join("src"))
         .artifacts(root.join("out"))
         .root(root)
-        .build::<Vyper>()
+        .build::<VyperLanguage>()
         .unwrap();
 
     let settings = VyperSettings {
@@ -3830,7 +3835,7 @@ fn can_compile_vyper_with_cache() {
     let project = ProjectBuilder::<Vyper>::new(Default::default())
         .settings(settings)
         .paths(paths)
-        .build(CompilerConfig::Specific(VYPER.clone()))
+        .build(VYPER.clone())
         .unwrap();
 
     let compiled = project.compile().unwrap();
@@ -3865,14 +3870,13 @@ fn yul_remappings_ignored() {
 }
 
 #[test]
-#[cfg(ignore)]
 fn test_vyper_imports() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/vyper-imports");
 
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("src"))
         .root(root)
-        .build::<Vyper>()
+        .build::<VyperLanguage>()
         .unwrap();
 
     let settings = VyperSettings {
@@ -3884,7 +3888,7 @@ fn test_vyper_imports() {
         .settings(settings)
         .paths(paths)
         .no_artifacts()
-        .build(CompilerConfig::Specific(VYPER.clone()))
+        .build(VYPER.clone())
         .unwrap();
 
     project.compile().unwrap().assert_success();

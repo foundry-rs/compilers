@@ -13,7 +13,7 @@ use crate::{
     utils::{self, tempdir},
     Artifact, ArtifactOutput, Artifacts, CompilerCache, ConfigurableArtifacts,
     ConfigurableContractArtifact, PathStyle, Project, ProjectCompileOutput, ProjectPathsConfig,
-    Solc, SolcIoError,
+    SolcIoError,
 };
 use fs_extra::{dir, file};
 use std::{
@@ -79,15 +79,13 @@ impl<T: ArtifactOutput> TempProject<SolcRegistry, T> {
 
     /// Explicitly sets the solc version for the project
     #[cfg(feature = "svm-solc")]
-    #[cfg(ignore)]
     pub fn set_solc(&mut self, solc: impl AsRef<str>) -> &mut Self {
-        use crate::{compilers::CompilerVersionManager, CompilerConfig};
+        use crate::compilers::solc::SolcLanguage;
         use semver::Version;
 
-        let solc = crate::compilers::solc::SolcVersionManager
-            .get_or_install(&Version::parse(solc.as_ref()).unwrap())
-            .unwrap();
-        self.inner.compiler = CompilerConfig::Specific(solc);
+        let version = Version::parse(solc.as_ref()).unwrap();
+        self.inner.locked_versions.insert(SolcLanguage::Solidity, version.clone());
+        self.inner.locked_versions.insert(SolcLanguage::Yul, version.clone());
         self
     }
 

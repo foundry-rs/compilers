@@ -1,9 +1,14 @@
-use self::{error::VyperCompilationError, input::VyperInput, parser::VyperParsedSource};
-use super::{Compiler, CompilerInput, CompilerOutput};
+use self::{
+    error::VyperCompilationError,
+    input::{VyperInput, VyperVersionedInput},
+    parser::VyperParsedSource,
+};
+use super::{Compiler, CompilerOutput, Language};
 use crate::{
     artifacts::Source,
     error::{Result, SolcError},
 };
+use core::fmt;
 use semver::Version;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
@@ -23,6 +28,20 @@ pub type VyperCompilerOutput = CompilerOutput<VyperCompilationError>;
 /// File extensions that are recognized as Vyper source files.
 pub const VYPER_EXTENSIONS: &[&str] = &["vy"];
 
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[non_exhaustive]
+pub struct VyperLanguage;
+
+impl Language for VyperLanguage {
+    const FILE_EXTENSIONS: &'static [&'static str] = VYPER_EXTENSIONS;
+}
+
+impl fmt::Display for VyperLanguage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Vyper")
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Vyper {
     pub path: PathBuf,
@@ -40,16 +59,9 @@ impl Vyper {
     /// Convenience function for compiling all sources under the given path
     pub fn compile_source(&self, path: impl AsRef<Path>) -> Result<VyperCompilerOutput> {
         let path = path.as_ref();
-        let mut res: VyperCompilerOutput = Default::default();
-        for input in VyperInput::build(
-            Source::read_all_from(path, VYPER_EXTENSIONS)?,
-            Default::default(),
-            &self.version,
-        ) {
-            let output = self.compile(&input)?;
-            res.merge(output)
-        }
-        Ok(res)
+        let input =
+            VyperInput::new(Source::read_all_from(path, VYPER_EXTENSIONS)?, Default::default());
+        self.compile(&input)
     }
 
     /// Same as [`Self::compile()`], but only returns those files which are included in the
@@ -145,18 +157,17 @@ impl Vyper {
 }
 
 impl Compiler for Vyper {
-    const FILE_EXTENSIONS: &'static [&'static str] = VYPER_EXTENSIONS;
-
     type Settings = VyperSettings;
     type CompilationError = VyperCompilationError;
     type ParsedSource = VyperParsedSource;
-    type Input = VyperInput;
+    type Input = VyperVersionedInput;
+    type Language = VyperLanguage;
 
     fn compile(&self, input: &Self::Input) -> Result<VyperCompilerOutput> {
         self.compile(input)
     }
 
-    fn version(&self) -> &Version {
-        &self.version
+    fn available_versions(&self, _language: &Self::Language) -> Vec<super::CompilerVersion> {
+        vec![super::CompilerVersion::Installed(self.version.clone())]
     }
 }

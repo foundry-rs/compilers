@@ -789,6 +789,6 @@ mod tests {
     fn does_not_find_not_installed_version() {
         let ver = "1.1.1";
         let res = Solc::find_svm_installed_version(ver).unwrap();
-        assert!(matches!(res, None));
+        assert!(res.is_none());
     }
 }

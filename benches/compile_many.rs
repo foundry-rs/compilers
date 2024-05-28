@@ -3,10 +3,7 @@
 extern crate criterion;
 
 use criterion::Criterion;
-use foundry_compilers::{
-    compilers::{solc::SolcVersionManager, CompilerVersionManager},
-    SolcInput,
-};
+use foundry_compilers::{Solc, SolcInput};
 use semver::Version;
 use std::path::Path;
 

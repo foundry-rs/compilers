@@ -98,11 +98,7 @@ impl std::io::Write for BuildInfoWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        artifacts::Error,
-        compilers::{CompilerInput, CompilerOutput},
-        SolcInput, Source,
-    };
+    use crate::{artifacts::Error, compilers::CompilerOutput, SolcInput, Source};
     use std::{collections::BTreeMap, path::PathBuf};
 
     #[test]

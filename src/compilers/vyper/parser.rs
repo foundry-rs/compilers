@@ -14,6 +14,8 @@ use winnow::{
     PResult, Parser,
 };
 
+use super::VyperLanguage;
+
 #[derive(Debug, PartialEq)]
 pub struct VyperImport {
     pub level: usize,
@@ -29,6 +31,8 @@ pub struct VyperParsedSource {
 }
 
 impl ParsedSource for VyperParsedSource {
+    type Language = VyperLanguage;
+
     fn parse(content: &str, file: &Path) -> Self {
         let version_req = capture_outer_and_inner(content, &RE_VYPER_VERSION, &["version"])
             .first()
@@ -116,6 +120,10 @@ impl ParsedSource for VyperParsedSource {
             )));
         }
         Ok(imports)
+    }
+
+    fn language(&self) -> Self::Language {
+        VyperLanguage
     }
 }
 

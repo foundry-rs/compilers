@@ -105,7 +105,7 @@ use crate::{
     artifacts::{VersionedFilteredSources, VersionedSources},
     buildinfo::RawBuildInfo,
     cache::ArtifactsCache,
-    compilers::{Compiler, CompilerInput, Language},
+    compilers::{Compiler, CompilerInput, CompilerOutput, Language},
     error::Result,
     filter::SparseOutputFilter,
     output::AggregatedCompilerOutput,
@@ -141,13 +141,12 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     /// Multiple (`Solc` -> `Sources`) pairs can be compiled in parallel if the `Project` allows
     /// multiple `jobs`, see [`crate::Project::set_solc_jobs()`].
     pub fn with_sources(project: &'a Project<C, T>, sources: Sources) -> Result<Self> {
-        Self::with_sources_autodetect(project, sources)
-    }
-
-    /// Compiles the sources automatically detecting versions via [CompilerVersionManager]
-    pub fn with_sources_autodetect(project: &'a Project<C, T>, sources: Sources) -> Result<Self> {
         let graph = Graph::resolve_sources(&project.paths, sources)?;
-        let (sources, edges) = graph.into_sources_by_version(project.offline, &project.compiler)?;
+        let (sources, edges) = graph.into_sources_by_version(
+            project.offline,
+            &project.locked_versions,
+            &project.compiler,
+        )?;
 
         let jobs_cnt = sources.values().map(|v| v.len()).sum::<usize>();
 
@@ -158,22 +157,6 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
         } else {
             CompilerSources::Sequential(sources)
         };
-
-        Ok(Self { edges, project, sources, sparse_output: Default::default() })
-    }
-
-    /// Compiles the sources with a pinned [Compiler] instance
-    #[cfg(ignore)]
-    pub fn with_sources_and_compiler(
-        project: &'a Project<C, T>,
-        sources: Sources,
-        compiler: C,
-    ) -> Result<Self> {
-        let version = compiler.version().clone();
-        let (sources, edges) = Graph::resolve_sources(&project.paths, sources)?.into_sources();
-
-        let sources_by_version = vec![(compiler, version.clone(), sources)];
-        let sources = CompilerSources::Sequential(sources_by_version);
 
         Ok(Self { edges, project, sources, sparse_output: Default::default() })
     }
@@ -482,27 +465,85 @@ impl<L: Language> FilteredCompilerSources<L> {
         graph: &GraphEdges<C::ParsedSource>,
         create_build_info: bool,
     ) -> Result<AggregatedCompilerOutput<C::CompilationError>> {
-        match self {
-            FilteredCompilerSources::Sequential(input) => compile_sequential(
-                compiler,
-                input,
-                settings,
-                paths,
-                sparse_output,
-                graph,
-                create_build_info,
-            ),
-            FilteredCompilerSources::Parallel(input, j) => compile_parallel(
-                compiler,
-                input,
-                j,
-                settings,
-                paths,
-                sparse_output,
-                graph,
-                create_build_info,
-            ),
+        let jobs_cnt = if let Self::Parallel(_, jobs_cnt) = self { Some(jobs_cnt) } else { None };
+
+        let sources = self.into_sources();
+        // Include additional paths collected during graph resolution.
+        let mut include_paths = paths.include_paths.clone();
+        include_paths.extend(graph.include_paths().clone());
+
+        let mut jobs = Vec::new();
+        for (language, versioned_sources) in sources {
+            for (version, filtered_sources) in versioned_sources {
+                if filtered_sources.is_empty() {
+                    // nothing to compile
+                    trace!("skip {} for empty sources set", version);
+                    continue;
+                }
+
+                let dirty_files: Vec<PathBuf> = filtered_sources.dirty_files().cloned().collect();
+
+                // depending on the composition of the filtered sources, the output selection can be
+                // optimized
+                let mut opt_settings = settings.clone();
+                let sources =
+                    sparse_output.sparse_sources(filtered_sources, &mut opt_settings, graph);
+
+                let mut input =
+                    C::Input::build(sources, opt_settings, language.clone(), version.clone())
+                        .with_base_path(paths.root.clone())
+                        .with_allow_paths(paths.allowed_paths.clone())
+                        .with_include_paths(include_paths.clone())
+                        .with_remappings(paths.remappings.clone());
+
+                let actually_dirty = input
+                    .sources()
+                    .keys()
+                    .filter(|f| dirty_files.contains(f))
+                    .cloned()
+                    .collect::<Vec<_>>();
+
+                input.strip_prefix(paths.root.as_path());
+
+                if actually_dirty.is_empty() {
+                    // nothing to compile for this particular language, all dirty files are in the
+                    // other language set
+                    trace!("skip {} run due to empty source set", version);
+                    continue;
+                }
+                trace!(
+                    "calling {} with {} sources {:?}",
+                    version,
+                    input.sources().len(),
+                    input.sources().keys()
+                );
+
+                jobs.push((input, actually_dirty));
+            }
         }
+
+        let results = if let Some(num_jobs) = jobs_cnt {
+            compile_parallel(compiler, jobs, num_jobs)
+        } else {
+            compile_sequential(compiler, jobs)
+        }?;
+
+        let mut aggregated = AggregatedCompilerOutput::default();
+
+        for (input, mut output) in results {
+            let version = input.version();
+            // if configured also create the build info
+            if create_build_info {
+                let build_info = RawBuildInfo::new(&input, &output, version)?;
+                aggregated.build_infos.insert(version.clone(), build_info);
+            }
+
+            output.join_all(paths.root.as_path());
+
+            aggregated.extend(version.clone(), output);
+        }
+
+        Ok(aggregated)
     }
 
     #[cfg(test)]
@@ -513,161 +554,42 @@ impl<L: Language> FilteredCompilerSources<L> {
             FilteredCompilerSources::Parallel(v, _) => v,
         }
     }
+
+    fn into_sources(self) -> VersionedFilteredSources<L> {
+        match self {
+            FilteredCompilerSources::Sequential(v) => v,
+            FilteredCompilerSources::Parallel(v, _) => v,
+        }
+    }
 }
 
-/// Compiles the input set sequentially and returns an aggregated set of the solc `CompilerOutput`s
-fn compile_sequential<C: Compiler>(
+/// Compiles the input set sequentially and returns a [Vec] of outputs.
+fn compile_sequential<C: Compiler<Input = I>, I: CompilerInput>(
     compiler: &C,
-    input: VersionedFilteredSources<C::Language>,
-    settings: &C::Settings,
-    paths: &ProjectPathsConfig<C::Language>,
-    sparse_output: SparseOutputFilter<C::ParsedSource>,
-    graph: &GraphEdges<C::ParsedSource>,
-    create_build_info: bool,
-) -> Result<AggregatedCompilerOutput<C::CompilationError>> {
-    let mut aggregated = AggregatedCompilerOutput::default();
-    trace!("compiling {} jobs sequentially", input.len());
-
-    // Include additional paths collected during graph resolution.
-    let mut include_paths = paths.include_paths.clone();
-    include_paths.extend(graph.include_paths().clone());
-
-    for (language, versioned_sources) in input {
-        for (version, filtered_sources) in versioned_sources {
-            if filtered_sources.is_empty() {
-                // nothing to compile
-                trace!("skip {} for empty sources set", version);
-                continue;
-            }
-            trace!("compiling {} sources with \"{}\"", filtered_sources.len(), version,);
-
-            let dirty_files: Vec<PathBuf> = filtered_sources.dirty_files().cloned().collect();
-
-            // depending on the composition of the filtered sources, the output selection can be
-            // optimized
-            let mut opt_settings = settings.clone();
-            let sources = sparse_output.sparse_sources(filtered_sources, &mut opt_settings, graph);
-
-            let mut input = C::Input::build(sources, opt_settings, language.clone(), &version)
-                .with_base_path(paths.root.clone())
-                .with_allow_paths(paths.allowed_paths.clone())
-                .with_include_paths(include_paths.clone())
-                .with_remappings(paths.remappings.clone());
-
-            let actually_dirty = input
-                .sources()
-                .keys()
-                .filter(|f| dirty_files.contains(f))
-                .cloned()
-                .collect::<Vec<_>>();
-
-            input.strip_prefix(paths.root.as_path());
-
-            if actually_dirty.is_empty() {
-                // nothing to compile for this particular language, all dirty files are in the other
-                // language set
-                trace!("skip {} run due to empty source set", version);
-                continue;
-            }
-
-            trace!(
-                "calling {} with {} sources {:?}",
-                version,
-                input.sources().len(),
-                input.sources().keys()
-            );
-
+    jobs: Vec<(I, Vec<PathBuf>)>,
+) -> Result<Vec<(I, CompilerOutput<C::CompilationError>)>> {
+    jobs.into_iter()
+        .map(|(input, actually_dirty)| {
             let start = Instant::now();
             report::compiler_spawn(
                 &input.compiler_name(),
                 input.version(),
                 actually_dirty.as_slice(),
             );
-            let mut output = compiler.compile(&input)?;
-            report::compiler_success(&input.compiler_name(), &version, &start.elapsed());
-            // trace!("compiled input, output has error: {}", output.has_error());
-            trace!("received compiler output: {:?}", output.contracts.keys());
+            let output = compiler.compile(&input)?;
+            report::compiler_success(&input.compiler_name(), input.version(), &start.elapsed());
 
-            // if configured also create the build info
-            if create_build_info {
-                let build_info = RawBuildInfo::new(&input, &output, &version)?;
-                aggregated.build_infos.insert(version.clone(), build_info);
-            }
-
-            output.join_all(paths.root.as_path());
-
-            aggregated.extend(version.clone(), output);
-        }
-    }
-    Ok(aggregated)
+            Ok((input, output))
+        })
+        .collect()
 }
 
 /// compiles the input set using `num_jobs` threads
-fn compile_parallel<C: Compiler>(
+fn compile_parallel<C: Compiler<Input = I>, I: CompilerInput>(
     compiler: &C,
-    input: VersionedFilteredSources<C::Language>,
+    jobs: Vec<(I, Vec<PathBuf>)>,
     num_jobs: usize,
-    settings: &C::Settings,
-    paths: &ProjectPathsConfig<C::Language>,
-    sparse_output: SparseOutputFilter<C::ParsedSource>,
-    graph: &GraphEdges<C::ParsedSource>,
-    create_build_info: bool,
-) -> Result<AggregatedCompilerOutput<C::CompilationError>> {
-    debug_assert!(num_jobs > 1);
-    trace!("compile {} sources in parallel using up to {} solc jobs", input.len(), num_jobs);
-
-    // Include additional paths collected during graph resolution.
-    let mut include_paths = paths.include_paths.clone();
-    include_paths.extend(graph.include_paths().clone());
-
-    let mut jobs = Vec::with_capacity(input.len());
-    for (language, versioned_sources) in input {
-        for (version, filtered_sources) in versioned_sources {
-            if filtered_sources.is_empty() {
-                // nothing to compile
-                trace!("skip {} for empty sources set", version);
-                continue;
-            }
-
-            let dirty_files: Vec<PathBuf> = filtered_sources.dirty_files().cloned().collect();
-
-            // depending on the composition of the filtered sources, the output selection can be
-            // optimized
-            let mut opt_settings = settings.clone();
-            let sources = sparse_output.sparse_sources(filtered_sources, &mut opt_settings, graph);
-
-            let mut input = C::Input::build(sources, opt_settings, language.clone(), &version)
-                .with_base_path(paths.root.clone())
-                .with_allow_paths(paths.allowed_paths.clone())
-                .with_include_paths(include_paths.clone())
-                .with_remappings(paths.remappings.clone());
-
-            let actually_dirty = input
-                .sources()
-                .keys()
-                .filter(|f| dirty_files.contains(f))
-                .cloned()
-                .collect::<Vec<_>>();
-
-            input.strip_prefix(paths.root.as_path());
-
-            if actually_dirty.is_empty() {
-                // nothing to compile for this particular language, all dirty files are in the other
-                // language set
-                trace!("skip {} run due to empty source set", version);
-                continue;
-            }
-            trace!(
-                "calling {} with {} sources {:?}",
-                version,
-                input.sources().len(),
-                input.sources().keys()
-            );
-
-            jobs.push((input, actually_dirty));
-        }
-    }
-
+) -> Result<Vec<(I, CompilerOutput<C::CompilationError>)>> {
     // need to get the currently installed reporter before installing the pool, otherwise each new
     // thread in the pool will get initialized with the default value of the `thread_local!`'s
     // localkey. This way we keep access to the reporter in the rayon pool
@@ -676,7 +598,7 @@ fn compile_parallel<C: Compiler>(
     // start a rayon threadpool that will execute all `Solc::compile()` processes
     let pool = rayon::ThreadPoolBuilder::new().num_threads(num_jobs).build().unwrap();
 
-    let outputs = pool.install(move || {
+    pool.install(move || {
         jobs.into_par_iter()
             .map(move |(input, actually_dirty)| {
                 // set the reporter on this thread
@@ -700,24 +622,11 @@ fn compile_parallel<C: Compiler>(
                         input.version(),
                         &start.elapsed(),
                     );
-                    (input.version().clone(), input, output)
+                    (input, output)
                 })
             })
-            .collect::<core::result::Result<Vec<_>, _>>()
-    })?;
-
-    let mut aggregated = AggregatedCompilerOutput::default();
-    for (version, input, mut output) in outputs {
-        // if configured also create the build info
-        if create_build_info {
-            let build_info = RawBuildInfo::new(&input, &output, &version)?;
-            aggregated.build_infos.insert(version.clone(), build_info);
-        }
-        output.join_all(paths.root.as_path());
-        aggregated.extend(version, output);
-    }
-
-    Ok(aggregated)
+            .collect()
+    })
 }
 
 #[cfg(test)]
@@ -726,7 +635,7 @@ mod tests {
     use super::*;
     use crate::{
         artifacts::output_selection::ContractOutputSelection, compilers::solc::SolcRegistry,
-        project_util::TempProject, ConfigurableArtifacts, MinimalCombinedArtifacts, Solc,
+        project_util::TempProject, ConfigurableArtifacts, MinimalCombinedArtifacts,
     };
 
     fn init_tracing() {

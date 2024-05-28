@@ -1,7 +1,7 @@
 use crate::{
     artifacts::{output_selection::ContractOutputSelection, Settings},
     cache::SOLIDITY_FILES_CACHE_FILENAME,
-    compilers::{solc::SolcLanguages, Language},
+    compilers::{solc::SolcLanguage, Language},
     error::{Result, SolcError, SolcIoError},
     flatten::{collect_ordered_deps, combine_version_pragmas},
     remappings::Remapping,
@@ -19,7 +19,7 @@ use std::{
 
 /// Where to find all files or where to write them
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectPathsConfig<L = SolcLanguages> {
+pub struct ProjectPathsConfig<L = SolcLanguage> {
     /// Project root
     pub root: PathBuf,
     /// Path to the cache, if any

@@ -3,7 +3,7 @@
 #![allow(ambiguous_glob_reexports)]
 
 use crate::{
-    compile::*, compilers::solc::SolcLanguages, error::SolcIoError, output::ErrorFilter,
+    compile::*, compilers::solc::SolcLanguage, error::SolcIoError, output::ErrorFilter,
     remappings::Remapping, utils, ProjectPathsConfig, SolcError,
 };
 use alloy_primitives::hex;
@@ -60,7 +60,7 @@ pub const YUL: &str = "Yul";
 /// Input type `solc` expects.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SolcInput {
-    pub language: SolcLanguages,
+    pub language: SolcLanguage,
     pub sources: Sources,
     pub settings: Settings,
 }
@@ -69,7 +69,7 @@ pub struct SolcInput {
 impl Default for SolcInput {
     fn default() -> Self {
         SolcInput {
-            language: SolcLanguages::Solidity,
+            language: SolcLanguage::Solidity,
             sources: Sources::default(),
             settings: Settings::default(),
         }
@@ -77,12 +77,10 @@ impl Default for SolcInput {
 }
 
 impl SolcInput {
-    pub fn new(language: SolcLanguages, sources: Sources, mut settings: Settings) -> Self {
-        if language == SolcLanguages::Yul {
-            if !settings.remappings.is_empty() {
-                warn!("omitting remappings supplied for the yul sources");
-                settings.remappings = vec![];
-            }
+    pub fn new(language: SolcLanguage, sources: Sources, mut settings: Settings) -> Self {
+        if language == SolcLanguage::Yul && !settings.remappings.is_empty() {
+            warn!("omitting remappings supplied for the yul sources");
+            settings.remappings = vec![];
         }
         Self { language, sources, settings }
     }
@@ -102,11 +100,11 @@ impl SolcInput {
         let mut res = Vec::new();
 
         if !solidity_sources.is_empty() {
-            res.push(SolcInput::new(SolcLanguages::Solidity, solidity_sources, settings.clone()))
+            res.push(SolcInput::new(SolcLanguage::Solidity, solidity_sources, settings.clone()))
         }
 
         if !yul_sources.is_empty() {
-            res.push(SolcInput::new(SolcLanguages::Yul, yul_sources, settings))
+            res.push(SolcInput::new(SolcLanguage::Yul, yul_sources, settings))
         }
 
         res
@@ -160,11 +158,11 @@ impl SolcInput {
     /// The flag indicating whether the current [SolcInput] is
     /// constructed for the yul sources
     pub fn is_yul(&self) -> bool {
-        self.language == SolcLanguages::Yul
+        self.language == SolcLanguage::Yul
     }
 
     pub fn with_remappings(mut self, remappings: Vec<Remapping>) -> Self {
-        if self.language == SolcLanguages::Yul {
+        if self.language == SolcLanguage::Yul {
             if !remappings.is_empty() {
                 warn!("omitting remappings supplied for the yul sources");
             }
@@ -184,7 +182,7 @@ impl SolcInput {
 /// the verified contracts
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StandardJsonCompilerInput {
-    pub language: SolcLanguages,
+    pub language: SolcLanguage,
     #[serde(with = "serde_helpers::tuple_vec_map")]
     pub sources: Vec<(PathBuf, Source)>,
     pub settings: Settings,
@@ -194,7 +192,7 @@ pub struct StandardJsonCompilerInput {
 
 impl StandardJsonCompilerInput {
     pub fn new(sources: Vec<(PathBuf, Source)>, settings: Settings) -> Self {
-        Self { language: SolcLanguages::Solidity, sources, settings }
+        Self { language: SolcLanguage::Solidity, sources, settings }
     }
 
     /// Normalizes the EVM version used in the settings to be up to the latest one
@@ -2172,7 +2170,7 @@ mod tests {
         let settings = Settings { metadata: Some(BytecodeHash::Ipfs.into()), ..Default::default() };
 
         let input =
-            SolcInput { language: SolcLanguages::Solidity, sources: Default::default(), settings };
+            SolcInput { language: SolcLanguage::Solidity, sources: Default::default(), settings };
 
         let i = input.clone().sanitized(&version);
         assert_eq!(i.settings.metadata.unwrap().bytecode_hash, Some(BytecodeHash::Ipfs));
@@ -2192,7 +2190,7 @@ mod tests {
         };
 
         let input =
-            SolcInput { language: SolcLanguages::Solidity, sources: Default::default(), settings };
+            SolcInput { language: SolcLanguage::Solidity, sources: Default::default(), settings };
 
         let i = input.clone().sanitized(&version);
         assert_eq!(i.settings.metadata.unwrap().cbor_metadata, Some(true));

@@ -81,6 +81,8 @@ pub mod project_util;
 #[derive(Clone, Debug)]
 pub struct Project<C: Compiler = SolcRegistry, T: ArtifactOutput = ConfigurableArtifacts> {
     pub compiler: C,
+    /// Compiler versions locked for specific languages.
+    pub locked_versions: HashMap<C::Language, Version>,
     /// The layout of the project
     pub paths: ProjectPathsConfig<C::Language>,
     /// The compiler settings
@@ -371,35 +373,6 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
         project::ProjectCompiler::with_sources(self, sources)?.with_sparse_output(filter).compile()
     }
 
-    /// Compiles the given source files with the exact [Compiler] instance
-    ///
-    /// First all libraries for the sources are resolved by scanning all their imports.
-    /// If caching is enabled for the `Project`, then all unchanged files are filtered from the
-    /// sources and their existing artifacts are read instead. This will also update the cache
-    /// file and cleans up entries for files which may have been removed. Unchanged files that
-    /// for which an artifact exist, are not compiled again.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use foundry_compilers::{Project, Solc};
-    ///
-    /// let project = Project::builder().build()?;
-    /// let sources = project.paths.read_sources()?;
-    /// let solc = Solc::find_svm_installed_version("0.8.11")?.unwrap();
-    /// project.compile_with_version(&solc, sources)?;
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    #[cfg(ignore)]
-    pub fn compile_with_version(
-        &self,
-        compiler: &C,
-        sources: Sources,
-    ) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
-        project::ProjectCompiler::with_sources_and_compiler(self, sources, compiler.clone())?
-            .compile()
-    }
-
     /// Removes the project's artifacts and cache file
     ///
     /// If the cache file was the only file in the folder, this also removes the empty folder.
@@ -546,6 +519,8 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
 pub struct ProjectBuilder<C: Compiler = SolcRegistry, T: ArtifactOutput = ConfigurableArtifacts> {
     /// The layout of the
     paths: Option<ProjectPathsConfig<C::Language>>,
+    /// Compiler versions locked for specific languages.
+    locked_versions: HashMap<C::Language, Version>,
     /// How solc invocation should be configured.
     settings: Option<C::Settings>,
     /// Whether caching is enabled, default is true.
@@ -585,6 +560,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             compiler_severity_filter: Severity::Error,
             solc_jobs: None,
             settings: None,
+            locked_versions: Default::default(),
         }
     }
 
@@ -700,6 +676,18 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
         self.solc_jobs(1)
     }
 
+    #[must_use]
+    pub fn locked_version(mut self, lang: C::Language, version: Version) -> Self {
+        self.locked_versions.insert(lang, version);
+        self
+    }
+
+    #[must_use]
+    pub fn locked_versions(mut self, versions: HashMap<C::Language, Version>) -> Self {
+        self.locked_versions = versions;
+        self
+    }
+
     /// Set arbitrary `ArtifactOutputHandler`
     pub fn artifacts<A: ArtifactOutput>(self, artifacts: A) -> ProjectBuilder<C, A> {
         let ProjectBuilder {
@@ -714,6 +702,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             slash_paths,
             ignored_file_paths,
             settings,
+            locked_versions,
             ..
         } = self;
         ProjectBuilder {
@@ -729,6 +718,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             solc_jobs,
             build_info,
             settings,
+            locked_versions,
         }
     }
 
@@ -746,6 +736,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             build_info,
             slash_paths,
             settings,
+            locked_versions,
         } = self;
 
         let mut paths = paths.map(Ok).unwrap_or_else(ProjectPathsConfig::current_hardhat)?;
@@ -771,6 +762,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             offline,
             slash_paths,
             settings: settings.unwrap_or_default(),
+            locked_versions,
         })
     }
 }
