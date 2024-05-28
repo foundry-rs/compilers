@@ -6,10 +6,9 @@
 //! Some constraints we're working with when resolving contracts
 //!
 //!   1. Each file can contain several source units and can have any number of imports/dependencies
-//! (using the term interchangeably). Each dependency can declare a version range that it is
-//! compatible with, solidity version pragma.
-//!   2. A dependency can be imported from any directory,
-//! see `Remappings`
+//!      (using the term interchangeably). Each dependency can declare a version range that it is
+//!      compatible with, solidity version pragma.
+//!   2. A dependency can be imported from any directory, see `Remappings`
 //!
 //! Finding all dependencies is fairly simple, we're simply doing a DFS, starting the source
 //! contracts
