@@ -636,7 +636,7 @@ fn compile_parallel<C: Compiler<Input = I>, I: CompilerInput>(
 mod tests {
     use super::*;
     use crate::{
-        artifacts::output_selection::ContractOutputSelection, compilers::solc::SolcCompiler,
+        artifacts::output_selection::ContractOutputSelection, compilers::multi::MultiCompiler,
         project_util::TempProject, ConfigurableArtifacts, MinimalCombinedArtifacts,
     };
 
@@ -670,7 +670,7 @@ mod tests {
     fn can_detect_cached_files() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
         let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-        let project = TempProject::<SolcCompiler, MinimalCombinedArtifacts>::new(paths).unwrap();
+        let project = TempProject::<MultiCompiler, MinimalCombinedArtifacts>::new(paths).unwrap();
 
         let compiled = project.compile().unwrap();
         compiled.assert_success();
@@ -683,7 +683,7 @@ mod tests {
 
     #[test]
     fn can_recompile_with_optimized_output() {
-        let tmp = TempProject::dapptools().unwrap();
+        let tmp = TempProject::<MultiCompiler, ConfigurableArtifacts>::dapptools().unwrap();
 
         tmp.add_source(
             "A",
@@ -805,7 +805,7 @@ mod tests {
     fn extra_output_cached() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
         let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-        let mut project = TempProject::new(paths.clone()).unwrap();
+        let mut project = TempProject::<MultiCompiler>::new(paths.clone()).unwrap();
 
         // Compile once without enabled extra output
         project.compile().unwrap();

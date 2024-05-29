@@ -2,7 +2,7 @@
 
 use crate::{
     artifacts::output_selection::OutputSelection,
-    compilers::CompilerSettings,
+    compilers::{multi::MultiCompilerParsedSource, CompilerSettings},
     resolver::{parse::SolData, GraphEdges},
     Source, Sources,
 };
@@ -48,33 +48,47 @@ impl FileFilter for TestFileFilter {
     }
 }
 
-/// Wrapper around a [FileFilter] that includes files matched by the inner filter and their link
-/// references obtained from [GraphEdges].
-pub struct SolcSparseFileFilter<T> {
-    file_filter: T,
+trait MaybeSolData {
+    fn sol_data(&self) -> Option<&SolData>;
 }
 
-impl<T> SolcSparseFileFilter<T> {
-    pub fn new(file_filter: T) -> Self {
-        Self { file_filter }
+impl MaybeSolData for SolData {
+    fn sol_data(&self) -> Option<&SolData> {
+        Some(self)
     }
 }
 
-impl<T: FileFilter> FileFilter for SolcSparseFileFilter<T> {
-    fn is_match(&self, file: &Path) -> bool {
-        self.file_filter.is_match(file)
+impl MaybeSolData for MultiCompilerParsedSource {
+    fn sol_data(&self) -> Option<&SolData> {
+        match self {
+            MultiCompilerParsedSource::Solc(data) => Some(data),
+            _ => None,
+        }
     }
 }
 
-impl<T: FileFilter> SparseOutputFileFilter<SolData> for SolcSparseFileFilter<T> {
+fn sparse_solc<D: MaybeSolData>(file: &Path, graph: &GraphEdges<D>) -> Vec<PathBuf> {
+    let mut sources_to_compile = vec![file.to_path_buf()];
+    for import in graph.imports(file) {
+        if let Some(parsed) = graph.get_parsed_source(import).and_then(MaybeSolData::sol_data) {
+            if !parsed.libraries.is_empty() {
+                sources_to_compile.push(import.to_path_buf());
+            }
+        }
+    }
+
+    sources_to_compile
+}
+
+impl<T: FileFilter> SparseOutputFileFilter<SolData> for T {
     fn sparse_sources(&self, file: &Path, graph: &GraphEdges<SolData>) -> Vec<PathBuf> {
-        if !self.file_filter.is_match(file) {
+        if !self.is_match(file) {
             return vec![];
         }
 
         let mut sources_to_compile = vec![file.to_path_buf()];
         for import in graph.imports(file) {
-            if let Some(parsed) = graph.get_parsed_source(import) {
+            if let Some(parsed) = graph.get_parsed_source(import).and_then(|d| d.sol_data()) {
                 if !parsed.libraries.is_empty() {
                     sources_to_compile.push(import.to_path_buf());
                 }
@@ -82,6 +96,23 @@ impl<T: FileFilter> SparseOutputFileFilter<SolData> for SolcSparseFileFilter<T> 
         }
 
         sources_to_compile
+    }
+}
+
+impl<T: FileFilter> SparseOutputFileFilter<MultiCompilerParsedSource> for T {
+    fn sparse_sources(
+        &self,
+        file: &Path,
+        graph: &GraphEdges<MultiCompilerParsedSource>,
+    ) -> Vec<PathBuf> {
+        if !self.is_match(file) {
+            return vec![];
+        }
+
+        match file.extension().and_then(|e| e.to_str()) {
+            Some("yul" | "sol") => sparse_solc(file, graph),
+            _ => vec![file.to_path_buf()],
+        }
     }
 }
 

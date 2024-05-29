@@ -1,10 +1,10 @@
 //! Helpers to generate mock projects
 
 use crate::{
-    compilers::ParsedSource,
+    compilers::{multi::MultiCompilerParsedSource, Language, ParsedSource},
     error::Result,
     remappings::Remapping,
-    resolver::{parse::SolData, GraphEdges},
+    resolver::GraphEdges,
     Graph, ProjectPathsConfig, SolcError,
 };
 use rand::{
@@ -68,7 +68,7 @@ impl MockProjectGenerator {
             Some(libs)
         }
 
-        let graph = Graph::<SolData>::resolve(paths)?;
+        let graph = Graph::<MultiCompilerParsedSource>::resolve(paths)?;
         let mut gen = MockProjectGenerator::default();
         let (_, edges) = graph.into_sources();
 
@@ -111,7 +111,11 @@ impl MockProjectGenerator {
     }
 
     /// Generate all solidity files and write under the paths config
-    pub fn write_to(&self, paths: &ProjectPathsConfig, version: impl AsRef<str>) -> Result<()> {
+    pub fn write_to<L: Language>(
+        &self,
+        paths: &ProjectPathsConfig<L>,
+        version: impl AsRef<str>,
+    ) -> Result<()> {
         let version = version.as_ref();
         for file in self.inner.files.iter() {
             let imports = self.get_imports(file.id);
@@ -432,7 +436,11 @@ impl MockFile {
         self.lib_id.is_some()
     }
 
-    pub fn target_path(&self, gen: &MockProjectGenerator, paths: &ProjectPathsConfig) -> PathBuf {
+    pub fn target_path<L: Language>(
+        &self,
+        gen: &MockProjectGenerator,
+        paths: &ProjectPathsConfig<L>,
+    ) -> PathBuf {
         let mut target = if let Some(lib) = self.lib_id {
             paths.root.join("lib").join(&gen.inner.libraries[lib].name).join("src").join(&self.name)
         } else {

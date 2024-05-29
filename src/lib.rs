@@ -25,7 +25,7 @@ pub mod cache;
 pub mod flatten;
 
 pub mod hh;
-use compilers::{solc::SolcCompiler, Compiler, CompilerSettings};
+use compilers::{multi::MultiCompiler, solc::SolcCompiler, Compiler, CompilerSettings};
 pub use filter::SparseOutputFileFilter;
 pub use hh::{HardhatArtifact, HardhatArtifacts};
 
@@ -48,8 +48,7 @@ pub mod remappings;
 
 mod filter;
 pub use filter::{
-    FileFilter, FilteredSources, SolcSparseFileFilter, SourceCompilationKind, SparseOutputFilter,
-    TestFileFilter,
+    FileFilter, FilteredSources, SourceCompilationKind, SparseOutputFilter, TestFileFilter,
 };
 use solang_parser::pt::SourceUnitPart;
 
@@ -79,7 +78,7 @@ pub mod project_util;
 
 /// Represents a project workspace and handles `solc` compiling of all contracts in that workspace.
 #[derive(Clone, Debug)]
-pub struct Project<C: Compiler = SolcCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct Project<C: Compiler = MultiCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
     pub compiler: C,
     /// Compiler versions locked for specific languages.
     pub locked_versions: HashMap<C::Language, Version>,
@@ -517,7 +516,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     }
 }
 
-pub struct ProjectBuilder<C: Compiler = SolcCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct ProjectBuilder<C: Compiler = MultiCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
     /// The layout of the
     paths: Option<ProjectPathsConfig<C::Language>>,
     /// Compiler versions locked for specific languages.
@@ -678,8 +677,8 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
     }
 
     #[must_use]
-    pub fn locked_version(mut self, lang: C::Language, version: Version) -> Self {
-        self.locked_versions.insert(lang, version);
+    pub fn locked_version(mut self, lang: impl Into<C::Language>, version: Version) -> Self {
+        self.locked_versions.insert(lang.into(), version);
         self
     }
 

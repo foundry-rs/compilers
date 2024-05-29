@@ -17,7 +17,7 @@ pub enum VyperOptimizationMode {
     None,
 }
 
-#[derive(Debug, Serialize, Clone, Default, Deserialize)]
+#[derive(Debug, Serialize, Clone, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct VyperSettings {
     #[serde(

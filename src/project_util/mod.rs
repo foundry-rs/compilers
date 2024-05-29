@@ -1,19 +1,22 @@
 //! Utilities for mocking project workspaces.
 
 use crate::{
-    artifacts::{Error, Settings},
-    compilers::{solc::SolcCompiler, Compiler},
+    artifacts::Settings,
+    compilers::{
+        multi::{MultiCompiler, MultiCompilerSettings},
+        solc::SolcCompiler,
+        Compiler,
+    },
     config::ProjectPathsConfigBuilder,
     error::{Result, SolcError},
     filter::SparseOutputFileFilter,
     hh::HardhatArtifacts,
     project_util::mock::{MockProjectGenerator, MockProjectSettings},
     remappings::Remapping,
-    resolver::parse::SolData,
     utils::{self, tempdir},
     Artifact, ArtifactOutput, Artifacts, CompilerCache, ConfigurableArtifacts,
-    ConfigurableContractArtifact, PathStyle, Project, ProjectCompileOutput, ProjectPathsConfig,
-    SolcIoError,
+    ConfigurableContractArtifact, PathStyle, Project, ProjectBuilder, ProjectCompileOutput,
+    ProjectPathsConfig, SolcIoError,
 };
 use fs_extra::{dir, file};
 use std::{
@@ -29,31 +32,120 @@ pub mod mock;
 /// A [`Project`] wrapper that lives in a new temporary directory
 ///
 /// Once `TempProject` is dropped, the temp dir is automatically removed, see [`TempDir::drop()`]
-pub struct TempProject<C: Compiler = SolcCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct TempProject<C: Compiler = MultiCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
     /// temporary workspace root
     _root: TempDir,
     /// actual project workspace with the `root` tempdir as its root
     inner: Project<C, T>,
 }
 
-impl<T: ArtifactOutput> TempProject<SolcCompiler, T> {
-    /// Makes sure all resources are created
-    pub fn create_new(
-        root: TempDir,
-        inner: Project<SolcCompiler, T>,
-    ) -> std::result::Result<Self, SolcIoError> {
-        let mut project = Self { _root: root, inner };
-        project.paths().create_all()?;
-        // ignore license warnings
-        project.inner.ignored_error_codes.push(1878);
-        Ok(project)
-    }
-
+impl<T: ArtifactOutput + Default> TempProject<MultiCompiler, T> {
     /// Creates a new temp project using the provided paths and artifacts handler.
     /// sets the project root to a temp dir
     #[cfg(feature = "svm-solc")]
     pub fn with_artifacts(paths: ProjectPathsConfigBuilder, artifacts: T) -> Result<Self> {
         Self::prefixed_with_artifacts("temp-project", paths, artifacts)
+    }
+
+    /// Overwrites the settings to pass to `solc`
+    pub fn with_solc_settings(mut self, settings: impl Into<Settings>) -> Self {
+        self.inner.settings.solc = settings.into();
+        self
+    }
+
+    /// Explicitly sets the solc version for the project
+    #[cfg(feature = "svm-solc")]
+    pub fn set_solc(&mut self, solc: impl AsRef<str>) -> &mut Self {
+        use crate::compilers::{multi::MultiCompilerLanguage, solc::SolcLanguage};
+        use semver::Version;
+
+        let version = Version::parse(solc.as_ref()).unwrap();
+        self.inner
+            .locked_versions
+            .insert(MultiCompilerLanguage::Solc(SolcLanguage::Solidity), version.clone());
+        self.inner
+            .locked_versions
+            .insert(MultiCompilerLanguage::Solc(SolcLanguage::Yul), version.clone());
+        self
+    }
+}
+
+impl<T: ArtifactOutput + Default> TempProject<MultiCompiler, T> {
+    /// Creates a new temp project for the given `PathStyle`
+    #[cfg(feature = "svm-solc")]
+    pub fn with_style(prefix: &str, style: PathStyle) -> Result<Self> {
+        let tmp_dir = tempdir(prefix)?;
+        let paths = style.paths(tmp_dir.path())?;
+        let inner =
+            Project::builder().artifacts(T::default()).paths(paths).build(Default::default())?;
+        Ok(Self::create_new(tmp_dir, inner)?)
+    }
+}
+
+impl<T: ArtifactOutput> fmt::Debug for TempProject<MultiCompiler, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TempProject").field("paths", &self.inner.paths).finish()
+    }
+}
+
+pub(crate) fn create_contract_file(path: PathBuf, content: impl AsRef<str>) -> Result<PathBuf> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|err| SolcIoError::new(err, parent.to_path_buf()))?;
+    }
+    std::fs::write(&path, content.as_ref()).map_err(|err| SolcIoError::new(err, path.clone()))?;
+    Ok(path)
+}
+
+fn contract_file_name(name: impl AsRef<str>) -> String {
+    let name = name.as_ref().trim();
+    if name.ends_with(".sol") {
+        name.to_string()
+    } else {
+        format!("{name}.sol")
+    }
+}
+
+#[cfg(feature = "svm-solc")]
+impl TempProject<MultiCompiler, HardhatArtifacts> {
+    /// Creates an empty new hardhat style workspace in a new temporary dir
+    pub fn hardhat() -> Result<Self> {
+        let tmp_dir = tempdir("tmp_hh")?;
+
+        let paths = ProjectPathsConfig::hardhat(tmp_dir.path())?;
+
+        let inner = Project::builder()
+            .artifacts(HardhatArtifacts::default())
+            .paths(paths)
+            .build(Default::default())?;
+        Ok(Self::create_new(tmp_dir, inner)?)
+    }
+}
+
+impl<C: Compiler + Default, T: ArtifactOutput + Default> TempProject<C, T> {
+    /// Makes sure all resources are created
+    pub fn create_new(
+        root: TempDir,
+        inner: Project<C, T>,
+    ) -> std::result::Result<Self, SolcIoError> {
+        let mut project = Self { _root: root, inner };
+        project.inner.paths.create_all()?;
+        // ignore license warnings
+        project.inner.ignored_error_codes.push(1878);
+        Ok(project)
+    }
+
+    /// Creates a new temp project using the provided paths and setting the project root to a temp
+    /// dir
+    #[cfg(feature = "svm-solc")]
+    pub fn new(paths: ProjectPathsConfigBuilder) -> Result<Self> {
+        Self::prefixed("temp-project", paths)
+    }
+
+    /// Creates a new temp project inside a tempdir with a prefixed directory
+    #[cfg(feature = "svm-solc")]
+    pub fn prefixed(prefix: &str, paths: ProjectPathsConfigBuilder) -> Result<Self> {
+        Self::prefixed_with_artifacts(prefix, paths, T::default())
     }
 
     /// Creates a new temp project inside a tempdir with a prefixed directory and the given
@@ -66,69 +158,51 @@ impl<T: ArtifactOutput> TempProject<SolcCompiler, T> {
     ) -> Result<Self> {
         let tmp_dir = tempdir(prefix)?;
         let paths = paths.build_with_root(tmp_dir.path());
-        let inner =
-            Project::builder().artifacts(artifacts).paths(paths).build(Default::default())?;
+        let inner = ProjectBuilder::<C, T>::new(Default::default())
+            .artifacts(artifacts)
+            .paths(paths)
+            .build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
     }
 
-    /// Overwrites the settings to pass to `solc`
-    pub fn with_settings(mut self, settings: impl Into<Settings>) -> Self {
-        self.inner.settings = settings.into();
-        self
+    /// Creates an empty new dapptools style workspace in a new temporary dir
+    pub fn dapptools() -> Result<Self> {
+        let tmp_dir = tempdir("tmp_dapp")?;
+        let paths = ProjectPathsConfig::dapptools(tmp_dir.path())?;
+
+        let inner = ProjectBuilder::<C, T>::new(Default::default())
+            .paths(paths)
+            .build(Default::default())?;
+        Ok(Self::create_new(tmp_dir, inner)?)
     }
 
-    /// Explicitly sets the solc version for the project
-    #[cfg(feature = "svm-solc")]
-    pub fn set_solc(&mut self, solc: impl AsRef<str>) -> &mut Self {
-        use crate::compilers::solc::SolcLanguage;
-        use semver::Version;
+    /// Creates an initialized dapptools style workspace in a new temporary dir
+    pub fn dapptools_init() -> Result<Self> {
+        let mut project = Self::dapptools()?;
+        let orig_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+        copy_dir(orig_root, project.root())?;
+        project.project_mut().paths.remappings = Remapping::find_many(project.root());
+        project.project_mut().paths.remappings.iter_mut().for_each(|r| r.slash_path());
 
-        let version = Version::parse(solc.as_ref()).unwrap();
-        self.inner.locked_versions.insert(SolcLanguage::Solidity, version.clone());
-        self.inner.locked_versions.insert(SolcLanguage::Yul, version.clone());
-        self
+        Ok(project)
     }
 
-    pub fn project(&self) -> &Project<SolcCompiler, T> {
+    pub fn project(&self) -> &Project<C, T> {
         &self.inner
     }
 
-    pub fn flatten(&self, target: &Path) -> Result<String> {
-        self.project().flatten(target)
-    }
-
-    pub fn project_mut(&mut self) -> &mut Project<SolcCompiler, T> {
+    pub fn project_mut(&mut self) -> &mut Project<C, T> {
         &mut self.inner
     }
 
     /// The configured paths of the project
-    pub fn paths(&self) -> &ProjectPathsConfig {
+    pub fn paths(&self) -> &ProjectPathsConfig<C::Language> {
         &self.project().paths
     }
 
     /// The configured paths of the project
-    pub fn paths_mut(&mut self) -> &mut ProjectPathsConfig {
+    pub fn paths_mut(&mut self) -> &mut ProjectPathsConfig<C::Language> {
         &mut self.project_mut().paths
-    }
-
-    /// Returns the path to the artifacts directory
-    pub fn artifacts_path(&self) -> &PathBuf {
-        &self.paths().artifacts
-    }
-
-    /// Returns the path to the sources directory
-    pub fn sources_path(&self) -> &PathBuf {
-        &self.paths().sources
-    }
-
-    /// Returns the path to the cache file
-    pub fn cache_path(&self) -> &PathBuf {
-        &self.paths().cache
-    }
-
-    /// The root path of the temporary workspace
-    pub fn root(&self) -> &Path {
-        self.project().paths.root.as_path()
     }
 
     /// Copies a single file into the projects source
@@ -254,8 +328,39 @@ contract {} {{}}
         create_contract_file(source, content)
     }
 
+    /// Returns the path to the artifacts directory
+    pub fn artifacts_path(&self) -> &PathBuf {
+        &self.paths().artifacts
+    }
+
+    /// Returns the path to the sources directory
+    pub fn sources_path(&self) -> &PathBuf {
+        &self.paths().sources
+    }
+
+    /// Returns the path to the cache file
+    pub fn cache_path(&self) -> &PathBuf {
+        &self.paths().cache
+    }
+
+    /// The root path of the temporary workspace
+    pub fn root(&self) -> &Path {
+        self.project().paths.root.as_path()
+    }
+
+    pub fn compile(&self) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
+        self.project().compile()
+    }
+
+    pub fn compile_sparse(
+        &self,
+        filter: Box<dyn SparseOutputFileFilter<C::ParsedSource>>,
+    ) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
+        self.project().compile_sparse(filter)
+    }
+
     /// Returns a snapshot of all cached artifacts
-    pub fn artifacts_snapshot(&self) -> Result<ArtifactsSnapshot<T::Artifact, Settings>> {
+    pub fn artifacts_snapshot(&self) -> Result<ArtifactsSnapshot<T::Artifact, C::Settings>> {
         let cache = self.project().read_cache_file()?;
         let artifacts = cache.read_artifacts::<T::Artifact>()?;
         Ok(ArtifactsSnapshot { cache, artifacts })
@@ -336,95 +441,10 @@ contract {} {{}}
     pub fn list_source_files(&self) -> Vec<PathBuf> {
         utils::sol_source_files(self.project().sources_path())
     }
-
-    pub fn compile(&self) -> Result<ProjectCompileOutput<Error, T>> {
-        self.project().compile()
-    }
-
-    pub fn compile_sparse(
-        &self,
-        filter: Box<dyn SparseOutputFileFilter<SolData>>,
-    ) -> Result<ProjectCompileOutput<Error, T>> {
-        self.project().compile_sparse(filter)
-    }
-}
-
-impl<T: ArtifactOutput + Default> TempProject<SolcCompiler, T> {
-    /// Creates a new temp project inside a tempdir with a prefixed directory
-    #[cfg(feature = "svm-solc")]
-    pub fn prefixed(prefix: &str, paths: ProjectPathsConfigBuilder) -> Result<Self> {
-        Self::prefixed_with_artifacts(prefix, paths, T::default())
-    }
-
-    /// Creates a new temp project for the given `PathStyle`
-    #[cfg(feature = "svm-solc")]
-    pub fn with_style(prefix: &str, style: PathStyle) -> Result<Self> {
-        let tmp_dir = tempdir(prefix)?;
-        let paths = style.paths(tmp_dir.path())?;
-        let inner =
-            Project::builder().artifacts(T::default()).paths(paths).build(Default::default())?;
-        Ok(Self::create_new(tmp_dir, inner)?)
-    }
-
-    /// Creates a new temp project using the provided paths and setting the project root to a temp
-    /// dir
-    #[cfg(feature = "svm-solc")]
-    pub fn new(paths: ProjectPathsConfigBuilder) -> Result<Self> {
-        Self::prefixed("temp-project", paths)
-    }
-}
-
-impl<T: ArtifactOutput> fmt::Debug for TempProject<SolcCompiler, T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TempProject").field("paths", self.paths()).finish()
-    }
-}
-
-pub(crate) fn create_contract_file(path: PathBuf, content: impl AsRef<str>) -> Result<PathBuf> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|err| SolcIoError::new(err, parent.to_path_buf()))?;
-    }
-    std::fs::write(&path, content.as_ref()).map_err(|err| SolcIoError::new(err, path.clone()))?;
-    Ok(path)
-}
-
-fn contract_file_name(name: impl AsRef<str>) -> String {
-    let name = name.as_ref().trim();
-    if name.ends_with(".sol") {
-        name.to_string()
-    } else {
-        format!("{name}.sol")
-    }
-}
-
-#[cfg(feature = "svm-solc")]
-impl TempProject<SolcCompiler, HardhatArtifacts> {
-    /// Creates an empty new hardhat style workspace in a new temporary dir
-    pub fn hardhat() -> Result<Self> {
-        let tmp_dir = tempdir("tmp_hh")?;
-
-        let paths = ProjectPathsConfig::hardhat(tmp_dir.path())?;
-
-        let inner = Project::builder()
-            .artifacts(HardhatArtifacts::default())
-            .paths(paths)
-            .build(Default::default())?;
-        Ok(Self::create_new(tmp_dir, inner)?)
-    }
 }
 
 #[cfg(feature = "svm-solc")]
 impl TempProject {
-    /// Creates an empty new dapptools style workspace in a new temporary dir
-    pub fn dapptools() -> Result<Self> {
-        let tmp_dir = tempdir("tmp_dapp")?;
-        let paths = ProjectPathsConfig::dapptools(tmp_dir.path())?;
-
-        let inner = Project::builder().paths(paths).build(Default::default())?;
-        Ok(Self::create_new(tmp_dir, inner)?)
-    }
-
     pub fn dapptools_with_ignore_paths(paths_to_ignore: Vec<PathBuf>) -> Result<Self> {
         let tmp_dir = tempdir("tmp_dapp")?;
         let paths = ProjectPathsConfig::dapptools(tmp_dir.path())?;
@@ -434,17 +454,6 @@ impl TempProject {
             .ignore_paths(paths_to_ignore)
             .build(Default::default())?;
         Ok(Self::create_new(tmp_dir, inner)?)
-    }
-
-    /// Creates an initialized dapptools style workspace in a new temporary dir
-    pub fn dapptools_init() -> Result<Self> {
-        let mut project = Self::dapptools()?;
-        let orig_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
-        copy_dir(orig_root, project.root())?;
-        project.project_mut().paths.remappings = Remapping::find_many(project.root());
-        project.project_mut().paths.remappings.iter_mut().for_each(|r| r.slash_path());
-
-        Ok(project)
     }
 
     /// Clones the given repo into a temp dir, initializes it recursively and configures it.
@@ -474,9 +483,17 @@ impl TempProject {
     }
 }
 
-impl<T: ArtifactOutput> AsRef<Project<SolcCompiler, T>> for TempProject<SolcCompiler, T> {
-    fn as_ref(&self) -> &Project<SolcCompiler, T> {
+impl<T: ArtifactOutput + Default> AsRef<Project<MultiCompiler, T>>
+    for TempProject<MultiCompiler, T>
+{
+    fn as_ref(&self) -> &Project<MultiCompiler, T> {
         self.project()
+    }
+}
+
+impl TempProject<SolcCompiler> {
+    pub fn flatten(&self, target: &Path) -> Result<String> {
+        self.project().flatten(target)
     }
 }
 
@@ -487,7 +504,7 @@ pub struct ArtifactsSnapshot<T, S> {
     pub artifacts: Artifacts<T>,
 }
 
-impl ArtifactsSnapshot<ConfigurableContractArtifact, Settings> {
+impl ArtifactsSnapshot<ConfigurableContractArtifact, MultiCompilerSettings> {
     /// Ensures that all artifacts have abi, bytecode, deployedbytecode
     pub fn assert_artifacts_essentials_present(&self) {
         for artifact in self.artifacts.artifact_files() {

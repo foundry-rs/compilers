@@ -5,6 +5,7 @@ use crate::{
         ContractDefinitionPart, Error, ExternalInlineAssemblyReference, Identifier, IdentifierPath,
         MemberAccess, Source, SourceUnit, SourceUnitPart, Sources,
     },
+    compilers::solc::SolcCompiler,
     error::SolcError,
     resolver::parse::SolData,
     utils, ConfigurableArtifacts, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Result,
@@ -175,7 +176,7 @@ impl Flattener {
     /// Flattener caller is expected to resolve all imports of target file, compile them and pass
     /// into this function.
     pub fn new(
-        project: &Project,
+        project: &Project<SolcCompiler>,
         output: &ProjectCompileOutput<Error, ConfigurableArtifacts>,
         target: &Path,
     ) -> Result<Self> {

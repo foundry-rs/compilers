@@ -37,7 +37,7 @@ impl Default for MultiCompiler {
 
 impl MultiCompiler {
     pub fn new(vyper_path: Option<PathBuf>) -> Result<Self> {
-        let vyper = vyper_path.map(|path| Vyper::new(path)).transpose()?;
+        let vyper = vyper_path.map(Vyper::new).transpose()?;
         Ok(Self { solc: SolcCompiler::default(), vyper })
     }
 }
@@ -46,6 +46,18 @@ impl MultiCompiler {
 pub enum MultiCompilerLanguage {
     Solc(SolcLanguage),
     Vyper(VyperLanguage),
+}
+
+impl From<SolcLanguage> for MultiCompilerLanguage {
+    fn from(language: SolcLanguage) -> Self {
+        Self::Solc(language)
+    }
+}
+
+impl From<VyperLanguage> for MultiCompilerLanguage {
+    fn from(language: VyperLanguage) -> Self {
+        Self::Vyper(language)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -74,7 +86,7 @@ impl fmt::Display for MultiCompilerLanguage {
     }
 }
 
-#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MultiCompilerSettings {
     pub solc: SolcSettings,
     pub vyper: VyperSettings,

@@ -178,7 +178,7 @@ impl ConfigurableArtifacts {
     }
 
     /// Returns the `Settings` this configuration corresponds to
-    pub fn settings(&self) -> Settings {
+    pub fn solc_settings(&self) -> Settings {
         SolcConfig::builder().additional_outputs(self.output_selection()).build().into()
     }
 
