@@ -82,7 +82,11 @@ impl Compiler for SolcCompiler {
 
     fn available_versions(&self, _language: &Self::Language) -> Vec<CompilerVersion> {
         match self {
-            Self::Specific(solc) => vec![CompilerVersion::Installed(solc.version.clone())],
+            Self::Specific(solc) => vec![CompilerVersion::Installed(Version::new(
+                solc.version.major,
+                solc.version.minor,
+                solc.version.patch,
+            ))],
 
             #[cfg(feature = "svm-solc")]
             Self::AutoDetect => {

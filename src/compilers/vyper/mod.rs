@@ -168,6 +168,10 @@ impl Compiler for Vyper {
     }
 
     fn available_versions(&self, _language: &Self::Language) -> Vec<super::CompilerVersion> {
-        vec![super::CompilerVersion::Installed(self.version.clone())]
+        vec![super::CompilerVersion::Installed(Version::new(
+            self.version.major,
+            self.version.minor,
+            self.version.patch,
+        ))]
     }
 }

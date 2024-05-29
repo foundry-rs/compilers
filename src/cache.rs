@@ -461,9 +461,7 @@ impl<S> CacheEntry<S> {
 
     /// Returns `true` if the artifacts set contains the given version
     pub fn contains_version(&self, version: &Version) -> bool {
-        self.artifacts_versions().any(|(v, _)| {
-            v.major == version.major && v.minor == version.minor && v.patch == version.patch
-        })
+        self.artifacts_versions().any(|(v, _)| v == version)
     }
 
     /// Iterator that yields all artifact files and their version

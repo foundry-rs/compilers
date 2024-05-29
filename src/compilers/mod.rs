@@ -237,6 +237,7 @@ pub trait Compiler: Send + Sync + Clone {
     /// Returned input is always the one which was seen by the binary.
     fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>>;
 
-    /// Returns all versions available locally and remotely.
+    /// Returns all versions available locally and remotely. Should return versions with stripped
+    /// metadata.
     fn available_versions(&self, language: &Self::Language) -> Vec<CompilerVersion>;
 }
