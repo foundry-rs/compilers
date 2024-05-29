@@ -23,7 +23,11 @@ use std::{
 
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-pub struct SolcCompiler;
+pub enum SolcCompiler {
+    #[default]
+    AutoDetect,
+    Specific(Solc),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -53,7 +57,10 @@ impl Compiler for SolcCompiler {
     type Language = SolcLanguage;
 
     fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>> {
-        let mut solc = Solc::find_or_install(&input.version)?;
+        let mut solc = match self {
+            Self::Specific(solc) => solc.clone(),
+            Self::AutoDetect => Solc::find_or_install(&input.version)?,
+        };
         solc.base_path = input.base_path.clone();
         solc.allow_paths = input.allow_paths.clone();
         solc.include_paths = input.include_paths.clone();
@@ -70,6 +77,9 @@ impl Compiler for SolcCompiler {
     }
 
     fn available_versions(&self, _language: &Self::Language) -> Vec<CompilerVersion> {
+        if let Self::Specific(solc) = self {
+            return vec![CompilerVersion::Installed(solc.version.clone())];
+        }
         let mut all_versions = Solc::installed_versions()
             .into_iter()
             .map(CompilerVersion::Installed)

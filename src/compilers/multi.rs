@@ -24,7 +24,22 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct MultiCompiler {
     pub solc: SolcCompiler,
-    pub vyper: Vyper,
+    pub vyper: Option<Vyper>,
+}
+
+impl Default for MultiCompiler {
+    fn default() -> Self {
+        let vyper = Vyper::new("vyper").ok();
+
+        Self { solc: SolcCompiler::default(), vyper }
+    }
+}
+
+impl MultiCompiler {
+    pub fn new(vyper_path: Option<PathBuf>) -> Result<Self> {
+        let vyper = vyper_path.map(|path| Vyper::new(path)).transpose()?;
+        Ok(Self { solc: SolcCompiler::default(), vyper })
+    }
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -180,7 +195,11 @@ impl Compiler for MultiCompiler {
                 self.solc.compile(input).map(|res| res.map_err(MultiCompilerError::Solc))
             }
             MultiCompilerInput::Vyper(input) => {
-                self.vyper.compile(input).map(|res| res.map_err(MultiCompilerError::Vyper))
+                if let Some(vyper) = &self.vyper {
+                    vyper.compile(input).map(|res| res.map_err(MultiCompilerError::Vyper))
+                } else {
+                    Err(SolcError::msg("vyper compiler is not available"))
+                }
             }
         }
     }
@@ -188,7 +207,9 @@ impl Compiler for MultiCompiler {
     fn available_versions(&self, language: &Self::Language) -> Vec<CompilerVersion> {
         match language {
             MultiCompilerLanguage::Solc(language) => self.solc.available_versions(language),
-            MultiCompilerLanguage::Vyper(language) => self.vyper.available_versions(language),
+            MultiCompilerLanguage::Vyper(language) => {
+                self.vyper.as_ref().map(|v| v.available_versions(language)).unwrap_or_default()
+            }
         }
     }
 }
