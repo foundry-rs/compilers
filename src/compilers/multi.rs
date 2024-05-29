@@ -304,3 +304,9 @@ impl fmt::Display for MultiCompilerError {
         }
     }
 }
+
+impl From<MultiCompilerSettings> for SolcSettings {
+    fn from(settings: MultiCompilerSettings) -> Self {
+        settings.solc
+    }
+}

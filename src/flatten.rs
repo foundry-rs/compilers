@@ -2,11 +2,12 @@ use crate::{
     artifacts::{
         ast::SourceLocation,
         visitor::{Visitor, Walk},
-        ContractDefinitionPart, Error, ExternalInlineAssemblyReference, Identifier, IdentifierPath,
+        ContractDefinitionPart, ExternalInlineAssemblyReference, Identifier, IdentifierPath,
         MemberAccess, Source, SourceUnit, SourceUnitPart, Sources,
     },
-    compilers::solc::SolcCompiler,
+    compilers::{Compiler, ParsedSource},
     error::SolcError,
+    filter::MaybeSolData,
     resolver::parse::SolData,
     utils, ConfigurableArtifacts, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Result,
 };
@@ -175,11 +176,14 @@ impl Flattener {
     /// Compilation output is expected to contain all artifacts for all sources.
     /// Flattener caller is expected to resolve all imports of target file, compile them and pass
     /// into this function.
-    pub fn new(
-        project: &Project<SolcCompiler>,
-        output: &ProjectCompileOutput<Error, ConfigurableArtifacts>,
+    pub fn new<C: Compiler>(
+        project: &Project<C>,
+        output: &ProjectCompileOutput<C::CompilationError, ConfigurableArtifacts>,
         target: &Path,
-    ) -> Result<Self> {
+    ) -> Result<Self>
+    where
+        C::ParsedSource: MaybeSolData,
+    {
         let input_files = output
             .artifacts_with_files()
             .map(|(file, _, _)| PathBuf::from(file))
@@ -188,7 +192,7 @@ impl Flattener {
             .collect::<Vec<_>>();
 
         let sources = Source::read_all_files(input_files)?;
-        let graph = Graph::resolve_sources(&project.paths, sources)?;
+        let graph = Graph::<C::ParsedSource>::resolve_sources(&project.paths, sources)?;
 
         let ordered_sources = collect_ordered_deps(&target.to_path_buf(), &project.paths, &graph)?;
 
@@ -755,10 +759,10 @@ impl Flattener {
 }
 
 /// Performs DFS to collect all dependencies of a target
-fn collect_deps<C>(
+fn collect_deps<D: ParsedSource + MaybeSolData>(
     path: &PathBuf,
-    paths: &ProjectPathsConfig<C>,
-    graph: &Graph,
+    paths: &ProjectPathsConfig<D::Language>,
+    graph: &Graph<D>,
     deps: &mut HashSet<PathBuf>,
 ) -> Result<()> {
     if deps.insert(path.clone()) {
@@ -771,9 +775,11 @@ fn collect_deps<C>(
             .get(path)
             .ok_or_else(|| SolcError::msg(format!("cannot resolve file at {}", path.display())))?;
 
-        for import in &graph.node(*node_id).data.imports {
-            let path = paths.resolve_import(target_dir, import.data().path())?;
-            collect_deps(&path, paths, graph, deps)?;
+        if let Some(data) = graph.node(*node_id).data.sol_data() {
+            for import in &data.imports {
+                let path = paths.resolve_import(target_dir, import.data().path())?;
+                collect_deps(&path, paths, graph, deps)?;
+            }
         }
     }
     Ok(())
@@ -789,10 +795,10 @@ fn collect_deps<C>(
 /// Instead, we sort files by the number of their dependencies (imports of any depth) in ascending
 /// order. If files have the same number of dependencies, we sort them alphabetically.
 /// Target file is always placed last.
-pub fn collect_ordered_deps<C>(
+pub fn collect_ordered_deps<D: ParsedSource + MaybeSolData>(
     path: &PathBuf,
-    paths: &ProjectPathsConfig<C>,
-    graph: &Graph,
+    paths: &ProjectPathsConfig<D::Language>,
+    graph: &Graph<D>,
 ) -> Result<Vec<PathBuf>> {
     let mut deps = HashSet::new();
     collect_deps(path, paths, graph, &mut deps)?;

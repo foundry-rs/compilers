@@ -5,7 +5,7 @@ use crate::{
     error::{Result, SolcError, SolcIoError},
     flatten::{collect_ordered_deps, combine_version_pragmas},
     remappings::Remapping,
-    resolver::{Graph, SolImportAlias},
+    resolver::{parse::SolData, Graph, SolImportAlias},
     utils, Source, Sources,
 };
 use serde::{Deserialize, Serialize};
@@ -83,7 +83,14 @@ impl ProjectPathsConfig {
 }
 
 impl ProjectPathsConfig<SolcLanguage> {
-    /// Flattens all file imports into a single string
+    /// Flattens the target solidity file into a single string suitable for verification.
+    ///
+    /// This method uses a dependency graph to resolve imported files and substitute
+    /// import directives with the contents of target files. It will strip the pragma
+    /// version directives and SDPX license identifiers from all imported files.
+    ///
+    /// NB: the SDPX license identifier will be removed from the imported file
+    /// only if it is found at the beginning of the file.
     pub fn flatten(&self, target: &Path) -> Result<String> {
         trace!("flattening file");
         let mut input_files = self.input_files();
@@ -96,7 +103,7 @@ impl ProjectPathsConfig<SolcLanguage> {
         }
 
         let sources = Source::read_all_files(input_files)?;
-        let graph = Graph::resolve_sources(self, sources)?;
+        let graph = Graph::<SolData>::resolve_sources(self, sources)?;
         let ordered_deps = collect_ordered_deps(&flatten_target, self, &graph)?;
 
         #[cfg(windows)]
@@ -214,7 +221,7 @@ impl ProjectPathsConfig<SolcLanguage> {
     }
 }
 
-impl<C> ProjectPathsConfig<C> {
+impl<L> ProjectPathsConfig<L> {
     /// Creates a new hardhat style config instance which points to the canonicalized root path
     pub fn hardhat(root: impl AsRef<Path>) -> Result<Self> {
         PathStyle::HardHat.paths(root)
@@ -504,6 +511,38 @@ impl<C> ProjectPathsConfig<C> {
             Some(self.root.join(path))
         } else {
             utils::resolve_library(&self.libraries, import)
+        }
+    }
+
+    pub fn with_language<Lang>(self) -> ProjectPathsConfig<Lang> {
+        let Self {
+            root,
+            cache,
+            artifacts,
+            build_infos,
+            sources,
+            tests,
+            scripts,
+            libraries,
+            remappings,
+            include_paths,
+            allowed_paths,
+            _l,
+        } = self;
+
+        ProjectPathsConfig {
+            root,
+            cache,
+            artifacts,
+            build_infos,
+            sources,
+            tests,
+            scripts,
+            libraries,
+            remappings,
+            include_paths,
+            allowed_paths,
+            _l: PhantomData,
         }
     }
 }

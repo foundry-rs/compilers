@@ -4,7 +4,6 @@ use crate::{
     artifacts::Settings,
     compilers::{
         multi::{MultiCompiler, MultiCompilerSettings},
-        solc::SolcCompiler,
         Compiler,
     },
     config::ProjectPathsConfigBuilder,
@@ -488,12 +487,6 @@ impl<T: ArtifactOutput + Default> AsRef<Project<MultiCompiler, T>>
 {
     fn as_ref(&self) -> &Project<MultiCompiler, T> {
         self.project()
-    }
-}
-
-impl TempProject<SolcCompiler> {
-    pub fn flatten(&self, target: &Path) -> Result<String> {
-        self.project().flatten(target)
     }
 }
 

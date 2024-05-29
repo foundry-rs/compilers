@@ -48,7 +48,7 @@ impl FileFilter for TestFileFilter {
     }
 }
 
-trait MaybeSolData {
+pub trait MaybeSolData {
     fn sol_data(&self) -> Option<&SolData>;
 }
 

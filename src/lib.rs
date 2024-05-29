@@ -25,12 +25,11 @@ pub mod cache;
 pub mod flatten;
 
 pub mod hh;
-use compilers::{multi::MultiCompiler, solc::SolcCompiler, Compiler, CompilerSettings};
+use compilers::{multi::MultiCompiler, Compiler, CompilerSettings};
 pub use filter::SparseOutputFileFilter;
 pub use hh::{HardhatArtifact, HardhatArtifacts};
 
 pub mod resolver;
-use resolver::parse::SolData;
 pub use resolver::Graph;
 
 pub mod compilers;
@@ -62,7 +61,7 @@ use crate::{
     error::{SolcError, SolcIoError},
     sources::{VersionedSourceFile, VersionedSourceFiles},
 };
-use artifacts::{contract::Contract, output_selection::OutputSelection, Severity};
+use artifacts::{contract::Contract, output_selection::OutputSelection, Settings, Severity};
 use compile::output::contracts::VersionedContracts;
 use error::Result;
 use semver::Version;
@@ -153,7 +152,10 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     }
 }
 
-impl<T: ArtifactOutput> Project<SolcCompiler, T> {
+impl<C: Compiler, T: ArtifactOutput> Project<C, T>
+where
+    C::Settings: Into<Settings>,
+{
     /// Returns standard-json-input to compile the target contract
     pub fn standard_json_input(
         &self,
@@ -161,7 +163,7 @@ impl<T: ArtifactOutput> Project<SolcCompiler, T> {
     ) -> Result<StandardJsonCompilerInput> {
         let target = target.as_ref();
         trace!("Building standard-json-input for {:?}", target);
-        let graph = Graph::<SolData>::resolve(&self.paths)?;
+        let graph = Graph::<C::ParsedSource>::resolve(&self.paths)?;
         let target_index = graph.files().get(target).ok_or_else(|| {
             SolcError::msg(format!("cannot resolve file at {:?}", target.display()))
         })?;
@@ -184,7 +186,7 @@ impl<T: ArtifactOutput> Project<SolcCompiler, T> {
             .map(|(path, source)| (rebase_path(root, path), source.clone()))
             .collect();
 
-        let mut settings = self.settings.clone();
+        let mut settings = self.settings.clone().into();
         // strip the path to the project root from all remappings
         settings.remappings = self
             .paths
@@ -197,18 +199,6 @@ impl<T: ArtifactOutput> Project<SolcCompiler, T> {
         let input = StandardJsonCompilerInput::new(sources, settings);
 
         Ok(input)
-    }
-
-    /// Flattens the target solidity file into a single string suitable for verification.
-    ///
-    /// This method uses a dependency graph to resolve imported files and substitute
-    /// import directives with the contents of target files. It will strip the pragma
-    /// version directives and SDPX license identifiers from all imported files.
-    ///
-    /// NB: the SDPX license identifier will be removed from the imported file
-    /// only if it is found at the beginning of the file.
-    pub fn flatten(&self, target: &Path) -> Result<String> {
-        self.paths.flatten(target)
     }
 }
 

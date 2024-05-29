@@ -529,12 +529,9 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> 
 
 // Runs both `flatten` implementations, asserts that their outputs match and runs additional checks
 // against the output.
-fn test_flatteners(
-    project: &TempProject<SolcCompiler>,
-    target: &Path,
-    additional_checks: fn(&str),
-) {
-    let result = project.flatten(target).unwrap();
+fn test_flatteners(project: &TempProject, target: &Path, additional_checks: fn(&str)) {
+    let result =
+        project.project().paths.clone().with_language::<SolcLanguage>().flatten(target).unwrap();
     let solc_result =
         Flattener::new(project.project(), &project.compile().unwrap(), target).unwrap().flatten();
 
@@ -549,7 +546,7 @@ fn can_flatten_file_with_external_lib() {
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("contracts"))
         .lib(root.join("node_modules"));
-    let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<MultiCompiler>::new(paths).unwrap();
 
     let target = root.join("contracts").join("Greeter.sol");
 
@@ -564,7 +561,7 @@ fn can_flatten_file_with_external_lib() {
 fn can_flatten_file_in_dapp_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-    let project = TempProject::<SolcCompiler>::new(paths).unwrap();
+    let project = TempProject::<MultiCompiler>::new(paths).unwrap();
 
     let target = root.join("src/Dapp.t.sol");
 
@@ -578,7 +575,7 @@ fn can_flatten_file_in_dapp_sample() {
 
 #[test]
 fn can_flatten_unique() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let target = project
         .add_source(
@@ -637,7 +634,7 @@ contract A { }
 
 #[test]
 fn can_flatten_experimental_pragma() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let target = project
         .add_source(
@@ -700,7 +697,7 @@ contract A { }
 
 #[test]
 fn can_flatten_on_solang_failure() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -729,7 +726,7 @@ contract Contract {
         )
         .unwrap();
 
-    let result = project.flatten(target.as_path());
+    let result = project.paths().clone().with_language::<SolcLanguage>().flatten(target.as_path());
     assert!(result.is_ok());
 
     let result = result.unwrap();
@@ -754,7 +751,7 @@ contract Contract {
 
 #[test]
 fn can_flatten_multiline() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let target = project
         .add_source(
@@ -816,7 +813,7 @@ contract A { }
 
 #[test]
 fn can_flatten_remove_extra_spacing() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let target = project
         .add_source(
@@ -875,7 +872,7 @@ contract A { }
 
 #[test]
 fn can_flatten_with_alias() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let target = project
         .add_source(
@@ -1034,7 +1031,7 @@ contract Contract is ParentContract,
 
 #[test]
 fn can_flatten_with_version_pragma_after_imports() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let target = project
         .add_source(
@@ -1108,7 +1105,7 @@ contract A { }
 
 #[test]
 fn can_flatten_with_duplicates() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1164,7 +1161,7 @@ contract Bar_1 is Foo {}
 
 #[test]
 fn can_flatten_complex_aliases_setup_with_duplicates() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1307,7 +1304,7 @@ contract D is A_0 {
 // https://github.com/foundry-rs/compilers/issues/34
 #[test]
 fn can_flatten_34_repro() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
     let target = project
         .add_source(
             "FlieA.sol",
@@ -1374,7 +1371,7 @@ contract A {
 
 #[test]
 fn can_flatten_experimental_in_other_file() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1421,7 +1418,7 @@ contract B is A {}
 
 #[test]
 fn can_detect_type_error() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1444,7 +1441,7 @@ fn can_detect_type_error() {
 
 #[test]
 fn can_flatten_aliases_with_pragma_and_license_after_source() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1482,7 +1479,7 @@ contract B is A {}
 
 #[test]
 fn can_flatten_rename_inheritdocs() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1549,7 +1546,7 @@ contract B is A_1 {
 
 #[test]
 fn can_flatten_rename_inheritdocs_alias() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1602,7 +1599,7 @@ contract B is A {
 
 #[test]
 fn can_flatten_rename_user_defined_functions() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1698,7 +1695,7 @@ contract Foo {
 
 #[test]
 fn can_flatten_rename_global_functions() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1767,7 +1764,7 @@ contract Foo {
 
 #[test]
 fn can_flatten_rename_in_assembly() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1834,7 +1831,7 @@ contract Foo {
 
 #[test]
 fn can_flatten_combine_pragmas() {
-    let project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -2635,7 +2632,7 @@ fn can_create_standard_json_input_with_external_file() {
 
 #[test]
 fn can_compile_std_json_input() {
-    let tmp = TempProject::<SolcCompiler>::dapptools_init().unwrap();
+    let tmp = TempProject::<MultiCompiler>::dapptools_init().unwrap();
     tmp.assert_no_errors();
     let source = tmp.list_source_files().into_iter().find(|p| p.ends_with("Dapp.t.sol")).unwrap();
     let input = tmp.project().standard_json_input(source).unwrap();
@@ -2657,7 +2654,7 @@ fn can_compile_std_json_input() {
 #[test]
 #[cfg(unix)]
 fn can_create_standard_json_input_with_symlink() {
-    let mut project = TempProject::<SolcCompiler>::dapptools().unwrap();
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
     let dependency = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     // File structure:
@@ -2868,7 +2865,7 @@ contract Contract {{ }}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn can_install_solc_and_compile_std_json_input_async() {
-    let tmp = TempProject::<SolcCompiler>::dapptools_init().unwrap();
+    let tmp = TempProject::<MultiCompiler>::dapptools_init().unwrap();
     tmp.assert_no_errors();
     let source = tmp.list_source_files().into_iter().find(|p| p.ends_with("Dapp.t.sol")).unwrap();
     let input = tmp.project().standard_json_input(source).unwrap();
