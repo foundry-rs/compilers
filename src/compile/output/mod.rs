@@ -832,9 +832,9 @@ impl<E> AggregatedCompilerOutput<E> {
 impl<E: CompilationError> AggregatedCompilerOutput<E> {
     /// Whether the output contains a compiler error
     ///
-    /// This adheres to the given `compiler_severity_filter` and also considers [Error] with the
-    /// given [Severity] as errors. For example [Severity::Warning] will consider [Error]s with
-    /// [Severity::Warning] and [Severity::Error] as errors.
+    /// This adheres to the given `compiler_severity_filter` and also considers [CompilationError]
+    /// with the given [Severity] as errors. For example [Severity::Warning] will consider
+    /// [CompilationError]s with [Severity::Warning] and [Severity::Error] as errors.
     pub fn has_error(
         &self,
         ignored_error_codes: &[u64],
