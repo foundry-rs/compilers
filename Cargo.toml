@@ -95,7 +95,7 @@ path = "tests/mocked.rs"
 required-features = ["full", "project-util"]
 
 [features]
-default = ["rustls", "svm-solc"]
+default = ["rustls"]
 
 full = ["async", "svm-solc"]
 

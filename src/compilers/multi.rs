@@ -27,6 +27,7 @@ pub struct MultiCompiler {
     pub vyper: Option<Vyper>,
 }
 
+#[cfg(feature = "svm-solc")]
 impl Default for MultiCompiler {
     fn default() -> Self {
         let vyper = Vyper::new("vyper").ok();
@@ -36,9 +37,9 @@ impl Default for MultiCompiler {
 }
 
 impl MultiCompiler {
-    pub fn new(vyper_path: Option<PathBuf>) -> Result<Self> {
+    pub fn new(solc: SolcCompiler, vyper_path: Option<PathBuf>) -> Result<Self> {
         let vyper = vyper_path.map(Vyper::new).transpose()?;
-        Ok(Self { solc: SolcCompiler::default(), vyper })
+        Ok(Self { solc, vyper })
     }
 }
 

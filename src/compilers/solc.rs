@@ -16,16 +16,18 @@ use crate::{
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet},
     fmt,
     path::{Path, PathBuf},
 };
 
-#[derive(Debug, Clone, Default)]
-#[non_exhaustive]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "svm-solc", derive(Default))]
 pub enum SolcCompiler {
     #[default]
+    #[cfg(feature = "svm-solc")]
     AutoDetect,
+
     Specific(Solc),
 }
 
@@ -59,6 +61,8 @@ impl Compiler for SolcCompiler {
     fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>> {
         let mut solc = match self {
             Self::Specific(solc) => solc.clone(),
+
+            #[cfg(feature = "svm-solc")]
             Self::AutoDetect => Solc::find_or_install(&input.version)?,
         };
         solc.base_path = input.base_path.clone();
@@ -77,28 +81,33 @@ impl Compiler for SolcCompiler {
     }
 
     fn available_versions(&self, _language: &Self::Language) -> Vec<CompilerVersion> {
-        if let Self::Specific(solc) = self {
-            return vec![CompilerVersion::Installed(solc.version.clone())];
+        match self {
+            Self::Specific(solc) => vec![CompilerVersion::Installed(solc.version.clone())],
+
+            #[cfg(feature = "svm-solc")]
+            Self::AutoDetect => {
+                let mut all_versions = Solc::installed_versions()
+                    .into_iter()
+                    .map(CompilerVersion::Installed)
+                    .collect::<Vec<_>>();
+                let mut uniques = all_versions
+                    .iter()
+                    .map(|v| {
+                        let v = v.as_ref();
+                        (v.major, v.minor, v.patch)
+                    })
+                    .collect::<std::collections::HashSet<_>>();
+                all_versions.extend(
+                    Solc::released_versions()
+                        .into_iter()
+                        .filter(|v| uniques.insert((v.major, v.minor, v.patch)))
+                        .map(CompilerVersion::Remote),
+                );
+                all_versions.sort_unstable();
+                all_versions
+            
+            }
         }
-        let mut all_versions = Solc::installed_versions()
-            .into_iter()
-            .map(CompilerVersion::Installed)
-            .collect::<Vec<_>>();
-        let mut uniques = all_versions
-            .iter()
-            .map(|v| {
-                let v = v.as_ref();
-                (v.major, v.minor, v.patch)
-            })
-            .collect::<HashSet<_>>();
-        all_versions.extend(
-            Solc::released_versions()
-                .into_iter()
-                .filter(|v| uniques.insert((v.major, v.minor, v.patch)))
-                .map(CompilerVersion::Remote),
-        );
-        all_versions.sort_unstable();
-        all_versions
     }
 }
 
