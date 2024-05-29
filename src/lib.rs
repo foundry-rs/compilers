@@ -440,7 +440,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
         let mut temp_project = (*self).clone();
         temp_project.no_artifacts = true;
         temp_project.settings.update_output_selection(|selection| {
-            *selection = OutputSelection::common_output_selection([]);
+            *selection = OutputSelection::common_output_selection(["abi".to_string()]);
         });
 
         let output = temp_project.compile()?;
