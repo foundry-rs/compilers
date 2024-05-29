@@ -16,7 +16,7 @@ use crate::{
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeSet},
+    collections::BTreeSet,
     fmt,
     path::{Path, PathBuf},
 };
@@ -105,7 +105,6 @@ impl Compiler for SolcCompiler {
                 );
                 all_versions.sort_unstable();
                 all_versions
-            
             }
         }
     }
