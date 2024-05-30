@@ -21,6 +21,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Compiler capable of compiling both Solidity and Vyper sources.
 #[derive(Debug, Clone)]
 pub struct MultiCompiler {
     pub solc: SolcCompiler,
@@ -43,6 +44,7 @@ impl MultiCompiler {
     }
 }
 
+/// Languages supported by the [MultiCompiler].
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum MultiCompilerLanguage {
     Solc(SolcLanguage),
@@ -61,6 +63,19 @@ impl From<VyperLanguage> for MultiCompilerLanguage {
     }
 }
 
+impl Language for MultiCompilerLanguage {
+    const FILE_EXTENSIONS: &'static [&'static str] = &["sol", "vy", "yul"];
+}
+
+impl fmt::Display for MultiCompilerLanguage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Solc(lang) => lang.fmt(f),
+            Self::Vyper(lang) => lang.fmt(f),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum MultiCompilerParsedSource {
     Solc(SolData),
@@ -74,15 +89,11 @@ pub enum MultiCompilerError {
     Vyper(VyperCompilationError),
 }
 
-impl Language for MultiCompilerLanguage {
-    const FILE_EXTENSIONS: &'static [&'static str] = &["sol", "vy", "yul"];
-}
-
-impl fmt::Display for MultiCompilerLanguage {
+impl fmt::Display for MultiCompilerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Solc(lang) => lang.fmt(f),
-            Self::Vyper(lang) => lang.fmt(f),
+            Self::Solc(error) => error.fmt(f),
+            Self::Vyper(error) => error.fmt(f),
         }
     }
 }
@@ -101,6 +112,18 @@ impl CompilerSettings for MultiCompilerSettings {
     fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy) {
         f(&mut self.solc.output_selection);
         f(&mut self.vyper.output_selection);
+    }
+}
+
+impl From<MultiCompilerSettings> for SolcSettings {
+    fn from(settings: MultiCompilerSettings) -> Self {
+        settings.solc
+    }
+}
+
+impl From<MultiCompilerSettings> for VyperSettings {
+    fn from(settings: MultiCompilerSettings) -> Self {
+        settings.vyper
     }
 }
 
@@ -293,20 +316,5 @@ impl CompilationError for MultiCompilerError {
             Self::Solc(error) => error.error_code(),
             Self::Vyper(error) => error.error_code(),
         }
-    }
-}
-
-impl fmt::Display for MultiCompilerError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Solc(error) => error.fmt(f),
-            Self::Vyper(error) => error.fmt(f),
-        }
-    }
-}
-
-impl From<MultiCompilerSettings> for SolcSettings {
-    fn from(settings: MultiCompilerSettings) -> Self {
-        settings.solc
     }
 }

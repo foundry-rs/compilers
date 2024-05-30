@@ -31,6 +31,7 @@ pub enum SolcCompiler {
     Specific(Solc),
 }
 
+/// Languages supported by the Solc compiler.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum SolcLanguage {
