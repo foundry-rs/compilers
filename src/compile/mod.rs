@@ -525,6 +525,7 @@ impl Solc {
         cmd
     }
 
+    /// Either finds an installed Solc version or installs it if it's not found.
     #[cfg(feature = "svm-solc")]
     pub fn find_or_install(version: &Version) -> Result<Self> {
         let solc = if let Some(solc) = Self::find_svm_installed_version(version.to_string())? {

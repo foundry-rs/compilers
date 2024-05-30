@@ -76,12 +76,14 @@ impl fmt::Display for MultiCompilerLanguage {
     }
 }
 
+/// Source parser for the [MultiCompiler]. Recognizes Solc and Vyper sources.
 #[derive(Debug, Clone)]
 pub enum MultiCompilerParsedSource {
     Solc(SolData),
     Vyper(VyperParsedSource),
 }
 
+/// Compilation error which may occur when compiling Solidity or Vyper sources.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum MultiCompilerError {
@@ -98,6 +100,7 @@ impl fmt::Display for MultiCompilerError {
     }
 }
 
+/// Settings for the [MultiCompiler]. Includes settings for both Solc and Vyper compilers.
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MultiCompilerSettings {
     pub solc: SolcSettings,
@@ -127,6 +130,7 @@ impl From<MultiCompilerSettings> for VyperSettings {
     }
 }
 
+/// Input for the [MultiCompiler]. Either Solc or Vyper input.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum MultiCompilerInput {

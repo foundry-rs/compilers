@@ -28,6 +28,7 @@ pub type VyperCompilerOutput = CompilerOutput<VyperCompilationError>;
 /// File extensions that are recognized as Vyper source files.
 pub const VYPER_EXTENSIONS: &[&str] = &["vy"];
 
+/// Vyper language, used as [Compiler::Language] for the Vyper compiler.
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 #[non_exhaustive]
 pub struct VyperLanguage;
@@ -42,6 +43,7 @@ impl fmt::Display for VyperLanguage {
     }
 }
 
+/// Vyper compiler. Wrapper aound vyper binary.
 #[derive(Debug, Clone)]
 pub struct Vyper {
     pub path: PathBuf,

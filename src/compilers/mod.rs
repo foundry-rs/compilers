@@ -95,8 +95,10 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
     /// Returns reference to sources included into this input.
     fn sources(&self) -> &Sources;
 
+    /// Returns language of the sources included into this input.
     fn language(&self) -> Self::Language;
 
+    /// Returns compiler version for which this input is intended.
     fn version(&self) -> &Version;
 
     /// Returns compiler name used by reporters to display output during compilation.
@@ -211,6 +213,7 @@ impl<E> Default for CompilerOutput<E> {
     }
 }
 
+/// Keeps a set of languages recognized by the compiler.
 pub trait Language: Hash + Eq + Clone + Debug + Display + 'static {
     /// Extensions of source files recognized by the language set.
     const FILE_EXTENSIONS: &'static [&'static str];
