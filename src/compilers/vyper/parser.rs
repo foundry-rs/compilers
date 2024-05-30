@@ -1,5 +1,5 @@
 use crate::{
-    compilers::ParsedSource,
+    compilers::{vyper::VYPER_EXTENSIONS, ParsedSource},
     error::{Result, SolcError},
     resolver::parse::capture_outer_and_inner,
     utils::RE_VYPER_VERSION,
@@ -54,7 +54,11 @@ impl ParsedSource for VyperParsedSource {
         'outer: for import in &self.imports {
             // skip built-in imports
             if import.level == 0
-                && import.path.as_ref().map(|path| path.starts_with("vyper.")).unwrap_or_default()
+                && import
+                    .path
+                    .as_ref()
+                    .map(|path| path.starts_with("vyper.") || path.starts_with("ethereum.ercs"))
+                    .unwrap_or_default()
             {
                 continue;
             }
@@ -99,22 +103,24 @@ impl ParsedSource for VyperParsedSource {
                     path = path.join(part);
                 }
 
-                path.set_extension("vy");
-
                 path
             };
 
             for candidate_dir in candidate_dirs {
                 let candidate = candidate_dir.join(&import_path);
-
-                if candidate.exists() {
-                    imports.push(candidate);
-                    continue 'outer;
+                for extension in VYPER_EXTENSIONS {
+                    let candidate = candidate.clone().with_extension(extension);
+                    trace!("trying {}", candidate.display());
+                    if candidate.exists() {
+                        imports.push(candidate);
+                        continue 'outer;
+                    }
                 }
             }
 
             return Err(SolcError::msg(format!(
-                "failed to resolve import {} at {}",
+                "failed to resolve import {}{} at {}",
+                ".".repeat(import.level),
                 import_path.display(),
                 self.path.display()
             )));

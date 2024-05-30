@@ -491,21 +491,8 @@ impl<L: Language> FilteredCompilerSources<L> {
                 let sources =
                     sparse_output.sparse_sources(filtered_sources, &mut opt_settings, graph);
 
-                let mut input =
-                    C::Input::build(sources, opt_settings, language.clone(), version.clone())
-                        .with_base_path(paths.root.clone())
-                        .with_allow_paths(paths.allowed_paths.clone())
-                        .with_include_paths(include_paths.clone())
-                        .with_remappings(paths.remappings.clone());
-
-                let actually_dirty = input
-                    .sources()
-                    .keys()
-                    .filter(|f| dirty_files.contains(f))
-                    .cloned()
-                    .collect::<Vec<_>>();
-
-                input.strip_prefix(paths.root.as_path());
+                let actually_dirty =
+                    sources.keys().filter(|f| dirty_files.contains(f)).cloned().collect::<Vec<_>>();
 
                 if actually_dirty.is_empty() {
                     // nothing to compile for this particular language, all dirty files are in the
@@ -513,12 +500,17 @@ impl<L: Language> FilteredCompilerSources<L> {
                     trace!("skip {} run due to empty source set", version);
                     continue;
                 }
-                trace!(
-                    "calling {} with {} sources {:?}",
-                    version,
-                    input.sources().len(),
-                    input.sources().keys()
-                );
+
+                trace!("calling {} with {} sources {:?}", version, sources.len(), sources.keys());
+
+                let mut input =
+                    C::Input::build(sources, opt_settings, language.clone(), version.clone())
+                        .with_base_path(paths.root.clone())
+                        .with_allow_paths(paths.allowed_paths.clone())
+                        .with_include_paths(include_paths.clone())
+                        .with_remappings(paths.remappings.clone());
+
+                input.strip_prefix(paths.root.as_path());
 
                 jobs.push((input, actually_dirty));
             }
@@ -606,12 +598,6 @@ fn compile_parallel<C: Compiler<Input = I>, I: CompilerInput>(
                 // set the reporter on this thread
                 let _guard = report::set_scoped(&scoped_report);
 
-                trace!(
-                    "calling solc `{}` with {} sources: {:?}",
-                    input.version(),
-                    input.sources().len(),
-                    input.sources().keys()
-                );
                 let start = Instant::now();
                 report::compiler_spawn(
                     &input.compiler_name(),

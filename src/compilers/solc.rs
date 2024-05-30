@@ -155,10 +155,6 @@ impl CompilerInput for SolcVersionedInput {
         }
     }
 
-    fn sources(&self) -> &Sources {
-        &self.input.sources
-    }
-
     fn language(&self) -> Self::Language {
         self.input.language.clone()
     }

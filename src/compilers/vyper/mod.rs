@@ -26,7 +26,7 @@ pub use settings::VyperSettings;
 pub type VyperCompilerOutput = CompilerOutput<VyperCompilationError>;
 
 /// File extensions that are recognized as Vyper source files.
-pub const VYPER_EXTENSIONS: &[&str] = &["vy"];
+pub const VYPER_EXTENSIONS: &[&str] = &["vy", "vyi"];
 
 /// Vyper language, used as [Compiler::Language] for the Vyper compiler.
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -142,12 +142,12 @@ impl Vyper {
         let vyper = vyper.into();
         let mut cmd = Command::new(vyper.clone());
         cmd.arg("--version").stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
-        debug!(?cmd, "getting Solc version");
+        debug!(?cmd, "getting Vyper version");
         let output = cmd.output().map_err(|e| SolcError::io(e, vyper))?;
         trace!(?output);
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            Ok(Version::from_str(stdout.trim())?)
+            Ok(Version::from_str(&stdout.trim().replace("rc", "-rc"))?)
         } else {
             Err(SolcError::solc_output(&output))
         }

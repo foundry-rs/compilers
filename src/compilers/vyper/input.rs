@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct VyperInput {
     pub language: String,
     pub sources: Sources,
+    pub interfaces: Sources,
     pub settings: VyperSettings,
 }
 
@@ -22,11 +23,26 @@ pub struct VyperVersionedInput {
 
 impl VyperInput {
     pub fn new(sources: Sources, settings: VyperSettings) -> Self {
-        VyperInput { language: "Vyper".to_string(), sources, settings }
+        let mut new_sources = Sources::new();
+        let mut interfaces = Sources::new();
+
+        for (path, content) in sources {
+            if path.extension().map_or(false, |ext| ext == "vyi") {
+                interfaces.insert(path, content);
+            } else {
+                new_sources.insert(path, content);
+            }
+        }
+        VyperInput { language: "Vyper".to_string(), sources: new_sources, interfaces, settings }
     }
 
     pub fn strip_prefix(&mut self, base: &Path) {
         self.sources = std::mem::take(&mut self.sources)
+            .into_iter()
+            .map(|(path, s)| (path.strip_prefix(base).map(Into::into).unwrap_or(path), s))
+            .collect();
+
+        self.interfaces = std::mem::take(&mut self.interfaces)
             .into_iter()
             .map(|(path, s)| (path.strip_prefix(base).map(Into::into).unwrap_or(path), s))
             .collect();
@@ -46,10 +62,6 @@ impl CompilerInput for VyperVersionedInput {
         version: Version,
     ) -> Self {
         Self { input: VyperInput::new(sources, settings), version }
-    }
-
-    fn sources(&self) -> &Sources {
-        &self.input.sources
     }
 
     fn compiler_name(&self) -> Cow<'static, str> {

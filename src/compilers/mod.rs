@@ -75,7 +75,7 @@ pub trait CompilerSettings:
 
     /// Returns minimal output selection which can be used to optimize compilation.
     fn minimal_output_selection() -> FileOutputSelection {
-        BTreeMap::from([("*".to_string(), vec![])])
+        BTreeMap::from([("*".to_string(), vec!["abi".to_string()])])
     }
 }
 
@@ -92,9 +92,6 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
         language: Self::Language,
         version: Version,
     ) -> Self;
-
-    /// Returns reference to sources included into this input.
-    fn sources(&self) -> &Sources;
 
     /// Returns language of the sources included into this input.
     fn language(&self) -> Self::Language;

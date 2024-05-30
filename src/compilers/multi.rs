@@ -2,7 +2,7 @@ use super::{
     solc::{SolcCompiler, SolcLanguage, SolcVersionedInput},
     vyper::{
         error::VyperCompilationError, input::VyperVersionedInput, parser::VyperParsedSource, Vyper,
-        VyperLanguage, VyperSettings,
+        VyperLanguage, VyperSettings, VYPER_EXTENSIONS,
     },
     CompilationError, Compiler, CompilerInput, CompilerOutput, CompilerSettings, CompilerVersion,
     Language, ParsedSource,
@@ -12,6 +12,7 @@ use crate::{
     error::{Result, SolcError},
     remappings::Remapping,
     resolver::parse::SolData,
+    SOLC_EXTENSIONS,
 };
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -65,7 +66,7 @@ impl From<VyperLanguage> for MultiCompilerLanguage {
 }
 
 impl Language for MultiCompilerLanguage {
-    const FILE_EXTENSIONS: &'static [&'static str] = &["sol", "vy", "yul"];
+    const FILE_EXTENSIONS: &'static [&'static str] = &["sol", "vy", "vyi", "yul"];
 }
 
 impl fmt::Display for MultiCompilerLanguage {
@@ -173,13 +174,6 @@ impl CompilerInput for MultiCompilerInput {
         }
     }
 
-    fn sources(&self) -> &Sources {
-        match self {
-            Self::Solc(input) => input.sources(),
-            Self::Vyper(input) => input.sources(),
-        }
-    }
-
     fn strip_prefix(&mut self, base: &Path) {
         match self {
             Self::Solc(input) => input.strip_prefix(base),
@@ -259,10 +253,16 @@ impl ParsedSource for MultiCompilerParsedSource {
     type Language = MultiCompilerLanguage;
 
     fn parse(content: &str, file: &std::path::Path) -> Result<Self> {
-        match file.extension().and_then(|e| e.to_str()) {
-            Some("sol" | "yul") => <SolData as ParsedSource>::parse(content, file).map(Self::Solc),
-            Some("vy") => VyperParsedSource::parse(content, file).map(Self::Vyper),
-            _ => Err(SolcError::msg("unexpected file extension")),
+        let Some(extension) = file.extension().and_then(|e| e.to_str()) else {
+            return Err(SolcError::msg("failed to resolve file extension"));
+        };
+
+        if SOLC_EXTENSIONS.contains(&extension) {
+            <SolData as ParsedSource>::parse(content, file).map(Self::Solc)
+        } else if VYPER_EXTENSIONS.contains(&extension) {
+            VyperParsedSource::parse(content, file).map(Self::Vyper)
+        } else {
+            Err(SolcError::msg("unexpected file extension"))
         }
     }
 
