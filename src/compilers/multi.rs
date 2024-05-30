@@ -16,9 +16,7 @@ use crate::{
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeSet,
-    fmt,
-    path::{Path, PathBuf},
+    borrow::Cow, collections::BTreeSet, fmt, path::{Path, PathBuf}
 };
 
 /// Compiler capable of compiling both Solidity and Vyper sources.
@@ -158,7 +156,7 @@ impl CompilerInput for MultiCompilerInput {
         }
     }
 
-    fn compiler_name(&self) -> String {
+    fn compiler_name(&self) -> Cow<'static, str> {
         match self {
             Self::Solc(input) => input.compiler_name(),
             Self::Vyper(input) => input.compiler_name(),

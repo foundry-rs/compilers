@@ -11,10 +11,7 @@ use core::fmt;
 use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
-    fmt::{Debug, Display},
-    hash::Hash,
-    path::{Path, PathBuf},
+    borrow::Cow, collections::{BTreeMap, BTreeSet, HashSet}, fmt::{Debug, Display}, hash::Hash, path::{Path, PathBuf}
 };
 
 pub mod multi;
@@ -102,7 +99,7 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
     fn version(&self) -> &Version;
 
     /// Returns compiler name used by reporters to display output during compilation.
-    fn compiler_name(&self) -> String;
+    fn compiler_name(&self) -> Cow<'static, str>;
 
     /// Method which might be invoked to add remappings to the input.
     fn with_remappings(self, _remappings: Vec<Remapping>) -> Self {

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{borrow::Cow, path::Path};
 
 use super::{settings::VyperSettings, VyperLanguage};
 use crate::{artifacts::Sources, compilers::CompilerInput};
@@ -52,8 +52,8 @@ impl CompilerInput for VyperVersionedInput {
         &self.input.sources
     }
 
-    fn compiler_name(&self) -> String {
-        "Vyper".to_string()
+    fn compiler_name(&self) -> Cow<'static, str> {
+        "Vyper".into()
     }
 
     fn strip_prefix(&mut self, base: &Path) {

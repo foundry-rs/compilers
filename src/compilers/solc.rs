@@ -16,9 +16,7 @@ use crate::{
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeSet,
-    fmt,
-    path::{Path, PathBuf},
+    borrow::Cow, collections::BTreeSet, fmt, path::{Path, PathBuf}
 };
 
 #[derive(Debug, Clone)]
@@ -172,8 +170,8 @@ impl CompilerInput for SolcVersionedInput {
         self
     }
 
-    fn compiler_name(&self) -> String {
-        "Solc".to_string()
+    fn compiler_name(&self) -> Cow<'static, str> {
+        "Solc".into()
     }
 
     fn strip_prefix(&mut self, base: &Path) {
