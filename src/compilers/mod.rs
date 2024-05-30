@@ -1,7 +1,6 @@
 use crate::{
     artifacts::{
-        output_selection::{FileOutputSelection, OutputSelection},
-        Contract, FileToContractsMap, SourceFile, Sources,
+        output_selection::OutputSelection, Contract, FileToContractsMap, SourceFile, Sources,
     },
     error::Result,
     remappings::Remapping,
@@ -72,11 +71,6 @@ pub trait CompilerSettings:
     /// Ensures that all settings fields are equal except for `output_selection` which is required
     /// to be a subset of `cached.output_selection`.
     fn can_use_cached(&self, other: &Self) -> bool;
-
-    /// Returns minimal output selection which can be used to optimize compilation.
-    fn minimal_output_selection() -> FileOutputSelection {
-        BTreeMap::from([("*".to_string(), vec!["abi".to_string()])])
-    }
 }
 
 /// Input of a compiler, including sources and settings used for their compilation.

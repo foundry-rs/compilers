@@ -1,10 +1,7 @@
-use std::{collections::BTreeMap, path::Path};
+use std::path::Path;
 
 use crate::{
-    artifacts::{
-        output_selection::{FileOutputSelection, OutputSelection},
-        serde_helpers,
-    },
+    artifacts::{output_selection::OutputSelection, serde_helpers},
     compilers::CompilerSettings,
     EvmVersion,
 };
@@ -54,6 +51,19 @@ impl VyperSettings {
                 .collect(),
         );
     }
+
+    /// During caching we prune output selection for some of the sources, however, Vyper will reject
+    /// [] as an output selection, so we are adding "abi" as a default output selection which is
+    /// cheap to be produced.
+    pub fn sanitize_output_selection(&mut self) {
+        self.output_selection.0.values_mut().for_each(|selection| {
+            selection.values_mut().for_each(|selection| {
+                if selection.is_empty() {
+                    selection.push("abi".to_string())
+                }
+            })
+        });
+    }
 }
 
 impl CompilerSettings for VyperSettings {
@@ -67,10 +77,5 @@ impl CompilerSettings for VyperSettings {
             && optimize == &other.optimize
             && bytecode_metadata == &other.bytecode_metadata
             && output_selection.is_subset_of(&other.output_selection)
-    }
-
-    fn minimal_output_selection() -> FileOutputSelection {
-        // Vyper throws an error if empty selection is specified, so we are only requesting ABI.
-        BTreeMap::from([("*".to_string(), vec!["abi".to_string()])])
     }
 }

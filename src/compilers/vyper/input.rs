@@ -57,10 +57,12 @@ impl CompilerInput for VyperVersionedInput {
 
     fn build(
         sources: Sources,
-        settings: Self::Settings,
+        mut settings: Self::Settings,
         _language: Self::Language,
         version: Version,
     ) -> Self {
+        settings.sanitize_output_selection();
+
         Self { input: VyperInput::new(sources, settings), version }
     }
 

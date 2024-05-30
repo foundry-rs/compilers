@@ -227,8 +227,6 @@ impl<D> SparseOutputFilter<D> {
                 .remove("*")
                 .unwrap_or_else(OutputSelection::default_file_output_selection);
 
-            let optimized = S::minimal_output_selection();
-
             for (file, kind) in sources.0.iter() {
                 match kind {
                     SourceCompilationKind::Complete(_) => {
@@ -236,7 +234,7 @@ impl<D> SparseOutputFilter<D> {
                     }
                     SourceCompilationKind::Optimized(_) => {
                         trace!("using pruned output selection for {}", file.display());
-                        selection.insert(format!("{}", file.display()), optimized.clone());
+                        selection.insert(format!("{}", file.display()), [].into());
                     }
                 }
             }
