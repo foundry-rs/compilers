@@ -16,7 +16,10 @@ use crate::{
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
-    borrow::Cow, collections::BTreeSet, fmt, path::{Path, PathBuf}
+    borrow::Cow,
+    collections::BTreeSet,
+    fmt,
+    path::{Path, PathBuf},
 };
 
 /// Compiler capable of compiling both Solidity and Vyper sources.

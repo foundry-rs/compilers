@@ -11,7 +11,11 @@ use core::fmt;
 use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
-    borrow::Cow, collections::{BTreeMap, BTreeSet, HashSet}, fmt::{Debug, Display}, hash::Hash, path::{Path, PathBuf}
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet, HashSet},
+    fmt::{Debug, Display},
+    hash::Hash,
+    path::{Path, PathBuf},
 };
 
 pub mod multi;
