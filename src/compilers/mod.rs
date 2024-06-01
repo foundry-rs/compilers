@@ -58,6 +58,9 @@ impl fmt::Display for CompilerVersion {
     }
 }
 
+pub mod solc;
+pub mod vyper;
+
 /// Compilation settings including evm_version, output_selection, etc.
 pub trait CompilerSettings:
     Default + Serialize + DeserializeOwned + Clone + Debug + Send + Sync + 'static
