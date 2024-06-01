@@ -57,7 +57,7 @@ home = "0.5"
 svm = { package = "svm-rs", version = "0.5", default-features = false, optional = true }
 svm-builds = { package = "svm-rs-builds", version = "0.5", default-features = false, optional = true }
 sha2 = { version = "0.10", default-features = false, optional = true }
-itertools = "0.12"
+itertools = "0.13"
 auto_impl = "1"
 
 winnow = "0.6"
@@ -70,7 +70,10 @@ rand = "0.8"
 serde_path_to_error = "0.1"
 tempfile = "3.9"
 tokio = { version = "1.35", features = ["rt-multi-thread", "macros"] }
-tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+    "env-filter",
+    "fmt",
+] }
 reqwest = "0.12"
 fd-lock = "4.0.0"
 
@@ -100,7 +103,13 @@ default = ["rustls"]
 full = ["async", "svm-solc"]
 
 # Adds extra `async` methods using `tokio` to some types.
-async = ["dep:futures-util", "dep:tokio", "tokio/fs", "tokio/process", "tokio/io-util"]
+async = [
+    "dep:futures-util",
+    "dep:tokio",
+    "tokio/fs",
+    "tokio/process",
+    "tokio/io-util",
+]
 # Enables `svm` to auto-detect and manage `solc` builds.
 svm-solc = ["dep:svm", "dep:svm-builds", "dep:sha2", "dep:tokio"]
 # Utilities for creating and testing project workspaces.
