@@ -15,10 +15,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub mod solc;
 mod version_manager;
-pub mod vyper;
 pub use version_manager::{CompilerVersion, CompilerVersionManager, VersionManagerError};
+
+pub mod solc;
+pub mod vyper;
 
 /// Compilation settings including evm_version, output_selection, etc.
 pub trait CompilerSettings:
