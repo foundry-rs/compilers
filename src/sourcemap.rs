@@ -24,7 +24,7 @@ impl SyntaxError {
 
 impl From<std::num::TryFromIntError> for SyntaxError {
     fn from(_value: std::num::TryFromIntError) -> Self {
-        SyntaxError::new(format!("offset overflow"))
+        SyntaxError::new("offset overflow".to_string())
     }
 }
 
@@ -131,7 +131,7 @@ pub enum Jump {
 }
 
 impl Jump {
-    fn to_int(&self) -> u32 {
+    fn to_int(self) -> u32 {
         match self {
             Jump::In => 0,
             Jump::Out => 1,
