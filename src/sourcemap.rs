@@ -22,6 +22,12 @@ impl SyntaxError {
     }
 }
 
+impl From<std::num::TryFromIntError> for SyntaxError {
+    fn from(_value: std::num::TryFromIntError) -> Self {
+        SyntaxError::new(format!("offset overflow"))
+    }
+}
+
 #[derive(PartialEq, Eq)]
 enum Token<'a> {
     Number(&'a str),
@@ -124,6 +130,25 @@ pub enum Jump {
     Regular,
 }
 
+impl Jump {
+    fn to_int(&self) -> u32 {
+        match self {
+            Jump::In => 0,
+            Jump::Out => 1,
+            Jump::Regular => 2,
+        }
+    }
+
+    fn from_int(i: u32) -> Self {
+        match i {
+            0 => Jump::In,
+            1 => Jump::Out,
+            2 => Jump::Regular,
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl AsRef<str> for Jump {
     fn as_ref(&self) -> &str {
         match self {
@@ -140,40 +165,94 @@ impl fmt::Display for Jump {
     }
 }
 
-/// Represents a whole source map as list of `SourceElement`s
+/// A Solidity source map, which is composed of multiple [`SourceElement`]s, separated by
+/// semicolons.
 ///
-/// See also <https://docs.soliditylang.org/en/latest/internals/source_mappings.html#source-mappings>
+/// Solidity reference: <https://docs.soliditylang.org/en/latest/internals/source_mappings.html#source-mappings>
 pub type SourceMap = Vec<SourceElement>;
 
-/// Represents a single element in the source map
-/// A solidity source map entry takes the following form
+/// A single element in a [`SourceMap`].
 ///
-/// before 0.6.0
-///   s:l:f:j
-///
-/// after 0.6.0
-///   s:l:f:j:m
-///
-/// Where s is the byte-offset to the start of the range in the source file, l is the length of the
-/// source range in bytes and f is the source index.
+/// Solidity reference: <https://docs.soliditylang.org/en/latest/internals/source_mappings.html#source-mappings>
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceElement {
-    /// The byte-offset to the start of the range in the source file
-    pub offset: usize,
-    /// The length of the source range in bytes
-    pub length: usize,
-    /// the source index
+    offset: u32,
+    length: u32,
+    index: i32,
+    // 2 bits for jump, 30 bits for modifier depth; see [set_jump_and_modifier_depth]
+    jump_and_modifier_depth: u32,
+}
+
+impl SourceElement {
+    /// Creates a new source element with default values.
+    pub fn new_invalid() -> Self {
+        Self { offset: 0, length: 0, index: -1, jump_and_modifier_depth: 0 }
+    }
+
+    /// The byte-offset to the start of the range in the source file.
+    #[inline]
+    pub fn offset(&self) -> u32 {
+        self.offset
+    }
+
+    /// The length of the source range in bytes.
+    #[inline]
+    pub fn length(&self) -> u32 {
+        self.length
+    }
+
+    /// The source index.
     ///
     /// Note: In the case of instructions that are not associated with any particular source file,
     /// the source mapping assigns an integer identifier of -1. This may happen for bytecode
     /// sections stemming from compiler-generated inline assembly statements.
-    /// This case is represented as a `None` value
-    pub index: Option<u32>,
-    /// Jump instruction
-    pub jump: Jump,
-    /// “modifier depth”. This depth is increased whenever the placeholder statement (_) is entered
-    /// in a modifier and decreased when it is left again.
-    pub modifier_depth: usize,
+    /// This case is represented as a `None` value.
+    #[inline]
+    pub fn index(&self) -> Option<u32> {
+        if self.index == -1 {
+            None
+        } else {
+            Some(self.index as u32)
+        }
+    }
+
+    /// The source index.
+    ///
+    /// See [`Self::index`] for more information.
+    #[inline]
+    pub fn index_i32(&self) -> i32 {
+        self.index
+    }
+
+    /// Jump instruction.
+    #[inline]
+    pub fn jump(&self) -> Jump {
+        Jump::from_int(self.jump_and_modifier_depth >> 30)
+    }
+
+    #[inline]
+    fn set_jump(&mut self, jump: Jump) {
+        self.set_jump_and_modifier_depth(jump, self.modifier_depth());
+    }
+
+    /// Modifier depth.
+    ///
+    /// This depth is increased whenever the placeholder statement (`_`) is entered in a modifier
+    /// and decreased when it is left again.
+    #[inline]
+    pub fn modifier_depth(&self) -> u32 {
+        (self.jump_and_modifier_depth << 2) >> 2
+    }
+
+    #[inline]
+    fn set_modifier_depth(&mut self, modifier_depth: u32) {
+        self.set_jump_and_modifier_depth(self.jump(), modifier_depth);
+    }
+
+    #[inline]
+    fn set_jump_and_modifier_depth(&mut self, jump: Jump, modifier_depth: u32) {
+        self.jump_and_modifier_depth = (jump.to_int() << 30) | modifier_depth;
+    }
 }
 
 impl fmt::Display for SourceElement {
@@ -181,22 +260,22 @@ impl fmt::Display for SourceElement {
         write!(
             f,
             "{}:{}:{}:{}:{}",
-            self.offset,
-            self.length,
-            self.index.map(|i| i as i64).unwrap_or(-1),
-            self.jump,
-            self.modifier_depth
+            self.offset(),
+            self.length(),
+            self.index_i32(),
+            self.jump(),
+            self.modifier_depth(),
         )
     }
 }
 
 #[derive(Default)]
 struct SourceElementBuilder {
-    pub offset: Option<usize>,
-    pub length: Option<usize>,
-    pub index: Option<Option<u32>>,
-    pub jump: Option<Jump>,
-    pub modifier_depth: Option<usize>,
+    offset: Option<usize>,
+    length: Option<usize>,
+    index: Option<Option<u32>>,
+    jump: Option<Jump>,
+    modifier_depth: Option<usize>,
 }
 
 impl fmt::Display for SourceElementBuilder {
@@ -269,23 +348,25 @@ impl fmt::Display for SourceElementBuilder {
 
 impl SourceElementBuilder {
     fn finish(self, prev: Option<SourceElement>) -> Result<SourceElement, SyntaxError> {
-        let element = if let Some(prev) = prev {
-            SourceElement {
-                offset: self.offset.unwrap_or(prev.offset),
-                length: self.length.unwrap_or(prev.length),
-                index: self.index.unwrap_or(prev.index),
-                jump: self.jump.unwrap_or(prev.jump),
-                modifier_depth: self.modifier_depth.unwrap_or(prev.modifier_depth),
-            }
-        } else {
-            SourceElement {
-                offset: self.offset.ok_or_else(|| SyntaxError::new("No previous offset"))?,
-                length: self.length.ok_or_else(|| SyntaxError::new("No previous length"))?,
-                index: self.index.ok_or_else(|| SyntaxError::new("No previous index"))?,
-                jump: self.jump.ok_or_else(|| SyntaxError::new("No previous jump"))?,
-                modifier_depth: self.modifier_depth.unwrap_or_default(),
-            }
-        };
+        let no_prev = prev.is_none();
+        let mut element = prev.unwrap_or_else(SourceElement::new_invalid);
+        macro_rules! get_field {
+            (| $field:ident | $e:expr) => {
+                if let Some($field) = self.$field {
+                    $e;
+                } else if no_prev {
+                    return Err(SyntaxError::new(format!("No previous {}", stringify!($field))));
+                }
+            };
+        }
+        get_field!(|offset| element.offset = offset.try_into()?);
+        get_field!(|length| element.length = length.try_into()?);
+        get_field!(|index| element.index = index.map(|x| x as i32).unwrap_or(-1));
+        get_field!(|jump| element.set_jump(jump));
+        // Modifier depth is optional.
+        if let Some(modifier_depth) = self.modifier_depth {
+            element.set_modifier_depth(modifier_depth.try_into()?);
+        }
         Ok(element)
     }
 
@@ -355,12 +436,7 @@ macro_rules! parse_number {
         let num = match $num.parse::<i64>() {
             Ok(num) => num,
             Err(_) => {
-                return Some(syntax_err!(
-                    "Expected {} to be a `{}` at {}",
-                    $num,
-                    stringify!($t),
-                    $pos
-                ))
+                return Some(syntax_err!("Expected {} to be a valid integer at {}", $num, $pos))
             }
         };
         match num {
@@ -374,8 +450,8 @@ macro_rules! parse_number {
 }
 
 macro_rules! bail_opt {
-    ($opt:stmt) => {
-        if let Some(err) = { $opt } {
+    ($opt:expr) => {
+        if let Some(err) = $opt {
             return Some(Err(err));
         }
     };
@@ -444,13 +520,11 @@ impl<'input> Iterator for Parser<'input> {
         }
 
         #[cfg(test)]
-        {
-            if let Some(out) = self.output.as_mut() {
-                if self.last_element.is_some() {
-                    let _ = out.write_char(';');
-                }
-                let _ = out.write_str(&builder.to_string());
+        if let Some(out) = self.output.as_mut() {
+            if self.last_element.is_some() {
+                let _ = out.write_char(';');
             }
+            let _ = out.write_str(&builder.to_string());
         }
 
         let element = match builder.finish(self.last_element.take()) {
@@ -507,7 +581,7 @@ mod tests {
         let source_maps = include_str!("../test-data/out-source-maps.txt");
 
         for (line, s) in source_maps.lines().enumerate() {
-            parse(s).unwrap_or_else(|_| panic!("Failed to parse line {line}"));
+            parse(s).unwrap_or_else(|e| panic!("Failed to parse line {line}: {e}"));
         }
     }
 
