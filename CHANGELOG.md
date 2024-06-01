@@ -5,12 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2](https://github.com/foundry-rs/compilers/releases/tag/v0.5.2) - 2024-06-01
+
+### Features
+
+- Make CompactContractBytecodeCow implement Artifact ([#130](https://github.com/foundry-rs/compilers/issues/130))
+
+### Miscellaneous Tasks
+
+- Clippy ([#132](https://github.com/foundry-rs/compilers/issues/132))
+
+### Performance
+
+- Reduce size of source map ([#131](https://github.com/foundry-rs/compilers/issues/131))
+
 ## [0.5.1](https://github.com/foundry-rs/compilers/releases/tag/v0.5.1) - 2024-05-23
 
 ### Bug Fixes
 
 - Update vyper path resolution logic ([#127](https://github.com/foundry-rs/compilers/issues/127))
 - Relax trait bounds ([#126](https://github.com/foundry-rs/compilers/issues/126))
+
+### Miscellaneous Tasks
+
+- Release 0.5.1
 
 ## [0.5.0](https://github.com/foundry-rs/compilers/releases/tag/v0.5.0) - 2024-05-21
 
