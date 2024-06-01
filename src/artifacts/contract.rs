@@ -221,6 +221,45 @@ pub struct CompactContractBytecodeCow<'a> {
     pub deployed_bytecode: Option<Cow<'a, CompactDeployedBytecode>>,
 }
 
+impl From<CompactContractBytecodeCow<'_>> for CompactContract {
+    fn from(value: CompactContractBytecodeCow<'_>) -> Self {
+        Self {
+            abi: value.abi.map(Cow::into_owned),
+            bin: value.bytecode.map(|bytecode| match bytecode {
+                Cow::Owned(bytecode) => bytecode.object,
+                Cow::Borrowed(bytecode) => bytecode.object.clone(),
+            }),
+            bin_runtime: value
+                .deployed_bytecode
+                .and_then(|bytecode| match bytecode {
+                    Cow::Owned(bytecode) => bytecode.bytecode,
+                    Cow::Borrowed(bytecode) => bytecode.bytecode.clone(),
+                })
+                .map(|bytecode| bytecode.object),
+        }
+    }
+}
+
+impl From<CompactContractBytecodeCow<'_>> for CompactContractBytecode {
+    fn from(value: CompactContractBytecodeCow<'_>) -> Self {
+        Self {
+            abi: value.abi.map(Cow::into_owned),
+            bytecode: value.bytecode.map(Cow::into_owned),
+            deployed_bytecode: value.deployed_bytecode.map(Cow::into_owned),
+        }
+    }
+}
+
+impl<'a> From<&'a CompactContractBytecodeCow<'_>> for CompactContractBytecodeCow<'a> {
+    fn from(value: &'a CompactContractBytecodeCow<'_>) -> Self {
+        Self {
+            abi: value.abi.as_ref().map(|x| Cow::Borrowed(&**x)),
+            bytecode: value.bytecode.as_ref().map(|x| Cow::Borrowed(&**x)),
+            deployed_bytecode: value.deployed_bytecode.as_ref().map(|x| Cow::Borrowed(&**x)),
+        }
+    }
+}
+
 /// Minimal representation of a contract with a present abi and bytecode.
 ///
 /// Unlike `CompactContractSome` which contains the `BytecodeObject`, this holds the whole
@@ -528,5 +567,18 @@ impl<'a> From<&'a Contract> for CompactContractRef<'a> {
         };
 
         Self { abi: c.abi.as_ref(), bin, bin_runtime }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_artifact<T: crate::Artifact>() {}
+
+    #[test]
+    fn test() {
+        assert_artifact::<CompactContractBytecode>();
+        assert_artifact::<CompactContractBytecodeCow<'static>>();
     }
 }

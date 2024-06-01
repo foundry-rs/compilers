@@ -1,10 +1,3 @@
-#[cfg(feature = "svm-solc")]
-mod version_manager;
-#[cfg(feature = "svm-solc")]
-pub use version_manager::SolcVersionManager;
-
-use itertools::Itertools;
-
 use super::{
     CompilationError, Compiler, CompilerInput, CompilerOutput, CompilerSettings, ParsedSource,
 };
@@ -18,11 +11,17 @@ use crate::{
     resolver::parse::SolData,
     Solc, SOLC_EXTENSIONS,
 };
+use itertools::Itertools;
 use semver::Version;
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
 };
+
+#[cfg(feature = "svm-solc")]
+mod version_manager;
+#[cfg(feature = "svm-solc")]
+pub use version_manager::SolcVersionManager;
 
 impl Compiler for Solc {
     const FILE_EXTENSIONS: &'static [&'static str] = SOLC_EXTENSIONS;
