@@ -2,7 +2,7 @@
 
 use crate::{
     artifacts::output_selection::OutputSelection,
-    compilers::CompilerSettings,
+    compilers::{multi::MultiCompilerParsedSource, CompilerSettings},
     resolver::{parse::SolData, GraphEdges},
     Source, Sources,
 };
@@ -48,33 +48,47 @@ impl FileFilter for TestFileFilter {
     }
 }
 
-/// Wrapper around a [FileFilter] that includes files matched by the inner filter and their link
-/// references obtained from [GraphEdges].
-pub struct SolcSparseFileFilter<T> {
-    file_filter: T,
+pub trait MaybeSolData {
+    fn sol_data(&self) -> Option<&SolData>;
 }
 
-impl<T> SolcSparseFileFilter<T> {
-    pub fn new(file_filter: T) -> Self {
-        Self { file_filter }
+impl MaybeSolData for SolData {
+    fn sol_data(&self) -> Option<&SolData> {
+        Some(self)
     }
 }
 
-impl<T: FileFilter> FileFilter for SolcSparseFileFilter<T> {
-    fn is_match(&self, file: &Path) -> bool {
-        self.file_filter.is_match(file)
+impl MaybeSolData for MultiCompilerParsedSource {
+    fn sol_data(&self) -> Option<&SolData> {
+        match self {
+            MultiCompilerParsedSource::Solc(data) => Some(data),
+            _ => None,
+        }
     }
 }
 
-impl<T: FileFilter> SparseOutputFileFilter<SolData> for SolcSparseFileFilter<T> {
+fn sparse_solc<D: MaybeSolData>(file: &Path, graph: &GraphEdges<D>) -> Vec<PathBuf> {
+    let mut sources_to_compile = vec![file.to_path_buf()];
+    for import in graph.imports(file) {
+        if let Some(parsed) = graph.get_parsed_source(import).and_then(MaybeSolData::sol_data) {
+            if !parsed.libraries.is_empty() {
+                sources_to_compile.push(import.to_path_buf());
+            }
+        }
+    }
+
+    sources_to_compile
+}
+
+impl<T: FileFilter> SparseOutputFileFilter<SolData> for T {
     fn sparse_sources(&self, file: &Path, graph: &GraphEdges<SolData>) -> Vec<PathBuf> {
-        if !self.file_filter.is_match(file) {
+        if !self.is_match(file) {
             return vec![];
         }
 
         let mut sources_to_compile = vec![file.to_path_buf()];
         for import in graph.imports(file) {
-            if let Some(parsed) = graph.get_parsed_source(import) {
+            if let Some(parsed) = graph.get_parsed_source(import).and_then(|d| d.sol_data()) {
                 if !parsed.libraries.is_empty() {
                     sources_to_compile.push(import.to_path_buf());
                 }
@@ -82,6 +96,23 @@ impl<T: FileFilter> SparseOutputFileFilter<SolData> for SolcSparseFileFilter<T> 
         }
 
         sources_to_compile
+    }
+}
+
+impl<T: FileFilter> SparseOutputFileFilter<MultiCompilerParsedSource> for T {
+    fn sparse_sources(
+        &self,
+        file: &Path,
+        graph: &GraphEdges<MultiCompilerParsedSource>,
+    ) -> Vec<PathBuf> {
+        if !self.is_match(file) {
+            return vec![];
+        }
+
+        match file.extension().and_then(|e| e.to_str()) {
+            Some("yul" | "sol") => sparse_solc(file, graph),
+            _ => vec![file.to_path_buf()],
+        }
     }
 }
 
@@ -151,13 +182,6 @@ impl<D> SparseOutputFilter<D> {
         graph: &GraphEdges<D>,
         f: &dyn SparseOutputFileFilter<D>,
     ) {
-        trace!("optimizing output selection with custom filter");
-        let selection = settings
-            .output_selection_mut()
-            .as_mut()
-            .remove("*")
-            .unwrap_or_else(OutputSelection::default_file_output_selection);
-
         let mut full_compilation = HashSet::new();
 
         // populate sources which need complete compilation with data from filter
@@ -169,18 +193,23 @@ impl<D> SparseOutputFilter<D> {
             }
         }
 
-        // set output selections
-        for file in sources.0.keys() {
-            let key = format!("{}", file.display());
-            if full_compilation.contains(file) {
-                settings.output_selection_mut().as_mut().insert(key, selection.clone());
-            } else {
-                settings
-                    .output_selection_mut()
-                    .as_mut()
-                    .insert(key, OutputSelection::empty_file_output_select());
+        settings.update_output_selection(|selection| {
+            trace!("optimizing output selection with custom filter");
+            let default_selection = selection
+                .as_mut()
+                .remove("*")
+                .unwrap_or_else(OutputSelection::default_file_output_selection);
+
+            // set output selections
+            for file in sources.0.keys() {
+                let key = format!("{}", file.display());
+                if full_compilation.contains(file) {
+                    selection.as_mut().insert(key, default_selection.clone());
+                } else {
+                    selection.as_mut().insert(key, OutputSelection::empty_file_output_select());
+                }
             }
-        }
+        })
     }
 
     /// prunes all clean sources and only selects an output for dirty sources
@@ -192,31 +221,24 @@ impl<D> SparseOutputFilter<D> {
             sources.len()
         );
 
-        let default = settings
-            .output_selection_mut()
-            .as_mut()
-            .remove("*")
-            .unwrap_or_else(OutputSelection::default_file_output_selection);
+        settings.update_output_selection(|selection| {
+            let selection = selection.as_mut();
+            let default = selection
+                .remove("*")
+                .unwrap_or_else(OutputSelection::default_file_output_selection);
 
-        let optimized = S::minimal_output_selection();
-
-        for (file, kind) in sources.0.iter() {
-            match kind {
-                SourceCompilationKind::Complete(_) => {
-                    settings
-                        .output_selection_mut()
-                        .as_mut()
-                        .insert(format!("{}", file.display()), default.clone());
-                }
-                SourceCompilationKind::Optimized(_) => {
-                    trace!("using pruned output selection for {}", file.display());
-                    settings
-                        .output_selection_mut()
-                        .as_mut()
-                        .insert(format!("{}", file.display()), optimized.clone());
+            for (file, kind) in sources.0.iter() {
+                match kind {
+                    SourceCompilationKind::Complete(_) => {
+                        selection.insert(format!("{}", file.display()), default.clone());
+                    }
+                    SourceCompilationKind::Optimized(_) => {
+                        trace!("using pruned output selection for {}", file.display());
+                        selection.insert(format!("{}", file.display()), [].into());
+                    }
                 }
             }
-        }
+        });
     }
 }
 

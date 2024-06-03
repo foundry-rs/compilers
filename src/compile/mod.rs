@@ -1,6 +1,5 @@
 use crate::{
     artifacts::Source,
-    compilers::CompilerInput,
     error::{Result, SolcError},
     resolver::parse::SolData,
     utils, CompilerOutput, SolcInput,
@@ -317,18 +316,23 @@ impl Solc {
     pub fn blocking_install(version: &Version) -> std::result::Result<Self, svm::SvmError> {
         use crate::utils::RuntimeOrHandle;
 
+        #[cfg(test)]
+        crate::take_solc_installer_lock!(_lock);
+
+        let version = Version::new(version.major, version.minor, version.patch);
+
         trace!("blocking installing solc version \"{}\"", version);
-        crate::report::solc_installation_start(version);
+        crate::report::solc_installation_start(&version);
         // The async version `svm::install` is used instead of `svm::blocking_intsall`
         // because the underlying `reqwest::blocking::Client` does not behave well
         // inside of a Tokio runtime. See: https://github.com/seanmonstar/reqwest/issues/1017
-        match RuntimeOrHandle::new().block_on(svm::install(version)) {
+        match RuntimeOrHandle::new().block_on(svm::install(&version)) {
             Ok(path) => {
-                crate::report::solc_installation_success(version);
+                crate::report::solc_installation_success(&version);
                 Ok(Solc::new_with_version(path, version.clone()))
             }
             Err(err) => {
-                crate::report::solc_installation_error(version, &err.to_string());
+                crate::report::solc_installation_error(&version, &err.to_string());
                 Err(err)
             }
         }
@@ -387,11 +391,13 @@ impl Solc {
         let path = path.as_ref();
         let mut res: CompilerOutput = Default::default();
         for input in
-            SolcInput::build(Source::read_sol_yul_from(path)?, Default::default(), &self.version)
+            SolcInput::resolve_and_build(Source::read_sol_yul_from(path)?, Default::default())
         {
+            let input = input.sanitized(&self.version);
             let output = self.compile(&input)?;
             res.merge(output)
         }
+
         Ok(res)
     }
 
@@ -518,16 +524,27 @@ impl Solc {
 
         cmd
     }
+
+    /// Either finds an installed Solc version or installs it if it's not found.
+    #[cfg(feature = "svm-solc")]
+    pub fn find_or_install(version: &Version) -> Result<Self> {
+        let solc = if let Some(solc) = Self::find_svm_installed_version(version.to_string())? {
+            solc
+        } else {
+            Self::blocking_install(version)?
+        };
+
+        Ok(solc)
+    }
 }
 
 #[cfg(feature = "async")]
 impl Solc {
     /// Convenience function for compiling all sources under the given path
     pub async fn async_compile_source(&self, path: impl AsRef<Path>) -> Result<CompilerOutput> {
-        self.async_compile(&SolcInput::build(
+        self.async_compile(&SolcInput::resolve_and_build(
             Source::async_read_all_from(path, SOLC_EXTENSIONS).await?,
             Default::default(),
-            &self.version,
         ))
         .await
     }
@@ -629,11 +646,7 @@ impl AsRef<Path> for Solc {
 #[cfg(feature = "svm-solc")]
 mod tests {
     use super::*;
-    use crate::{
-        compilers::{solc::SolcVersionManager, CompilerVersionManager, VersionManagerError},
-        resolver::parse::SolData,
-        Artifact,
-    };
+    use crate::{resolver::parse::SolData, Artifact};
 
     #[test]
     fn test_version_parse() {
@@ -643,7 +656,11 @@ mod tests {
     }
 
     fn solc() -> Solc {
-        SolcVersionManager::default().get_or_install(&Version::new(0, 8, 18)).unwrap()
+        if let Some(solc) = Solc::find_svm_installed_version("0.8.18").unwrap() {
+            solc
+        } else {
+            Solc::blocking_install(&Version::new(0, 8, 18)).unwrap()
+        }
     }
 
     #[test]
@@ -758,7 +775,7 @@ mod tests {
             Solc::blocking_install(&version).unwrap();
         }
         drop(_lock);
-        let res = SolcVersionManager::default().get_installed(&version).unwrap();
+        let res = Solc::find_svm_installed_version(ver).unwrap().unwrap();
         let expected = svm::data_dir().join(ver).join(format!("solc-{ver}"));
         assert_eq!(res.solc, expected);
     }
@@ -775,8 +792,7 @@ mod tests {
     #[test]
     fn does_not_find_not_installed_version() {
         let ver = "1.1.1";
-        let version = Version::from_str(ver).unwrap();
-        let res = SolcVersionManager::default().get_installed(&version);
-        assert!(matches!(res, Err(VersionManagerError::VersionNotInstalled(_))));
+        let res = Solc::find_svm_installed_version(ver).unwrap();
+        assert!(res.is_none());
     }
 }

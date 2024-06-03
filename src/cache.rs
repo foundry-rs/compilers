@@ -129,7 +129,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// let cache = SolFilesCache::read_joined(&project.paths)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn read_joined<C>(paths: &ProjectPathsConfig<C>) -> Result<Self> {
+    pub fn read_joined<L>(paths: &ProjectPathsConfig<L>) -> Result<Self> {
         let mut cache = CompilerCache::read(&paths.cache)?;
         cache.join_entries(&paths.root).join_artifacts_files(&paths.artifacts);
         Ok(cache)

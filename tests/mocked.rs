@@ -1,6 +1,7 @@
 //! mocked project tests
 
 use foundry_compilers::{
+    compilers::multi::MultiCompiler,
     error::Result,
     project_util::{
         mock::{MockProjectGenerator, MockProjectSettings, MockProjectSkeleton},
@@ -109,7 +110,7 @@ fn can_compile_mocked_modified_all() {
 // a test useful to manually debug a serialized skeleton
 #[test]
 fn can_compile_skeleton() {
-    let mut project = TempProject::dapptools().unwrap();
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
     let s = r#"{"files":[{"id":0,"name":"SourceFile0","imports":[{"External":[0,1]},{"External":[3,4]}],"lib_id":null,"emit_artifacts":true},{"id":1,"name":"SourceFile1","imports":[],"lib_id":0,"emit_artifacts":true},{"id":2,"name":"SourceFile2","imports":[],"lib_id":1,"emit_artifacts":true},{"id":3,"name":"SourceFile3","imports":[],"lib_id":2,"emit_artifacts":true},{"id":4,"name":"SourceFile4","imports":[],"lib_id":3,"emit_artifacts":true}],"libraries":[{"name":"Lib0","id":0,"offset":1,"num_files":1},{"name":"Lib1","id":1,"offset":2,"num_files":1},{"name":"Lib2","id":2,"offset":3,"num_files":1},{"name":"Lib3","id":3,"offset":4,"num_files":1}]}"#;
     let gen: MockProjectGenerator = serde_json::from_str::<MockProjectSkeleton>(s).unwrap().into();
     let remappings = gen.remappings_at(project.root());

@@ -49,6 +49,20 @@ impl CompilationError for VyperCompilationError {
 
 impl fmt::Display for VyperCompilationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.message)
+        if let Some(location) = &self.source_location {
+            write!(f, "Location: {}", location.file.display())?;
+            if let Some(line) = location.line {
+                write!(f, ":{}", line)?;
+            }
+            if let Some(offset) = location.offset {
+                write!(f, ":{}", offset)?;
+            }
+            writeln!(f)?;
+        }
+        if let Some(message) = &self.formatted_message {
+            write!(f, "{}", message)
+        } else {
+            write!(f, "{}", self.message)
+        }
     }
 }

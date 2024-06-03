@@ -1,12 +1,12 @@
 use crate::{
     artifacts::{output_selection::ContractOutputSelection, Settings},
     cache::SOLIDITY_FILES_CACHE_FILENAME,
-    compilers::Compiler,
+    compilers::{multi::MultiCompilerLanguage, solc::SolcLanguage, Language},
     error::{Result, SolcError, SolcIoError},
     flatten::{collect_ordered_deps, combine_version_pragmas},
     remappings::Remapping,
-    resolver::{Graph, SolImportAlias},
-    utils, Solc, Source, Sources,
+    resolver::{parse::SolData, Graph, SolImportAlias},
+    utils, Source, Sources,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -19,7 +19,7 @@ use std::{
 
 /// Where to find all files or where to write them
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectPathsConfig<C = Solc> {
+pub struct ProjectPathsConfig<L = MultiCompilerLanguage> {
     /// Project root
     pub root: PathBuf,
     /// Path to the cache, if any
@@ -43,7 +43,7 @@ pub struct ProjectPathsConfig<C = Solc> {
     /// The paths which will be allowed for library inclusion
     pub allowed_paths: BTreeSet<PathBuf>,
 
-    pub _c: PhantomData<C>,
+    pub _l: PhantomData<L>,
 }
 
 impl ProjectPathsConfig {
@@ -51,7 +51,46 @@ impl ProjectPathsConfig {
         ProjectPathsConfigBuilder::default()
     }
 
-    /// Flattens all file imports into a single string
+    /// Attempts to autodetect the artifacts directory based on the given root path
+    ///
+    /// Dapptools layout takes precedence over hardhat style.
+    /// This will return:
+    ///   - `<root>/out` if it exists or `<root>/artifacts` does not exist,
+    ///   - `<root>/artifacts` if it exists and `<root>/out` does not exist.
+    pub fn find_artifacts_dir(root: impl AsRef<Path>) -> PathBuf {
+        utils::find_fave_or_alt_path(root, "out", "artifacts")
+    }
+
+    /// Attempts to autodetect the source directory based on the given root path
+    ///
+    /// Dapptools layout takes precedence over hardhat style.
+    /// This will return:
+    ///   - `<root>/src` if it exists or `<root>/contracts` does not exist,
+    ///   - `<root>/contracts` if it exists and `<root>/src` does not exist.
+    pub fn find_source_dir(root: impl AsRef<Path>) -> PathBuf {
+        utils::find_fave_or_alt_path(root, "src", "contracts")
+    }
+
+    /// Attempts to autodetect the lib directory based on the given root path
+    ///
+    /// Dapptools layout takes precedence over hardhat style.
+    /// This will return:
+    ///   - `<root>/lib` if it exists or `<root>/node_modules` does not exist,
+    ///   - `<root>/node_modules` if it exists and `<root>/lib` does not exist.
+    pub fn find_libs(root: impl AsRef<Path>) -> Vec<PathBuf> {
+        vec![utils::find_fave_or_alt_path(root, "lib", "node_modules")]
+    }
+}
+
+impl ProjectPathsConfig<SolcLanguage> {
+    /// Flattens the target solidity file into a single string suitable for verification.
+    ///
+    /// This method uses a dependency graph to resolve imported files and substitute
+    /// import directives with the contents of target files. It will strip the pragma
+    /// version directives and SDPX license identifiers from all imported files.
+    ///
+    /// NB: the SDPX license identifier will be removed from the imported file
+    /// only if it is found at the beginning of the file.
     pub fn flatten(&self, target: &Path) -> Result<String> {
         trace!("flattening file");
         let mut input_files = self.input_files();
@@ -64,7 +103,7 @@ impl ProjectPathsConfig {
         }
 
         let sources = Source::read_all_files(input_files)?;
-        let graph = Graph::resolve_sources(self, sources)?;
+        let graph = Graph::<SolData>::resolve_sources(self, sources)?;
         let ordered_deps = collect_ordered_deps(&flatten_target, self, &graph)?;
 
         #[cfg(windows)]
@@ -180,39 +219,9 @@ impl ProjectPathsConfig {
 
         Ok(format!("{}\n", utils::RE_THREE_OR_MORE_NEWLINES.replace_all(&result, "\n\n").trim()))
     }
-
-    /// Attempts to autodetect the artifacts directory based on the given root path
-    ///
-    /// Dapptools layout takes precedence over hardhat style.
-    /// This will return:
-    ///   - `<root>/out` if it exists or `<root>/artifacts` does not exist,
-    ///   - `<root>/artifacts` if it exists and `<root>/out` does not exist.
-    pub fn find_artifacts_dir(root: impl AsRef<Path>) -> PathBuf {
-        utils::find_fave_or_alt_path(root, "out", "artifacts")
-    }
-
-    /// Attempts to autodetect the source directory based on the given root path
-    ///
-    /// Dapptools layout takes precedence over hardhat style.
-    /// This will return:
-    ///   - `<root>/src` if it exists or `<root>/contracts` does not exist,
-    ///   - `<root>/contracts` if it exists and `<root>/src` does not exist.
-    pub fn find_source_dir(root: impl AsRef<Path>) -> PathBuf {
-        utils::find_fave_or_alt_path(root, "src", "contracts")
-    }
-
-    /// Attempts to autodetect the lib directory based on the given root path
-    ///
-    /// Dapptools layout takes precedence over hardhat style.
-    /// This will return:
-    ///   - `<root>/lib` if it exists or `<root>/node_modules` does not exist,
-    ///   - `<root>/node_modules` if it exists and `<root>/lib` does not exist.
-    pub fn find_libs(root: impl AsRef<Path>) -> Vec<PathBuf> {
-        vec![utils::find_fave_or_alt_path(root, "lib", "node_modules")]
-    }
 }
 
-impl<C> ProjectPathsConfig<C> {
+impl<L> ProjectPathsConfig<L> {
     /// Creates a new hardhat style config instance which points to the canonicalized root path
     pub fn hardhat(root: impl AsRef<Path>) -> Result<Self> {
         PathStyle::HardHat.paths(root)
@@ -504,25 +513,57 @@ impl<C> ProjectPathsConfig<C> {
             utils::resolve_library(&self.libraries, import)
         }
     }
+
+    pub fn with_language<Lang>(self) -> ProjectPathsConfig<Lang> {
+        let Self {
+            root,
+            cache,
+            artifacts,
+            build_infos,
+            sources,
+            tests,
+            scripts,
+            libraries,
+            remappings,
+            include_paths,
+            allowed_paths,
+            _l,
+        } = self;
+
+        ProjectPathsConfig {
+            root,
+            cache,
+            artifacts,
+            build_infos,
+            sources,
+            tests,
+            scripts,
+            libraries,
+            remappings,
+            include_paths,
+            allowed_paths,
+            _l: PhantomData,
+        }
+    }
 }
 
-impl<C: Compiler> ProjectPathsConfig<C> {
+impl<L: Language> ProjectPathsConfig<L> {
     /// Returns all sources found under the project's configured `sources` path
     pub fn read_sources(&self) -> Result<Sources> {
         trace!("reading all sources from \"{}\"", self.sources.display());
-        Ok(Source::read_all_from(&self.sources, C::FILE_EXTENSIONS)?)
+        Ok(Source::read_all_from(&self.sources, L::FILE_EXTENSIONS)?)
     }
 
     /// Returns all sources found under the project's configured `test` path
     pub fn read_tests(&self) -> Result<Sources> {
         trace!("reading all tests from \"{}\"", self.tests.display());
-        Ok(Source::read_all_from(&self.tests, C::FILE_EXTENSIONS)?)
+        Ok(Source::read_all_from(&self.tests, L::FILE_EXTENSIONS)?)
     }
 
     /// Returns all sources found under the project's configured `script` path
     pub fn read_scripts(&self) -> Result<Sources> {
         trace!("reading all scripts from \"{}\"", self.scripts.display());
-        Ok(Source::read_all_from(&self.scripts, C::FILE_EXTENSIONS)?)
+        Ok(Source::read_all_from(&self.scripts, L::FILE_EXTENSIONS)?)
     }
 
     /// Returns true if the there is at least one solidity file in this config.
@@ -535,9 +576,9 @@ impl<C: Compiler> ProjectPathsConfig<C> {
     /// Returns an iterator that yields all solidity file paths for `Self::sources`, `Self::tests`
     /// and `Self::scripts`
     pub fn input_files_iter(&self) -> impl Iterator<Item = PathBuf> + '_ {
-        utils::source_files_iter(&self.sources, C::FILE_EXTENSIONS)
-            .chain(utils::source_files_iter(&self.tests, C::FILE_EXTENSIONS))
-            .chain(utils::source_files_iter(&self.scripts, C::FILE_EXTENSIONS))
+        utils::source_files_iter(&self.sources, L::FILE_EXTENSIONS)
+            .chain(utils::source_files_iter(&self.tests, L::FILE_EXTENSIONS))
+            .chain(utils::source_files_iter(&self.scripts, L::FILE_EXTENSIONS))
     }
 
     /// Returns the combined set solidity file paths for `Self::sources`, `Self::tests` and
@@ -816,7 +857,7 @@ impl ProjectPathsConfigBuilder {
             root,
             include_paths: self.include_paths,
             allowed_paths,
-            _c: PhantomData,
+            _l: PhantomData,
         }
     }
 

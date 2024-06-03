@@ -1,4 +1,3 @@
-use crate::compilers::VersionManagerError;
 use semver::Version;
 use std::{
     io,
@@ -72,9 +71,6 @@ pub enum SolcError {
     #[cfg(feature = "project-util")]
     #[error(transparent)]
     FsExtra(#[from] fs_extra::error::Error),
-
-    #[error(transparent)]
-    VersionManager(#[from] VersionManagerError),
 }
 
 impl SolcError {

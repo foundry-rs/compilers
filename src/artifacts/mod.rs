@@ -3,15 +3,15 @@
 #![allow(ambiguous_glob_reexports)]
 
 use crate::{
-    compile::*, error::SolcIoError, output::ErrorFilter, remappings::Remapping, utils,
-    ProjectPathsConfig, SolcError,
+    compile::*, compilers::solc::SolcLanguage, error::SolcIoError, output::ErrorFilter,
+    remappings::Remapping, utils, ProjectPathsConfig, SolcError,
 };
 use alloy_primitives::hex;
 use md5::Digest;
 use semver::Version;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt, fs,
     path::{Path, PathBuf},
     str::FromStr,
@@ -49,10 +49,10 @@ pub type Contracts = FileToContractsMap<Contract>;
 pub type Sources = BTreeMap<PathBuf, Source>;
 
 /// A set of different Solc installations with their version and the sources to be compiled
-pub(crate) type VersionedSources<C> = Vec<(C, Version, Sources)>;
+pub(crate) type VersionedSources<L> = HashMap<L, HashMap<Version, Sources>>;
 
 /// A set of different Solc installations with their version and the sources to be compiled
-pub(crate) type VersionedFilteredSources<C> = Vec<(C, Version, FilteredSources)>;
+pub(crate) type VersionedFilteredSources<L> = HashMap<L, HashMap<Version, FilteredSources>>;
 
 pub const SOLIDITY: &str = "Solidity";
 pub const YUL: &str = "Yul";
@@ -60,7 +60,7 @@ pub const YUL: &str = "Yul";
 /// Input type `solc` expects.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SolcInput {
-    pub language: String,
+    pub language: SolcLanguage,
     pub sources: Sources,
     pub settings: Settings,
 }
@@ -69,7 +69,7 @@ pub struct SolcInput {
 impl Default for SolcInput {
     fn default() -> Self {
         SolcInput {
-            language: SOLIDITY.to_string(),
+            language: SolcLanguage::Solidity,
             sources: Sources::default(),
             settings: Settings::default(),
         }
@@ -77,6 +77,41 @@ impl Default for SolcInput {
 }
 
 impl SolcInput {
+    pub fn new(language: SolcLanguage, sources: Sources, mut settings: Settings) -> Self {
+        if language == SolcLanguage::Yul && !settings.remappings.is_empty() {
+            warn!("omitting remappings supplied for the yul sources");
+            settings.remappings = vec![];
+        }
+        Self { language, sources, settings }
+    }
+
+    /// Builds one or two inputs from given sources set. Returns two inputs in cases when there are
+    /// both Solidity and Yul sources.
+    pub fn resolve_and_build(sources: Sources, settings: Settings) -> Vec<Self> {
+        let mut solidity_sources = BTreeMap::new();
+        let mut yul_sources = BTreeMap::new();
+
+        for (file, source) in sources {
+            if file.extension().map_or(false, |e| e == "yul") {
+                yul_sources.insert(file, source);
+            } else if file.extension().map_or(false, |e| e == "sol") {
+                solidity_sources.insert(file, source);
+            }
+        }
+
+        let mut res = Vec::new();
+
+        if !solidity_sources.is_empty() {
+            res.push(SolcInput::new(SolcLanguage::Solidity, solidity_sources, settings.clone()))
+        }
+
+        if !yul_sources.is_empty() {
+            res.push(SolcInput::new(SolcLanguage::Yul, yul_sources, settings))
+        }
+
+        res
+    }
+
     /// This will remove/adjust values in the [`SolcInput`] that are not compatible with this
     /// version
     pub fn sanitize(&mut self, version: &Version) {
@@ -125,7 +160,19 @@ impl SolcInput {
     /// The flag indicating whether the current [SolcInput] is
     /// constructed for the yul sources
     pub fn is_yul(&self) -> bool {
-        self.language == YUL
+        self.language == SolcLanguage::Yul
+    }
+
+    pub fn with_remappings(mut self, remappings: Vec<Remapping>) -> Self {
+        if self.language == SolcLanguage::Yul {
+            if !remappings.is_empty() {
+                warn!("omitting remappings supplied for the yul sources");
+            }
+        } else {
+            self.settings.remappings = remappings;
+        }
+
+        self
     }
 }
 
@@ -137,7 +184,7 @@ impl SolcInput {
 /// the verified contracts
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StandardJsonCompilerInput {
-    pub language: String,
+    pub language: SolcLanguage,
     #[serde(with = "serde_helpers::tuple_vec_map")]
     pub sources: Vec<(PathBuf, Source)>,
     pub settings: Settings,
@@ -147,7 +194,7 @@ pub struct StandardJsonCompilerInput {
 
 impl StandardJsonCompilerInput {
     pub fn new(sources: Vec<(PathBuf, Source)>, settings: Settings) -> Self {
-        Self { language: SOLIDITY.to_string(), sources, settings }
+        Self { language: SolcLanguage::Solidity, sources, settings }
     }
 
     /// Normalizes the EVM version used in the settings to be up to the latest one
@@ -296,6 +343,10 @@ impl Settings {
                 model_checker.show_proved_safe = None;
                 model_checker.show_unsupported = None;
             }
+        }
+
+        if let Some(ref mut evm_version) = self.evm_version {
+            self.evm_version = evm_version.normalize_version_solc(version);
         }
     }
 
@@ -2121,7 +2172,7 @@ mod tests {
         let settings = Settings { metadata: Some(BytecodeHash::Ipfs.into()), ..Default::default() };
 
         let input =
-            SolcInput { language: "Solidity".to_string(), sources: Default::default(), settings };
+            SolcInput { language: SolcLanguage::Solidity, sources: Default::default(), settings };
 
         let i = input.clone().sanitized(&version);
         assert_eq!(i.settings.metadata.unwrap().bytecode_hash, Some(BytecodeHash::Ipfs));
@@ -2141,7 +2192,7 @@ mod tests {
         };
 
         let input =
-            SolcInput { language: "Solidity".to_string(), sources: Default::default(), settings };
+            SolcInput { language: SolcLanguage::Solidity, sources: Default::default(), settings };
 
         let i = input.clone().sanitized(&version);
         assert_eq!(i.settings.metadata.unwrap().cbor_metadata, Some(true));

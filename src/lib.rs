@@ -25,12 +25,11 @@ pub mod cache;
 pub mod flatten;
 
 pub mod hh;
-use compilers::{Compiler, CompilerSettings, CompilerVersionManager};
+use compilers::{multi::MultiCompiler, Compiler, CompilerSettings};
 pub use filter::SparseOutputFileFilter;
 pub use hh::{HardhatArtifact, HardhatArtifacts};
 
 pub mod resolver;
-use resolver::parse::SolData;
 pub use resolver::Graph;
 
 pub mod compilers;
@@ -48,8 +47,7 @@ pub mod remappings;
 
 mod filter;
 pub use filter::{
-    FileFilter, FilteredSources, SolcSparseFileFilter, SourceCompilationKind, SparseOutputFilter,
-    TestFileFilter,
+    FileFilter, FilteredSources, SourceCompilationKind, SparseOutputFilter, TestFileFilter,
 };
 use solang_parser::pt::SourceUnitPart;
 
@@ -63,7 +61,7 @@ use crate::{
     error::{SolcError, SolcIoError},
     sources::{VersionedSourceFile, VersionedSourceFiles},
 };
-use artifacts::{contract::Contract, output_selection::OutputSelection, Severity};
+use artifacts::{contract::Contract, output_selection::OutputSelection, Settings, Severity};
 use compile::output::contracts::VersionedContracts;
 use error::Result;
 use semver::Version;
@@ -71,32 +69,20 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 
 /// Utilities for creating, mocking and testing of (temporary) projects
 #[cfg(feature = "project-util")]
 pub mod project_util;
 
-#[derive(Debug, Clone)]
-pub enum CompilerConfig<C: Compiler> {
-    Specific(C),
-    AutoDetect(Arc<dyn CompilerVersionManager<Compiler = C>>),
-}
-
-#[cfg(feature = "svm-solc")]
-impl Default for CompilerConfig<Solc> {
-    fn default() -> Self {
-        CompilerConfig::AutoDetect(Arc::new(compilers::solc::SolcVersionManager))
-    }
-}
-
 /// Represents a project workspace and handles `solc` compiling of all contracts in that workspace.
 #[derive(Clone, Debug)]
-pub struct Project<C: Compiler = Solc, T: ArtifactOutput = ConfigurableArtifacts> {
-    pub compiler_config: CompilerConfig<C>,
+pub struct Project<C: Compiler = MultiCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
+    pub compiler: C,
+    /// Compiler versions locked for specific languages.
+    pub locked_versions: HashMap<C::Language, Version>,
     /// The layout of the project
-    pub paths: ProjectPathsConfig<C>,
+    pub paths: ProjectPathsConfig<C::Language>,
     /// The compiler settings
     pub settings: C::Settings,
     /// Whether caching is enabled
@@ -166,7 +152,10 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     }
 }
 
-impl<T: ArtifactOutput> Project<Solc, T> {
+impl<C: Compiler, T: ArtifactOutput> Project<C, T>
+where
+    C::Settings: Into<Settings>,
+{
     /// Returns standard-json-input to compile the target contract
     pub fn standard_json_input(
         &self,
@@ -174,7 +163,7 @@ impl<T: ArtifactOutput> Project<Solc, T> {
     ) -> Result<StandardJsonCompilerInput> {
         let target = target.as_ref();
         trace!("Building standard-json-input for {:?}", target);
-        let graph = Graph::<SolData>::resolve(&self.paths)?;
+        let graph = Graph::<C::ParsedSource>::resolve(&self.paths)?;
         let target_index = graph.files().get(target).ok_or_else(|| {
             SolcError::msg(format!("cannot resolve file at {:?}", target.display()))
         })?;
@@ -197,7 +186,7 @@ impl<T: ArtifactOutput> Project<Solc, T> {
             .map(|(path, source)| (rebase_path(root, path), source.clone()))
             .collect();
 
-        let mut settings = self.settings.clone();
+        let mut settings = self.settings.clone().into();
         // strip the path to the project root from all remappings
         settings.remappings = self
             .paths
@@ -210,18 +199,6 @@ impl<T: ArtifactOutput> Project<Solc, T> {
         let input = StandardJsonCompilerInput::new(sources, settings);
 
         Ok(input)
-    }
-
-    /// Flattens the target solidity file into a single string suitable for verification.
-    ///
-    /// This method uses a dependency graph to resolve imported files and substitute
-    /// import directives with the contents of target files. It will strip the pragma
-    /// version directives and SDPX license identifiers from all imported files.
-    ///
-    /// NB: the SDPX license identifier will be removed from the imported file
-    /// only if it is found at the beginning of the file.
-    pub fn flatten(&self, target: &Path) -> Result<String> {
-        self.paths.flatten(target)
     }
 }
 
@@ -385,34 +362,6 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
         project::ProjectCompiler::with_sources(self, sources)?.with_sparse_output(filter).compile()
     }
 
-    /// Compiles the given source files with the exact [Compiler] instance
-    ///
-    /// First all libraries for the sources are resolved by scanning all their imports.
-    /// If caching is enabled for the `Project`, then all unchanged files are filtered from the
-    /// sources and their existing artifacts are read instead. This will also update the cache
-    /// file and cleans up entries for files which may have been removed. Unchanged files that
-    /// for which an artifact exist, are not compiled again.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use foundry_compilers::{Project, Solc};
-    ///
-    /// let project = Project::builder().build()?;
-    /// let sources = project.paths.read_sources()?;
-    /// let solc = Solc::find_svm_installed_version("0.8.11")?.unwrap();
-    /// project.compile_with_version(&solc, sources)?;
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    pub fn compile_with_version(
-        &self,
-        compiler: &C,
-        sources: Sources,
-    ) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
-        project::ProjectCompiler::with_sources_and_compiler(self, sources, compiler.clone())?
-            .compile()
-    }
-
     /// Removes the project's artifacts and cache file
     ///
     /// If the cache file was the only file in the folder, this also removes the empty folder.
@@ -480,8 +429,9 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     {
         let mut temp_project = (*self).clone();
         temp_project.no_artifacts = true;
-        *temp_project.settings.output_selection_mut() =
-            OutputSelection::common_output_selection([]);
+        temp_project.settings.update_output_selection(|selection| {
+            *selection = OutputSelection::common_output_selection(["abi".to_string()]);
+        });
 
         let output = temp_project.compile()?;
 
@@ -508,7 +458,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
         T: Clone,
         C: Clone,
     {
-        let graph = Graph::resolve(&self.paths)?;
+        let graph = Graph::<C::ParsedSource>::resolve(&self.paths)?;
         let mut contracts: HashMap<String, Vec<PathBuf>> = HashMap::new();
 
         for file in graph.files().keys() {
@@ -556,9 +506,11 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     }
 }
 
-pub struct ProjectBuilder<C: Compiler = Solc, T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct ProjectBuilder<C: Compiler = MultiCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
     /// The layout of the
-    paths: Option<ProjectPathsConfig<C>>,
+    paths: Option<ProjectPathsConfig<C::Language>>,
+    /// Compiler versions locked for specific languages.
+    locked_versions: HashMap<C::Language, Version>,
     /// How solc invocation should be configured.
     settings: Option<C::Settings>,
     /// Whether caching is enabled, default is true.
@@ -598,11 +550,12 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             compiler_severity_filter: Severity::Error,
             solc_jobs: None,
             settings: None,
+            locked_versions: Default::default(),
         }
     }
 
     #[must_use]
-    pub fn paths(mut self, paths: ProjectPathsConfig<C>) -> Self {
+    pub fn paths(mut self, paths: ProjectPathsConfig<C::Language>) -> Self {
         self.paths = Some(paths);
         self
     }
@@ -713,6 +666,18 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
         self.solc_jobs(1)
     }
 
+    #[must_use]
+    pub fn locked_version(mut self, lang: impl Into<C::Language>, version: Version) -> Self {
+        self.locked_versions.insert(lang.into(), version);
+        self
+    }
+
+    #[must_use]
+    pub fn locked_versions(mut self, versions: HashMap<C::Language, Version>) -> Self {
+        self.locked_versions = versions;
+        self
+    }
+
     /// Set arbitrary `ArtifactOutputHandler`
     pub fn artifacts<A: ArtifactOutput>(self, artifacts: A) -> ProjectBuilder<C, A> {
         let ProjectBuilder {
@@ -727,6 +692,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             slash_paths,
             ignored_file_paths,
             settings,
+            locked_versions,
             ..
         } = self;
         ProjectBuilder {
@@ -742,10 +708,11 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             solc_jobs,
             build_info,
             settings,
+            locked_versions,
         }
     }
 
-    pub fn build(self, compiler_config: CompilerConfig<C>) -> Result<Project<C, T>> {
+    pub fn build(self, compiler: C) -> Result<Project<C, T>> {
         let Self {
             paths,
             cached,
@@ -759,6 +726,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             build_info,
             slash_paths,
             settings,
+            locked_versions,
         } = self;
 
         let mut paths = paths.map(Ok).unwrap_or_else(ProjectPathsConfig::current_hardhat)?;
@@ -769,7 +737,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
         }
 
         Ok(Project {
-            compiler_config,
+            compiler,
             paths,
             cached,
             build_info,
@@ -784,6 +752,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             offline,
             slash_paths,
             settings: settings.unwrap_or_default(),
+            locked_versions,
         })
     }
 }

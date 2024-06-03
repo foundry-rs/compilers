@@ -10,20 +10,22 @@ use foundry_compilers::{
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
     compilers::{
-        solc::SolcVersionManager,
-        vyper::{Vyper, VyperSettings},
-        CompilerOutput, CompilerVersionManager,
+        multi::{
+            MultiCompiler, MultiCompilerError, MultiCompilerLanguage, MultiCompilerParsedSource,
+            MultiCompilerSettings,
+        },
+        solc::{SolcCompiler, SolcLanguage},
+        vyper::{Vyper, VyperLanguage, VyperSettings},
+        CompilerOutput,
     },
     error::SolcError,
     flatten::Flattener,
     info::ContractInfo,
     project_util::*,
     remappings::Remapping,
-    resolver::parse::SolData,
     utils::{self, RuntimeOrHandle},
-    Artifact, CompilerConfig, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, Solc, SolcInput,
-    SolcSparseFileFilter, TestFileFilter,
+    Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project, ProjectBuilder,
+    ProjectCompileOutput, ProjectPathsConfig, Solc, SolcInput, TestFileFilter,
 };
 use once_cell::sync::Lazy;
 use pretty_assertions::assert_eq;
@@ -89,7 +91,7 @@ fn can_compile_hardhat_sample() {
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("contracts"))
         .lib(root.join("node_modules"));
-    let project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
     let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Greeter").is_some());
@@ -114,7 +116,7 @@ fn can_compile_hardhat_sample() {
 fn can_compile_dapp_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-    let project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
     let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Dapp").is_some());
@@ -141,7 +143,7 @@ fn can_compile_dapp_sample() {
 fn can_compile_yul_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/yul-sample");
     let paths = ProjectPathsConfig::builder().sources(root);
-    let project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
     let compiled = project.compile().unwrap();
     assert!(compiled.find_first("Dapp").is_some());
@@ -183,8 +185,8 @@ fn can_compile_configured() {
         ..Default::default()
     };
 
-    let settings = handler.settings();
-    let project = TempProject::with_artifacts(paths, handler).unwrap().with_settings(settings);
+    let settings = handler.solc_settings();
+    let project = TempProject::with_artifacts(paths, handler).unwrap().with_solc_settings(settings);
     let compiled = project.compile().unwrap();
     let artifact = compiled.find_first("Dapp").unwrap();
     assert!(artifact.metadata.is_some());
@@ -196,7 +198,7 @@ fn can_compile_configured() {
 
 #[test]
 fn can_compile_dapp_detect_changes_in_libs() {
-    let mut project = TempProject::dapptools().unwrap();
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let remapping = project.paths().libraries[0].join("remapping");
     project
@@ -227,7 +229,7 @@ fn can_compile_dapp_detect_changes_in_libs() {
         )
         .unwrap();
 
-    let graph = Graph::<SolData>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParsedSource>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
     assert_eq!(graph.files().clone(), HashMap::from([(src, 0), (lib, 1),]));
 
@@ -257,7 +259,7 @@ fn can_compile_dapp_detect_changes_in_libs() {
         )
         .unwrap();
 
-    let graph = Graph::<SolData>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParsedSource>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
 
     let compiled = project.compile().unwrap();
@@ -269,7 +271,7 @@ fn can_compile_dapp_detect_changes_in_libs() {
 
 #[test]
 fn can_compile_dapp_detect_changes_in_sources() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let src = project
         .add_source(
@@ -299,7 +301,7 @@ fn can_compile_dapp_detect_changes_in_sources() {
         )
         .unwrap();
 
-    let graph = Graph::<SolData>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParsedSource>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
     assert_eq!(graph.files().clone(), HashMap::from([(base, 0), (src, 1),]));
     assert_eq!(graph.imported_nodes(1).to_vec(), vec![0]);
@@ -336,7 +338,7 @@ fn can_compile_dapp_detect_changes_in_sources() {
    ",
         )
         .unwrap();
-    let graph = Graph::<SolData>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParsedSource>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
 
     let compiled = project.compile().unwrap();
@@ -354,7 +356,7 @@ fn can_compile_dapp_detect_changes_in_sources() {
 
 #[test]
 fn can_emit_build_info() {
-    let mut project = TempProject::dapptools().unwrap();
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
     project.project_mut().build_info = true;
     project
         .add_source(
@@ -394,7 +396,7 @@ contract B { }
 
 #[test]
 fn can_clean_build_info() {
-    let mut project = TempProject::dapptools().unwrap();
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project.project_mut().build_info = true;
     project.project_mut().paths.build_infos = project.project_mut().paths.root.join("build-info");
@@ -528,7 +530,8 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> 
 // Runs both `flatten` implementations, asserts that their outputs match and runs additional checks
 // against the output.
 fn test_flatteners(project: &TempProject, target: &Path, additional_checks: fn(&str)) {
-    let result = project.flatten(target).unwrap();
+    let result =
+        project.project().paths.clone().with_language::<SolcLanguage>().flatten(target).unwrap();
     let solc_result =
         Flattener::new(project.project(), &project.compile().unwrap(), target).unwrap().flatten();
 
@@ -543,7 +546,7 @@ fn can_flatten_file_with_external_lib() {
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("contracts"))
         .lib(root.join("node_modules"));
-    let project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<MultiCompiler>::new(paths).unwrap();
 
     let target = root.join("contracts").join("Greeter.sol");
 
@@ -558,7 +561,7 @@ fn can_flatten_file_with_external_lib() {
 fn can_flatten_file_in_dapp_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-    let project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<MultiCompiler>::new(paths).unwrap();
 
     let target = root.join("src/Dapp.t.sol");
 
@@ -572,7 +575,7 @@ fn can_flatten_file_in_dapp_sample() {
 
 #[test]
 fn can_flatten_unique() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let target = project
         .add_source(
@@ -631,7 +634,7 @@ contract A { }
 
 #[test]
 fn can_flatten_experimental_pragma() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let target = project
         .add_source(
@@ -694,7 +697,7 @@ contract A { }
 
 #[test]
 fn can_flatten_on_solang_failure() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -723,7 +726,7 @@ contract Contract {
         )
         .unwrap();
 
-    let result = project.flatten(target.as_path());
+    let result = project.paths().clone().with_language::<SolcLanguage>().flatten(target.as_path());
     assert!(result.is_ok());
 
     let result = result.unwrap();
@@ -748,7 +751,7 @@ contract Contract {
 
 #[test]
 fn can_flatten_multiline() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let target = project
         .add_source(
@@ -810,7 +813,7 @@ contract A { }
 
 #[test]
 fn can_flatten_remove_extra_spacing() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let target = project
         .add_source(
@@ -869,7 +872,7 @@ contract A { }
 
 #[test]
 fn can_flatten_with_alias() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let target = project
         .add_source(
@@ -1028,7 +1031,7 @@ contract Contract is ParentContract,
 
 #[test]
 fn can_flatten_with_version_pragma_after_imports() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let target = project
         .add_source(
@@ -1102,7 +1105,7 @@ contract A { }
 
 #[test]
 fn can_flatten_with_duplicates() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1158,7 +1161,7 @@ contract Bar_1 is Foo {}
 
 #[test]
 fn can_flatten_complex_aliases_setup_with_duplicates() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1301,7 +1304,7 @@ contract D is A_0 {
 // https://github.com/foundry-rs/compilers/issues/34
 #[test]
 fn can_flatten_34_repro() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
     let target = project
         .add_source(
             "FlieA.sol",
@@ -1368,7 +1371,7 @@ contract A {
 
 #[test]
 fn can_flatten_experimental_in_other_file() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1415,7 +1418,7 @@ contract B is A {}
 
 #[test]
 fn can_detect_type_error() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1438,7 +1441,7 @@ fn can_detect_type_error() {
 
 #[test]
 fn can_flatten_aliases_with_pragma_and_license_after_source() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1476,7 +1479,7 @@ contract B is A {}
 
 #[test]
 fn can_flatten_rename_inheritdocs() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1543,7 +1546,7 @@ contract B is A_1 {
 
 #[test]
 fn can_flatten_rename_inheritdocs_alias() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1596,7 +1599,7 @@ contract B is A {
 
 #[test]
 fn can_flatten_rename_user_defined_functions() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1692,7 +1695,7 @@ contract Foo {
 
 #[test]
 fn can_flatten_rename_global_functions() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1761,7 +1764,7 @@ contract Foo {
 
 #[test]
 fn can_flatten_rename_in_assembly() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1828,7 +1831,7 @@ contract Foo {
 
 #[test]
 fn can_flatten_combine_pragmas() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -1868,7 +1871,7 @@ contract B {}
 
 #[test]
 fn can_compile_single_files() {
-    let tmp = TempProject::dapptools().unwrap();
+    let tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let f = tmp
         .add_contract(
@@ -1904,7 +1907,7 @@ fn can_compile_single_files() {
 
 #[test]
 fn consistent_bytecode() {
-    let tmp = TempProject::dapptools().unwrap();
+    let tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     tmp.add_source(
         "LinkTest",
@@ -1939,7 +1942,7 @@ contract LinkTest {
 
 #[test]
 fn can_apply_libraries() {
-    let mut tmp = TempProject::dapptools().unwrap();
+    let mut tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     tmp.add_source(
         "LinkTest",
@@ -1978,12 +1981,12 @@ library MyLib {
     assert!(bytecode.is_unlinked());
 
     // provide the library settings to let solc link
-    tmp.project_mut().settings.libraries = BTreeMap::from([(
+    tmp.project_mut().settings.solc.libraries = BTreeMap::from([(
         lib,
         BTreeMap::from([("MyLib".to_string(), format!("{:?}", Address::ZERO))]),
     )])
     .into();
-    tmp.project_mut().settings.libraries.slash_paths();
+    tmp.project_mut().settings.solc.libraries.slash_paths();
 
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
@@ -1995,7 +1998,7 @@ library MyLib {
 
     let libs = Libraries::parse(&[format!("./src/MyLib.sol:MyLib:{:?}", Address::ZERO)]).unwrap();
     // provide the library settings to let solc link
-    tmp.project_mut().settings.libraries = libs.with_applied_remappings(tmp.paths());
+    tmp.project_mut().settings.solc.libraries = libs.with_applied_remappings(tmp.paths());
 
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
@@ -2011,7 +2014,7 @@ fn can_ignore_warning_from_paths() {
     let setup_and_compile = |ignore_paths: Option<Vec<PathBuf>>| {
         let tmp = match ignore_paths {
             Some(paths) => TempProject::dapptools_with_ignore_paths(paths).unwrap(),
-            None => TempProject::dapptools().unwrap(),
+            None => TempProject::<MultiCompiler>::dapptools().unwrap(),
         };
 
         tmp.add_source(
@@ -2056,7 +2059,7 @@ fn can_ignore_warning_from_paths() {
 }
 #[test]
 fn can_apply_libraries_with_remappings() {
-    let mut tmp = TempProject::dapptools().unwrap();
+    let mut tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let remapping = tmp.paths().libraries[0].join("remapping");
     tmp.paths_mut()
@@ -2100,8 +2103,8 @@ library MyLib {
 
     let libs =
         Libraries::parse(&[format!("remapping/MyLib.sol:MyLib:{:?}", Address::ZERO)]).unwrap(); // provide the library settings to let solc link
-    tmp.project_mut().settings.libraries = libs.with_applied_remappings(tmp.paths());
-    tmp.project_mut().settings.libraries.slash_paths();
+    tmp.project_mut().settings.solc.libraries = libs.with_applied_remappings(tmp.paths());
+    tmp.project_mut().settings.solc.libraries.slash_paths();
 
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
@@ -2114,7 +2117,7 @@ library MyLib {
 
 #[test]
 fn can_detect_invalid_version() {
-    let tmp = TempProject::dapptools().unwrap();
+    let tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
     let content = r"
     pragma solidity ^0.100.10;
     contract A {}
@@ -2134,7 +2137,7 @@ fn can_detect_invalid_version() {
 
 #[test]
 fn test_severity_warnings() {
-    let mut tmp = TempProject::dapptools().unwrap();
+    let mut tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
     // also treat warnings as error
     tmp.project_mut().compiler_severity_filter = Severity::Warning;
 
@@ -2174,7 +2177,7 @@ fn test_severity_warnings() {
 
 #[test]
 fn can_recompile_with_changes() {
-    let mut tmp = TempProject::dapptools().unwrap();
+    let mut tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
     tmp.project_mut().paths.allowed_paths = BTreeSet::from([tmp.root().join("modules")]);
 
     let content = r#"
@@ -2214,7 +2217,7 @@ fn can_recompile_with_changes() {
 
 #[test]
 fn can_recompile_with_lowercase_names() {
-    let tmp = TempProject::dapptools().unwrap();
+    let tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     tmp.add_source(
         "deployProxy.sol",
@@ -2274,7 +2277,7 @@ fn can_recompile_with_lowercase_names() {
 
 #[test]
 fn can_recompile_unchanged_with_empty_files() {
-    let tmp = TempProject::dapptools().unwrap();
+    let tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     tmp.add_source(
         "A",
@@ -2322,7 +2325,7 @@ fn can_recompile_unchanged_with_empty_files() {
 
 #[test]
 fn can_emit_empty_artifacts() {
-    let tmp = TempProject::dapptools().unwrap();
+    let tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let top_level = tmp
         .add_source(
@@ -2385,7 +2388,7 @@ contract Contract {
 
 #[test]
 fn can_detect_contract_def_source_files() {
-    let tmp = TempProject::dapptools().unwrap();
+    let tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let mylib = tmp
         .add_source(
@@ -2473,7 +2476,7 @@ fn can_detect_contract_def_source_files() {
 
 #[test]
 fn can_compile_sparse_with_link_references() {
-    let tmp = TempProject::dapptools().unwrap();
+    let tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     tmp.add_source(
         "ATest.t.sol",
@@ -2501,8 +2504,7 @@ fn can_compile_sparse_with_link_references() {
         )
         .unwrap();
 
-    let filter = SolcSparseFileFilter::new(TestFileFilter::default());
-    let mut compiled = tmp.compile_sparse(Box::new(filter)).unwrap();
+    let mut compiled = tmp.compile_sparse(Box::<TestFileFilter>::default()).unwrap();
     compiled.assert_success();
 
     let mut output = compiled.clone().into_output();
@@ -2544,8 +2546,8 @@ fn can_compile_sparse_with_link_references() {
 
 #[test]
 fn can_sanitize_bytecode_hash() {
-    let mut tmp = TempProject::dapptools().unwrap();
-    tmp.project_mut().settings.metadata = Some(BytecodeHash::Ipfs.into());
+    let mut tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
+    tmp.project_mut().settings.solc.metadata = Some(BytecodeHash::Ipfs.into());
 
     tmp.add_source(
         "A",
@@ -2579,7 +2581,7 @@ fn can_create_standard_json_input_with_external_file() {
     fs::create_dir_all(verif_dir.join("src")).unwrap();
     fs::create_dir(&remapped_dir).unwrap();
 
-    let mut verif_project = Project::builder()
+    let mut verif_project = ProjectBuilder::<SolcCompiler>::new(Default::default())
         .paths(ProjectPathsConfig::dapptools(&verif_dir).unwrap())
         .build(Default::default())
         .unwrap();
@@ -2615,7 +2617,7 @@ fn can_create_standard_json_input_with_external_file() {
         ]
     );
 
-    let solc = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)).unwrap();
+    let solc = Solc::find_or_install(&Version::new(0, 8, 24)).unwrap();
 
     // can compile using the created json
     let compiler_errors = solc
@@ -2630,7 +2632,7 @@ fn can_create_standard_json_input_with_external_file() {
 
 #[test]
 fn can_compile_std_json_input() {
-    let tmp = TempProject::dapptools_init().unwrap();
+    let tmp = TempProject::<MultiCompiler>::dapptools_init().unwrap();
     tmp.assert_no_errors();
     let source = tmp.list_source_files().into_iter().find(|p| p.ends_with("Dapp.t.sol")).unwrap();
     let input = tmp.project().standard_json_input(source).unwrap();
@@ -2640,7 +2642,7 @@ fn can_compile_std_json_input() {
     assert!(input.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
 
     // should be installed
-    if let Ok(solc) = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)) {
+    if let Ok(solc) = Solc::find_or_install(&Version::new(0, 8, 24)) {
         let out = solc.compile(&input).unwrap();
         assert!(out.errors.is_empty());
         assert!(out.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
@@ -2652,8 +2654,8 @@ fn can_compile_std_json_input() {
 #[test]
 #[cfg(unix)]
 fn can_create_standard_json_input_with_symlink() {
-    let mut project = TempProject::dapptools().unwrap();
-    let dependency = TempProject::dapptools().unwrap();
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
+    let dependency = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     // File structure:
     //
@@ -2704,7 +2706,7 @@ fn can_create_standard_json_input_with_symlink() {
         ]
     );
 
-    let solc = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)).unwrap();
+    let solc = Solc::find_or_install(&Version::new(0, 8, 24)).unwrap();
 
     // can compile using the created json
     let compiler_errors = solc
@@ -2722,8 +2724,8 @@ fn can_compile_model_checker_sample() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/model-checker-sample");
     let paths = ProjectPathsConfig::builder().sources(root);
 
-    let mut project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
-    project.project_mut().settings.model_checker = Some(ModelCheckerSettings {
+    let mut project = TempProject::<MultiCompiler, ConfigurableArtifacts>::new(paths).unwrap();
+    project.project_mut().settings.solc.model_checker = Some(ModelCheckerSettings {
         engine: Some(CHC),
         timeout: Some(10000),
         ..Default::default()
@@ -2777,7 +2779,7 @@ fn compile_project_with_options(
     severity_filter: Option<foundry_compilers::artifacts::Severity>,
     ignore_paths: Option<Vec<PathBuf>>,
     ignore_error_code: Option<u64>,
-) -> ProjectCompileOutput<Error> {
+) -> ProjectCompileOutput<MultiCompilerError> {
     let mut builder =
         Project::builder().no_artifacts().paths(gen_test_data_licensing_warning()).ephemeral();
 
@@ -2833,14 +2835,14 @@ fn test_compiler_severity_filter_and_ignored_error_codes() {
 }
 
 fn remove_solc_if_exists(version: &Version) {
-    if SolcVersionManager::default().get_installed(version).is_ok() {
+    if Solc::find_svm_installed_version(version.to_string()).unwrap().is_some() {
         svm::remove_version(version).expect("failed to remove version")
     }
 }
 
 #[test]
 fn can_install_solc_and_compile_version() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
     let version = Version::new(0, 8, 10);
 
     project
@@ -2863,11 +2865,11 @@ contract Contract {{ }}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn can_install_solc_and_compile_std_json_input_async() {
-    let tmp = TempProject::dapptools_init().unwrap();
+    let tmp = TempProject::<MultiCompiler>::dapptools_init().unwrap();
     tmp.assert_no_errors();
     let source = tmp.list_source_files().into_iter().find(|p| p.ends_with("Dapp.t.sol")).unwrap();
     let input = tmp.project().standard_json_input(source).unwrap();
-    let solc = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 24)).unwrap();
+    let solc = Solc::find_or_install(&Version::new(0, 8, 24)).unwrap();
 
     assert!(input.settings.remappings.contains(&"ds-test/=lib/ds-test/src/".parse().unwrap()));
     let input: SolcInput = input.into();
@@ -2880,7 +2882,7 @@ async fn can_install_solc_and_compile_std_json_input_async() {
 
 #[test]
 fn can_purge_obsolete_artifacts() {
-    let mut project = TempProject::dapptools().unwrap();
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
     project.set_solc("0.8.10");
     project
         .add_source(
@@ -2911,9 +2913,9 @@ fn can_purge_obsolete_artifacts() {
 
 #[test]
 fn can_parse_notice() {
-    let mut project = TempProject::dapptools().unwrap();
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
     project.project_mut().artifacts.additional_values.userdoc = true;
-    project.project_mut().settings = project.project_mut().artifacts.settings();
+    project.project_mut().settings.solc = project.project_mut().artifacts.solc_settings();
 
     let contract = r"
     pragma solidity $VERSION;
@@ -2990,10 +2992,10 @@ fn can_parse_notice() {
 
 #[test]
 fn can_parse_doc() {
-    let mut project = TempProject::dapptools().unwrap();
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
     project.project_mut().artifacts.additional_values.userdoc = true;
     project.project_mut().artifacts.additional_values.devdoc = true;
-    project.project_mut().settings = project.project_mut().artifacts.settings();
+    project.project_mut().settings.solc = project.project_mut().artifacts.solc_settings();
 
     let contract = r"
 // SPDX-License-Identifier: GPL-3.0-only
@@ -3174,7 +3176,7 @@ contract NotERC20 is INotERC20 {
 
 #[test]
 fn test_relative_cache_entries() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
     let _a = project
         .add_source(
             "A",
@@ -3235,7 +3237,7 @@ contract D { }
 
 #[test]
 fn test_failure_after_removing_file() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
     project
         .add_source(
             "A",
@@ -3278,7 +3280,7 @@ contract C { }
 
 #[test]
 fn can_handle_conflicting_files() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -3343,7 +3345,7 @@ fn can_handle_conflicting_files() {
 // <https://github.com/foundry-rs/foundry/issues/2843>
 #[test]
 fn can_handle_conflicting_files_recompile() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -3440,7 +3442,7 @@ fn can_handle_conflicting_files_recompile() {
 // <https://github.com/foundry-rs/foundry/issues/2843>
 #[test]
 fn can_handle_conflicting_files_case_sensitive_recompile() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -3545,7 +3547,7 @@ fn can_checkout_repo() {
 
 #[test]
 fn can_detect_config_changes() {
-    let mut project = TempProject::dapptools().unwrap();
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let remapping = project.paths().libraries[0].join("remapping");
     project
@@ -3578,26 +3580,27 @@ fn can_detect_config_changes() {
     let compiled = project.compile().unwrap();
     compiled.assert_success();
 
-    let cache_before = CompilerCache::<Settings>::read(&project.paths().cache).unwrap();
+    let cache_before =
+        CompilerCache::<MultiCompilerSettings>::read(&project.paths().cache).unwrap();
     assert_eq!(cache_before.files.len(), 2);
 
     // nothing to compile
     let compiled = project.compile().unwrap();
     assert!(compiled.is_unchanged());
 
-    project.project_mut().settings.optimizer.enabled = Some(true);
+    project.project_mut().settings.solc.optimizer.enabled = Some(true);
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();
     assert!(!compiled.is_unchanged());
 
-    let cache_after = CompilerCache::<Settings>::read(&project.paths().cache).unwrap();
+    let cache_after = CompilerCache::<MultiCompilerSettings>::read(&project.paths().cache).unwrap();
     assert_ne!(cache_before, cache_after);
 }
 
 #[test]
 fn can_add_basic_contract_and_library() {
-    let mut project = TempProject::dapptools().unwrap();
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let remapping = project.paths().libraries[0].join("remapping");
     project
@@ -3609,7 +3612,7 @@ fn can_add_basic_contract_and_library() {
 
     let lib = project.add_basic_source("Bar", "^0.8.0").unwrap();
 
-    let graph = Graph::<SolData>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParsedSource>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
     assert!(graph.files().contains_key(&src));
     assert!(graph.files().contains_key(&lib));
@@ -3623,7 +3626,7 @@ fn can_add_basic_contract_and_library() {
 // <https://github.com/foundry-rs/foundry/issues/2706>
 #[test]
 fn can_handle_nested_absolute_imports() {
-    let mut project = TempProject::dapptools().unwrap();
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     let remapping = project.paths().libraries[0].join("myDepdendency");
     project
@@ -3675,7 +3678,7 @@ fn can_handle_nested_absolute_imports() {
 
 #[test]
 fn can_handle_nested_test_absolute_imports() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -3730,7 +3733,7 @@ contract ContractTest {
 // This is a repro and a regression test for https://github.com/foundry-rs/compilers/pull/45
 #[test]
 fn dirty_files_discovery() {
-    let project = TempProject::dapptools().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
         .add_source(
@@ -3786,11 +3789,11 @@ fn test_deterministic_metadata() {
     let orig_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
     copy_dir_all(orig_root, &tmp_dir).unwrap();
 
-    let vm = SolcVersionManager::default();
     let paths = ProjectPathsConfig::builder().root(root).build().unwrap();
     let project = Project::builder()
+        .locked_version(SolcLanguage::Solidity, Version::new(0, 8, 18))
         .paths(paths)
-        .build(CompilerConfig::Specific(vm.get_or_install(&Version::new(0, 8, 18)).unwrap()))
+        .build(MultiCompiler::default())
         .unwrap();
 
     let compiled = project.compile().unwrap();
@@ -3823,7 +3826,7 @@ fn can_compile_vyper_with_cache() {
         .sources(root.join("src"))
         .artifacts(root.join("out"))
         .root(root)
-        .build::<Vyper>()
+        .build::<VyperLanguage>()
         .unwrap();
 
     let settings = VyperSettings {
@@ -3835,7 +3838,7 @@ fn can_compile_vyper_with_cache() {
     let project = ProjectBuilder::<Vyper>::new(Default::default())
         .settings(settings)
         .paths(paths)
-        .build(CompilerConfig::Specific(VYPER.clone()))
+        .build(VYPER.clone())
         .unwrap();
 
     let compiled = project.compile().unwrap();
@@ -3863,7 +3866,7 @@ fn yul_remappings_ignored() {
         name: "@openzeppelin".to_string(),
         path: root.to_string_lossy().to_string(),
     });
-    let project = TempProject::<Solc, ConfigurableArtifacts>::new(paths).unwrap();
+    let project = TempProject::<MultiCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();
@@ -3876,7 +3879,7 @@ fn test_vyper_imports() {
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("src"))
         .root(root)
-        .build::<Vyper>()
+        .build::<VyperLanguage>()
         .unwrap();
 
     let settings = VyperSettings {
@@ -3888,8 +3891,41 @@ fn test_vyper_imports() {
         .settings(settings)
         .paths(paths)
         .no_artifacts()
-        .build(CompilerConfig::Specific(VYPER.clone()))
+        .build(VYPER.clone())
         .unwrap();
 
     project.compile().unwrap().assert_success();
+}
+
+#[test]
+fn test_can_compile_multi() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/multi-sample");
+
+    let paths = ProjectPathsConfig::builder()
+        .sources(root.join("src"))
+        .root(&root)
+        .build::<MultiCompilerLanguage>()
+        .unwrap();
+
+    let settings = MultiCompilerSettings {
+        vyper: VyperSettings {
+            output_selection: OutputSelection::default_output_selection(),
+            ..Default::default()
+        },
+        solc: Default::default(),
+    };
+
+    let compiler = MultiCompiler { solc: SolcCompiler::default(), vyper: Some(VYPER.clone()) };
+
+    let project = ProjectBuilder::<MultiCompiler>::new(Default::default())
+        .settings(settings)
+        .paths(paths)
+        .no_artifacts()
+        .build(compiler)
+        .unwrap();
+
+    let compiled = project.compile().unwrap();
+    assert!(compiled.find(root.join("src/Counter.sol").to_string_lossy(), "Counter").is_some());
+    assert!(compiled.find(root.join("src/Counter.vy").to_string_lossy(), "Counter").is_some());
+    compiled.assert_success();
 }

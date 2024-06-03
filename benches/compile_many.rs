@@ -3,16 +3,13 @@
 extern crate criterion;
 
 use criterion::Criterion;
-use foundry_compilers::{
-    compilers::{solc::SolcVersionManager, CompilerVersionManager},
-    SolcInput,
-};
+use foundry_compilers::{Solc, SolcInput};
 use semver::Version;
 use std::path::Path;
 
 fn compile_many_benchmark(c: &mut Criterion) {
     let inputs = load_compiler_inputs();
-    let solc = SolcVersionManager::default().get_or_install(&Version::new(0, 8, 0)).unwrap();
+    let solc = Solc::find_or_install(&Version::new(0, 8, 0)).unwrap();
 
     let mut group = c.benchmark_group("compile many");
     group.sample_size(10);

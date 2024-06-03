@@ -1,32 +1,69 @@
 use crate::{
     artifacts::{
-        output_selection::{FileOutputSelection, OutputSelection},
-        Contract, FileToContractsMap, SourceFile, Sources,
+        output_selection::OutputSelection, Contract, FileToContractsMap, SourceFile, Sources,
     },
     error::Result,
     remappings::Remapping,
     ProjectPathsConfig,
 };
+use core::fmt;
 use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet, HashSet},
     fmt::{Debug, Display},
+    hash::Hash,
     path::{Path, PathBuf},
 };
 
-mod version_manager;
-pub use version_manager::{CompilerVersion, CompilerVersionManager, VersionManagerError};
-
+pub mod multi;
 pub mod solc;
 pub mod vyper;
+
+/// A compiler version is either installed (available locally) or can be downloaded, from the remote
+/// endpoint
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CompilerVersion {
+    Installed(Version),
+    Remote(Version),
+}
+
+impl CompilerVersion {
+    pub fn is_installed(&self) -> bool {
+        matches!(self, CompilerVersion::Installed(_))
+    }
+}
+
+impl AsRef<Version> for CompilerVersion {
+    fn as_ref(&self) -> &Version {
+        match self {
+            CompilerVersion::Installed(v) | CompilerVersion::Remote(v) => v,
+        }
+    }
+}
+
+impl From<CompilerVersion> for Version {
+    fn from(s: CompilerVersion) -> Version {
+        match s {
+            CompilerVersion::Installed(v) | CompilerVersion::Remote(v) => v,
+        }
+    }
+}
+
+impl fmt::Display for CompilerVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_ref())
+    }
+}
 
 /// Compilation settings including evm_version, output_selection, etc.
 pub trait CompilerSettings:
     Default + Serialize + DeserializeOwned + Clone + Debug + Send + Sync + 'static
 {
-    /// Returns mutable reference to configured [OutputSelection].
-    fn output_selection_mut(&mut self) -> &mut OutputSelection;
+    /// Executes given fn with mutable reference to configured [OutputSelection].
+    fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy);
 
     /// Returns true if artifacts compiled with given `other` config are compatible with this
     /// config and if compilation can be skipped.
@@ -34,31 +71,53 @@ pub trait CompilerSettings:
     /// Ensures that all settings fields are equal except for `output_selection` which is required
     /// to be a subset of `cached.output_selection`.
     fn can_use_cached(&self, other: &Self) -> bool;
-
-    /// Returns minimal output selection which can be used to optimize compilation.
-    fn minimal_output_selection() -> FileOutputSelection {
-        BTreeMap::from([("*".to_string(), vec![])])
-    }
 }
 
 /// Input of a compiler, including sources and settings used for their compilation.
-pub trait CompilerInput: Serialize + Send + Sync + Sized {
+pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
     type Settings: CompilerSettings;
+    type Language: Language;
 
     /// Constructs one or multiple inputs from given sources set. Might return multiple inputs in
     /// cases when sources need to be divided into sets per language (Yul + Solidity for example).
-    fn build(sources: Sources, settings: Self::Settings, version: &Version) -> Vec<Self>;
+    fn build(
+        sources: Sources,
+        settings: Self::Settings,
+        language: Self::Language,
+        version: Version,
+    ) -> Self;
 
-    /// Returns reference to sources included into this input.
-    fn sources(&self) -> &Sources;
+    /// Returns language of the sources included into this input.
+    fn language(&self) -> Self::Language;
+
+    /// Returns compiler version for which this input is intended.
+    fn version(&self) -> &Version;
+
+    /// Returns compiler name used by reporters to display output during compilation.
+    fn compiler_name(&self) -> Cow<'static, str>;
 
     /// Method which might be invoked to add remappings to the input.
     fn with_remappings(self, _remappings: Vec<Remapping>) -> Self {
         self
     }
 
-    /// Returns compiler name used by reporters to display output during compilation.
-    fn compiler_name(&self) -> String;
+    /// Builder method to set the base path for the compiler. Primarily used by solc implementation
+    /// to se --base-path.
+    fn with_base_path(self, _base_path: PathBuf) -> Self {
+        self
+    }
+
+    /// Builder method to set the allowed paths for the compiler. Primarily used by solc
+    /// implementation to set --allow-paths.
+    fn with_allow_paths(self, _allowed_paths: BTreeSet<PathBuf>) -> Self {
+        self
+    }
+
+    /// Builder method to set the include paths for the compiler. Primarily used by solc
+    /// implementation to set --include-paths.
+    fn with_include_paths(self, _include_paths: BTreeSet<PathBuf>) -> Self {
+        self
+    }
 
     /// Strips given prefix from all paths.
     fn strip_prefix(&mut self, base: &Path);
@@ -68,15 +127,16 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized {
 /// given source. Used by path resolver to resolve imports or determine compiler versions needed to
 /// compiler given sources.
 pub trait ParsedSource: Debug + Sized + Send {
-    fn parse(content: &str, file: &Path) -> Self;
+    type Language: Language;
+
+    fn parse(content: &str, file: &Path) -> Result<Self>;
     fn version_req(&self) -> Option<&VersionReq>;
     fn resolve_imports<C>(&self, paths: &ProjectPathsConfig<C>) -> Result<Vec<PathBuf>>;
+    fn language(&self) -> Self::Language;
 }
 
 /// Error returned by compiler. Might also represent a warning or informational message.
-pub trait CompilationError:
-    Serialize + DeserializeOwned + Send + Sync + Display + Debug + Clone + 'static
-{
+pub trait CompilationError: Serialize + Send + Sync + Display + Debug + Clone + 'static {
     fn is_warning(&self) -> bool;
     fn is_error(&self) -> bool;
     fn source_location(&self) -> Option<crate::artifacts::error::SourceLocation>;
@@ -129,6 +189,14 @@ impl<E> CompilerOutput<E> {
             .map(|(path, source)| (root.join(path), source))
             .collect();
     }
+
+    pub fn map_err<F, O: FnMut(E) -> F>(self, op: O) -> CompilerOutput<F> {
+        CompilerOutput {
+            errors: self.errors.into_iter().map(op).collect(),
+            contracts: self.contracts,
+            sources: self.sources,
+        }
+    }
 }
 
 impl<E> Default for CompilerOutput<E> {
@@ -137,45 +205,34 @@ impl<E> Default for CompilerOutput<E> {
     }
 }
 
+/// Keeps a set of languages recognized by the compiler.
+pub trait Language: Hash + Eq + Clone + Debug + Display + 'static {
+    /// Extensions of source files recognized by the language set.
+    const FILE_EXTENSIONS: &'static [&'static str];
+}
+
 /// The main compiler abstraction trait. Currently mostly represents a wrapper around compiler
 /// binary aware of the version and able to compile given input into [CompilerOutput] including
-/// artifacts and errors.
+/// artifacts and errors.'
+#[auto_impl::auto_impl(&, Box, Arc)]
 pub trait Compiler: Send + Sync + Clone {
-    /// Extensions of source files recognized by the compiler.
-    const FILE_EXTENSIONS: &'static [&'static str];
-
     /// Input type for the compiler. Contains settings and sources to be compiled.
-    type Input: CompilerInput<Settings = Self::Settings>;
+    type Input: CompilerInput<Settings = Self::Settings, Language = Self::Language>;
     /// Error type returned by the compiler.
     type CompilationError: CompilationError;
     /// Source parser used for resolving imports and version requirements.
-    type ParsedSource: ParsedSource;
+    type ParsedSource: ParsedSource<Language = Self::Language>;
     /// Compiler settings.
     type Settings: CompilerSettings;
+    /// Enum of languages supported by the compiler.
+    type Language: Language;
 
     /// Main entrypoint for the compiler. Compiles given input into [CompilerOutput]. Takes
     /// ownership over the input and returns back version with potential modifications made to it.
     /// Returned input is always the one which was seen by the binary.
     fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>>;
 
-    /// Returns the version of the compiler.
-    fn version(&self) -> &Version;
-
-    /// Builder method to set the base path for the compiler. Primarily used by solc implementation
-    /// to se --base-path.
-    fn with_base_path(self, _base_path: PathBuf) -> Self {
-        self
-    }
-
-    /// Builder method to set the allowed paths for the compiler. Primarily used by solc
-    /// implementation to set --allow-paths.
-    fn with_allowed_paths(self, _allowed_paths: BTreeSet<PathBuf>) -> Self {
-        self
-    }
-
-    /// Builder method to set the include paths for the compiler. Primarily used by solc
-    /// implementation to set --include-paths.
-    fn with_include_paths(self, _include_paths: BTreeSet<PathBuf>) -> Self {
-        self
-    }
+    /// Returns all versions available locally and remotely. Should return versions with stripped
+    /// metadata.
+    fn available_versions(&self, language: &Self::Language) -> Vec<CompilerVersion>;
 }
