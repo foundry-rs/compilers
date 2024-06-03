@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0](https://github.com/foundry-rs/compilers/releases/tag/v0.6.0) - 2024-06-03
+
+### Dependencies
+
+- [deps] Bump itertools ([#133](https://github.com/foundry-rs/compilers/issues/133))
+
+### Features
+
+- Allow multiple languages for compilers ([#128](https://github.com/foundry-rs/compilers/issues/128))
+
 ## [0.5.2](https://github.com/foundry-rs/compilers/releases/tag/v0.5.2) - 2024-06-01
 
 ### Features
@@ -13,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.5.2
 - Clippy ([#132](https://github.com/foundry-rs/compilers/issues/132))
 
 ### Performance
