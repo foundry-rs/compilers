@@ -9,6 +9,7 @@ use crate::{
     error::{Result, SolcError},
 };
 use core::fmt;
+use output::VyperOutput;
 use semver::Version;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
@@ -19,11 +20,10 @@ use std::{
 
 pub mod error;
 pub mod input;
+pub mod output;
 pub mod parser;
 pub mod settings;
 pub use settings::VyperSettings;
-
-pub type VyperCompilerOutput = CompilerOutput<VyperCompilationError>;
 
 /// File extensions that are recognized as Vyper source files.
 pub const VYPER_EXTENSIONS: &[&str] = &["vy", "vyi"];
@@ -59,7 +59,7 @@ impl Vyper {
     }
 
     /// Convenience function for compiling all sources under the given path
-    pub fn compile_source(&self, path: impl AsRef<Path>) -> Result<VyperCompilerOutput> {
+    pub fn compile_source(&self, path: impl AsRef<Path>) -> Result<VyperOutput> {
         let path = path.as_ref();
         let input =
             VyperInput::new(Source::read_all_from(path, VYPER_EXTENSIONS)?, Default::default());
@@ -69,17 +69,17 @@ impl Vyper {
     /// Same as [`Self::compile()`], but only returns those files which are included in the
     /// `CompilerInput`.
     ///
-    /// In other words, this removes those files from the `VyperCompilerOutput` that are __not__
+    /// In other words, this removes those files from the `VyperOutput` that are __not__
     /// included in the provided `CompilerInput`.
     ///
     /// # Examples
-    pub fn compile_exact(&self, input: &VyperInput) -> Result<VyperCompilerOutput> {
+    pub fn compile_exact(&self, input: &VyperInput) -> Result<VyperOutput> {
         let mut out = self.compile(input)?;
         out.retain_files(input.sources.keys().map(|p| p.as_path()));
         Ok(out)
     }
 
-    /// Compiles with `--standard-json` and deserializes the output as [`VyperCompilerOutput`].
+    /// Compiles with `--standard-json` and deserializes the output as [`VyperOutput`].
     ///
     /// # Examples
     ///
@@ -91,7 +91,7 @@ impl Vyper {
     /// let output = solc.compile(&input)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn compile<T: Serialize>(&self, input: &T) -> Result<VyperCompilerOutput> {
+    pub fn compile<T: Serialize>(&self, input: &T) -> Result<VyperOutput> {
         self.compile_as(input)
     }
 
@@ -165,8 +165,8 @@ impl Compiler for Vyper {
     type Input = VyperVersionedInput;
     type Language = VyperLanguage;
 
-    fn compile(&self, input: &Self::Input) -> Result<VyperCompilerOutput> {
-        self.compile(input)
+    fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<VyperCompilationError>> {
+        self.compile(input).map(Into::into)
     }
 
     fn available_versions(&self, _language: &Self::Language) -> Vec<super::CompilerVersion> {

@@ -231,7 +231,8 @@ impl Compiler for MultiCompiler {
             }
             MultiCompilerInput::Vyper(input) => {
                 if let Some(vyper) = &self.vyper {
-                    vyper.compile(input).map(|res| res.map_err(MultiCompilerError::Vyper))
+                    Compiler::compile(vyper, input)
+                        .map(|res| res.map_err(MultiCompilerError::Vyper))
                 } else {
                     Err(SolcError::msg("vyper compiler is not available"))
                 }
