@@ -8,26 +8,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Before Vyper 0.4 source map was represented as a string, after 0.4 it is represented as a map
-/// where compressed source map is stored under `pc_pos_map_compressed` key.
-fn deserialize_sourcemap<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    #[derive(Deserialize)]
-    enum SourceMap {
-        New { pc_pos_map_compressed: String },
-        Old(String),
-    }
-
-    Ok(SourceMap::deserialize(deserializer).map_or(None, |v| {
-        Some(match v {
-            SourceMap::Old(s) => s,
-            SourceMap::New { pc_pos_map_compressed } => pc_pos_map_compressed,
-        })
-    }))
-}
-
 #[derive(Debug, Clone, Deserialize)]
 pub struct Bytecode {
     pub object: Bytes,
@@ -50,10 +30,11 @@ impl From<Bytecode> for crate::artifacts::Bytecode {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DeployedBytecode {
     #[serde(flatten)]
     pub bytecode: Option<Bytecode>,
-    #[serde(default, deserialize_with = "deserialize_sourcemap")]
+    #[serde(default, deserialize_with = "deserialize_vyper_sourcemap")]
     pub source_map: Option<String>,
 }
 
@@ -69,12 +50,12 @@ impl From<DeployedBytecode> for crate::artifacts::DeployedBytecode {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VyperEvm {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub bytecode: Option<Bytecode>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub deployed_bytecode: Option<DeployedBytecode>,
     /// The list of function hashes
-    #[serde(default, skip_serializing_if = "::std::collections::BTreeMap::is_empty")]
+    #[serde(default)]
     pub method_identifiers: BTreeMap<String, String>,
 }
 
@@ -116,6 +97,17 @@ impl From<VyperContract> for Contract {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct VyperSourceFile {
+    pub id: u32,
+}
+
+impl From<VyperSourceFile> for SourceFile {
+    fn from(source: VyperSourceFile) -> Self {
+        SourceFile { id: source.id, ast: None }
+    }
+}
+
 /// Vyper compiler output
 #[derive(Debug, Deserialize)]
 pub struct VyperOutput {
@@ -124,7 +116,7 @@ pub struct VyperOutput {
     #[serde(default)]
     pub contracts: FileToContractsMap<VyperContract>,
     #[serde(default)]
-    pub sources: BTreeMap<PathBuf, SourceFile>,
+    pub sources: BTreeMap<PathBuf, VyperSourceFile>,
 }
 
 impl VyperOutput {
@@ -153,7 +145,60 @@ impl From<VyperOutput> for super::CompilerOutput<VyperCompilationError> {
                 .into_iter()
                 .map(|(k, v)| (k, v.into_iter().map(|(k, v)| (k, v.into())).collect()))
                 .collect(),
-            sources: output.sources,
+            sources: output.sources.into_iter().map(|(k, v)| (k, v.into())).collect(),
         }
+    }
+}
+
+/// Before Vyper 0.4 source map was represented as a string, after 0.4 it is represented as a map
+/// where compressed source map is stored under `pc_pos_map_compressed` key.
+fn deserialize_vyper_sourcemap<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum SourceMap {
+        New { pc_pos_map_compressed: String },
+        Old(String),
+    }
+
+    Ok(SourceMap::deserialize(deserializer).map_or(None, |v| {
+        Some(match v {
+            SourceMap::Old(s) => s,
+            SourceMap::New { pc_pos_map_compressed } => pc_pos_map_compressed,
+        })
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    fn test_output(artifact_path: &str) {
+        let output = std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("test-data").join(artifact_path),
+        )
+        .unwrap();
+        let output: super::VyperOutput = serde_json::from_str(&output).unwrap();
+
+        assert_eq!(output.contracts.len(), 2);
+        assert_eq!(output.sources.len(), 2);
+
+        let artifact = output.contracts.get(&PathBuf::from("src/a.vy")).unwrap().get("a").unwrap();
+        assert!(artifact.evm.is_some());
+        let evm = artifact.evm.as_ref().unwrap();
+        let deployed_bytecode = evm.deployed_bytecode.as_ref().unwrap();
+        assert!(deployed_bytecode.source_map.is_some());
+    }
+
+    #[test]
+    fn can_deserialize_03_output() {
+        test_output("sample-vyper-0.3-output.json");
+    }
+
+    #[test]
+    fn can_deserialize_04_output() {
+        test_output("sample-vyper-0.4-output.json");
     }
 }
