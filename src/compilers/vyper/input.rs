@@ -1,6 +1,6 @@
 use std::{borrow::Cow, path::Path};
 
-use super::{settings::VyperSettings, VyperLanguage};
+use super::{settings::VyperSettings, VyperLanguage, VYPER_INTERFACE_EXTENSION};
 use crate::{artifacts::Sources, compilers::CompilerInput};
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,7 @@ impl VyperInput {
         let mut interfaces = Sources::new();
 
         for (path, content) in sources {
-            if path.extension().map_or(false, |ext| ext == "vyi") {
+            if path.extension().map_or(false, |ext| ext == VYPER_INTERFACE_EXTENSION) {
                 // Interface .vyi files should be removed from the output selection.
                 settings.output_selection.0.remove(path.to_string_lossy().as_ref());
                 interfaces.insert(path, content);

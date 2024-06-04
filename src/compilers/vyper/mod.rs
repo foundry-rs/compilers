@@ -28,6 +28,9 @@ pub use settings::VyperSettings;
 /// File extensions that are recognized as Vyper source files.
 pub const VYPER_EXTENSIONS: &[&str] = &["vy", "vyi"];
 
+/// Extension of Vyper interface file.
+pub const VYPER_INTERFACE_EXTENSION: &str = "vyi";
+
 /// Vyper language, used as [Compiler::Language] for the Vyper compiler.
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 #[non_exhaustive]
