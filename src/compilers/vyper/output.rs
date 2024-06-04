@@ -16,8 +16,8 @@ where
 {
     #[derive(Deserialize)]
     enum SourceMap {
-        Old(String),
         New { pc_pos_map_compressed: String },
+        Old(String),
     }
 
     Ok(SourceMap::deserialize(deserializer).map_or(None, |v| {
