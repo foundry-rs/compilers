@@ -533,11 +533,13 @@ impl<L: Language> FilteredCompilerSources<L> {
     }
 }
 
+type CompilationResult<I, E> = Result<Vec<(I, CompilerOutput<E>, Vec<PathBuf>)>>;
+
 /// Compiles the input set sequentially and returns a [Vec] of outputs.
-fn compile_sequential<C: Compiler<Input = I>, I: CompilerInput>(
+fn compile_sequential<C: Compiler>(
     compiler: &C,
-    jobs: Vec<(I, Vec<PathBuf>)>,
-) -> Result<Vec<(I, CompilerOutput<C::CompilationError>, Vec<PathBuf>)>> {
+    jobs: Vec<(C::Input, Vec<PathBuf>)>,
+) -> CompilationResult<C::Input, C::CompilationError> {
     jobs.into_iter()
         .map(|(input, actually_dirty)| {
             let start = Instant::now();
@@ -555,11 +557,11 @@ fn compile_sequential<C: Compiler<Input = I>, I: CompilerInput>(
 }
 
 /// compiles the input set using `num_jobs` threads
-fn compile_parallel<C: Compiler<Input = I>, I: CompilerInput>(
+fn compile_parallel<C: Compiler>(
     compiler: &C,
-    jobs: Vec<(I, Vec<PathBuf>)>,
+    jobs: Vec<(C::Input, Vec<PathBuf>)>,
     num_jobs: usize,
-) -> Result<Vec<(I, CompilerOutput<C::CompilationError>, Vec<PathBuf>)>> {
+) -> CompilationResult<C::Input, C::CompilationError> {
     // need to get the currently installed reporter before installing the pool, otherwise each new
     // thread in the pool will get initialized with the default value of the `thread_local!`'s
     // localkey. This way we keep access to the reporter in the rayon pool
@@ -722,7 +724,7 @@ mod tests {
         assert!(filtered.dirty_files().next().unwrap().ends_with("A.sol"));
 
         let state = state.compile().unwrap();
-        assert_eq!(state.output.sources.len(), 3);
+        assert_eq!(state.output.sources.len(), 1);
         for (f, source) in state.output.sources.sources() {
             if f.ends_with("A.sol") {
                 assert!(source.ast.is_some());

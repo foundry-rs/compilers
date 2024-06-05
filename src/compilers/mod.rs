@@ -180,7 +180,7 @@ impl<E> CompilerOutput<E> {
     /// Retains only those files the given iterator yields
     ///
     /// In other words, removes all contracts for files not included in the iterator
-    pub fn retain_files<'a, F, I>(&mut self, files: I)
+    pub fn retain_files<F, I>(&mut self, files: I)
     where
         F: AsRef<Path>,
         I: IntoIterator<Item = F>,
