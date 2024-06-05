@@ -124,7 +124,17 @@ impl<'a> SparseOutputFilter<'a> {
                         graph.get_parsed_source(import).map(|data| (import.as_path(), data))
                     });
                     for import in data.compilation_dependencies(imports) {
-                        required_sources.push(import.to_path_buf());
+                        let import = import.to_path_buf();
+
+                        #[cfg(windows)]
+                        let import = {
+                            use path_slash::PathBufExt;
+
+                            PathBuf::from(import.to_slash_lossy().to_string())
+                        };
+                        
+
+                        required_sources.push(import);
                     }
                 }
 
