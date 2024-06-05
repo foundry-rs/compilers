@@ -132,7 +132,6 @@ impl<'a> SparseOutputFilter<'a> {
 
                             PathBuf::from(import.to_slash_lossy().to_string())
                         };
-                        
 
                         required_sources.push(import);
                     }
