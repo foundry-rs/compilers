@@ -7,7 +7,8 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Clone, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Serialize, Clone, Copy, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
 pub enum VyperOptimizationMode {
     Gas,
     Codesize,
