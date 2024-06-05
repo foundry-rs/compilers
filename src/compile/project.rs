@@ -501,6 +501,13 @@ impl<L: Language> FilteredCompilerSources<L> {
 
         for (input, mut output, actually_dirty) in results {
             let version = input.version();
+
+            output.retain_files(
+                actually_dirty
+                    .iter()
+                    .map(|f| f.strip_prefix(project.paths.root.as_path()).unwrap_or(f)),
+            );
+
             // if configured also create the build info
             if project.build_info {
                 let build_info = RawBuildInfo::new(&input, &output, version)?;
@@ -508,7 +515,6 @@ impl<L: Language> FilteredCompilerSources<L> {
             }
 
             output.join_all(project.paths.root.as_path());
-            output.retain_files(actually_dirty);
 
             aggregated.extend(version.clone(), output);
         }
