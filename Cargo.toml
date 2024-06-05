@@ -90,7 +90,7 @@ harness = false
 [[test]]
 name = "project"
 path = "tests/project.rs"
-required-features = ["full", "project-util"]
+required-features = ["full", "project-util", "test-utils"]
 
 [[test]]
 name = "mocked"
@@ -99,6 +99,7 @@ required-features = ["full", "project-util"]
 
 [features]
 default = ["rustls"]
+test-utils = []
 
 full = ["async", "svm-solc"]
 

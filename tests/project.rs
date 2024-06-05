@@ -23,6 +23,7 @@ use foundry_compilers::{
     info::ContractInfo,
     project_util::*,
     remappings::Remapping,
+    take_solc_installer_lock,
     utils::{self, RuntimeOrHandle},
     Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project, ProjectBuilder,
     ProjectCompileOutput, ProjectPathsConfig, Solc, SolcInput, TestFileFilter,
@@ -43,6 +44,8 @@ pub static VYPER: Lazy<Vyper> = Lazy::new(|| {
     RuntimeOrHandle::new().block_on(async {
         #[cfg(target_family = "unix")]
         use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+
+        take_solc_installer_lock!(_lock);
 
         let url = match platform() {
             Platform::MacOsAarch64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.darwin",

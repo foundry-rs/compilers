@@ -79,7 +79,7 @@ pub static SUPPORTS_INCLUDE_PATH: Lazy<VersionReq> =
 /// Instead of taking this lock in `Solc::blocking_install`, the lock should be taken before
 /// installation is detected.
 #[cfg(feature = "svm-solc")]
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 #[macro_export]
 macro_rules! take_solc_installer_lock {
     ($lock:ident) => {
