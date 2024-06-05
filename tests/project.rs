@@ -2476,7 +2476,7 @@ fn can_detect_contract_def_source_files() {
 
 #[test]
 fn can_compile_sparse_with_link_references() {
-    let tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
+    let mut tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     tmp.add_source(
         "ATest.t.sol",
@@ -2504,7 +2504,8 @@ fn can_compile_sparse_with_link_references() {
         )
         .unwrap();
 
-    let mut compiled = tmp.compile_sparse(Box::<TestFileFilter>::default()).unwrap();
+    tmp.project_mut().sparse_output = Some(Box::<TestFileFilter>::default());
+    let mut compiled = tmp.compile().unwrap();
     compiled.assert_success();
 
     let mut output = compiled.clone().into_output();

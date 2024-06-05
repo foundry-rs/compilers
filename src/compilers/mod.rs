@@ -126,7 +126,7 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
 /// Parser of the source files which is used to identify imports and version requirements of the
 /// given source. Used by path resolver to resolve imports or determine compiler versions needed to
 /// compiler given sources.
-pub trait ParsedSource: Debug + Sized + Send {
+pub trait ParsedSource: Debug + Sized + Send + Clone {
     type Language: Language;
 
     fn parse(content: &str, file: &Path) -> Result<Self>;

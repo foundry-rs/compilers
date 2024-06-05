@@ -8,7 +8,6 @@ use crate::{
     },
     config::ProjectPathsConfigBuilder,
     error::{Result, SolcError},
-    filter::SparseOutputFileFilter,
     hh::HardhatArtifacts,
     project_util::mock::{MockProjectGenerator, MockProjectSettings},
     remappings::Remapping,
@@ -349,13 +348,6 @@ contract {} {{}}
 
     pub fn compile(&self) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
         self.project().compile()
-    }
-
-    pub fn compile_sparse(
-        &self,
-        filter: Box<dyn SparseOutputFileFilter<C::ParsedSource>>,
-    ) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
-        self.project().compile_sparse(filter)
     }
 
     /// Returns a snapshot of all cached artifacts

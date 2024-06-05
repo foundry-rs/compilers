@@ -63,6 +63,7 @@ use crate::{
 };
 use artifacts::{contract::Contract, output_selection::OutputSelection, Settings, Severity};
 use compile::output::contracts::VersionedContracts;
+use derivative::Derivative;
 use error::Result;
 use semver::Version;
 use std::{
@@ -76,7 +77,8 @@ use std::{
 pub mod project_util;
 
 /// Represents a project workspace and handles `solc` compiling of all contracts in that workspace.
-#[derive(Clone, Debug)]
+#[derive(Clone, Derivative)]
+#[derivative(Debug)]
 pub struct Project<C: Compiler = MultiCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
     pub compiler: C,
     /// Compiler versions locked for specific languages.
@@ -107,6 +109,9 @@ pub struct Project<C: Compiler = MultiCompiler, T: ArtifactOutput = Configurable
     ///
     /// This is a noop on other platforms
     pub slash_paths: bool,
+    /// Optional sparse output filter used to optimize compilation.
+    #[derivative(Debug = "ignore")]
+    pub sparse_output: Option<Box<dyn SparseOutputFileFilter<C::ParsedSource>>>,
 }
 
 impl Project {
@@ -325,43 +330,6 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
         project::ProjectCompiler::with_sources(self, sources)?.compile()
     }
 
-    /// Convenience function to compile only files that match the provided [FileFilter].
-    ///
-    /// Same as [`Self::compile()`] but with only with the input files that match
-    /// [`FileFilter::is_match()`].
-    ///
-    /// # Examples
-    ///
-    /// Only compile test files:
-    ///
-    /// ```no_run
-    /// use foundry_compilers::{Project, TestFileFilter};
-    ///
-    /// let project = Project::builder().build()?;
-    /// let output = project.compile_sparse(Box::new(TestFileFilter::default()))?;
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    ///
-    /// Apply a custom filter:
-    ///
-    /// ```no_run
-    /// use foundry_compilers::Project;
-    /// use std::path::Path;
-    ///
-    /// let project = Project::builder().build()?;
-    /// let output = project.compile_sparse(Box::new(|path: &Path| path.ends_with("Greeter.sol")))?;
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    pub fn compile_sparse(
-        &self,
-        filter: Box<dyn SparseOutputFileFilter<C::ParsedSource>>,
-    ) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
-        let sources =
-            Source::read_all(self.paths.input_files().into_iter().filter(|p| filter.is_match(p)))?;
-
-        project::ProjectCompiler::with_sources(self, sources)?.with_sparse_output(filter).compile()
-    }
-
     /// Removes the project's artifacts and cache file
     ///
     /// If the cache file was the only file in the folder, this also removes the empty folder.
@@ -532,6 +500,8 @@ pub struct ProjectBuilder<C: Compiler = MultiCompiler, T: ArtifactOutput = Confi
     /// The minimum severity level that is treated as a compiler error
     compiler_severity_filter: Severity,
     solc_jobs: Option<usize>,
+    /// Optional sparse output filter used to optimize compilation.
+    sparse_output: Option<Box<dyn SparseOutputFileFilter<C::ParsedSource>>>,
 }
 
 impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
@@ -551,6 +521,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             solc_jobs: None,
             settings: None,
             locked_versions: Default::default(),
+            sparse_output: None,
         }
     }
 
@@ -678,6 +649,15 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
         self
     }
 
+    #[must_use]
+    pub fn sparse_output_filter<F>(mut self, filter: F) -> Self
+    where
+        F: SparseOutputFileFilter<C::ParsedSource> + 'static,
+    {
+        self.sparse_output = Some(Box::new(filter));
+        self
+    }
+
     /// Set arbitrary `ArtifactOutputHandler`
     pub fn artifacts<A: ArtifactOutput>(self, artifacts: A) -> ProjectBuilder<C, A> {
         let ProjectBuilder {
@@ -693,6 +673,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             ignored_file_paths,
             settings,
             locked_versions,
+            sparse_output,
             ..
         } = self;
         ProjectBuilder {
@@ -709,6 +690,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             build_info,
             settings,
             locked_versions,
+            sparse_output,
         }
     }
 
@@ -727,6 +709,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             slash_paths,
             settings,
             locked_versions,
+            sparse_output,
         } = self;
 
         let mut paths = paths.map(Ok).unwrap_or_else(ProjectPathsConfig::current_hardhat)?;
@@ -753,6 +736,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             slash_paths,
             settings: settings.unwrap_or_default(),
             locked_versions,
+            sparse_output,
         })
     }
 }

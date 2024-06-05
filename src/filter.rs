@@ -13,19 +13,21 @@ use std::{
 };
 
 /// A predicate property that determines whether a file satisfies a certain condition
-pub trait FileFilter {
+pub trait FileFilter: dyn_clone::DynClone {
     /// The predicate function that should return if the given `file` should be included.
     fn is_match(&self, file: &Path) -> bool;
 }
 
-impl<F: Fn(&Path) -> bool> FileFilter for F {
+dyn_clone::clone_trait_object!(FileFilter);
+
+impl<F: Fn(&Path) -> bool + Clone> FileFilter for F {
     fn is_match(&self, file: &Path) -> bool {
         (self)(file)
     }
 }
 
 /// An [FileFilter] that matches all solidity files that end with `.t.sol`
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct TestFileFilter {
     _priv: (),
 }
@@ -79,6 +81,8 @@ fn sparse_solc<D: MaybeSolData>(file: &Path, graph: &GraphEdges<D>) -> Vec<PathB
 
     sources_to_compile
 }
+
+dyn_clone::clone_trait_object!(<D> SparseOutputFileFilter<D>);
 
 impl<T: FileFilter> SparseOutputFileFilter<SolData> for T {
     fn sparse_sources(&self, file: &Path, graph: &GraphEdges<SolData>) -> Vec<PathBuf> {
@@ -134,7 +138,7 @@ pub trait SparseOutputFileFilter<D>: FileFilter {
 /// A type that can apply a filter to a set of preprocessed [FilteredSources] in order to set sparse
 /// output for specific files
 #[derive(Default)]
-pub enum SparseOutputFilter<D> {
+pub enum SparseOutputFilter<'a, D> {
     /// Sets the configured [OutputSelection] for dirty files only.
     ///
     /// In other words, we request the output of solc only for files that have been detected as
@@ -142,10 +146,17 @@ pub enum SparseOutputFilter<D> {
     #[default]
     Optimized,
     /// Apply an additional filter to [FilteredSources] to
-    Custom(Box<dyn SparseOutputFileFilter<D>>),
+    Custom(&'a dyn SparseOutputFileFilter<D>),
 }
 
-impl<D> SparseOutputFilter<D> {
+impl<'a, D> SparseOutputFilter<'a, D> {
+    pub fn new(filter: Option<&'a dyn SparseOutputFileFilter<D>>) -> Self {
+        if let Some(f) = filter {
+            SparseOutputFilter::Custom(f)
+        } else {
+            SparseOutputFilter::Optimized
+        }
+    }
     /// While solc needs all the files to compile the actual _dirty_ files, we can tell solc to
     /// output everything for those dirty files as currently configured in the settings, but output
     /// nothing for the other files that are _not_ dirty.
@@ -168,7 +179,7 @@ impl<D> SparseOutputFilter<D> {
                 }
             }
             SparseOutputFilter::Custom(f) => {
-                Self::apply_custom_filter(&sources, settings, graph, &**f)
+                Self::apply_custom_filter(&sources, settings, graph, *f)
             }
         };
         sources.into()
@@ -242,13 +253,7 @@ impl<D> SparseOutputFilter<D> {
     }
 }
 
-impl<D> From<Box<dyn SparseOutputFileFilter<D>>> for SparseOutputFilter<D> {
-    fn from(f: Box<dyn SparseOutputFileFilter<D>>) -> Self {
-        SparseOutputFilter::Custom(f)
-    }
-}
-
-impl<D> fmt::Debug for SparseOutputFilter<D> {
+impl<'a, D> fmt::Debug for SparseOutputFilter<'a, D> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             SparseOutputFilter::Optimized => f.write_str("Optimized"),
