@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1](https://github.com/foundry-rs/compilers/releases/tag/v0.6.1) - 2024-06-05
+
+### Bug Fixes
+
+- Small sparse output updates ([#137](https://github.com/foundry-rs/compilers/issues/137))
+- Version resolution ([#136](https://github.com/foundry-rs/compilers/issues/136))
+- Vyper 0.4 support ([#134](https://github.com/foundry-rs/compilers/issues/134))
+
+### Miscellaneous Tasks
+
+- Sync cliff.toml
+
+### Refactor
+
+- Sparse output ([#135](https://github.com/foundry-rs/compilers/issues/135))
+
 ## [0.6.0](https://github.com/foundry-rs/compilers/releases/tag/v0.6.0) - 2024-06-03
 
 ### Dependencies
@@ -14,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 - Allow multiple languages for compilers ([#128](https://github.com/foundry-rs/compilers/issues/128))
+
+### Miscellaneous Tasks
+
+- Release 0.6.0
 
 ## [0.5.2](https://github.com/foundry-rs/compilers/releases/tag/v0.5.2) - 2024-06-01
 
@@ -276,13 +296,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.5](https://github.com/foundry-rs/compilers/releases/tag/v0.3.5) - 2024-02-10
 
+### Bug Fixes
+
+- Fix `DoWhileStatement` AST ([#74](https://github.com/foundry-rs/compilers/issues/74))
+
 ### Miscellaneous Tasks
 
 - Release 0.3.5
-
-### Other
-
-- Fix `DoWhileStatement` AST ([#74](https://github.com/foundry-rs/compilers/issues/74))
 
 ## [0.3.4](https://github.com/foundry-rs/compilers/releases/tag/v0.3.4) - 2024-02-09
 
