@@ -180,14 +180,15 @@ impl<E> CompilerOutput<E> {
     /// Retains only those files the given iterator yields
     ///
     /// In other words, removes all contracts for files not included in the iterator
-    pub fn retain_files<'a, I>(&mut self, files: I)
+    pub fn retain_files<F, I>(&mut self, files: I)
     where
-        I: IntoIterator<Item = &'a Path>,
+        F: AsRef<Path>,
+        I: IntoIterator<Item = F>,
     {
         // Note: use `to_lowercase` here because solc not necessarily emits the exact file name,
         // e.g. `src/utils/upgradeProxy.sol` is emitted as `src/utils/UpgradeProxy.sol`
         let files: HashSet<_> =
-            files.into_iter().map(|s| s.to_string_lossy().to_lowercase()).collect();
+            files.into_iter().map(|s| s.as_ref().to_string_lossy().to_lowercase()).collect();
         self.contracts.retain(|f, _| files.contains(&f.to_string_lossy().to_lowercase()));
         self.sources.retain(|f, _| files.contains(&f.to_string_lossy().to_lowercase()));
     }

@@ -13,14 +13,14 @@ use std::{
 };
 
 /// A predicate property that determines whether a file satisfies a certain condition
-pub trait FileFilter: dyn_clone::DynClone {
+pub trait FileFilter: dyn_clone::DynClone + Send + Sync {
     /// The predicate function that should return if the given `file` should be included.
     fn is_match(&self, file: &Path) -> bool;
 }
 
 dyn_clone::clone_trait_object!(FileFilter);
 
-impl<F: Fn(&Path) -> bool + Clone> FileFilter for F {
+impl<F: Fn(&Path) -> bool + Clone + Send + Sync> FileFilter for F {
     fn is_match(&self, file: &Path) -> bool {
         (self)(file)
     }
@@ -106,12 +106,43 @@ impl<'a> SparseOutputFilter<'a> {
         sources: FilteredSources,
         settings: &mut S,
         graph: &GraphEdges<D>,
-    ) -> Sources {
-        // Collect files requiring complete compilation.
-        let full_compilation = match self {
-            SparseOutputFilter::Optimized => sources.dirty_files().cloned().collect(),
-            SparseOutputFilter::Custom(f) => Self::apply_custom_filter(&sources, graph, *f),
-        };
+    ) -> (Sources, Vec<PathBuf>) {
+        let mut full_compilation: HashSet<PathBuf> = sources
+            .dirty_files()
+            .flat_map(|file| {
+                // If we have a custom filter and file does not match, we skip it.
+                if let Self::Custom(f) = self {
+                    if !f.is_match(file) {
+                        return vec![];
+                    }
+                }
+
+                // Collect compilation dependencies for sources needing compilation.
+                let mut required_sources = vec![file.clone()];
+                if let Some(data) = graph.get_parsed_source(file) {
+                    let imports = graph.imports(file).into_iter().filter_map(|import| {
+                        graph.get_parsed_source(import).map(|data| (import.as_path(), data))
+                    });
+                    for import in data.compilation_dependencies(imports) {
+                        let import = import.to_path_buf();
+
+                        #[cfg(windows)]
+                        let import = {
+                            use path_slash::PathBufExt;
+
+                            PathBuf::from(import.to_slash_lossy().to_string())
+                        };
+
+                        required_sources.push(import);
+                    }
+                }
+
+                required_sources
+            })
+            .collect();
+
+        // Remove clean sources, those will be read from cache.
+        full_compilation.retain(|file| sources.0.get(file).map_or(false, |s| s.is_dirty()));
 
         settings.update_output_selection(|selection| {
             trace!(
@@ -134,34 +165,7 @@ impl<'a> SparseOutputFilter<'a> {
             }
         });
 
-        sources.into()
-    }
-
-    /// applies a custom filter and prunes the output of those source files for which the filter
-    /// returns `false`.
-    fn apply_custom_filter<D: ParsedSource>(
-        sources: &FilteredSources,
-        graph: &GraphEdges<D>,
-        f: &dyn FileFilter,
-    ) -> HashSet<PathBuf> {
-        let mut full_compilation = HashSet::new();
-
-        // populate sources which need complete compilation with data from filter
-        for (file, source) in sources.0.iter() {
-            if source.is_dirty() && f.is_match(file) {
-                full_compilation.insert(file.clone());
-                if let Some(data) = graph.get_parsed_source(file) {
-                    let imports = graph.imports(file).into_iter().filter_map(|import| {
-                        graph.get_parsed_source(import).map(|data| (import.as_path(), data))
-                    });
-                    for import in data.compilation_dependencies(imports) {
-                        full_compilation.insert(import.to_path_buf());
-                    }
-                }
-            }
-        }
-
-        full_compilation
+        (sources.into(), full_compilation.into_iter().collect())
     }
 }
 
