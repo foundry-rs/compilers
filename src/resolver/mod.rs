@@ -578,11 +578,11 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         }
     }
 
-    fn nodes_by_language(&self) -> HashMap<D::Language, Vec<usize>> {
+    fn input_nodes_by_language(&self) -> HashMap<D::Language, Vec<usize>> {
         let mut nodes = HashMap::new();
 
-        for (id, node) in self.nodes.iter().enumerate() {
-            nodes.entry(node.data.language()).or_insert_with(Vec::new).push(id);
+        for idx in 0..self.edges.num_input_files {
+            nodes.entry(self.nodes[idx].data.language()).or_insert_with(Vec::new).push(idx);
         }
 
         nodes
@@ -608,7 +608,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
 
         let mut resulted_nodes = HashMap::new();
 
-        for (language, nodes) in self.nodes_by_language() {
+        for (language, nodes) in self.input_nodes_by_language() {
             if let Some(version) = locked_versions.get(&language) {
                 resulted_nodes.insert(language, HashMap::from([(version.clone(), nodes)]));
                 continue;
