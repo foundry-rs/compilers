@@ -107,11 +107,33 @@ impl<'a> SparseOutputFilter<'a> {
         settings: &mut S,
         graph: &GraphEdges<D>,
     ) -> (Sources, Vec<PathBuf>) {
-        // Collect files requiring complete compilation.
-        let full_compilation = match self {
-            SparseOutputFilter::Optimized => sources.dirty_files().cloned().collect(),
-            SparseOutputFilter::Custom(f) => Self::apply_custom_filter(&sources, graph, *f),
-        };
+        let mut full_compilation: HashSet<PathBuf> = sources
+            .dirty_files()
+            .flat_map(|file| {
+                // If we have a custom filter and file does not match, we skip it.
+                if let Self::Custom(f) = self {
+                    if !f.is_match(file) {
+                        return vec![];
+                    }
+                }
+
+                // Collect compilation dependencies for sources needing compilation.
+                let mut required_sources = vec![file.clone()];
+                if let Some(data) = graph.get_parsed_source(file) {
+                    let imports = graph.imports(file).into_iter().filter_map(|import| {
+                        graph.get_parsed_source(import).map(|data| (import.as_path(), data))
+                    });
+                    for import in data.compilation_dependencies(imports) {
+                        required_sources.push(import.to_path_buf());
+                    }
+                }
+
+                required_sources
+            })
+            .collect();
+
+        // Remove clean sources, those will be read from cache.
+        full_compilation.retain(|file| sources.0.get(file).map_or(false, |s| s.is_dirty()));
 
         settings.update_output_selection(|selection| {
             trace!(
@@ -134,34 +156,7 @@ impl<'a> SparseOutputFilter<'a> {
             }
         });
 
-        (sources.into(), full_compilation)
-    }
-
-    /// applies a custom filter and prunes the output of those source files for which the filter
-    /// returns `false`.
-    fn apply_custom_filter<D: ParsedSource>(
-        sources: &FilteredSources,
-        graph: &GraphEdges<D>,
-        f: &dyn FileFilter,
-    ) -> Vec<PathBuf> {
-        let mut full_compilation = HashSet::new();
-
-        // populate sources which need complete compilation with data from filter
-        for (file, source) in sources.0.iter() {
-            if source.is_dirty() && f.is_match(file) {
-                full_compilation.insert(file.clone());
-                if let Some(data) = graph.get_parsed_source(file) {
-                    let imports = graph.imports(file).into_iter().filter_map(|import| {
-                        graph.get_parsed_source(import).map(|data| (import.as_path(), data))
-                    });
-                    for import in data.compilation_dependencies(imports) {
-                        full_compilation.insert(import.to_path_buf());
-                    }
-                }
-            }
-        }
-
-        full_compilation.into_iter().collect()
+        (sources.into(), full_compilation.into_iter().collect())
     }
 }
 
