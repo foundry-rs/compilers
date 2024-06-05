@@ -13,14 +13,14 @@ use std::{
 };
 
 /// A predicate property that determines whether a file satisfies a certain condition
-pub trait FileFilter: dyn_clone::DynClone {
+pub trait FileFilter: dyn_clone::DynClone + Send + Sync {
     /// The predicate function that should return if the given `file` should be included.
     fn is_match(&self, file: &Path) -> bool;
 }
 
 dyn_clone::clone_trait_object!(FileFilter);
 
-impl<F: Fn(&Path) -> bool + Clone> FileFilter for F {
+impl<F: Fn(&Path) -> bool + Clone + Send + Sync> FileFilter for F {
     fn is_match(&self, file: &Path) -> bool {
         (self)(file)
     }
@@ -106,7 +106,7 @@ impl<'a> SparseOutputFilter<'a> {
         sources: FilteredSources,
         settings: &mut S,
         graph: &GraphEdges<D>,
-    ) -> Sources {
+    ) -> (Sources, Vec<PathBuf>) {
         // Collect files requiring complete compilation.
         let full_compilation = match self {
             SparseOutputFilter::Optimized => sources.dirty_files().cloned().collect(),
@@ -134,7 +134,7 @@ impl<'a> SparseOutputFilter<'a> {
             }
         });
 
-        sources.into()
+        (sources.into(), full_compilation)
     }
 
     /// applies a custom filter and prunes the output of those source files for which the filter
@@ -143,7 +143,7 @@ impl<'a> SparseOutputFilter<'a> {
         sources: &FilteredSources,
         graph: &GraphEdges<D>,
         f: &dyn FileFilter,
-    ) -> HashSet<PathBuf> {
+    ) -> Vec<PathBuf> {
         let mut full_compilation = HashSet::new();
 
         // populate sources which need complete compilation with data from filter
@@ -161,7 +161,7 @@ impl<'a> SparseOutputFilter<'a> {
             }
         }
 
-        full_compilation
+        full_compilation.into_iter().collect()
     }
 }
 

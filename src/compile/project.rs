@@ -138,7 +138,10 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     ///
     /// Multiple (`Solc` -> `Sources`) pairs can be compiled in parallel if the `Project` allows
     /// multiple `jobs`, see [`crate::Project::set_solc_jobs()`].
-    pub fn with_sources(project: &'a Project<C, T>, sources: Sources) -> Result<Self> {
+    pub fn with_sources(project: &'a Project<C, T>, mut sources: Sources) -> Result<Self> {
+        if let Some(filter) = &project.sparse_output {
+            sources.retain(|f, _| filter.is_match(f))
+        }
         let graph = Graph::resolve_sources(&project.paths, sources)?;
         let (sources, edges) = graph.into_sources_by_version(
             project.offline,
@@ -460,16 +463,11 @@ impl<L: Language> FilteredCompilerSources<L> {
                     continue;
                 }
 
-                let dirty_files: Vec<PathBuf> = filtered_sources.dirty_files().cloned().collect();
-
                 // depending on the composition of the filtered sources, the output selection can be
                 // optimized
                 let mut opt_settings = project.settings.clone();
-                let sources =
+                let (sources, actually_dirty) =
                     sparse_output.sparse_sources(filtered_sources, &mut opt_settings, graph);
-
-                let actually_dirty =
-                    sources.keys().filter(|f| dirty_files.contains(f)).cloned().collect::<Vec<_>>();
 
                 if actually_dirty.is_empty() {
                     // nothing to compile for this particular language, all dirty files are in the
@@ -501,7 +499,7 @@ impl<L: Language> FilteredCompilerSources<L> {
 
         let mut aggregated = AggregatedCompilerOutput::default();
 
-        for (input, mut output) in results {
+        for (input, mut output, actually_dirty) in results {
             let version = input.version();
             // if configured also create the build info
             if project.build_info {
@@ -510,6 +508,7 @@ impl<L: Language> FilteredCompilerSources<L> {
             }
 
             output.join_all(project.paths.root.as_path());
+            output.retain_files(actually_dirty);
 
             aggregated.extend(version.clone(), output);
         }
@@ -538,7 +537,7 @@ impl<L: Language> FilteredCompilerSources<L> {
 fn compile_sequential<C: Compiler<Input = I>, I: CompilerInput>(
     compiler: &C,
     jobs: Vec<(I, Vec<PathBuf>)>,
-) -> Result<Vec<(I, CompilerOutput<C::CompilationError>)>> {
+) -> Result<Vec<(I, CompilerOutput<C::CompilationError>, Vec<PathBuf>)>> {
     jobs.into_iter()
         .map(|(input, actually_dirty)| {
             let start = Instant::now();
@@ -550,7 +549,7 @@ fn compile_sequential<C: Compiler<Input = I>, I: CompilerInput>(
             let output = compiler.compile(&input)?;
             report::compiler_success(&input.compiler_name(), input.version(), &start.elapsed());
 
-            Ok((input, output))
+            Ok((input, output, actually_dirty))
         })
         .collect()
 }
@@ -560,7 +559,7 @@ fn compile_parallel<C: Compiler<Input = I>, I: CompilerInput>(
     compiler: &C,
     jobs: Vec<(I, Vec<PathBuf>)>,
     num_jobs: usize,
-) -> Result<Vec<(I, CompilerOutput<C::CompilationError>)>> {
+) -> Result<Vec<(I, CompilerOutput<C::CompilationError>, Vec<PathBuf>)>> {
     // need to get the currently installed reporter before installing the pool, otherwise each new
     // thread in the pool will get initialized with the default value of the `thread_local!`'s
     // localkey. This way we keep access to the reporter in the rayon pool
@@ -587,7 +586,7 @@ fn compile_parallel<C: Compiler<Input = I>, I: CompilerInput>(
                         input.version(),
                         &start.elapsed(),
                     );
-                    (input, output)
+                    (input, output, actually_dirty)
                 })
             })
             .collect()
