@@ -111,7 +111,7 @@ use crate::{
     output::AggregatedCompilerOutput,
     report,
     resolver::GraphEdges,
-    ArtifactOutput, Graph, Project, ProjectCompileOutput, ProjectPathsConfig, Sources,
+    ArtifactOutput, Graph, Project, ProjectCompileOutput, Sources,
 };
 use rayon::prelude::*;
 use std::{path::PathBuf, time::Instant};
@@ -123,8 +123,6 @@ pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
     project: &'a Project<C, T>,
     /// how to compile all the sources
     sources: CompilerSources<C::Language>,
-    /// How to select solc [`crate::artifacts::CompilerOutput`] for files
-    sparse_output: SparseOutputFilter<C::ParsedSource>,
 }
 
 impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
@@ -158,17 +156,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
             CompilerSources::Sequential(sources)
         };
 
-        Ok(Self { edges, project, sources, sparse_output: Default::default() })
-    }
-
-    /// Applies the specified filter to be applied when selecting solc output for
-    /// specific files to be compiled
-    pub fn with_sparse_output(
-        mut self,
-        sparse_output: impl Into<SparseOutputFilter<C::ParsedSource>>,
-    ) -> Self {
-        self.sparse_output = sparse_output.into();
-        self
+        Ok(Self { edges, project, sources })
     }
 
     /// Compiles all the sources of the `Project` in the appropriate mode
@@ -206,7 +194,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     ///   - check cache
     fn preprocess(self) -> Result<PreprocessedState<'a, T, C>> {
         trace!("preprocessing");
-        let Self { edges, project, mut sources, sparse_output } = self;
+        let Self { edges, project, mut sources } = self;
 
         // convert paths on windows to ensure consistency with the `CompilerOutput` `solc` emits,
         // which is unix style `/`
@@ -216,7 +204,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
         // retain and compile only dirty sources and all their imports
         let sources = sources.filtered(&mut cache);
 
-        Ok(PreprocessedState { sources, cache, sparse_output })
+        Ok(PreprocessedState { sources, cache })
     }
 }
 
@@ -230,24 +218,15 @@ struct PreprocessedState<'a, T: ArtifactOutput, C: Compiler> {
 
     /// Cache that holds `CacheEntry` objects if caching is enabled and the project is recompiled
     cache: ArtifactsCache<'a, T, C>,
-
-    sparse_output: SparseOutputFilter<C::ParsedSource>,
 }
 
 impl<'a, T: ArtifactOutput, C: Compiler> PreprocessedState<'a, T, C> {
     /// advance to the next state by compiling all sources
     fn compile(self) -> Result<CompiledState<'a, T, C>> {
         trace!("compiling");
-        let PreprocessedState { sources, cache, sparse_output } = self;
-        let project = cache.project();
-        let mut output = sources.compile(
-            &project.compiler,
-            &project.settings,
-            &project.paths,
-            sparse_output,
-            cache.graph(),
-            project.build_info,
-        )?;
+        let PreprocessedState { sources, cache } = self;
+
+        let mut output = sources.compile(cache.project(), cache.graph())?;
 
         // source paths get stripped before handing them over to solc, so solc never uses absolute
         // paths, instead `--base-path <root dir>` is set. this way any metadata that's derived from
@@ -458,20 +437,18 @@ enum FilteredCompilerSources<L> {
 
 impl<L: Language> FilteredCompilerSources<L> {
     /// Compiles all the files with `Solc`
-    fn compile<C: Compiler<Language = L>>(
+    fn compile<C: Compiler<Language = L>, T: ArtifactOutput>(
         self,
-        compiler: &C,
-        settings: &<C::Input as CompilerInput>::Settings,
-        paths: &ProjectPathsConfig<L>,
-        sparse_output: SparseOutputFilter<C::ParsedSource>,
+        project: &Project<C, T>,
         graph: &GraphEdges<C::ParsedSource>,
-        create_build_info: bool,
     ) -> Result<AggregatedCompilerOutput<C::CompilationError>> {
         let jobs_cnt = if let Self::Parallel(_, jobs_cnt) = self { Some(jobs_cnt) } else { None };
 
+        let sparse_output = SparseOutputFilter::new(project.sparse_output.as_deref());
+
         let sources = self.into_sources();
         // Include additional paths collected during graph resolution.
-        let mut include_paths = paths.include_paths.clone();
+        let mut include_paths = project.paths.include_paths.clone();
         include_paths.extend(graph.include_paths().clone());
 
         let mut jobs = Vec::new();
@@ -487,7 +464,7 @@ impl<L: Language> FilteredCompilerSources<L> {
 
                 // depending on the composition of the filtered sources, the output selection can be
                 // optimized
-                let mut opt_settings = settings.clone();
+                let mut opt_settings = project.settings.clone();
                 let sources =
                     sparse_output.sparse_sources(filtered_sources, &mut opt_settings, graph);
 
@@ -505,21 +482,21 @@ impl<L: Language> FilteredCompilerSources<L> {
 
                 let mut input =
                     C::Input::build(sources, opt_settings, language.clone(), version.clone())
-                        .with_base_path(paths.root.clone())
-                        .with_allow_paths(paths.allowed_paths.clone())
+                        .with_base_path(project.paths.root.clone())
+                        .with_allow_paths(project.paths.allowed_paths.clone())
                         .with_include_paths(include_paths.clone())
-                        .with_remappings(paths.remappings.clone());
+                        .with_remappings(project.paths.remappings.clone());
 
-                input.strip_prefix(paths.root.as_path());
+                input.strip_prefix(project.paths.root.as_path());
 
                 jobs.push((input, actually_dirty));
             }
         }
 
         let results = if let Some(num_jobs) = jobs_cnt {
-            compile_parallel(compiler, jobs, num_jobs)
+            compile_parallel(&project.compiler, jobs, num_jobs)
         } else {
-            compile_sequential(compiler, jobs)
+            compile_sequential(&project.compiler, jobs)
         }?;
 
         let mut aggregated = AggregatedCompilerOutput::default();
@@ -527,12 +504,12 @@ impl<L: Language> FilteredCompilerSources<L> {
         for (input, mut output) in results {
             let version = input.version();
             // if configured also create the build info
-            if create_build_info {
+            if project.build_info {
                 let build_info = RawBuildInfo::new(&input, &output, version)?;
                 aggregated.build_infos.insert(version.clone(), build_info);
             }
 
-            output.join_all(paths.root.as_path());
+            output.join_all(project.paths.root.as_path());
 
             aggregated.extend(version.clone(), output);
         }
@@ -624,6 +601,7 @@ mod tests {
     use crate::{
         artifacts::output_selection::ContractOutputSelection, compilers::multi::MultiCompiler,
         project_util::TempProject, ConfigurableArtifacts, MinimalCombinedArtifacts,
+        ProjectPathsConfig,
     };
 
     fn init_tracing() {

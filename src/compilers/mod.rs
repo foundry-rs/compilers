@@ -126,13 +126,33 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
 /// Parser of the source files which is used to identify imports and version requirements of the
 /// given source. Used by path resolver to resolve imports or determine compiler versions needed to
 /// compiler given sources.
-pub trait ParsedSource: Debug + Sized + Send {
+pub trait ParsedSource: Debug + Sized + Send + Clone {
     type Language: Language;
 
     fn parse(content: &str, file: &Path) -> Result<Self>;
     fn version_req(&self) -> Option<&VersionReq>;
     fn resolve_imports<C>(&self, paths: &ProjectPathsConfig<C>) -> Result<Vec<PathBuf>>;
     fn language(&self) -> Self::Language;
+
+    /// Used to configure [OutputSelection] for sparse builds. In certain cases, we might want to
+    /// include some of the file dependencies into the compiler output even if we might not be
+    /// directly interested in them.
+    ///
+    /// Example of such case is when we are compiling Solidity file containing link references and
+    /// need them to be included in the output to deploy needed libraries.
+    ///
+    /// Receives iterator over imports of the current source.
+    ///
+    /// Returns iterator over paths to the files that should be compiled with full output selection.
+    fn compilation_dependencies<'a>(
+        &self,
+        _imported_nodes: impl Iterator<Item = (&'a Path, &'a Self)>,
+    ) -> impl Iterator<Item = &'a Path>
+    where
+        Self: 'a,
+    {
+        vec![].into_iter()
+    }
 }
 
 /// Error returned by compiler. Might also represent a warning or informational message.

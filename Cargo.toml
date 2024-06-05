@@ -61,6 +61,8 @@ itertools = "0.13"
 auto_impl = "1"
 
 winnow = "0.6"
+dyn-clone = "1"
+derivative = "2.2"
 
 [dev-dependencies]
 alloy-primitives = { version = "0.7", features = ["serde", "rand"] }

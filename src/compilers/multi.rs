@@ -85,6 +85,22 @@ pub enum MultiCompilerParsedSource {
     Vyper(VyperParsedSource),
 }
 
+impl MultiCompilerParsedSource {
+    fn solc(&self) -> Option<&SolData> {
+        match self {
+            Self::Solc(parsed) => Some(parsed),
+            _ => None,
+        }
+    }
+
+    fn vyper(&self) -> Option<&VyperParsedSource> {
+        match self {
+            Self::Vyper(parsed) => Some(parsed),
+            _ => None,
+        }
+    }
+}
+
 /// Compilation error which may occur when compiling Solidity or Vyper sources.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
@@ -286,6 +302,28 @@ impl ParsedSource for MultiCompilerParsedSource {
             Self::Solc(parsed) => MultiCompilerLanguage::Solc(parsed.language()),
             Self::Vyper(parsed) => MultiCompilerLanguage::Vyper(parsed.language()),
         }
+    }
+
+    fn compilation_dependencies<'a>(
+        &self,
+        imported_nodes: impl Iterator<Item = (&'a Path, &'a Self)>,
+    ) -> impl Iterator<Item = &'a Path>
+    where
+        Self: 'a,
+    {
+        match self {
+            Self::Solc(parsed) => parsed
+                .compilation_dependencies(
+                    imported_nodes.filter_map(|(path, node)| node.solc().map(|node| (path, node))),
+                )
+                .collect::<Vec<_>>(),
+            Self::Vyper(parsed) => parsed
+                .compilation_dependencies(
+                    imported_nodes.filter_map(|(path, node)| node.vyper().map(|node| (path, node))),
+                )
+                .collect::<Vec<_>>(),
+        }
+        .into_iter()
     }
 }
 
