@@ -1,6 +1,6 @@
 use std::{borrow::Cow, path::Path};
 
-use super::{settings::VyperSettings, VyperLanguage};
+use super::{settings::VyperSettings, VyperLanguage, VYPER_INTERFACE_EXTENSION};
 use crate::{artifacts::Sources, compilers::CompilerInput};
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -22,17 +22,21 @@ pub struct VyperVersionedInput {
 }
 
 impl VyperInput {
-    pub fn new(sources: Sources, settings: VyperSettings) -> Self {
+    pub fn new(sources: Sources, mut settings: VyperSettings) -> Self {
         let mut new_sources = Sources::new();
         let mut interfaces = Sources::new();
 
         for (path, content) in sources {
-            if path.extension().map_or(false, |ext| ext == "vyi") {
+            if path.extension().map_or(false, |ext| ext == VYPER_INTERFACE_EXTENSION) {
+                // Interface .vyi files should be removed from the output selection.
+                settings.output_selection.0.remove(path.to_string_lossy().as_ref());
                 interfaces.insert(path, content);
             } else {
                 new_sources.insert(path, content);
             }
         }
+
+        settings.sanitize_output_selection();
         VyperInput { language: "Vyper".to_string(), sources: new_sources, interfaces, settings }
     }
 
@@ -57,12 +61,10 @@ impl CompilerInput for VyperVersionedInput {
 
     fn build(
         sources: Sources,
-        mut settings: Self::Settings,
+        settings: Self::Settings,
         _language: Self::Language,
         version: Version,
     ) -> Self {
-        settings.sanitize_output_selection();
-
         Self { input: VyperInput::new(sources, settings), version }
     }
 
