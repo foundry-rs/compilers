@@ -46,6 +46,11 @@ pub static VYPER: Lazy<Vyper> = Lazy::new(|| {
         use std::{fs::Permissions, os::unix::fs::PermissionsExt};
 
         take_solc_installer_lock!(_lock);
+        let path = std::env::temp_dir().join("vyper");
+
+        if path.exists() {
+            return Vyper::new(path).unwrap();
+        }
 
         let url = match platform() {
             Platform::MacOsAarch64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.darwin",
@@ -59,7 +64,6 @@ pub static VYPER: Lazy<Vyper> = Lazy::new(|| {
         assert!(res.status().is_success());
 
         let bytes = res.bytes().await.unwrap();
-        let path = std::env::temp_dir().join("vyper");
 
         std::fs::write(&path, bytes).unwrap();
 
