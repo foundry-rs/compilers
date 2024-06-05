@@ -2,7 +2,7 @@
 
 use crate::{
     artifacts::output_selection::OutputSelection,
-    compilers::{multi::MultiCompilerParsedSource, CompilerSettings},
+    compilers::{multi::MultiCompilerParsedSource, CompilerSettings, ParsedSource},
     resolver::{parse::SolData, GraphEdges},
     Source, Sources,
 };
@@ -69,76 +69,10 @@ impl MaybeSolData for MultiCompilerParsedSource {
     }
 }
 
-fn sparse_solc<D: MaybeSolData>(file: &Path, graph: &GraphEdges<D>) -> Vec<PathBuf> {
-    let mut sources_to_compile = vec![file.to_path_buf()];
-    for import in graph.imports(file) {
-        if let Some(parsed) = graph.get_parsed_source(import).and_then(MaybeSolData::sol_data) {
-            if !parsed.libraries.is_empty() {
-                sources_to_compile.push(import.to_path_buf());
-            }
-        }
-    }
-
-    sources_to_compile
-}
-
-dyn_clone::clone_trait_object!(<D> SparseOutputFileFilter<D>);
-
-impl<T: FileFilter> SparseOutputFileFilter<SolData> for T {
-    fn sparse_sources(&self, file: &Path, graph: &GraphEdges<SolData>) -> Vec<PathBuf> {
-        if !self.is_match(file) {
-            return vec![];
-        }
-
-        let mut sources_to_compile = vec![file.to_path_buf()];
-        for import in graph.imports(file) {
-            if let Some(parsed) = graph.get_parsed_source(import).and_then(|d| d.sol_data()) {
-                if !parsed.libraries.is_empty() {
-                    sources_to_compile.push(import.to_path_buf());
-                }
-            }
-        }
-
-        sources_to_compile
-    }
-}
-
-impl<T: FileFilter> SparseOutputFileFilter<MultiCompilerParsedSource> for T {
-    fn sparse_sources(
-        &self,
-        file: &Path,
-        graph: &GraphEdges<MultiCompilerParsedSource>,
-    ) -> Vec<PathBuf> {
-        if !self.is_match(file) {
-            return vec![];
-        }
-
-        match file.extension().and_then(|e| e.to_str()) {
-            Some("yul" | "sol") => sparse_solc(file, graph),
-            _ => vec![file.to_path_buf()],
-        }
-    }
-}
-
-/// This trait behaves in a similar way to [FileFilter] but used to configure [OutputSelection]
-/// configuration. In certain cases, we might want to include some of the file dependencies into the
-/// compiler output even if we might not be directly interested in them.
-///
-/// Example of such case is when we are compiling Solidity file containing link references and need
-/// them to be included in the output to deploy needed libraries.
-pub trait SparseOutputFileFilter<D>: FileFilter {
-    /// Receives path to the file and resolved project sources graph.
-    ///
-    /// Returns a list of paths to the files that should be compiled with full output selection.
-    ///
-    /// Might return an empty list if no files should be compiled.
-    fn sparse_sources(&self, file: &Path, graph: &GraphEdges<D>) -> Vec<PathBuf>;
-}
-
 /// A type that can apply a filter to a set of preprocessed [FilteredSources] in order to set sparse
 /// output for specific files
 #[derive(Default)]
-pub enum SparseOutputFilter<'a, D> {
+pub enum SparseOutputFilter<'a> {
     /// Sets the configured [OutputSelection] for dirty files only.
     ///
     /// In other words, we request the output of solc only for files that have been detected as
@@ -146,17 +80,18 @@ pub enum SparseOutputFilter<'a, D> {
     #[default]
     Optimized,
     /// Apply an additional filter to [FilteredSources] to
-    Custom(&'a dyn SparseOutputFileFilter<D>),
+    Custom(&'a dyn FileFilter),
 }
 
-impl<'a, D> SparseOutputFilter<'a, D> {
-    pub fn new(filter: Option<&'a dyn SparseOutputFileFilter<D>>) -> Self {
+impl<'a> SparseOutputFilter<'a> {
+    pub fn new(filter: Option<&'a dyn FileFilter>) -> Self {
         if let Some(f) = filter {
             SparseOutputFilter::Custom(f)
         } else {
             SparseOutputFilter::Optimized
         }
     }
+
     /// While solc needs all the files to compile the actual _dirty_ files, we can tell solc to
     /// output everything for those dirty files as currently configured in the settings, but output
     /// nothing for the other files that are _not_ dirty.
@@ -166,46 +101,23 @@ impl<'a, D> SparseOutputFilter<'a, D> {
     ///
     /// This also takes the project's graph as input, this allows us to check if the files the
     /// filter matches depend on libraries that need to be linked
-    pub fn sparse_sources<S: CompilerSettings>(
+    pub fn sparse_sources<D: ParsedSource, S: CompilerSettings>(
         &self,
         sources: FilteredSources,
         settings: &mut S,
         graph: &GraphEdges<D>,
     ) -> Sources {
-        match self {
-            SparseOutputFilter::Optimized => {
-                if !sources.all_dirty() {
-                    Self::optimize(&sources, settings)
-                }
-            }
-            SparseOutputFilter::Custom(f) => {
-                Self::apply_custom_filter(&sources, settings, graph, *f)
-            }
+        // Collect files requiring complete compilation.
+        let full_compilation = match self {
+            SparseOutputFilter::Optimized => sources.dirty_files().cloned().collect(),
+            SparseOutputFilter::Custom(f) => Self::apply_custom_filter(&sources, graph, *f),
         };
-        sources.into()
-    }
-
-    /// applies a custom filter and prunes the output of those source files for which the filter
-    /// returns `false`.
-    fn apply_custom_filter<S: CompilerSettings>(
-        sources: &FilteredSources,
-        settings: &mut S,
-        graph: &GraphEdges<D>,
-        f: &dyn SparseOutputFileFilter<D>,
-    ) {
-        let mut full_compilation = HashSet::new();
-
-        // populate sources which need complete compilation with data from filter
-        for (file, source) in sources.0.iter() {
-            if source.is_dirty() {
-                for source in f.sparse_sources(file, graph) {
-                    full_compilation.insert(source);
-                }
-            }
-        }
 
         settings.update_output_selection(|selection| {
-            trace!("optimizing output selection with custom filter");
+            trace!(
+                "optimizing output selection for {} sources",
+                sources.len() - full_compilation.len()
+            );
             let default_selection = selection
                 .as_mut()
                 .remove("*")
@@ -220,40 +132,40 @@ impl<'a, D> SparseOutputFilter<'a, D> {
                     selection.as_mut().insert(key, OutputSelection::empty_file_output_select());
                 }
             }
-        })
+        });
+
+        sources.into()
     }
 
-    /// prunes all clean sources and only selects an output for dirty sources
-    fn optimize<S: CompilerSettings>(sources: &FilteredSources, settings: &mut S) {
-        // settings can be optimized
-        trace!(
-            "optimizing output selection for {}/{} sources",
-            sources.clean().count(),
-            sources.len()
-        );
+    /// applies a custom filter and prunes the output of those source files for which the filter
+    /// returns `false`.
+    fn apply_custom_filter<D: ParsedSource>(
+        sources: &FilteredSources,
+        graph: &GraphEdges<D>,
+        f: &dyn FileFilter,
+    ) -> HashSet<PathBuf> {
+        let mut full_compilation = HashSet::new();
 
-        settings.update_output_selection(|selection| {
-            let selection = selection.as_mut();
-            let default = selection
-                .remove("*")
-                .unwrap_or_else(OutputSelection::default_file_output_selection);
-
-            for (file, kind) in sources.0.iter() {
-                match kind {
-                    SourceCompilationKind::Complete(_) => {
-                        selection.insert(format!("{}", file.display()), default.clone());
-                    }
-                    SourceCompilationKind::Optimized(_) => {
-                        trace!("using pruned output selection for {}", file.display());
-                        selection.insert(format!("{}", file.display()), [].into());
+        // populate sources which need complete compilation with data from filter
+        for (file, source) in sources.0.iter() {
+            if source.is_dirty() && f.is_match(file) {
+                full_compilation.insert(file.clone());
+                if let Some(data) = graph.get_parsed_source(file) {
+                    let imports = graph.imports(file).into_iter().filter_map(|import| {
+                        graph.get_parsed_source(import).map(|data| (import.as_path(), data))
+                    });
+                    for import in data.compilation_dependencies(imports) {
+                        full_compilation.insert(import.to_path_buf());
                     }
                 }
             }
-        });
+        }
+
+        full_compilation
     }
 }
 
-impl<'a, D> fmt::Debug for SparseOutputFilter<'a, D> {
+impl<'a> fmt::Debug for SparseOutputFilter<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             SparseOutputFilter::Optimized => f.write_str("Optimized"),

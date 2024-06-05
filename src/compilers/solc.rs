@@ -247,6 +247,16 @@ impl ParsedSource for SolData {
             SolcLanguage::Solidity
         }
     }
+
+    fn compilation_dependencies<'a>(
+        &self,
+        imported_nodes: impl Iterator<Item = (&'a Path, &'a Self)>,
+    ) -> impl Iterator<Item = &'a Path>
+    where
+        Self: 'a,
+    {
+        imported_nodes.filter_map(|(path, node)| (!node.libraries.is_empty()).then_some(path))
+    }
 }
 
 impl CompilationError for Error {

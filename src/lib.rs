@@ -26,7 +26,6 @@ pub mod flatten;
 
 pub mod hh;
 use compilers::{multi::MultiCompiler, Compiler, CompilerSettings};
-pub use filter::SparseOutputFileFilter;
 pub use hh::{HardhatArtifact, HardhatArtifacts};
 
 pub mod resolver;
@@ -111,7 +110,7 @@ pub struct Project<C: Compiler = MultiCompiler, T: ArtifactOutput = Configurable
     pub slash_paths: bool,
     /// Optional sparse output filter used to optimize compilation.
     #[derivative(Debug = "ignore")]
-    pub sparse_output: Option<Box<dyn SparseOutputFileFilter<C::ParsedSource>>>,
+    pub sparse_output: Option<Box<dyn FileFilter>>,
 }
 
 impl Project {
@@ -501,7 +500,7 @@ pub struct ProjectBuilder<C: Compiler = MultiCompiler, T: ArtifactOutput = Confi
     compiler_severity_filter: Severity,
     solc_jobs: Option<usize>,
     /// Optional sparse output filter used to optimize compilation.
-    sparse_output: Option<Box<dyn SparseOutputFileFilter<C::ParsedSource>>>,
+    sparse_output: Option<Box<dyn FileFilter>>,
 }
 
 impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
@@ -650,9 +649,9 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
     }
 
     #[must_use]
-    pub fn sparse_output_filter<F>(mut self, filter: F) -> Self
+    pub fn sparse_output<F>(mut self, filter: F) -> Self
     where
-        F: SparseOutputFileFilter<C::ParsedSource> + 'static,
+        F: FileFilter + 'static,
     {
         self.sparse_output = Some(Box::new(filter));
         self
