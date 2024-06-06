@@ -604,6 +604,8 @@ fn compile_parallel<C: Compiler>(
 #[cfg(test)]
 #[cfg(all(feature = "project-util", feature = "svm-solc"))]
 mod tests {
+    use std::path::Path;
+
     use super::*;
     use crate::{
         artifacts::output_selection::ContractOutputSelection, compilers::multi::MultiCompiler,
@@ -791,5 +793,39 @@ mod tests {
         let output = project.compile().unwrap();
         assert!(output.compiler_output.is_empty());
         assert!(abi_path.exists());
+    }
+
+    #[test]
+    fn can_compile_leftovers_after_sparse() {
+        let mut tmp = TempProject::<MultiCompiler, ConfigurableArtifacts>::dapptools().unwrap();
+
+        tmp.add_source(
+            "A",
+            r#"
+pragma solidity ^0.8.10;
+import "./B.sol";
+contract A {}
+"#,
+        )
+        .unwrap();
+
+        tmp.add_source(
+            "B",
+            r#"
+pragma solidity ^0.8.10;
+contract B {}
+"#,
+        )
+        .unwrap();
+
+        tmp.project_mut().sparse_output = Some(Box::new(|f: &Path| f.ends_with("A.sol")));
+        let compiled = tmp.compile().unwrap();
+        compiled.assert_success();
+        assert_eq!(compiled.artifacts().count(), 1);
+
+        tmp.project_mut().sparse_output = None;
+        let compiled = tmp.compile().unwrap();
+        compiled.assert_success();
+        assert_eq!(compiled.artifacts().count(), 2);
     }
 }
