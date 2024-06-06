@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2](https://github.com/foundry-rs/compilers/releases/tag/v0.6.2) - 2024-06-06
+
+### Bug Fixes
+
+- Better tracking of cache entries ([#138](https://github.com/foundry-rs/compilers/issues/138))
+
 ## [0.6.1](https://github.com/foundry-rs/compilers/releases/tag/v0.6.1) - 2024-06-05
 
 ### Bug Fixes
@@ -15,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.6.1
 - Sync cliff.toml
 
 ### Refactor
