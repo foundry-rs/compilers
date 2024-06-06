@@ -387,6 +387,14 @@ pub struct CacheEntry<S = Settings> {
     /// This map tracks the artifacts by `name -> (Version -> PathBuf)`.
     /// This mimics the default artifacts directory structure
     pub artifacts: BTreeMap<String, BTreeMap<Version, PathBuf>>,
+    /// Whether this file was compiled at least once.
+    ///
+    /// If this is true and `artifacts` are empty, it means that given version of the file does
+    /// not produce any artifacts and it should not be compiled again.
+    ///
+    /// If this is false, then artifacts are definitely empty and it should be compiled if we may
+    /// need artifacts.
+    pub seen_by_compiler: bool,
 }
 
 impl<S> CacheEntry<S> {
@@ -588,6 +596,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             version_requirement: self.edges.version_requirement(&file).map(|v| v.to_string()),
             // artifacts remain empty until we received the compiler output
             artifacts: Default::default(),
+            seen_by_compiler: false,
         };
 
         self.cache.files.insert(file, entry.clone());
@@ -658,7 +667,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
         // only check artifact's existence if the file generated artifacts.
         // e.g. a solidity file consisting only of import statements (like interfaces that
         // re-export) do not create artifacts
-        if entry.artifacts.is_empty() {
+        if entry.seen_by_compiler && entry.artifacts.is_empty() {
             trace!("no artifacts");
             return false;
         }
@@ -985,5 +994,14 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
         }
 
         Ok(cached_artifacts)
+    }
+
+    /// Marks the cached entry as seen by the compiler, if it's cached.
+    pub fn compiler_seen(&mut self, file: &Path) {
+        if let ArtifactsCache::Cached(cache) = self {
+            if let Some(entry) = cache.cache.entry_mut(file) {
+                entry.seen_by_compiler = true;
+            }
+        }
     }
 }
