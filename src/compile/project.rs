@@ -227,9 +227,9 @@ impl<'a, T: ArtifactOutput, C: Compiler> PreprocessedState<'a, T, C> {
     /// advance to the next state by compiling all sources
     fn compile(self) -> Result<CompiledState<'a, T, C>> {
         trace!("compiling");
-        let PreprocessedState { sources, cache } = self;
+        let PreprocessedState { sources, mut cache } = self;
 
-        let mut output = sources.compile(cache.project(), cache.graph())?;
+        let mut output = sources.compile(&mut cache)?;
 
         // source paths get stripped before handing them over to solc, so solc never uses absolute
         // paths, instead `--base-path <root dir>` is set. this way any metadata that's derived from
@@ -442,9 +442,11 @@ impl<L: Language> FilteredCompilerSources<L> {
     /// Compiles all the files with `Solc`
     fn compile<C: Compiler<Language = L>, T: ArtifactOutput>(
         self,
-        project: &Project<C, T>,
-        graph: &GraphEdges<C::ParsedSource>,
+        cache: &mut ArtifactsCache<'_, T, C>,
     ) -> Result<AggregatedCompilerOutput<C::CompilationError>> {
+        let project = cache.project();
+        let graph = cache.graph();
+
         let jobs_cnt = if let Self::Parallel(_, jobs_cnt) = self { Some(jobs_cnt) } else { None };
 
         let sparse_output = SparseOutputFilter::new(project.sparse_output.as_deref());
@@ -501,6 +503,11 @@ impl<L: Language> FilteredCompilerSources<L> {
 
         for (input, mut output, actually_dirty) in results {
             let version = input.version();
+
+            // Mark all files as seen by the compiler
+            for file in &actually_dirty {
+                cache.compiler_seen(file);
+            }
 
             output.retain_files(
                 actually_dirty
