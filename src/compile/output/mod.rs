@@ -27,6 +27,8 @@ pub mod contracts;
 pub mod info;
 pub mod sources;
 
+pub type Builds<L> = BTreeMap<String, BuildContext<L>>;
+
 /// Contains a mixture of already compiled/cached artifacts and the input set of sources that still
 /// need to be compiled.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -47,7 +49,7 @@ pub struct ProjectCompileOutput<
     /// set minimum level of severity that is treated as an error
     pub(crate) compiler_severity_filter: Severity,
     /// all build infos that were just compiled
-    pub(crate) builds: BTreeMap<String, BuildContext<C::Language>>,
+    pub(crate) builds: Builds<C::Language>,
 }
 
 impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {

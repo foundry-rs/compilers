@@ -489,12 +489,11 @@ impl<L: Language> FilteredCompilerSources<L> {
 
                 trace!("calling {} with {} sources {:?}", version, sources.len(), sources.keys());
 
-                let mut input =
-                    C::Input::build(sources, opt_settings, language.clone(), version.clone())
-                        .with_base_path(project.paths.root.clone())
-                        .with_allow_paths(project.paths.allowed_paths.clone())
-                        .with_include_paths(include_paths.clone())
-                        .with_remappings(project.paths.remappings.clone());
+                let mut input = C::Input::build(sources, opt_settings, language, version.clone())
+                    .with_base_path(project.paths.root.clone())
+                    .with_allow_paths(project.paths.allowed_paths.clone())
+                    .with_include_paths(include_paths.clone())
+                    .with_remappings(project.paths.remappings.clone());
 
                 input.strip_prefix(project.paths.root.as_path());
 

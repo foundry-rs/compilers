@@ -10,10 +10,8 @@ use md5::Digest;
 use semver::Version;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
-    cell::RefCell,
     collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
-    rc::Rc,
 };
 
 pub const ETHERS_FORMAT_VERSION: &str = "ethers-rs-sol-build-info-1";
@@ -101,7 +99,7 @@ impl<L: Language> RawBuildInfo<L> {
 
         let solc_short = format!("{}.{}.{}", version.major, version.minor, version.patch);
         hasher.update(&solc_short);
-        hasher.update(&version.to_string());
+        hasher.update(version.to_string());
 
         let input = serde_json::to_value(input)?;
         hasher.update(&serde_json::to_string(&input)?);
@@ -115,11 +113,11 @@ impl<L: Language> RawBuildInfo<L> {
         let mut build_info = BTreeMap::new();
 
         if full_build_info {
-            build_info.insert("_format".to_string(), serde_json::to_value(&ETHERS_FORMAT_VERSION)?);
+            build_info.insert("_format".to_string(), serde_json::to_value(ETHERS_FORMAT_VERSION)?);
             build_info.insert("solcVersion".to_string(), serde_json::to_value(&solc_short)?);
             build_info.insert("solcLongVersion".to_string(), serde_json::to_value(&version)?);
             build_info.insert("input".to_string(), input);
-            build_info.insert("output".to_string(), serde_json::to_value(&output)?);
+            build_info.insert("output".to_string(), serde_json::to_value(output)?);
         }
 
         Ok(RawBuildInfo { id, build_info, build_context })
@@ -129,21 +127,6 @@ impl<L: Language> RawBuildInfo<L> {
     // as compiler seen/produced them.
     pub fn join_all(&mut self, root: impl AsRef<Path>) {
         self.build_context.join_all(root);
-    }
-}
-
-#[derive(Clone)]
-struct BuildInfoWriter {
-    buf: Rc<RefCell<Vec<u8>>>,
-}
-
-impl std::io::Write for BuildInfoWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.buf.borrow_mut().write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.buf.borrow_mut().flush()
     }
 }
 

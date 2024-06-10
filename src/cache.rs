@@ -2,11 +2,12 @@
 
 use crate::{
     artifacts::{Settings, Sources},
-    buildinfo::{BuildContext, RawBuildInfo},
+    buildinfo::RawBuildInfo,
     compilers::{Compiler, CompilerSettings, Language},
     config::ProjectPaths,
     error::{Result, SolcError},
     filter::{FilteredSources, SourceCompilationKind},
+    output::Builds,
     resolver::GraphEdges,
     utils, ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
     ProjectPathsConfig, Source,
@@ -313,10 +314,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
 
     /// Reads all cached [BuildContext]s from disk. [BuildContext] is inlined into [RawBuildInfo]
     /// objects, so we are basically just partially deserializing build infos here.
-    pub fn read_builds<L: Language>(
-        &self,
-        build_info_dir: impl AsRef<Path>,
-    ) -> Result<BTreeMap<String, BuildContext<L>>> {
+    pub fn read_builds<L: Language>(&self, build_info_dir: impl AsRef<Path>) -> Result<Builds<L>> {
         use rayon::prelude::*;
 
         let build_info_dir = build_info_dir.as_ref();
@@ -597,7 +595,7 @@ pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput, C: Compiler> {
     pub cached_artifacts: Artifacts<T::Artifact>,
 
     /// All already existing build infos.
-    pub cached_builds: BTreeMap<String, BuildContext<C::Language>>,
+    pub cached_builds: Builds<C::Language>,
 
     /// Relationship between all the files.
     pub edges: GraphEdges<C::ParsedSource>,
@@ -985,12 +983,15 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
     /// compiled and written to disk `written_artifacts`.
     ///
     /// Returns all the _cached_ artifacts.
-    pub fn consume(
+    pub fn consume<A>(
         self,
-        written_artifacts: &Artifacts<T::Artifact>,
+        written_artifacts: &Artifacts<A>,
         written_build_infos: &Vec<RawBuildInfo<C::Language>>,
         write_to_disk: bool,
-    ) -> Result<(Artifacts<T::Artifact>, BTreeMap<String, BuildContext<C::Language>>)> {
+    ) -> Result<(Artifacts<A>, Builds<C::Language>)>
+    where
+        T: ArtifactOutput<Artifact = A>,
+    {
         let ArtifactsCache::Cached(cache) = self else {
             trace!("no cache configured, ephemeral");
             return Ok(Default::default());
