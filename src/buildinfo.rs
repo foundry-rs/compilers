@@ -88,26 +88,21 @@ impl<L: Language> RawBuildInfo<L> {
     pub fn new<I: CompilerInput<Language = L>, E: CompilationError>(
         input: &I,
         output: &CompilerOutput<E>,
+        full_build_info: bool,
     ) -> Result<RawBuildInfo<L>> {
         let version = input.version().clone();
         let build_context = BuildContext::new(input, output)?;
 
         let mut hasher = md5::Md5::new();
-        let mut build_info = BTreeMap::new();
 
-        build_info.insert("_format".to_string(), serde_json::to_value(&ETHERS_FORMAT_VERSION)?);
         hasher.update(ETHERS_FORMAT_VERSION);
 
         let solc_short = format!("{}.{}.{}", version.major, version.minor, version.patch);
-        build_info.insert("solcVersion".to_string(), serde_json::to_value(&solc_short)?);
         hasher.update(&solc_short);
-
-        build_info.insert("solcLongVersion".to_string(), serde_json::to_value(&version)?);
         hasher.update(&version.to_string());
 
         let input = serde_json::to_value(input)?;
         hasher.update(&serde_json::to_string(&input)?);
-        build_info.insert("input".to_string(), input);
 
         // create the hash for `{_format,solcVersion,solcLongVersion,input}`
         // N.B. this is not exactly the same as hashing the json representation of these values but
@@ -115,7 +110,15 @@ impl<L: Language> RawBuildInfo<L> {
         let result = hasher.finalize();
         let id = hex::encode(result);
 
-        build_info.insert("output".to_string(), serde_json::to_value(&output)?);
+        let mut build_info = BTreeMap::new();
+
+        if full_build_info {
+            build_info.insert("_format".to_string(), serde_json::to_value(&ETHERS_FORMAT_VERSION)?);
+            build_info.insert("solcVersion".to_string(), serde_json::to_value(&solc_short)?);
+            build_info.insert("solcLongVersion".to_string(), serde_json::to_value(&version)?);
+            build_info.insert("input".to_string(), input);
+            build_info.insert("output".to_string(), serde_json::to_value(&output)?);
+        }
 
         Ok(RawBuildInfo { id, build_info, build_context })
     }
@@ -165,7 +168,7 @@ mod tests {
             v,
         );
         let output = CompilerOutput::<Error>::default();
-        let raw_info = RawBuildInfo::new(&input, &output).unwrap();
+        let raw_info = RawBuildInfo::new(&input, &output, true).unwrap();
         let _info: BuildInfo<SolcVersionedInput, CompilerOutput<Error>> =
             serde_json::from_str(&serde_json::to_string(&raw_info).unwrap()).unwrap();
     }

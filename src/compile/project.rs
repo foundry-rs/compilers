@@ -518,7 +518,7 @@ impl<L: Language> FilteredCompilerSources<L> {
                 cache.compiler_seen(file);
             }
 
-            let mut build_info = RawBuildInfo::new(&input, &output)?;
+            let mut build_info = RawBuildInfo::new(&input, &output, project.build_info)?;
 
             output.retain_files(
                 actually_dirty
