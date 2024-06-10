@@ -27,6 +27,7 @@ pub mod contracts;
 pub mod info;
 pub mod sources;
 
+/// A mapping from build_id to [BuildContext].
 pub type Builds<L> = BTreeMap<String, BuildContext<L>>;
 
 /// Contains a mixture of already compiled/cached artifacts and the input set of sources that still
