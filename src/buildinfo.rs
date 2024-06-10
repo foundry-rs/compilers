@@ -41,7 +41,9 @@ impl<I: DeserializeOwned, O: DeserializeOwned> BuildInfo<I, O> {
 /// Additional context we cache for each compiler run.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct BuildContext<L> {
+    /// Mapping from internal compiler source id to path of the source file.
     pub source_id_to_path: HashMap<u32, PathBuf>,
+    /// Language of the compiler.
     pub language: L,
 }
 

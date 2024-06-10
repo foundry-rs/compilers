@@ -377,9 +377,12 @@ impl<'a, S: CompilerSettings> From<&'a ProjectPathsConfig> for CompilerCache<S> 
     }
 }
 
+/// Cached artifact data.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CachedArtifact {
+    /// Path to the artifact file.
     pub path: PathBuf,
+    /// Build id which produced the given artifact.
     pub build_id: String,
 }
 
