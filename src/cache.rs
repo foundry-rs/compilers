@@ -314,6 +314,8 @@ impl<S: CompilerSettings> CompilerCache<S> {
 
     /// Reads all cached [BuildContext]s from disk. [BuildContext] is inlined into [RawBuildInfo]
     /// objects, so we are basically just partially deserializing build infos here.
+    ///
+    /// [BuildContext]: crate::buildinfo::BuildContext
     pub fn read_builds<L: Language>(&self, build_info_dir: impl AsRef<Path>) -> Result<Builds<L>> {
         use rayon::prelude::*;
 
