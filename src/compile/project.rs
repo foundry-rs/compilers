@@ -108,7 +108,7 @@ use crate::{
     compilers::{Compiler, CompilerInput, CompilerOutput, Language},
     error::Result,
     filter::SparseOutputFilter,
-    output::AggregatedCompilerOutput,
+    output::{AggregatedCompilerOutput, Builds},
     report,
     resolver::GraphEdges,
     ArtifactOutput, Graph, Project, ProjectCompileOutput, Sources,
@@ -333,12 +333,14 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
 
         project.artifacts_handler().handle_cached_artifacts(&cached_artifacts)?;
 
-        let builds = output
-            .build_infos
-            .iter()
-            .map(|build_info| (build_info.id.clone(), build_info.build_context.clone()))
-            .chain(cached_builds)
-            .collect();
+        let builds = Builds(
+            output
+                .build_infos
+                .iter()
+                .map(|build_info| (build_info.id.clone(), build_info.build_context.clone()))
+                .chain(cached_builds)
+                .collect(),
+        );
 
         Ok(ProjectCompileOutput {
             compiler_output: output,

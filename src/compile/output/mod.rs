@@ -14,11 +14,12 @@ use crate::{
 };
 use contracts::{VersionedContract, VersionedContracts};
 use semver::Version;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
     collections::BTreeMap,
     fmt,
+    ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
 use yansi::Paint;
@@ -28,7 +29,38 @@ pub mod info;
 pub mod sources;
 
 /// A mapping from build_id to [BuildContext].
-pub type Builds<L> = BTreeMap<String, BuildContext<L>>;
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(transparent)]
+pub struct Builds<L>(pub BTreeMap<String, BuildContext<L>>);
+
+impl<L> Default for Builds<L> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+
+impl<L> Deref for Builds<L> {
+    type Target = BTreeMap<String, BuildContext<L>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<L> DerefMut for Builds<L> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<L> IntoIterator for Builds<L> {
+    type Item = (String, BuildContext<L>);
+    type IntoIter = std::collections::btree_map::IntoIter<String, BuildContext<L>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
 
 /// Contains a mixture of already compiled/cached artifacts and the input set of sources that still
 /// need to be compiled.

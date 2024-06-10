@@ -320,14 +320,14 @@ impl<S: CompilerSettings> CompilerCache<S> {
         use rayon::prelude::*;
 
         let build_info_dir = build_info_dir.as_ref();
-
         self.builds
             .par_iter()
             .map(|build_id| {
                 utils::read_json_file(build_info_dir.join(build_id).with_extension("json"))
                     .map(|b| (build_id.clone(), b))
             })
-            .collect()
+            .collect::<Result<_>>()
+            .map(|b| Builds(b))
     }
 }
 

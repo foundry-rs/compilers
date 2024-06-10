@@ -10,7 +10,7 @@ use md5::Digest;
 use semver::Version;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
 };
 
@@ -40,7 +40,7 @@ impl<I: DeserializeOwned, O: DeserializeOwned> BuildInfo<I, O> {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct BuildContext<L> {
     /// Mapping from internal compiler source id to path of the source file.
-    pub source_id_to_path: HashMap<u32, PathBuf>,
+    pub source_id_to_path: BTreeMap<u32, PathBuf>,
     /// Language of the compiler.
     pub language: L,
 }
@@ -50,7 +50,7 @@ impl<L: Language> BuildContext<L> {
     where
         I: CompilerInput<Language = L>,
     {
-        let mut source_id_to_path = HashMap::new();
+        let mut source_id_to_path = BTreeMap::new();
 
         let input_sources = input.sources().map(|(path, _)| path).collect::<HashSet<_>>();
         for (path, source) in output.sources.iter() {
