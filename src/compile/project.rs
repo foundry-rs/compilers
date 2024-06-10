@@ -339,6 +339,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
                 .iter()
                 .map(|build_info| (build_info.id.clone(), build_info.build_context.clone()))
                 .chain(cached_builds)
+                .map(|(id, context)| (id, context.with_joined_paths(project.paths.root.as_path())))
                 .collect(),
         );
 
@@ -519,15 +520,13 @@ impl<L: Language> FilteredCompilerSources<L> {
                 cache.compiler_seen(file);
             }
 
-            let mut build_info = RawBuildInfo::new(&input, &output, project.build_info)?;
+            let build_info = RawBuildInfo::new(&input, &output, project.build_info)?;
 
             output.retain_files(
                 actually_dirty
                     .iter()
                     .map(|f| f.strip_prefix(project.paths.root.as_path()).unwrap_or(f)),
             );
-
-            build_info.join_all(project.paths.root.as_path());
             output.join_all(project.paths.root.as_path());
 
             aggregated.extend(version.clone(), build_info, output);

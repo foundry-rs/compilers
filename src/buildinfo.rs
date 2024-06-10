@@ -67,6 +67,11 @@ impl<L: Language> BuildContext<L> {
             *path = root.as_ref().join(path.as_path());
         });
     }
+
+    pub fn with_joined_paths(mut self, root: impl AsRef<Path>) -> Self {
+        self.join_all(root);
+        self
+    }
 }
 
 /// Represents `BuildInfo` object
@@ -121,12 +126,6 @@ impl<L: Language> RawBuildInfo<L> {
         }
 
         Ok(RawBuildInfo { id, build_info, build_context })
-    }
-
-    // We only join [BuildContext] paths here because input and output are kept in the same format
-    // as compiler seen/produced them.
-    pub fn join_all(&mut self, root: impl AsRef<Path>) {
-        self.build_context.join_all(root);
     }
 }
 
