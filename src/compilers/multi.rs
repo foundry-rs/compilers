@@ -8,7 +8,9 @@ use super::{
     Language, ParsedSource,
 };
 use crate::{
-    artifacts::{output_selection::OutputSelection, Error, Settings as SolcSettings, Sources},
+    artifacts::{
+        output_selection::OutputSelection, Error, Settings as SolcSettings, Source, Sources,
+    },
     error::{Result, SolcError},
     remappings::Remapping,
     resolver::parse::SolData,
@@ -47,7 +49,8 @@ impl MultiCompiler {
 }
 
 /// Languages supported by the [MultiCompiler].
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum MultiCompilerLanguage {
     Solc(SolcLanguage),
     Vyper(VyperLanguage),
@@ -102,7 +105,7 @@ impl MultiCompilerParsedSource {
 }
 
 /// Compilation error which may occur when compiling Solidity or Vyper sources.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum MultiCompilerError {
     Solc(Error),
@@ -230,6 +233,15 @@ impl CompilerInput for MultiCompilerInput {
             Self::Solc(input) => Self::Solc(input.with_remappings(remappings)),
             Self::Vyper(input) => Self::Vyper(input.with_remappings(remappings)),
         }
+    }
+
+    fn sources(&self) -> impl Iterator<Item = (&Path, &Source)> {
+        let ret: Box<dyn Iterator<Item = _>> = match self {
+            Self::Solc(input) => Box::new(input.sources()),
+            Self::Vyper(input) => Box::new(input.sources()),
+        };
+
+        ret
     }
 }
 

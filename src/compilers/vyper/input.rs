@@ -1,7 +1,10 @@
 use std::{borrow::Cow, path::Path};
 
 use super::{settings::VyperSettings, VyperLanguage, VYPER_INTERFACE_EXTENSION};
-use crate::{artifacts::Sources, compilers::CompilerInput};
+use crate::{
+    artifacts::{Source, Sources},
+    compilers::CompilerInput,
+};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
@@ -82,5 +85,13 @@ impl CompilerInput for VyperVersionedInput {
 
     fn version(&self) -> &Version {
         &self.version
+    }
+
+    fn sources(&self) -> impl Iterator<Item = (&Path, &Source)> {
+        self.input
+            .sources
+            .iter()
+            .chain(self.input.interfaces.iter())
+            .map(|(path, source)| (path.as_path(), source))
     }
 }

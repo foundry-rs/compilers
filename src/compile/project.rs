@@ -178,7 +178,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     /// let output = project.compile()?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn compile(self) -> Result<ProjectCompileOutput<<C as Compiler>::CompilationError, T>> {
+    pub fn compile(self) -> Result<ProjectCompileOutput<C, T>> {
         let slash_paths = self.project.slash_paths;
 
         // drive the compiler statemachine to completion
@@ -245,7 +245,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> PreprocessedState<'a, T, C> {
 /// Represents the state after `solc` was successfully invoked
 #[derive(Debug)]
 struct CompiledState<'a, T: ArtifactOutput, C: Compiler> {
-    output: AggregatedCompilerOutput<C::CompilationError>,
+    output: AggregatedCompilerOutput<C>,
     cache: ArtifactsCache<'a, T, C>,
 }
 
@@ -308,7 +308,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> CompiledState<'a, T, C> {
 /// Represents the state after all artifacts were written to disk
 #[derive(Debug)]
 struct ArtifactsState<'a, T: ArtifactOutput, C: Compiler> {
-    output: AggregatedCompilerOutput<C::CompilationError>,
+    output: AggregatedCompilerOutput<C>,
     cache: ArtifactsCache<'a, T, C>,
     compiled_artifacts: Artifacts<T::Artifact>,
 }
@@ -317,7 +317,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
     /// Writes the cache file
     ///
     /// this concludes the [`Project::compile()`] statemachine
-    fn write_cache(self) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
+    fn write_cache(self) -> Result<ProjectCompileOutput<C, T>> {
         let ArtifactsState { output, cache, compiled_artifacts } = self;
         let project = cache.project();
         let ignored_error_codes = project.ignored_error_codes.clone();
@@ -328,9 +328,17 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
         let skip_write_to_disk = project.no_artifacts || has_error;
         trace!(has_error, project.no_artifacts, skip_write_to_disk, cache_path=?project.cache_path(),"prepare writing cache file");
 
-        let cached_artifacts = cache.consume(&compiled_artifacts, !skip_write_to_disk)?;
+        let (cached_artifacts, cached_builds) =
+            cache.consume(&compiled_artifacts, &output.build_infos, !skip_write_to_disk)?;
 
         project.artifacts_handler().handle_cached_artifacts(&cached_artifacts)?;
+
+        let builds = output
+            .build_infos
+            .iter()
+            .map(|build_info| (build_info.id.clone(), build_info.build_context.clone()))
+            .chain(cached_builds)
+            .collect();
 
         Ok(ProjectCompileOutput {
             compiler_output: output,
@@ -339,6 +347,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
             ignored_error_codes,
             ignored_file_paths,
             compiler_severity_filter,
+            builds,
         })
     }
 }
@@ -443,7 +452,7 @@ impl<L: Language> FilteredCompilerSources<L> {
     fn compile<C: Compiler<Language = L>, T: ArtifactOutput>(
         self,
         cache: &mut ArtifactsCache<'_, T, C>,
-    ) -> Result<AggregatedCompilerOutput<C::CompilationError>> {
+    ) -> Result<AggregatedCompilerOutput<C>> {
         let project = cache.project();
         let graph = cache.graph();
 
@@ -509,21 +518,18 @@ impl<L: Language> FilteredCompilerSources<L> {
                 cache.compiler_seen(file);
             }
 
+            let mut build_info = RawBuildInfo::new(&input, &output)?;
+
             output.retain_files(
                 actually_dirty
                     .iter()
                     .map(|f| f.strip_prefix(project.paths.root.as_path()).unwrap_or(f)),
             );
 
-            // if configured also create the build info
-            if project.build_info {
-                let build_info = RawBuildInfo::new(&input, &output, version)?;
-                aggregated.build_infos.insert(version.clone(), build_info);
-            }
-
+            build_info.join_all(project.paths.root.as_path());
             output.join_all(project.paths.root.as_path());
 
-            aggregated.extend(version.clone(), output);
+            aggregated.extend(version.clone(), build_info, output);
         }
 
         Ok(aggregated)

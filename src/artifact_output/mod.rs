@@ -6,6 +6,7 @@ use crate::{
         BytecodeObject, CompactBytecode, CompactContractBytecodeCow, CompactDeployedBytecode,
         FileToContractsMap, SourceFile,
     },
+    cache::CachedArtifact,
     compile::output::{contracts::VersionedContracts, sources::VersionedSourceFiles},
     error::Result,
     sourcemap::{SourceMap, SyntaxError},
@@ -40,6 +41,8 @@ pub struct ArtifactId {
     pub source: PathBuf,
     /// `solc` version that produced this artifact
     pub version: Version,
+    /// `solc` build id
+    pub build_id: String,
 }
 
 impl ArtifactId {
@@ -68,7 +71,7 @@ impl ArtifactId {
 
     /// Returns a `<source path>:<name>` slug that uniquely identifies an artifact
     pub fn identifier(&self) -> String {
-        format!("{}:{}", self.source.to_string_lossy(), self.name)
+        format!("{}:{}", self.source.display(), self.name)
     }
 
     /// Returns a `<filename><version>:<name>` slug that identifies an artifact
@@ -93,6 +96,7 @@ pub struct ArtifactFile<T> {
     pub file: PathBuf,
     /// `solc` version that produced this artifact
     pub version: Version,
+    pub build_id: String,
 }
 
 impl<T: Serialize> ArtifactFile<T> {
@@ -274,6 +278,7 @@ impl<T> Artifacts<T> {
                                 name,
                                 source: source.clone(),
                                 version: artifact.version.clone(),
+                                build_id: artifact.build_id.clone(),
                             }
                             .with_slashed_paths(),
                             &artifact.artifact,
@@ -299,6 +304,7 @@ impl<T> Artifacts<T> {
                                 name,
                                 source: source.clone(),
                                 version: artifact.version,
+                                build_id: artifact.build_id.clone(),
                             }
                             .with_slashed_paths(),
                             artifact.artifact,
@@ -821,9 +827,9 @@ pub trait ArtifactOutput {
         // we reuse the path, this will make sure that even if there are conflicting
         // files (files for witch `T::output_file()` would return the same path) we use
         // consistent output paths
-        if let Some(existing_artifact) = ctx.existing_artifact(file, name, version).cloned() {
+        if let Some(existing_artifact) = ctx.existing_artifact(file, name, version) {
             trace!("use existing artifact file {:?}", existing_artifact,);
-            existing_artifact
+            existing_artifact.to_path_buf()
         } else {
             let path = if versioned {
                 Self::output_file_versioned(file, name, version)
@@ -863,7 +869,7 @@ pub trait ArtifactOutput {
             .existing_artifacts
             .values()
             .flat_map(|artifacts| artifacts.values().flat_map(|artifacts| artifacts.values()))
-            .map(|p| p.to_slash_lossy().to_lowercase())
+            .map(|a| a.path.to_slash_lossy().to_lowercase())
             .collect::<HashSet<_>>();
 
         let mut files = contracts.keys().collect::<Vec<_>>();
@@ -911,6 +917,7 @@ pub trait ArtifactOutput {
                         artifact,
                         file: artifact_path,
                         version: contract.version.clone(),
+                        build_id: contract.build_id.clone(),
                     };
 
                     artifacts
@@ -969,6 +976,7 @@ pub trait ArtifactOutput {
                                     artifact,
                                     file: artifact_path,
                                     version: source.version.clone(),
+                                    build_id: source.build_id.clone(),
                                 });
                             }
                         }
@@ -1021,7 +1029,8 @@ pub struct OutputContext<'a> {
     /// └── inner
     ///     └── a.sol
     /// ```
-    pub existing_artifacts: BTreeMap<&'a Path, &'a BTreeMap<String, BTreeMap<Version, PathBuf>>>,
+    pub existing_artifacts:
+        BTreeMap<&'a Path, &'a BTreeMap<String, BTreeMap<Version, CachedArtifact>>>,
 }
 
 // === impl OutputContext
@@ -1047,9 +1056,12 @@ impl<'a> OutputContext<'a> {
         file: impl AsRef<Path>,
         contract: &str,
         version: &Version,
-    ) -> Option<&PathBuf> {
+    ) -> Option<&Path> {
         self.existing_artifacts.get(file.as_ref()).and_then(|contracts| {
-            contracts.get(contract).and_then(|versions| versions.get(version))
+            contracts
+                .get(contract)
+                .and_then(|versions| versions.get(version))
+                .map(|a| a.path.as_path())
         })
     }
 }

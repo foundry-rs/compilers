@@ -5,15 +5,16 @@ use crate::{
         contract::{CompactContractBytecode, CompactContractRef, Contract},
         Severity,
     },
-    buildinfo::RawBuildInfo,
-    compilers::{multi::MultiCompilerError, CompilationError, CompilerOutput},
+    buildinfo::{BuildContext, RawBuildInfo},
+    compilers::{multi::MultiCompiler, CompilationError, Compiler, CompilerOutput},
+    error::SolcError,
     info::ContractInfoRef,
     sources::{VersionedSourceFile, VersionedSourceFiles},
     Artifact, ArtifactId, ArtifactOutput, Artifacts, ConfigurableArtifacts, SolcIoError,
 };
 use contracts::{VersionedContract, VersionedContracts};
 use semver::Version;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{
     borrow::Cow,
     collections::BTreeMap,
@@ -29,9 +30,12 @@ pub mod sources;
 /// Contains a mixture of already compiled/cached artifacts and the input set of sources that still
 /// need to be compiled.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct ProjectCompileOutput<E = MultiCompilerError, T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct ProjectCompileOutput<
+    C: Compiler = MultiCompiler,
+    T: ArtifactOutput = ConfigurableArtifacts,
+> {
     /// contains the aggregated `CompilerOutput`
-    pub(crate) compiler_output: AggregatedCompilerOutput<E>,
+    pub(crate) compiler_output: AggregatedCompilerOutput<C>,
     /// all artifact files from `output` that were freshly compiled and written
     pub(crate) compiled_artifacts: Artifacts<T::Artifact>,
     /// All artifacts that were read from cache
@@ -42,9 +46,11 @@ pub struct ProjectCompileOutput<E = MultiCompilerError, T: ArtifactOutput = Conf
     pub(crate) ignored_file_paths: Vec<PathBuf>,
     /// set minimum level of severity that is treated as an error
     pub(crate) compiler_severity_filter: Severity,
+    /// all build infos that were just compiled
+    pub(crate) builds: BTreeMap<String, BuildContext<C::Language>>,
 }
 
-impl<T: ArtifactOutput, E> ProjectCompileOutput<E, T> {
+impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// Converts all `\\` separators in _all_ paths to `/`
     pub fn slash_paths(&mut self) {
         self.compiler_output.slash_paths();
@@ -227,17 +233,17 @@ impl<T: ArtifactOutput, E> ProjectCompileOutput<E, T> {
     ///     project.compile()?.into_output().contracts_into_iter().collect();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn output(&self) -> &AggregatedCompilerOutput<E> {
+    pub fn output(&self) -> &AggregatedCompilerOutput<C> {
         &self.compiler_output
     }
 
     /// Returns a mutable reference to the (merged) solc compiler output.
-    pub fn output_mut(&mut self) -> &mut AggregatedCompilerOutput<E> {
+    pub fn output_mut(&mut self) -> &mut AggregatedCompilerOutput<C> {
         &mut self.compiler_output
     }
 
     /// Consumes the output and returns the (merged) solc compiler output.
-    pub fn into_output(self) -> AggregatedCompilerOutput<E> {
+    pub fn into_output(self) -> AggregatedCompilerOutput<C> {
         self.compiler_output
     }
 
@@ -438,9 +444,13 @@ impl<T: ArtifactOutput, E> ProjectCompileOutput<E, T> {
         self.into_artifacts()
             .map(|(artifact_id, artifact)| (artifact_id, artifact.into_contract_bytecode()))
     }
+
+    pub fn builds(&self) -> impl Iterator<Item = (&String, &BuildContext<C::Language>)> {
+        self.builds.iter()
+    }
 }
 
-impl<E: CompilationError, T: ArtifactOutput> ProjectCompileOutput<E, T> {
+impl<C: Compiler, T: ArtifactOutput> ProjectCompileOutput<C, T> {
     /// Returns whether any errors were emitted by the compiler.
     pub fn has_compiler_errors(&self) -> bool {
         self.compiler_output.has_error(
@@ -470,7 +480,7 @@ impl<E: CompilationError, T: ArtifactOutput> ProjectCompileOutput<E, T> {
     }
 }
 
-impl<E: CompilationError, T: ArtifactOutput> fmt::Display for ProjectCompileOutput<E, T> {
+impl<C: Compiler, T: ArtifactOutput> fmt::Display for ProjectCompileOutput<C, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.compiler_output.is_unchanged() {
             f.write_str("Nothing to compile")
@@ -489,19 +499,19 @@ impl<E: CompilationError, T: ArtifactOutput> fmt::Display for ProjectCompileOutp
 /// The aggregated output of (multiple) compile jobs
 ///
 /// This is effectively a solc version aware `CompilerOutput`
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct AggregatedCompilerOutput<E> {
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct AggregatedCompilerOutput<C: Compiler> {
     /// all errors from all `CompilerOutput`
-    pub errors: Vec<E>,
+    pub errors: Vec<C::CompilationError>,
     /// All source files combined with the solc version used to compile them
     pub sources: VersionedSourceFiles,
     /// All compiled contracts combined with the solc version used to compile them
     pub contracts: VersionedContracts,
     // All the `BuildInfo`s of solc invocations.
-    pub build_infos: BTreeMap<Version, RawBuildInfo>,
+    pub build_infos: Vec<RawBuildInfo<C::Language>>,
 }
 
-impl<E> Default for AggregatedCompilerOutput<E> {
+impl<C: Compiler> Default for AggregatedCompilerOutput<C> {
     fn default() -> Self {
         Self {
             errors: Vec::new(),
@@ -552,7 +562,7 @@ impl<'a> From<&'a [u64]> for ErrorFilter<'a> {
     }
 }
 
-impl<E> AggregatedCompilerOutput<E> {
+impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// Converts all `\\` separators in _all_ paths to `/`
     pub fn slash_paths(&mut self) {
         self.sources.slash_paths();
@@ -564,7 +574,7 @@ impl<E> AggregatedCompilerOutput<E> {
         ignored_error_codes: &'a [u64],
         ignored_file_paths: &'a [PathBuf],
         compiler_severity_filter: Severity,
-    ) -> OutputDiagnostics<'a, E> {
+    ) -> OutputDiagnostics<'a, C> {
         OutputDiagnostics {
             compiler_output: self,
             ignored_error_codes,
@@ -581,30 +591,37 @@ impl<E> AggregatedCompilerOutput<E> {
         self.contracts.is_empty() && self.errors.is_empty()
     }
 
-    pub fn extend_all<I>(&mut self, out: I)
-    where
-        I: IntoIterator<Item = (Version, CompilerOutput<E>)>,
-    {
-        for (v, o) in out {
-            self.extend(v, o)
-        }
-    }
-
     /// adds a new `CompilerOutput` to the aggregated output
-    pub fn extend(&mut self, version: Version, output: CompilerOutput<E>) {
+    pub fn extend(
+        &mut self,
+        version: Version,
+        build_info: RawBuildInfo<C::Language>,
+        output: CompilerOutput<C::CompilationError>,
+    ) {
+        let build_id = build_info.id.clone();
+        self.build_infos.push(build_info);
+
         let CompilerOutput { errors, sources, contracts } = output;
         self.errors.extend(errors);
 
         for (path, source_file) in sources {
             let sources = self.sources.as_mut().entry(path).or_default();
-            sources.push(VersionedSourceFile { source_file, version: version.clone() });
+            sources.push(VersionedSourceFile {
+                source_file,
+                version: version.clone(),
+                build_id: build_id.clone(),
+            });
         }
 
         for (file_name, new_contracts) in contracts {
             let contracts = self.contracts.as_mut().entry(file_name).or_default();
             for (contract_name, contract) in new_contracts {
                 let versioned = contracts.entry(contract_name).or_default();
-                versioned.push(VersionedContract { contract, version: version.clone() });
+                versioned.push(VersionedContract {
+                    contract,
+                    version: version.clone(),
+                    build_id: build_id.clone(),
+                });
             }
         }
     }
@@ -615,18 +632,18 @@ impl<E> AggregatedCompilerOutput<E> {
     ///
     /// The created files have the md5 hash `{_format,solcVersion,solcLongVersion,input}` as their
     /// file name
-    pub fn write_build_infos(&self, build_info_dir: impl AsRef<Path>) -> Result<(), SolcIoError> {
+    pub fn write_build_infos(&self, build_info_dir: impl AsRef<Path>) -> Result<(), SolcError> {
         if self.build_infos.is_empty() {
             return Ok(());
         }
         let build_info_dir = build_info_dir.as_ref();
         std::fs::create_dir_all(build_info_dir)
             .map_err(|err| SolcIoError::new(err, build_info_dir))?;
-        for (version, build_info) in &self.build_infos {
-            trace!("writing build info file for solc {}", version);
+        for build_info in &self.build_infos {
+            trace!("writing build info file {}", build_info.id);
             let file_name = format!("{}.json", build_info.id);
             let file = build_info_dir.join(file_name);
-            std::fs::write(&file, &build_info.build_info)
+            std::fs::write(&file, &serde_json::to_string(build_info)?)
                 .map_err(|err| SolcIoError::new(err, file))?;
         }
         Ok(())
@@ -829,7 +846,7 @@ impl<E> AggregatedCompilerOutput<E> {
     }
 }
 
-impl<E: CompilationError> AggregatedCompilerOutput<E> {
+impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// Whether the output contains a compiler error
     ///
     /// This adheres to the given `compiler_severity_filter` and also considers [CompilationError]
@@ -885,9 +902,9 @@ impl<E: CompilationError> AggregatedCompilerOutput<E> {
 
 /// Helper type to implement display for solc errors
 #[derive(Clone, Debug)]
-pub struct OutputDiagnostics<'a, E> {
+pub struct OutputDiagnostics<'a, C: Compiler> {
     /// output of the compiled project
-    compiler_output: &'a AggregatedCompilerOutput<E>,
+    compiler_output: &'a AggregatedCompilerOutput<C>,
     /// the error codes to ignore
     ignored_error_codes: &'a [u64],
     /// the file paths to ignore
@@ -896,7 +913,7 @@ pub struct OutputDiagnostics<'a, E> {
     compiler_severity_filter: Severity,
 }
 
-impl<'a, E: CompilationError> OutputDiagnostics<'a, E> {
+impl<'a, C: Compiler> OutputDiagnostics<'a, C> {
     /// Returns true if there is at least one error of high severity
     pub fn has_error(&self) -> bool {
         self.compiler_output.has_error(
@@ -924,7 +941,7 @@ impl<'a, E: CompilationError> OutputDiagnostics<'a, E> {
     }
 }
 
-impl<'a, E: CompilationError> fmt::Display for OutputDiagnostics<'a, E> {
+impl<'a, C: Compiler> fmt::Display for OutputDiagnostics<'a, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Compiler run ")?;
         if self.has_error() {

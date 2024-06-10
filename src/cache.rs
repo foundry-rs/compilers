@@ -2,7 +2,8 @@
 
 use crate::{
     artifacts::{Settings, Sources},
-    compilers::{Compiler, CompilerSettings},
+    buildinfo::{BuildContext, RawBuildInfo},
+    compilers::{Compiler, CompilerSettings, Language},
     config::ProjectPaths,
     error::{Result, SolcError},
     filter::{FilteredSources, SourceCompilationKind},
@@ -37,11 +38,12 @@ pub struct CompilerCache<S = Settings> {
     /// contains all directories used for the project
     pub paths: ProjectPaths,
     pub files: BTreeMap<PathBuf, CacheEntry<S>>,
+    pub builds: BTreeSet<String>,
 }
 
 impl<S> CompilerCache<S> {
     pub fn new(format: String, paths: ProjectPaths) -> Self {
-        CompilerCache { format, paths, files: Default::default() }
+        CompilerCache { format, paths, files: Default::default(), builds: Default::default() }
     }
 }
 
@@ -308,6 +310,25 @@ impl<S: CompilerSettings> CompilerCache<S> {
             .collect::<Result<ArtifactsMap<_>>>()?;
         Ok(Artifacts(artifacts))
     }
+
+    /// Reads all cached [BuildContext]s from disk. [BuildContext] is inlined into [RawBuildInfo]
+    /// objects, so we are basically just partially deserializing build infos here.
+    pub fn read_builds<L: Language>(
+        &self,
+        build_info_dir: impl AsRef<Path>,
+    ) -> Result<BTreeMap<String, BuildContext<L>>> {
+        use rayon::prelude::*;
+
+        let build_info_dir = build_info_dir.as_ref();
+
+        self.builds
+            .par_iter()
+            .map(|build_id| {
+                utils::read_json_file(build_info_dir.join(build_id).with_extension("json"))
+                    .map(|b| (build_id.clone(), b))
+            })
+            .collect()
+    }
 }
 
 #[cfg(feature = "async")]
@@ -342,6 +363,7 @@ impl<S> Default for CompilerCache<S> {
     fn default() -> Self {
         CompilerCache {
             format: ETHERS_FORMAT_VERSION.to_string(),
+            builds: Default::default(),
             files: Default::default(),
             paths: Default::default(),
         }
@@ -353,6 +375,12 @@ impl<'a, S: CompilerSettings> From<&'a ProjectPathsConfig> for CompilerCache<S> 
         let paths = config.paths_relative();
         CompilerCache::new(Default::default(), paths)
     }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CachedArtifact {
+    pub path: PathBuf,
+    pub build_id: String,
 }
 
 /// A `CacheEntry` in the cache file represents a solidity file
@@ -386,7 +414,7 @@ pub struct CacheEntry<S = Settings> {
     ///
     /// This map tracks the artifacts by `name -> (Version -> PathBuf)`.
     /// This mimics the default artifacts directory structure
-    pub artifacts: BTreeMap<String, BTreeMap<Version, PathBuf>>,
+    pub artifacts: BTreeMap<String, BTreeMap<Version, CachedArtifact>>,
     /// Whether this file was compiled at least once.
     ///
     /// If this is true and `artifacts` are empty, it means that given version of the file does
@@ -418,7 +446,7 @@ impl<S> CacheEntry<S> {
     /// # }
     /// ```
     pub fn find_artifact_path(&self, contract_name: impl AsRef<str>) -> Option<&Path> {
-        self.artifacts.get(contract_name.as_ref())?.iter().next().map(|(_, p)| p.as_path())
+        self.artifacts.get(contract_name.as_ref())?.iter().next().map(|(_, p)| p.path.as_path())
     }
 
     /// Reads the last modification date from the file's metadata
@@ -443,9 +471,14 @@ impl<S> CacheEntry<S> {
         let mut artifacts = BTreeMap::new();
         for (artifact_name, versioned_files) in self.artifacts.iter() {
             let mut files = Vec::with_capacity(versioned_files.len());
-            for (version, file) in versioned_files {
-                let artifact: Artifact = utils::read_json_file(file)?;
-                files.push(ArtifactFile { artifact, file: file.clone(), version: version.clone() });
+            for (version, cached_artifact) in versioned_files {
+                let artifact: Artifact = utils::read_json_file(&cached_artifact.path)?;
+                files.push(ArtifactFile {
+                    artifact,
+                    file: cached_artifact.path.clone(),
+                    version: version.clone(),
+                    build_id: cached_artifact.build_id.clone(),
+                });
             }
             artifacts.insert(artifact_name.clone(), files);
         }
@@ -459,10 +492,13 @@ impl<S> CacheEntry<S> {
     {
         for (name, artifacts) in artifacts.into_iter() {
             for artifact in artifacts {
-                self.artifacts
-                    .entry(name.clone())
-                    .or_default()
-                    .insert(artifact.version.clone(), artifact.file.clone());
+                self.artifacts.entry(name.clone()).or_default().insert(
+                    artifact.version.clone(),
+                    CachedArtifact {
+                        build_id: artifact.build_id.clone(),
+                        path: artifact.file.clone(),
+                    },
+                );
             }
         }
     }
@@ -473,12 +509,12 @@ impl<S> CacheEntry<S> {
     }
 
     /// Iterator that yields all artifact files and their version
-    pub fn artifacts_versions(&self) -> impl Iterator<Item = (&Version, &PathBuf)> {
+    pub fn artifacts_versions(&self) -> impl Iterator<Item = (&Version, &CachedArtifact)> {
         self.artifacts.values().flatten()
     }
 
     /// Returns the artifact file for the contract and version pair
-    pub fn find_artifact(&self, contract: &str, version: &Version) -> Option<&PathBuf> {
+    pub fn find_artifact(&self, contract: &str, version: &Version) -> Option<&CachedArtifact> {
         self.artifacts.get(contract).and_then(|files| files.get(version))
     }
 
@@ -486,37 +522,37 @@ impl<S> CacheEntry<S> {
     pub fn artifacts_for_version<'a>(
         &'a self,
         version: &'a Version,
-    ) -> impl Iterator<Item = &'a PathBuf> + 'a {
+    ) -> impl Iterator<Item = &'a CachedArtifact> + 'a {
         self.artifacts_versions().filter_map(move |(ver, file)| (ver == version).then_some(file))
     }
 
     /// Iterator that yields all artifact files
-    pub fn artifacts(&self) -> impl Iterator<Item = &PathBuf> {
+    pub fn artifacts(&self) -> impl Iterator<Item = &CachedArtifact> {
         self.artifacts.values().flat_map(BTreeMap::values)
     }
 
     /// Mutable iterator over all artifact files
-    pub fn artifacts_mut(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+    pub fn artifacts_mut(&mut self) -> impl Iterator<Item = &mut CachedArtifact> {
         self.artifacts.values_mut().flat_map(BTreeMap::values_mut)
     }
 
     /// Checks if all artifact files exist
     pub fn all_artifacts_exist(&self) -> bool {
-        self.artifacts().all(|p| p.exists())
+        self.artifacts().all(|a| a.path.exists())
     }
 
     /// Sets the artifact's paths to `base` adjoined to the artifact's `path`.
     pub fn join_artifacts_files(&mut self, base: impl AsRef<Path>) {
         let base = base.as_ref();
-        self.artifacts_mut().for_each(|p| *p = base.join(&*p))
+        self.artifacts_mut().for_each(|a| a.path = base.join(&a.path))
     }
 
     /// Removes `base` from the artifact's path
     pub fn strip_artifact_files_prefixes(&mut self, base: impl AsRef<Path>) {
         let base = base.as_ref();
-        self.artifacts_mut().for_each(|p| {
-            if let Ok(rem) = p.strip_prefix(base) {
-                *p = rem.to_path_buf();
+        self.artifacts_mut().for_each(|a| {
+            if let Ok(rem) = a.path.strip_prefix(base) {
+                a.path = rem.to_path_buf();
             }
         })
     }
@@ -556,6 +592,9 @@ pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput, C: Compiler> {
 
     /// All already existing artifacts.
     pub cached_artifacts: Artifacts<T::Artifact>,
+
+    /// All already existing build infos.
+    pub cached_builds: BTreeMap<String, BuildContext<C::Language>>,
 
     /// Relationship between all the files.
     pub edges: GraphEdges<C::ParsedSource>,
@@ -677,10 +716,10 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             return true;
         }
 
-        if entry.artifacts_for_version(version).any(|artifact_path| {
-            let missing_artifact = !self.cached_artifacts.has_artifact(artifact_path);
+        if entry.artifacts_for_version(version).any(|artifact| {
+            let missing_artifact = !self.cached_artifacts.has_artifact(&artifact.path);
             if missing_artifact {
-                trace!("missing artifact \"{}\"", artifact_path.display());
+                trace!("missing artifact \"{}\"", artifact.path.display());
             }
             missing_artifact
         }) {
@@ -847,7 +886,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
             cache.remove_missing_files();
 
             // read all artifacts
-            let cached_artifacts = if project.paths.artifacts.exists() {
+            let mut cached_artifacts = if project.paths.artifacts.exists() {
                 trace!("reading artifacts from cache...");
                 // if we failed to read the whole set of artifacts we use an empty set
                 let artifacts = cache.read_artifacts::<T::Artifact>().unwrap_or_default();
@@ -857,9 +896,22 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
                 Default::default()
             };
 
+            trace!("reading build infos from cache...");
+            let cached_builds = cache.read_builds(&project.paths.build_infos).unwrap_or_default();
+
+            // Remove artifacts for which we are missing a build info.
+            cached_artifacts.0.retain(|_, artifacts| {
+                artifacts.retain(|_, artifacts| {
+                    artifacts.retain(|artifact| cached_builds.contains_key(&artifact.build_id));
+                    !artifacts.is_empty()
+                });
+                !artifacts.is_empty()
+            });
+
             let cache = ArtifactsCacheInner {
                 cache,
                 cached_artifacts,
+                cached_builds,
                 edges,
                 project,
                 dirty_sources: Default::default(),
@@ -933,8 +985,9 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
     pub fn consume(
         self,
         written_artifacts: &Artifacts<T::Artifact>,
+        written_build_infos: &Vec<RawBuildInfo<C::Language>>,
         write_to_disk: bool,
-    ) -> Result<Artifacts<T::Artifact>> {
+    ) -> Result<(Artifacts<T::Artifact>, BTreeMap<String, BuildContext<C::Language>>)> {
         let ArtifactsCache::Cached(cache) = self else {
             trace!("no cache configured, ephemeral");
             return Ok(Default::default());
@@ -943,6 +996,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
         let ArtifactsCacheInner {
             mut cache,
             mut cached_artifacts,
+            cached_builds,
             dirty_sources,
             sources_in_scope,
             project,
@@ -983,6 +1037,10 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
             }
         }
 
+        for build_info in written_build_infos {
+            cache.builds.insert(build_info.id.clone());
+        }
+
         // write to disk
         if write_to_disk {
             // make all `CacheEntry` paths relative to the project root and all artifact
@@ -993,7 +1051,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
             cache.write(project.cache_path())?;
         }
 
-        Ok(cached_artifacts)
+        Ok((cached_artifacts, cached_builds))
     }
 
     /// Marks the cached entry as seen by the compiler, if it's cached.
