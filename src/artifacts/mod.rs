@@ -1981,7 +1981,14 @@ impl SourceFiles {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::AggregatedCompilerOutput;
+    use crate::{
+        buildinfo::RawBuildInfo,
+        compilers::{
+            solc::{SolcCompiler, SolcVersionedInput},
+            CompilerInput,
+        },
+        AggregatedCompilerOutput,
+    };
     use alloy_primitives::Address;
 
     #[test]
@@ -2014,8 +2021,16 @@ mod tests {
             sources: Default::default(),
         };
 
-        let mut aggregated = AggregatedCompilerOutput::default();
-        aggregated.extend("0.8.12".parse().unwrap(), out_converted);
+        let v: Version = "0.8.12".parse().unwrap();
+        let input = SolcVersionedInput::build(
+            Default::default(),
+            Default::default(),
+            SolcLanguage::Solidity,
+            v.clone(),
+        );
+        let build_info = RawBuildInfo::new(&input, &out_converted, true).unwrap();
+        let mut aggregated = AggregatedCompilerOutput::<SolcCompiler>::default();
+        aggregated.extend(v, build_info, out_converted);
         assert!(!aggregated.is_unchanged());
     }
 

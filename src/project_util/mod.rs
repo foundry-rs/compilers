@@ -346,7 +346,7 @@ contract {} {{}}
         self.project().paths.root.as_path()
     }
 
-    pub fn compile(&self) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
+    pub fn compile(&self) -> Result<ProjectCompileOutput<C, T>> {
         self.project().compile()
     }
 

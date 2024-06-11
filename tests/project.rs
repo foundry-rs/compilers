@@ -11,8 +11,7 @@ use foundry_compilers::{
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
     compilers::{
         multi::{
-            MultiCompiler, MultiCompilerError, MultiCompilerLanguage, MultiCompilerParsedSource,
-            MultiCompilerSettings,
+            MultiCompiler, MultiCompilerLanguage, MultiCompilerParsedSource, MultiCompilerSettings,
         },
         solc::{SolcCompiler, SolcLanguage},
         vyper::{Vyper, VyperLanguage, VyperSettings},
@@ -327,7 +326,7 @@ fn can_compile_dapp_detect_changes_in_sources() {
     let cache = CompilerCache::<Settings>::read(&project.paths().cache).unwrap();
     assert_eq!(cache.files.len(), 2);
 
-    let mut artifacts = compiled.into_artifacts().collect::<HashMap<_, _>>();
+    let artifacts = compiled.into_artifacts().collect::<HashMap<_, _>>();
 
     // overwrite import
     let _ = project
@@ -356,8 +355,12 @@ fn can_compile_dapp_detect_changes_in_sources() {
 
     // and all recompiled artifacts are different
     for (p, artifact) in compiled.into_artifacts() {
-        let other = artifacts.remove(&p).unwrap();
-        assert_ne!(artifact, other);
+        let other = artifacts
+            .iter()
+            .find(|(id, _)| id.name == p.name && id.version == p.version && id.source == p.source)
+            .unwrap()
+            .1;
+        assert_ne!(artifact, *other);
     }
 }
 
@@ -2787,7 +2790,7 @@ fn compile_project_with_options(
     severity_filter: Option<foundry_compilers::artifacts::Severity>,
     ignore_paths: Option<Vec<PathBuf>>,
     ignore_error_code: Option<u64>,
-) -> ProjectCompileOutput<MultiCompilerError> {
+) -> ProjectCompileOutput<MultiCompiler> {
     let mut builder =
         Project::builder().no_artifacts().paths(gen_test_data_licensing_warning()).ephemeral();
 

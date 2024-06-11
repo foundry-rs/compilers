@@ -178,7 +178,7 @@ impl Flattener {
     /// into this function.
     pub fn new<C: Compiler>(
         project: &Project<C>,
-        output: &ProjectCompileOutput<C::CompilationError, ConfigurableArtifacts>,
+        output: &ProjectCompileOutput<C, ConfigurableArtifacts>,
         target: &Path,
     ) -> Result<Self>
     where

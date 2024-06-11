@@ -32,9 +32,32 @@ pub const VYPER_EXTENSIONS: &[&str] = &["vy", "vyi"];
 pub const VYPER_INTERFACE_EXTENSION: &str = "vyi";
 
 /// Vyper language, used as [Compiler::Language] for the Vyper compiler.
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 #[non_exhaustive]
 pub struct VyperLanguage;
+
+impl serde::Serialize for VyperLanguage {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str("vyper")
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for VyperLanguage {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let res = String::deserialize(deserializer)?;
+        if res != "vyper" {
+            Err(serde::de::Error::custom(format!("Invalid Vyper language: {}", res)))
+        } else {
+            Ok(VyperLanguage)
+        }
+    }
+}
 
 impl Language for VyperLanguage {
     const FILE_EXTENSIONS: &'static [&'static str] = VYPER_EXTENSIONS;

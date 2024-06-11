@@ -1,6 +1,7 @@
 use crate::{
     artifacts::{
-        output_selection::OutputSelection, Contract, FileToContractsMap, SourceFile, Sources,
+        output_selection::OutputSelection, Contract, FileToContractsMap, Source, SourceFile,
+        Sources,
     },
     error::Result,
     remappings::Remapping,
@@ -93,6 +94,8 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
     /// Returns compiler version for which this input is intended.
     fn version(&self) -> &Version;
 
+    fn sources(&self) -> impl Iterator<Item = (&Path, &Source)>;
+
     /// Returns compiler name used by reporters to display output during compilation.
     fn compiler_name(&self) -> Cow<'static, str>;
 
@@ -156,7 +159,9 @@ pub trait ParsedSource: Debug + Sized + Send + Clone {
 }
 
 /// Error returned by compiler. Might also represent a warning or informational message.
-pub trait CompilationError: Serialize + Send + Sync + Display + Debug + Clone + 'static {
+pub trait CompilationError:
+    Serialize + Send + Sync + Display + Debug + Clone + PartialEq + Eq + 'static
+{
     fn is_warning(&self) -> bool;
     fn is_error(&self) -> bool;
     fn source_location(&self) -> Option<crate::artifacts::error::SourceLocation>;
@@ -227,7 +232,9 @@ impl<E> Default for CompilerOutput<E> {
 }
 
 /// Keeps a set of languages recognized by the compiler.
-pub trait Language: Hash + Eq + Clone + Debug + Display + 'static {
+pub trait Language:
+    Hash + Eq + Copy + Clone + Debug + Display + Send + Sync + Serialize + DeserializeOwned + 'static
+{
     /// Extensions of source files recognized by the language set.
     const FILE_EXTENSIONS: &'static [&'static str];
 }

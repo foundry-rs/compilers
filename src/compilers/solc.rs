@@ -6,7 +6,8 @@ use super::{
 };
 use crate::{
     artifacts::{
-        output_selection::OutputSelection, Error, Settings as SolcSettings, SolcInput, Sources,
+        output_selection::OutputSelection, Error, Settings as SolcSettings, SolcInput, Source,
+        Sources,
     },
     error::Result,
     remappings::Remapping,
@@ -33,7 +34,7 @@ pub enum SolcCompiler {
 }
 
 /// Languages supported by the Solc compiler.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum SolcLanguage {
     Solidity,
@@ -116,17 +117,14 @@ impl Compiler for SolcCompiler {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SolcVersionedInput {
-    #[serde(skip)]
     pub version: Version,
     #[serde(flatten)]
     pub input: SolcInput,
-    #[serde(skip)]
     pub allow_paths: BTreeSet<PathBuf>,
-    #[serde(skip)]
     pub base_path: Option<PathBuf>,
-    #[serde(skip)]
     pub include_paths: BTreeSet<PathBuf>,
 }
 
@@ -156,11 +154,15 @@ impl CompilerInput for SolcVersionedInput {
     }
 
     fn language(&self) -> Self::Language {
-        self.input.language.clone()
+        self.input.language
     }
 
     fn version(&self) -> &Version {
         &self.version
+    }
+
+    fn sources(&self) -> impl Iterator<Item = (&Path, &Source)> {
+        self.input.sources.iter().map(|(path, source)| (path.as_path(), source))
     }
 
     fn with_remappings(mut self, remappings: Vec<Remapping>) -> Self {

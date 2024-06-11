@@ -280,7 +280,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
         println!("cargo:rerun-if-changed={}", self.paths.sources.display())
     }
 
-    pub fn compile(&self) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
+    pub fn compile(&self) -> Result<ProjectCompileOutput<C, T>> {
         project::ProjectCompiler::new(self)?.compile()
     }
 
@@ -295,10 +295,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// let output = project.compile_file("example/Greeter.sol")?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn compile_file(
-        &self,
-        file: impl Into<PathBuf>,
-    ) -> Result<ProjectCompileOutput<C::CompilationError, T>> {
+    pub fn compile_file(&self, file: impl Into<PathBuf>) -> Result<ProjectCompileOutput<C, T>> {
         let file = file.into();
         let source = Source::read(&file)?;
         project::ProjectCompiler::with_sources(self, Sources::from([(file, source)]))?.compile()
@@ -316,10 +313,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// let output = project.compile_files(["examples/Foo.sol", "examples/Bar.sol"])?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn compile_files<P, I>(
-        &self,
-        files: I,
-    ) -> Result<ProjectCompileOutput<C::CompilationError, T>>
+    pub fn compile_files<P, I>(&self, files: I) -> Result<ProjectCompileOutput<C, T>>
     where
         I: IntoIterator<Item = P>,
         P: Into<PathBuf>,

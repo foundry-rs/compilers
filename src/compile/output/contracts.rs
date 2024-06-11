@@ -284,6 +284,7 @@ impl IntoIterator for VersionedContracts {
 pub struct VersionedContract {
     pub contract: Contract,
     pub version: Version,
+    pub build_id: String,
 }
 
 /// A mapping of `ArtifactId` and their `CompactContractBytecode`
