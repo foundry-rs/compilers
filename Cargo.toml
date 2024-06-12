@@ -1,4 +1,8 @@
-[package]
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
 name = "foundry-compilers"
 authors = ["Foundry Maintainers"]
 version = "0.7.0"
@@ -13,110 +17,18 @@ keywords = ["foundry", "solidity", "solc", "ethereum", "ethers"]
 edition = "2021"
 exclude = [".github/", "scripts/", "test-data/"]
 
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
-
-[package.metadata.playground]
-all-features = true
-
-[dependencies]
+[workspace.dependencies]
+foundry-compilers-artifacts = { path = "crates/artifacts", version = "0.7.0" }
+foundry-compilers-core = { path = "crates/core", version = "0.7.0" }
+serde = { version = "1", features = ["derive", "rc"] }
+semver = { version = "1.0", features = ["serde"] }
+serde_json = "1.0"
 alloy-primitives = { version = "0.7", features = ["serde", "rand"] }
 alloy-json-abi = { version = "0.7", features = ["serde_json"] }
-
-solang-parser = { version = "=0.3.3", default-features = false }
-
-cfg-if = "1.0.0"
-dirs = "5.0"
-dunce = "1.0"
-md-5 = "0.10"
-memmap2 = "0.9"
-once_cell = "1.19"
-path-slash = "0.2"
-rayon = "1.8"
-regex = "1.10"
-semver = { version = "1.0", features = ["serde"] }
-serde = { version = "1", features = ["derive", "rc"] }
-serde_json = "1.0"
-thiserror = "1.0"
 tracing = "0.1"
-walkdir = "2.4"
+rayon = "1.8"
+thiserror = "1"
+regex = "1.10"
+path-slash = "0.2"
+md-5 = "0.10"
 yansi = "1.0.1"
-
-# async
-futures-util = { version = "0.3", optional = true }
-tokio = { version = "1.35", features = ["rt-multi-thread"], optional = true }
-
-# project-util
-tempfile = { version = "3.9", optional = true }
-fs_extra = { version = "1.3", optional = true }
-rand = { version = "0.8", optional = true }
-
-# svm
-home = "0.5"
-svm = { package = "svm-rs", version = "0.5", default-features = false, optional = true }
-svm-builds = { package = "svm-rs-builds", version = "0.5", default-features = false, optional = true }
-sha2 = { version = "0.10", default-features = false, optional = true }
-itertools = "0.13"
-auto_impl = "1"
-
-winnow = "0.6"
-dyn-clone = "1"
-derivative = "2.2"
-
-[dev-dependencies]
-alloy-primitives = { version = "0.7", features = ["serde", "rand"] }
-criterion = { version = "0.5", features = ["async_tokio"] }
-pretty_assertions = "1"
-rand = "0.8"
-serde_path_to_error = "0.1"
-tempfile = "3.9"
-tokio = { version = "1.35", features = ["rt-multi-thread", "macros"] }
-tracing-subscriber = { version = "0.3", default-features = false, features = [
-    "env-filter",
-    "fmt",
-] }
-reqwest = "0.12"
-fd-lock = "4.0.0"
-
-[[bench]]
-name = "compile_many"
-required-features = ["svm-solc"]
-harness = false
-
-[[bench]]
-name = "read_all"
-required-features = ["project-util", "svm-solc"]
-harness = false
-
-[[test]]
-name = "project"
-path = "tests/project.rs"
-required-features = ["full", "project-util", "test-utils"]
-
-[[test]]
-name = "mocked"
-path = "tests/mocked.rs"
-required-features = ["full", "project-util"]
-
-[features]
-default = ["rustls"]
-test-utils = []
-
-full = ["async", "svm-solc"]
-
-# Adds extra `async` methods using `tokio` to some types.
-async = [
-    "dep:futures-util",
-    "dep:tokio",
-    "tokio/fs",
-    "tokio/process",
-    "tokio/io-util",
-]
-# Enables `svm` to auto-detect and manage `solc` builds.
-svm-solc = ["dep:svm", "dep:svm-builds", "dep:sha2", "dep:tokio"]
-# Utilities for creating and testing project workspaces.
-project-util = ["dep:tempfile", "dep:fs_extra", "dep:rand", "svm-solc"]
-
-rustls = ["svm?/rustls"]
-openssl = ["svm?/openssl"]

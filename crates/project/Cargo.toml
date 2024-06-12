@@ -1,0 +1,43 @@
+[package]
+name = "foundry-compilers-project"
+description = "Compiler abstraction and implementations for Solc and Vyper"
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.playground]
+all-features = true
+
+[dependencies]
+foundry-compilers-artifacts.workspace = true
+foundry-compilers-core.workspace = true
+serde.workspace = true
+semver.workspace = true
+alloy-primitives.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+alloy-json-abi.workspace = true
+rayon.workspace = true
+md-5.workspace = true
+thiserror.workspace = true
+path-slash.workspace = true
+yansi.workspace = true
+
+auto_impl = "1"
+winnow = "0.6"
+dyn-clone = "1"
+derivative = "2.2"
+solang-parser = { version = "=0.3.3", default-features = false }
+home = "0.5"
+dirs = "5.0"
+itertools = "0.13"

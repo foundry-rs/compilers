@@ -1,0 +1,35 @@
+[package]
+name = "foundry-compilers-artifacts"
+description = "Rust bindings for Solc and Vyper JSON artifacts"
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.playground]
+all-features = true
+
+[dependencies]
+foundry-compilers-core.workspace = true
+
+serde.workspace = true
+semver.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+alloy-primitives.workspace = true
+alloy-json-abi.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
+md-5.workspace = true
+yansi.workspace = true
+
+walkdir = "2.4"
