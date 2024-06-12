@@ -2820,7 +2820,7 @@ fn test_compiler_ignored_file_paths() {
         Some(vec![PathBuf::from("test-data")]),
         None,
     );
-    // ignored paths set, so the warning shouldnt be present
+    // ignored paths set, so the warning shouldn't be present
     assert!(!compiled.has_compiler_warnings());
     compiled.assert_success();
 }

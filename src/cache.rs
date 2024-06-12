@@ -63,7 +63,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
         self.files.remove(file)
     }
 
-    /// How many entries the cache contains where each entry represents a sourc file
+    /// How many entries the cache contains where each entry represents a source file
     pub fn len(&self) -> usize {
         self.files.len()
     }

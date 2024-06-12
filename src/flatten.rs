@@ -99,7 +99,7 @@ impl Visitor for ReferencesCollector {
 type Updates = HashMap<PathBuf, HashSet<(usize, usize, String)>>;
 
 pub struct FlatteningResult<'a> {
-    /// Updated source in the order they shoud be written to the output file.
+    /// Updated source in the order they should be written to the output file.
     sources: Vec<String>,
     /// Pragmas that should be present in the target file.
     pragmas: Vec<String>,

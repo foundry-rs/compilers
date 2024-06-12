@@ -130,7 +130,7 @@ impl ProjectPathsConfig<SolcLanguage> {
             let node = graph.node(*node_id);
             let content = node.content();
 
-            // Firstly we strip all licesnses, verson pragmas
+            // Firstly we strip all licenses, version pragmas
             // We keep target file pragma and license placing them in the beginning of the result.
             let mut ranges_to_remove = Vec::new();
 
