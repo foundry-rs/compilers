@@ -128,15 +128,11 @@ impl<L: Language> RawBuildInfo<L> {
 
 #[cfg(test)]
 mod tests {
+    use foundry_compilers_artifacts::{sources::Source, Error, SolcLanguage};
+
+    use crate::compilers::solc::SolcVersionedInput;
+
     use super::*;
-    use crate::{
-        artifacts::Error,
-        compilers::{
-            solc::{SolcLanguage, SolcVersionedInput},
-            CompilerOutput,
-        },
-        Source,
-    };
     use std::{collections::BTreeMap, path::PathBuf};
 
     #[test]

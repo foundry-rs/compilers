@@ -569,16 +569,3 @@ impl<'a> From<&'a Contract> for CompactContractRef<'a> {
         Self { abi: c.abi.as_ref(), bin, bin_runtime }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn assert_artifact<T: crate::Artifact>() {}
-
-    #[test]
-    fn test() {
-        assert_artifact::<CompactContractBytecode>();
-        assert_artifact::<CompactContractBytecodeCow<'static>>();
-    }
-}

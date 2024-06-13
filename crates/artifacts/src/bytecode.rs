@@ -499,7 +499,7 @@ impl From<CompactDeployedBytecode> for DeployedBytecode {
 
 #[cfg(test)]
 mod tests {
-    use crate::{artifacts::ContractBytecode, ConfigurableContractArtifact};
+    use crate::{ConfigurableContractArtifact, ContractBytecode};
 
     #[test]
     fn test_empty_bytecode() {

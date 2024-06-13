@@ -1,5 +1,6 @@
 use crate::compilers::CompilerSettings;
-use foundry_compilers_artifacts::{output_selection::OutputSelection, vyper::VyperSettings};
+use foundry_compilers_artifacts::output_selection::OutputSelection;
+pub use foundry_compilers_artifacts::vyper::VyperSettings;
 
 impl CompilerSettings for VyperSettings {
     fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection)) {

@@ -1,8 +1,8 @@
 //! mocked project tests
 
-use foundry_compilers::{
+use foundry_compilers_core::error::Result;
+use foundry_compilers_project::{
     compilers::multi::MultiCompiler,
-    error::Result,
     project_util::{
         mock::{MockProjectGenerator, MockProjectSettings, MockProjectSkeleton},
         TempProject,

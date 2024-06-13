@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn can_parse_ast() {
-        let ast = include_str!("../../../test-data/ast/ast-erc4626.json");
+        let ast = include_str!("../../../../test-data/ast/ast-erc4626.json");
         let _ast: Ast = serde_json::from_str(ast).unwrap();
     }
 }

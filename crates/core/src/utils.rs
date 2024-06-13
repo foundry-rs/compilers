@@ -571,7 +571,7 @@ cfg_if! {
 
 /// Creates a new named tempdir.
 #[cfg(any(test, feature = "project-util"))]
-pub(crate) fn tempdir(name: &str) -> Result<tempfile::TempDir, SolcIoError> {
+pub fn tempdir(name: &str) -> Result<tempfile::TempDir, SolcIoError> {
     tempfile::Builder::new().prefix(name).tempdir().map_err(|err| SolcIoError::new(err, name))
 }
 
@@ -633,6 +633,31 @@ pub fn capture_outer_and_inner<'a>(
             cap_match.and_then(|m| cap.get(0).map(|outer| (outer.to_owned(), m)))
         })
         .collect()
+}
+
+#[cfg(any(test, feature = "test-utils"))]
+// <https://doc.rust-lang.org/rust-by-example/std_misc/fs.html>
+pub fn touch(path: &std::path::Path) -> std::io::Result<()> {
+    match std::fs::OpenOptions::new().create(true).write(true).truncate(false).open(path) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
+#[cfg(any(test, feature = "test-utils"))]
+pub fn mkdir_or_touch(tmp: &std::path::Path, paths: &[&str]) {
+    for path in paths {
+        if let Some(parent) = Path::new(path).parent() {
+            std::fs::create_dir_all(tmp.join(parent)).unwrap();
+        }
+        if path.ends_with(".sol") {
+            let path = tmp.join(path);
+            touch(&path).unwrap();
+        } else {
+            let path: PathBuf = tmp.join(path);
+            std::fs::create_dir_all(path).unwrap();
+        }
+    }
 }
 
 #[cfg(test)]

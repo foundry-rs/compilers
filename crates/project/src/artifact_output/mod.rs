@@ -1224,4 +1224,12 @@ mod tests {
 
         assert_eq!(alternative.to_slash_lossy(), "/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts/utils/BaseMainnetForkingTest.t.sol/BaseMainnetForkingTest.json");
     }
+
+    fn assert_artifact<T: crate::Artifact>() {}
+
+    #[test]
+    fn test() {
+        assert_artifact::<CompactContractBytecode>();
+        assert_artifact::<CompactContractBytecodeCow<'static>>();
+    }
 }

@@ -1,9 +1,10 @@
 use self::{input::VyperVersionedInput, parser::VyperParsedSource};
 use super::{Compiler, CompilerOutput, Language};
 use core::fmt;
+pub use foundry_compilers_artifacts::vyper::VyperSettings;
 use foundry_compilers_artifacts::{
     sources::Source,
-    vyper::{error::VyperCompilationError, input::VyperInput, output::VyperOutput, VyperSettings},
+    vyper::{error::VyperCompilationError, input::VyperInput, output::VyperOutput},
 };
 use foundry_compilers_core::error::{Result, SolcError};
 use semver::Version;
@@ -16,7 +17,7 @@ use std::{
 
 pub mod error;
 pub mod input;
-pub mod output;
+mod output;
 pub mod parser;
 pub mod settings;
 

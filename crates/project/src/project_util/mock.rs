@@ -1,12 +1,7 @@
 //! Helpers to generate mock projects
 
-use crate::{
-    compilers::{multi::MultiCompilerParsedSource, Language, ParsedSource},
-    error::Result,
-    remappings::Remapping,
-    resolver::GraphEdges,
-    Graph, ProjectPathsConfig, SolcError,
-};
+use foundry_compilers_artifacts::Remapping;
+use foundry_compilers_core::error::{Result, SolcError};
 use rand::{
     distributions::{Distribution, Uniform},
     seq::SliceRandom,
@@ -16,6 +11,12 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeSet, HashMap, HashSet, VecDeque},
     path::{Path, PathBuf},
+};
+
+use crate::{
+    compilers::{multi::MultiCompilerParsedSource, Language, ParsedSource},
+    resolver::GraphEdges,
+    Graph, ProjectPathsConfig,
 };
 
 /// Represents the layout of a project

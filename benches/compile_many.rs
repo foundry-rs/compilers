@@ -38,7 +38,7 @@ fn compile_many_benchmark(c: &mut Criterion) {
 
 fn load_compiler_inputs() -> Vec<SolcInput> {
     let mut inputs = Vec::new();
-    for file in std::fs::read_dir(Path::new(&env!("CARGO_MANIFEST_DIR")).join("test-data/in"))
+    for file in std::fs::read_dir(Path::new(&env!("CARGO_MANIFEST_DIR")).join("../../test-data/in"))
         .unwrap()
         .take(5)
     {

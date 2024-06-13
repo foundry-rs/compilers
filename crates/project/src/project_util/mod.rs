@@ -1,22 +1,22 @@
 //! Utilities for mocking project workspaces.
 
 use crate::{
-    artifacts::Settings,
+    cache::CompilerCache,
     compilers::{
         multi::{MultiCompiler, MultiCompilerSettings},
         Compiler,
     },
     config::ProjectPathsConfigBuilder,
-    error::{Result, SolcError},
-    hh::HardhatArtifacts,
-    project_util::mock::{MockProjectGenerator, MockProjectSettings},
-    remappings::Remapping,
+    Artifact, ArtifactOutput, Artifacts, ConfigurableArtifacts, HardhatArtifacts, PathStyle,
+    Project, ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig,
+};
+use foundry_compilers_artifacts::{ConfigurableContractArtifact, Remapping, Settings};
+use foundry_compilers_core::{
+    error::{Result, SolcError, SolcIoError},
     utils::{self, tempdir},
-    Artifact, ArtifactOutput, Artifacts, CompilerCache, ConfigurableArtifacts,
-    ConfigurableContractArtifact, PathStyle, Project, ProjectBuilder, ProjectCompileOutput,
-    ProjectPathsConfig, SolcIoError,
 };
 use fs_extra::{dir, file};
+use mock::{MockProjectGenerator, MockProjectSettings};
 use std::{
     fmt,
     path::{Path, PathBuf},
@@ -177,7 +177,8 @@ impl<C: Compiler + Default, T: ArtifactOutput + Default> TempProject<C, T> {
     /// Creates an initialized dapptools style workspace in a new temporary dir
     pub fn dapptools_init() -> Result<Self> {
         let mut project = Self::dapptools()?;
-        let orig_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+        let orig_root =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
         copy_dir(orig_root, project.root())?;
         project.project_mut().paths.remappings = Remapping::find_many(project.root());
         project.project_mut().paths.remappings.iter_mut().for_each(|r| r.slash_path());

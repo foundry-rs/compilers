@@ -1,5 +1,5 @@
 use super::{
-    solc::{compiler::SOLC_EXTENSIONS, SolcCompiler, SolcVersionedInput},
+    solc::{SolcCompiler, SolcVersionedInput, SOLC_EXTENSIONS},
     vyper::{
         input::VyperVersionedInput, parser::VyperParsedSource, Vyper, VyperLanguage,
         VYPER_EXTENSIONS,

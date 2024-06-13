@@ -14,9 +14,6 @@ use std::{
     str::FromStr,
 };
 
-/// The name of the `solc` binary on the system
-pub const SOLC: &str = "solc";
-
 /// Extensions acceptable by solc compiler.
 pub const SOLC_EXTENSIONS: &[&str] = &["sol", "yul"];
 
@@ -48,15 +45,17 @@ macro_rules! take_solc_installer_lock {
 /// we should download.
 /// The boolean value marks whether there was an error accessing the release list
 #[cfg(feature = "svm-solc")]
-pub static RELEASES: Lazy<(svm::Releases, Vec<Version>, bool)> =
-    Lazy::new(|| match serde_json::from_str::<svm::Releases>(svm_builds::RELEASE_LIST_JSON) {
-        Ok(releases) => {
-            let sorted_versions = releases.clone().into_versions();
-            (releases, sorted_versions, true)
-        }
-        Err(err) => {
-            error!("{:?}", err);
-            Default::default()
+pub static RELEASES: once_cell::sync::Lazy<(svm::Releases, Vec<Version>, bool)> =
+    once_cell::sync::Lazy::new(|| {
+        match serde_json::from_str::<svm::Releases>(svm_builds::RELEASE_LIST_JSON) {
+            Ok(releases) => {
+                let sorted_versions = releases.clone().into_versions();
+                (releases, sorted_versions, true)
+            }
+            Err(err) => {
+                error!("{:?}", err);
+                Default::default()
+            }
         }
     });
 
@@ -262,7 +261,7 @@ impl Solc {
     /// Blocking version of `Self::install`
     #[cfg(feature = "svm-solc")]
     pub fn blocking_install(version: &Version) -> std::result::Result<Self, svm::SvmError> {
-        use crate::utils::RuntimeOrHandle;
+        use foundry_compilers_core::utils::RuntimeOrHandle;
 
         #[cfg(test)]
         crate::take_solc_installer_lock!(_lock);
@@ -629,7 +628,7 @@ mod tests {
 
     #[test]
     fn solc_compile_works() {
-        let input = include_str!("../../test-data/in/compiler-in-1.json");
+        let input = include_str!("../../../../../test-data/in/compiler-in-1.json");
         let input: SolcInput = serde_json::from_str(input).unwrap();
         let out = solc().compile(&input).unwrap();
         let other = solc().compile(&serde_json::json!(input)).unwrap();
@@ -638,7 +637,7 @@ mod tests {
 
     #[test]
     fn solc_metadata_works() {
-        let input = include_str!("../../test-data/in/compiler-in-1.json");
+        let input = include_str!("../../../../../test-data/in/compiler-in-1.json");
         let mut input: SolcInput = serde_json::from_str(input).unwrap();
         input.settings.push_output_selection("metadata");
         let out = solc().compile(&input).unwrap();
@@ -649,9 +648,10 @@ mod tests {
 
     #[test]
     fn can_compile_with_remapped_links() {
-        let input: SolcInput =
-            serde_json::from_str(include_str!("../../test-data/library-remapping-in.json"))
-                .unwrap();
+        let input: SolcInput = serde_json::from_str(include_str!(
+            "../../../../../test-data/library-remapping-in.json"
+        ))
+        .unwrap();
         let out = solc().compile(&input).unwrap();
         let (_, mut contracts) = out.split();
         let contract = contracts.remove("LinkTest").unwrap();
@@ -661,9 +661,10 @@ mod tests {
 
     #[test]
     fn can_compile_with_remapped_links_temp_dir() {
-        let input: SolcInput =
-            serde_json::from_str(include_str!("../../test-data/library-remapping-in-2.json"))
-                .unwrap();
+        let input: SolcInput = serde_json::from_str(include_str!(
+            "../../../../../test-data/library-remapping-in-2.json"
+        ))
+        .unwrap();
         let out = solc().compile(&input).unwrap();
         let (_, mut contracts) = out.split();
         let contract = contracts.remove("LinkTest").unwrap();
@@ -674,7 +675,7 @@ mod tests {
     #[cfg(feature = "async")]
     #[tokio::test(flavor = "multi_thread")]
     async fn async_solc_compile_works() {
-        let input = include_str!("../../test-data/in/compiler-in-1.json");
+        let input = include_str!("../../../../../test-data/in/compiler-in-1.json");
         let input: SolcInput = serde_json::from_str(input).unwrap();
         let out = solc().async_compile(&input).await.unwrap();
         let other = solc().async_compile(&serde_json::json!(input)).await.unwrap();
@@ -684,7 +685,7 @@ mod tests {
     #[cfg(feature = "async")]
     #[tokio::test(flavor = "multi_thread")]
     async fn async_solc_compile_works2() {
-        let input = include_str!("../../test-data/in/compiler-in-2.json");
+        let input = include_str!("../../../../../test-data/in/compiler-in-2.json");
         let input: SolcInput = serde_json::from_str(input).unwrap();
         let out = solc().async_compile(&input).await.unwrap();
         let other = solc().async_compile(&serde_json::json!(input)).await.unwrap();

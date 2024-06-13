@@ -1093,7 +1093,7 @@ mod tests {
 
     #[test]
     fn can_parse_ast() {
-        fs::read_dir(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data").join("ast"))
+        fs::read_dir(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data").join("ast"))
             .unwrap()
             .for_each(|path| {
                 let path = path.unwrap().path();

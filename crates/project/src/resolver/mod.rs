@@ -926,7 +926,7 @@ mod tests {
 
     #[test]
     fn can_resolve_hardhat_dependency_graph() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/hardhat-sample");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
         let paths = ProjectPathsConfig::hardhat(root).unwrap();
 
         let graph = Graph::<SolData>::resolve(&paths).unwrap();
@@ -945,7 +945,7 @@ mod tests {
 
     #[test]
     fn can_resolve_dapp_dependency_graph() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
         let paths = ProjectPathsConfig::dapptools(root).unwrap();
 
         let graph = Graph::<SolData>::resolve(&paths).unwrap();
@@ -973,7 +973,7 @@ mod tests {
     #[test]
     #[cfg(not(target_os = "windows"))]
     fn can_print_dapp_sample_graph() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
         let paths = ProjectPathsConfig::dapptools(root).unwrap();
         let graph = Graph::<SolData>::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();
@@ -996,7 +996,7 @@ src/Dapp.t.sol >=0.6.6
     #[test]
     #[cfg(not(target_os = "windows"))]
     fn can_print_hardhat_sample_graph() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/hardhat-sample");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
         let paths = ProjectPathsConfig::hardhat(root).unwrap();
         let graph = Graph::<SolData>::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();

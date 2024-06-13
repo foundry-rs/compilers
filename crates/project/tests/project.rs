@@ -1,31 +1,31 @@
 //! project tests
 
 use alloy_primitives::{Address, Bytes};
-use foundry_compilers::{
-    artifacts::{
-        output_selection::OutputSelection, BytecodeHash, DevDoc, Error, ErrorDoc, EventDoc,
-        Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings, Settings, Severity,
-        UserDoc, UserDocNotice,
-    },
+use foundry_compilers_artifacts::{
+    output_selection::OutputSelection, remappings::Remapping, BytecodeHash, DevDoc, Error,
+    ErrorDoc, EventDoc, Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings,
+    Settings, Severity, SolcInput, UserDoc, UserDocNotice,
+};
+use foundry_compilers_core::{
+    error::SolcError,
+    utils::{self, canonicalize, RuntimeOrHandle},
+};
+use foundry_compilers_project::{
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
     compilers::{
         multi::{
             MultiCompiler, MultiCompilerLanguage, MultiCompilerParsedSource, MultiCompilerSettings,
         },
-        solc::{SolcCompiler, SolcLanguage},
+        solc::{Solc, SolcCompiler, SolcLanguage},
         vyper::{Vyper, VyperLanguage, VyperSettings},
         CompilerOutput,
     },
-    error::SolcError,
     flatten::Flattener,
     info::ContractInfo,
     project_util::*,
-    remappings::Remapping,
-    take_solc_installer_lock,
-    utils::{self, RuntimeOrHandle},
-    Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project, ProjectBuilder,
-    ProjectCompileOutput, ProjectPathsConfig, Solc, SolcInput, TestFileFilter,
+    take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
+    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, TestFileFilter,
 };
 use once_cell::sync::Lazy;
 use pretty_assertions::assert_eq;
@@ -75,7 +75,8 @@ pub static VYPER: Lazy<Vyper> = Lazy::new(|| {
 
 #[test]
 fn can_get_versioned_linkrefs() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/test-versioned-linkrefs");
+    let root =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/test-versioned-linkrefs");
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("src"))
         .lib(root.join("lib"))
@@ -93,7 +94,7 @@ fn can_get_versioned_linkrefs() {
 
 #[test]
 fn can_compile_hardhat_sample() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/hardhat-sample");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("contracts"))
         .lib(root.join("node_modules"));
@@ -120,7 +121,7 @@ fn can_compile_hardhat_sample() {
 
 #[test]
 fn can_compile_dapp_sample() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
     let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
@@ -147,7 +148,7 @@ fn can_compile_dapp_sample() {
 
 #[test]
 fn can_compile_yul_sample() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/yul-sample");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/yul-sample");
     let paths = ProjectPathsConfig::builder().sources(root);
     let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
@@ -177,7 +178,7 @@ fn can_compile_yul_sample() {
 
 #[test]
 fn can_compile_configured() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
 
     let handler = ConfigurableArtifacts {
@@ -458,8 +459,8 @@ fn can_compile_dapp_sample_with_cache() {
     let artifacts = root.join("out");
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let orig_root = manifest_dir.join("test-data/dapp-sample");
-    let cache_testdata_dir = manifest_dir.join("test-data/cache-sample/");
+    let orig_root = manifest_dir.join("../../test-data/dapp-sample");
+    let cache_testdata_dir = manifest_dir.join("../../test-data/cache-sample/");
     copy_dir_all(orig_root, &tmp_dir).unwrap();
     let paths = ProjectPathsConfig::builder()
         .cache(cache)
@@ -540,10 +541,11 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> 
 // Runs both `flatten` implementations, asserts that their outputs match and runs additional checks
 // against the output.
 fn test_flatteners(project: &TempProject, target: &Path, additional_checks: fn(&str)) {
+    let target = canonicalize(target).unwrap();
     let result =
-        project.project().paths.clone().with_language::<SolcLanguage>().flatten(target).unwrap();
+        project.project().paths.clone().with_language::<SolcLanguage>().flatten(&target).unwrap();
     let solc_result =
-        Flattener::new(project.project(), &project.compile().unwrap(), target).unwrap().flatten();
+        Flattener::new(project.project(), &project.compile().unwrap(), &target).unwrap().flatten();
 
     assert_eq!(result, solc_result);
 
@@ -552,7 +554,7 @@ fn test_flatteners(project: &TempProject, target: &Path, additional_checks: fn(&
 
 #[test]
 fn can_flatten_file_with_external_lib() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/hardhat-sample");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("contracts"))
         .lib(root.join("node_modules"));
@@ -569,7 +571,7 @@ fn can_flatten_file_with_external_lib() {
 
 #[test]
 fn can_flatten_file_in_dapp_sample() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
     let project = TempProject::<MultiCompiler>::new(paths).unwrap();
 
@@ -2008,7 +2010,8 @@ library MyLib {
 
     let libs = Libraries::parse(&[format!("./src/MyLib.sol:MyLib:{:?}", Address::ZERO)]).unwrap();
     // provide the library settings to let solc link
-    tmp.project_mut().settings.solc.libraries = libs.with_applied_remappings(tmp.paths());
+    tmp.project_mut().settings.solc.libraries =
+        libs.apply(|libs| tmp.paths().apply_lib_remappings(libs));
 
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
@@ -2113,7 +2116,8 @@ library MyLib {
 
     let libs =
         Libraries::parse(&[format!("remapping/MyLib.sol:MyLib:{:?}", Address::ZERO)]).unwrap(); // provide the library settings to let solc link
-    tmp.project_mut().settings.solc.libraries = libs.with_applied_remappings(tmp.paths());
+    tmp.project_mut().settings.solc.libraries =
+        libs.apply(|libs| tmp.paths().apply_lib_remappings(libs));
     tmp.project_mut().settings.solc.libraries.slash_paths();
 
     let compiled = tmp.compile().unwrap();
@@ -2732,7 +2736,8 @@ fn can_create_standard_json_input_with_symlink() {
 
 #[test]
 fn can_compile_model_checker_sample() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/model-checker-sample");
+    let root =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/model-checker-sample");
     let paths = ProjectPathsConfig::builder().sources(root);
 
     let mut project = TempProject::<MultiCompiler, ConfigurableArtifacts>::new(paths).unwrap();
@@ -2751,8 +2756,8 @@ fn can_compile_model_checker_sample() {
 #[test]
 fn test_compiler_severity_filter() {
     fn gen_test_data_warning_path() -> ProjectPathsConfig {
-        let root =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/test-contract-warnings");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../test-data/test-contract-warnings");
 
         ProjectPathsConfig::builder().sources(root).build().unwrap()
     }
@@ -2771,7 +2776,7 @@ fn test_compiler_severity_filter() {
         .no_artifacts()
         .paths(gen_test_data_warning_path())
         .ephemeral()
-        .set_compiler_severity_filter(foundry_compilers::artifacts::Severity::Warning)
+        .set_compiler_severity_filter(foundry_compilers_artifacts::Severity::Warning)
         .build(Default::default())
         .unwrap();
     let compiled = project.compile().unwrap();
@@ -2780,14 +2785,17 @@ fn test_compiler_severity_filter() {
 }
 
 fn gen_test_data_licensing_warning() -> ProjectPathsConfig {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("test-data/test-contract-warnings/LicenseWarning.sol");
+    let root = canonicalize(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../test-data/test-contract-warnings/LicenseWarning.sol"),
+    )
+    .unwrap();
 
     ProjectPathsConfig::builder().sources(root).build().unwrap()
 }
 
 fn compile_project_with_options(
-    severity_filter: Option<foundry_compilers::artifacts::Severity>,
+    severity_filter: Option<foundry_compilers_artifacts::Severity>,
     ignore_paths: Option<Vec<PathBuf>>,
     ignore_error_code: Option<u64>,
 ) -> ProjectCompileOutput<MultiCompiler> {
@@ -2815,11 +2823,15 @@ fn test_compiler_ignored_file_paths() {
     assert!(compiled.has_compiler_warnings());
     compiled.assert_success();
 
+    let testdata = canonicalize(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data"),
+    ).unwrap();
     let compiled = compile_project_with_options(
-        Some(foundry_compilers::artifacts::Severity::Warning),
-        Some(vec![PathBuf::from("test-data")]),
+        Some(foundry_compilers_artifacts::Severity::Warning),
+        Some(vec![testdata]),
         None,
     );
+
     // ignored paths set, so the warning shouldnt be present
     assert!(!compiled.has_compiler_warnings());
     compiled.assert_success();
@@ -2837,7 +2849,7 @@ fn test_compiler_severity_filter_and_ignored_error_codes() {
     compiled.assert_success();
 
     let compiled = compile_project_with_options(
-        Some(foundry_compilers::artifacts::Severity::Warning),
+        Some(foundry_compilers_artifacts::Severity::Warning),
         None,
         Some(missing_license_error_code),
     );
@@ -3797,7 +3809,7 @@ contract D {
 fn test_deterministic_metadata() {
     let tmp_dir = tempfile::tempdir().unwrap();
     let root = tmp_dir.path();
-    let orig_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-sample");
+    let orig_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
     copy_dir_all(orig_root, &tmp_dir).unwrap();
 
     let paths = ProjectPathsConfig::builder().root(root).build().unwrap();
@@ -3814,7 +3826,8 @@ fn test_deterministic_metadata() {
     let bytecode = artifact.bytecode.as_ref().unwrap().bytes().unwrap().clone();
     let expected_bytecode = Bytes::from_str(
         &std::fs::read_to_string(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/dapp-test-bytecode.txt"),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../test-data/dapp-test-bytecode.txt"),
         )
         .unwrap(),
     )
@@ -3829,7 +3842,7 @@ fn can_compile_vyper_with_cache() {
     let cache = root.join("cache").join(SOLIDITY_FILES_CACHE_FILENAME);
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let orig_root = manifest_dir.join("test-data/vyper-sample");
+    let orig_root = manifest_dir.join("../../test-data/vyper-sample");
     copy_dir_all(orig_root, &tmp_dir).unwrap();
 
     let paths = ProjectPathsConfig::builder()
@@ -3870,7 +3883,7 @@ fn can_compile_vyper_with_cache() {
 
 #[test]
 fn yul_remappings_ignored() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/yul-sample");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/yul-sample");
     // Add dummy remapping.
     let paths = ProjectPathsConfig::builder().sources(root.clone()).remapping(Remapping {
         context: None,
@@ -3885,7 +3898,7 @@ fn yul_remappings_ignored() {
 
 #[test]
 fn test_vyper_imports() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/vyper-imports");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/vyper-imports");
 
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("src"))
@@ -3910,7 +3923,10 @@ fn test_vyper_imports() {
 
 #[test]
 fn test_can_compile_multi() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/multi-sample");
+    let root = canonicalize(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/multi-sample"),
+    )
+    .unwrap();
 
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("src"))

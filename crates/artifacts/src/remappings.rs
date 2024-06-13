@@ -811,8 +811,9 @@ fn last_nested_source_dir(root: &Path, dir: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    use foundry_compilers_core::utils::{mkdir_or_touch, tempdir, touch};
+
     use super::*;
-    use crate::{utils::tempdir, ProjectPathsConfig};
 
     #[test]
     fn relative_remapping() {
@@ -850,29 +851,6 @@ mod tests {
 
         let err = Remapping::from_str("oz=").unwrap_err();
         matches!(err, RemappingError::EmptyRemappingValue(_));
-    }
-
-    // <https://doc.rust-lang.org/rust-by-example/std_misc/fs.html>
-    fn touch(path: &std::path::Path) -> std::io::Result<()> {
-        match std::fs::OpenOptions::new().create(true).write(true).truncate(false).open(path) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
-        }
-    }
-
-    fn mkdir_or_touch(tmp: &std::path::Path, paths: &[&str]) {
-        for path in paths {
-            if let Some(parent) = Path::new(path).parent() {
-                std::fs::create_dir_all(tmp.join(parent)).unwrap();
-            }
-            if path.ends_with(".sol") {
-                let path = tmp.join(path);
-                touch(&path).unwrap();
-            } else {
-                let path = tmp.join(path);
-                std::fs::create_dir_all(path).unwrap();
-            }
-        }
     }
 
     // helper function for converting path bufs to remapping strings
@@ -1107,41 +1085,6 @@ mod tests {
             path: to_str(tmp_dir.path().join("@openzeppelin")),
         }];
         pretty_assertions::assert_eq!(remappings, expected);
-    }
-
-    #[test]
-    fn can_resolve_oz_remappings() {
-        let tmp_dir = tempdir("node_modules").unwrap();
-        let tmp_dir_node_modules = tmp_dir.path().join("node_modules");
-        let paths = [
-            "node_modules/@openzeppelin/contracts/interfaces/IERC1155.sol",
-            "node_modules/@openzeppelin/contracts/finance/VestingWallet.sol",
-            "node_modules/@openzeppelin/contracts/proxy/Proxy.sol",
-            "node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol",
-        ];
-        mkdir_or_touch(tmp_dir.path(), &paths[..]);
-        let remappings = Remapping::find_many(tmp_dir_node_modules);
-        let mut paths = ProjectPathsConfig::<()>::hardhat(tmp_dir.path()).unwrap();
-        paths.remappings = remappings;
-
-        let resolved = paths
-            .resolve_library_import(
-                tmp_dir.path(),
-                Path::new("@openzeppelin/contracts/token/ERC20/IERC20.sol"),
-            )
-            .unwrap();
-        assert!(resolved.exists());
-
-        // adjust remappings
-        paths.remappings[0].name = "@openzeppelin/".to_string();
-
-        let resolved = paths
-            .resolve_library_import(
-                tmp_dir.path(),
-                Path::new("@openzeppelin/contracts/token/ERC20/IERC20.sol"),
-            )
-            .unwrap();
-        assert!(resolved.exists());
     }
 
     #[test]

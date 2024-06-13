@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn can_parse_hh_artifact() {
-        let s = include_str!("../test-data/hh-greeter-artifact.json");
+        let s = include_str!("../../../../test-data/hh-greeter-artifact.json");
         let artifact = serde_json::from_str::<HardhatArtifact>(s).unwrap();
         let compact = artifact.into_compact_contract();
         assert!(compact.abi.is_some());

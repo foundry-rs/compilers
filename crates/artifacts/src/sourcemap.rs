@@ -578,7 +578,7 @@ mod tests {
     #[test]
     fn can_parse_source_maps() {
         // all source maps from the compiler output test data
-        let source_maps = include_str!("../test-data/out-source-maps.txt");
+        let source_maps = include_str!("../../../test-data/out-source-maps.txt");
 
         for (line, s) in source_maps.lines().enumerate() {
             parse(s).unwrap_or_else(|e| panic!("Failed to parse line {line}: {e}"));
@@ -587,7 +587,7 @@ mod tests {
 
     #[test]
     fn can_parse_foundry_cheatcodes_sol_maps() {
-        let s = include_str!("../test-data/cheatcodes.sol-sourcemap.txt");
+        let s = include_str!("../../../test-data/cheatcodes.sol-sourcemap.txt");
         let mut out = String::new();
         let mut parser = Parser::new(s);
         parser.output = Some(&mut out);

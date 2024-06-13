@@ -1,7 +1,7 @@
 use foundry_compilers_artifacts::{CompilerOutput, SolcInput};
 use foundry_compilers_core::error::Result;
 
-use crate::compilers::solc::compiler::Solc;
+use crate::compilers::solc::Solc;
 
 /// The result of a `solc` process bundled with its `Solc` and `CompilerInput`
 type CompileElement = (Result<CompilerOutput>, Solc, SolcInput);

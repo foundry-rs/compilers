@@ -1,5 +1,6 @@
 //! Solc artifact types.
 
+#![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![allow(ambiguous_glob_reexports)]
 
 #[macro_use]
@@ -25,7 +26,9 @@ pub mod bytecode;
 pub use bytecode::*;
 pub mod contract;
 pub use contract::*;
+pub mod configurable;
 pub mod hh;
+pub use configurable::*;
 pub mod output_selection;
 pub mod serde_helpers;
 pub mod sourcemap;
@@ -1890,58 +1893,8 @@ impl SourceFiles {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        buildinfo::RawBuildInfo,
-        compilers::{
-            solc::{SolcCompiler, SolcVersionedInput},
-            CompilerInput,
-        },
-        AggregatedCompilerOutput,
-    };
     use alloy_primitives::Address;
-
-    #[test]
-    fn can_parse_declaration_error() {
-        let s = r#"{
-  "errors": [
-    {
-      "component": "general",
-      "errorCode": "7576",
-      "formattedMessage": "DeclarationError: Undeclared identifier. Did you mean \"revert\"?\n  --> /Users/src/utils/UpgradeProxy.sol:35:17:\n   |\n35 |                 refert(\"Transparent ERC1967 proxies do not have upgradeable implementations\");\n   |                 ^^^^^^\n\n",
-      "message": "Undeclared identifier. Did you mean \"revert\"?",
-      "severity": "error",
-      "sourceLocation": {
-        "end": 1623,
-        "file": "/Users/src/utils/UpgradeProxy.sol",
-        "start": 1617
-      },
-      "type": "DeclarationError"
-    }
-  ],
-  "sources": { }
-}"#;
-
-        let out: CompilerOutput = serde_json::from_str(s).unwrap();
-        assert_eq!(out.errors.len(), 1);
-
-        let out_converted = crate::compilers::CompilerOutput {
-            errors: out.errors,
-            contracts: Default::default(),
-            sources: Default::default(),
-        };
-
-        let v: Version = "0.8.12".parse().unwrap();
-        let input = SolcVersionedInput::build(
-            Default::default(),
-            Default::default(),
-            SolcLanguage::Solidity,
-            v.clone(),
-        );
-        let build_info = RawBuildInfo::new(&input, &out_converted, true).unwrap();
-        let mut aggregated = AggregatedCompilerOutput::<SolcCompiler>::default();
-        aggregated.extend(v, build_info, out_converted);
-        assert!(!aggregated.is_unchanged());
-    }
+    use std::fs;
 
     #[test]
     fn can_link_bytecode() {
@@ -1993,8 +1946,7 @@ mod tests {
 
     #[test]
     fn can_parse_compiler_output() {
-        let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        dir.push("test-data/out");
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/out");
 
         for path in fs::read_dir(dir).unwrap() {
             let path = path.unwrap().path();
@@ -2007,8 +1959,7 @@ mod tests {
 
     #[test]
     fn can_parse_compiler_input() {
-        let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        dir.push("test-data/in");
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/in");
 
         for path in fs::read_dir(dir).unwrap() {
             let path = path.unwrap().path();
@@ -2021,8 +1972,7 @@ mod tests {
 
     #[test]
     fn can_parse_standard_json_compiler_input() {
-        let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        dir.push("test-data/in");
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/in");
 
         for path in fs::read_dir(dir).unwrap() {
             let path = path.unwrap().path();
@@ -2276,7 +2226,7 @@ mod tests {
 
     #[test]
     fn test_lossless_storage_layout() {
-        let input = include_str!("../../test-data/foundryissue2462.json").trim();
+        let input = include_str!("../../../test-data/foundryissue2462.json").trim();
         let layout: StorageLayout = serde_json::from_str(input).unwrap();
         pretty_assertions::assert_eq!(input, &serde_json::to_string(&layout).unwrap());
     }
@@ -2285,7 +2235,7 @@ mod tests {
     #[test]
     fn can_parse_compiler_output_spells_0_6_12() {
         let path =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/0.6.12-with-libs.json");
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/0.6.12-with-libs.json");
         let content = fs::read_to_string(path).unwrap();
         let _output: CompilerOutput = serde_json::from_str(&content).unwrap();
     }

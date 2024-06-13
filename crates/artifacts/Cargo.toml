@@ -31,5 +31,15 @@ rayon.workspace = true
 thiserror.workspace = true
 md-5.workspace = true
 yansi.workspace = true
+futures-util = { workspace = true, optional = true}
+tokio = { workspace = true, optional = true }
 
 walkdir = "2.4"
+
+[dev_dependencies]
+serde_path_to_error = "0.1"
+pretty_assertions.workspace = true
+foundry-compilers-core = { workspace = true, features = ["test-utils"] }
+
+[features]
+async = ["dep:tokio", "futures-util", "tokio/fs"]

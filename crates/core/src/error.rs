@@ -8,6 +8,7 @@ use thiserror::Error;
 pub type Result<T> = std::result::Result<T, SolcError>;
 
 #[allow(unused_macros)]
+#[macro_export]
 macro_rules! format_err {
     ($($tt:tt)*) => {
         $crate::error::SolcError::msg(format!($($tt)*))
@@ -15,6 +16,7 @@ macro_rules! format_err {
 }
 
 #[allow(unused_macros)]
+#[macro_export]
 macro_rules! bail {
     ($($tt:tt)*) => { return Err(format_err!($($tt)*)) };
 }

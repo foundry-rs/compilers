@@ -7,6 +7,10 @@
 #[macro_use]
 extern crate tracing;
 
+#[cfg(feature = "project-util")]
+#[macro_use]
+extern crate foundry_compilers_core;
+
 mod artifact_output;
 pub use artifact_output::*;
 
@@ -15,21 +19,12 @@ pub mod buildinfo;
 pub mod cache;
 
 pub mod flatten;
-use cache::CompilerCache;
-use compilers::{multi::MultiCompiler, Compiler, CompilerSettings};
-use foundry_compilers_artifacts::{
-    output_selection::OutputSelection,
-    sources::{Source, Sources},
-    Contract, Settings, Severity, SourceFile, StandardJsonCompilerInput,
-};
-use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
 
 pub mod resolver;
-use output::sources::{VersionedSourceFile, VersionedSourceFiles};
-use project::ProjectCompiler;
 pub use resolver::Graph;
 
 pub mod compilers;
+pub use compilers::*;
 
 mod compile;
 pub use compile::{
@@ -44,21 +39,32 @@ mod filter;
 pub use filter::{
     FileFilter, FilteredSources, SourceCompilationKind, SparseOutputFilter, TestFileFilter,
 };
-use solang_parser::pt::SourceUnitPart;
 
 pub mod report;
+
+/// Utilities for creating, mocking and testing of (temporary) projects
+#[cfg(feature = "project-util")]
+pub mod project_util;
+
+use cache::CompilerCache;
 use compile::output::contracts::VersionedContracts;
+use compilers::multi::MultiCompiler;
 use derivative::Derivative;
+use foundry_compilers_artifacts::{
+    output_selection::OutputSelection,
+    sources::{Source, Sources},
+    Contract, Settings, Severity, SourceFile, StandardJsonCompilerInput,
+};
+use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
+use output::sources::{VersionedSourceFile, VersionedSourceFiles};
+use project::ProjectCompiler;
 use semver::Version;
+use solang_parser::pt::SourceUnitPart;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
 };
-
-/// Utilities for creating, mocking and testing of (temporary) projects
-#[cfg(feature = "project-util")]
-pub mod project_util;
 
 /// Represents a project workspace and handles `solc` compiling of all contracts in that workspace.
 #[derive(Clone, Derivative)]
@@ -886,15 +892,17 @@ fn rebase_path(base: impl AsRef<Path>, path: impl AsRef<Path>) -> PathBuf {
 #[cfg(test)]
 #[cfg(feature = "svm-solc")]
 mod tests {
+    use foundry_compilers_artifacts::Remapping;
+    use foundry_compilers_core::utils::{self, mkdir_or_touch, tempdir};
+
     use super::*;
-    use crate::remappings::Remapping;
 
     #[test]
     #[cfg_attr(windows, ignore = "<0.7 solc is flaky")]
     fn test_build_all_versions() {
         let paths = ProjectPathsConfig::builder()
-            .root("./test-data/test-contract-versions")
-            .sources("./test-data/test-contract-versions")
+            .root("../../test-data/test-contract-versions")
+            .sources("../../test-data/test-contract-versions")
             .build()
             .unwrap();
         let project = Project::builder()
@@ -910,7 +918,7 @@ mod tests {
 
     #[test]
     fn test_build_many_libs() {
-        let root = utils::canonicalize("./test-data/test-contract-libs").unwrap();
+        let root = utils::canonicalize("../../test-data/test-contract-libs").unwrap();
 
         let paths = ProjectPathsConfig::builder()
             .root(&root)
@@ -937,7 +945,7 @@ mod tests {
 
     #[test]
     fn test_build_remappings() {
-        let root = utils::canonicalize("./test-data/test-contract-remappings").unwrap();
+        let root = utils::canonicalize("../../test-data/test-contract-remappings").unwrap();
         let paths = ProjectPathsConfig::builder()
             .root(&root)
             .sources(root.join("src"))
@@ -992,5 +1000,40 @@ mod tests {
             rebase_path("/Users/ah/temp/verif", "/Users/ah/temp/verif/../remapped/Parent.sol"),
             PathBuf::from("../remapped/Parent.sol")
         );
+    }
+
+    #[test]
+    fn can_resolve_oz_remappings() {
+        let tmp_dir = tempdir("node_modules").unwrap();
+        let tmp_dir_node_modules = tmp_dir.path().join("node_modules");
+        let paths = [
+            "node_modules/@openzeppelin/contracts/interfaces/IERC1155.sol",
+            "node_modules/@openzeppelin/contracts/finance/VestingWallet.sol",
+            "node_modules/@openzeppelin/contracts/proxy/Proxy.sol",
+            "node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol",
+        ];
+        mkdir_or_touch(tmp_dir.path(), &paths[..]);
+        let remappings = Remapping::find_many(tmp_dir_node_modules);
+        let mut paths = ProjectPathsConfig::<()>::hardhat(tmp_dir.path()).unwrap();
+        paths.remappings = remappings;
+
+        let resolved = paths
+            .resolve_library_import(
+                tmp_dir.path(),
+                Path::new("@openzeppelin/contracts/token/ERC20/IERC20.sol"),
+            )
+            .unwrap();
+        assert!(resolved.exists());
+
+        // adjust remappings
+        paths.remappings[0].name = "@openzeppelin/".to_string();
+
+        let resolved = paths
+            .resolve_library_import(
+                tmp_dir.path(),
+                Path::new("@openzeppelin/contracts/token/ERC20/IERC20.sol"),
+            )
+            .unwrap();
+        assert!(resolved.exists());
     }
 }

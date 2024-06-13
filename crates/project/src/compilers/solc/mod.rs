@@ -3,13 +3,13 @@ use super::{
     Language, ParsedSource,
 };
 use crate::resolver::parse::SolData;
-use compiler::{Solc, SOLC_EXTENSIONS};
+pub use foundry_compilers_artifacts::SolcLanguage;
 use foundry_compilers_artifacts::{
     error::SourceLocation,
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Error, Settings as SolcSettings, Severity, SolcInput, SolcLanguage,
+    Error, Settings as SolcSettings, Severity, SolcInput,
 };
 use foundry_compilers_core::error::Result;
 use itertools::Itertools;
@@ -20,7 +20,8 @@ use std::{
     collections::BTreeSet,
     path::{Path, PathBuf},
 };
-pub mod compiler;
+mod compiler;
+pub use compiler::{Solc, SOLC_EXTENSIONS};
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "svm-solc", derive(Default))]
@@ -261,5 +262,63 @@ impl CompilationError for Error {
 
     fn error_code(&self) -> Option<u64> {
         self.error_code
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use foundry_compilers_artifacts::{CompilerOutput, SolcLanguage};
+    use semver::Version;
+
+    use crate::{
+        buildinfo::RawBuildInfo,
+        compilers::{
+            solc::{SolcCompiler, SolcVersionedInput},
+            CompilerInput,
+        },
+        AggregatedCompilerOutput,
+    };
+
+    #[test]
+    fn can_parse_declaration_error() {
+        let s = r#"{
+  "errors": [
+    {
+      "component": "general",
+      "errorCode": "7576",
+      "formattedMessage": "DeclarationError: Undeclared identifier. Did you mean \"revert\"?\n  --> /Users/src/utils/UpgradeProxy.sol:35:17:\n   |\n35 |                 refert(\"Transparent ERC1967 proxies do not have upgradeable implementations\");\n   |                 ^^^^^^\n\n",
+      "message": "Undeclared identifier. Did you mean \"revert\"?",
+      "severity": "error",
+      "sourceLocation": {
+        "end": 1623,
+        "file": "/Users/src/utils/UpgradeProxy.sol",
+        "start": 1617
+      },
+      "type": "DeclarationError"
+    }
+  ],
+  "sources": { }
+}"#;
+
+        let out: CompilerOutput = serde_json::from_str(s).unwrap();
+        assert_eq!(out.errors.len(), 1);
+
+        let out_converted = crate::compilers::CompilerOutput {
+            errors: out.errors,
+            contracts: Default::default(),
+            sources: Default::default(),
+        };
+
+        let v: Version = "0.8.12".parse().unwrap();
+        let input = SolcVersionedInput::build(
+            Default::default(),
+            Default::default(),
+            SolcLanguage::Solidity,
+            v.clone(),
+        );
+        let build_info = RawBuildInfo::new(&input, &out_converted, true).unwrap();
+        let mut aggregated = AggregatedCompilerOutput::<SolcCompiler>::default();
+        aggregated.extend(v, build_info, out_converted);
+        assert!(!aggregated.is_unchanged());
     }
 }

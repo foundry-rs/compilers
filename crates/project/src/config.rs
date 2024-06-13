@@ -9,7 +9,7 @@ use foundry_compilers_artifacts::{
     output_selection::ContractOutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Settings, SolcLanguage,
+    Libraries, Settings, SolcLanguage,
 };
 use foundry_compilers_core::{
     error::{Result, SolcError, SolcIoError},
@@ -551,6 +551,20 @@ impl<L> ProjectPathsConfig<L> {
             allowed_paths,
             _l: PhantomData,
         }
+    }
+
+    pub fn apply_lib_remappings(&self, mut libraries: Libraries) -> Libraries {
+        libraries.libs = libraries.libs
+            .into_iter()
+            .map(|(file, target)| {
+                let file = self.resolve_import(&self.root, &file).unwrap_or_else(|err| {
+                    warn!(target: "libs", "Failed to resolve library `{}` for linking: {:?}", file.display(), err);
+                    file
+                });
+                (file, target)
+            })
+            .collect();
+        libraries
     }
 }
 

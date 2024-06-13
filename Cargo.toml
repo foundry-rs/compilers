@@ -3,7 +3,6 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
-name = "foundry-compilers"
 authors = ["Foundry Maintainers"]
 version = "0.7.0"
 rust-version = "1.65"
@@ -32,3 +31,11 @@ regex = "1.10"
 path-slash = "0.2"
 md-5 = "0.10"
 yansi = "1.0.1"
+once_cell = "1.19"
+svm = { package = "svm-rs", version = "0.5", default-features = false }
+solang-parser = { version = "=0.3.3", default-features = false }
+pretty_assertions = "1"
+
+# async
+futures-util = "0.3"
+tokio = { version = "1.35", features = ["rt-multi-thread"] }
