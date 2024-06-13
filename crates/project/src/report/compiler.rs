@@ -9,7 +9,7 @@ use foundry_compilers_artifacts::{CompilerOutput, SolcInput};
 use semver::Version;
 use std::{env, path::PathBuf, str::FromStr};
 
-/// Debug Helper type that can be used to write the [crate::Solc] [SolcInput] and
+/// Debug Helper type that can be used to write the [crate::compilers::solc::Solc] [SolcInput] and
 /// [CompilerOutput] to disk if configured.
 ///
 /// # Examples

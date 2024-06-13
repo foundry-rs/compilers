@@ -6,7 +6,7 @@
 //! dependencies are resolved. The graph holds all the relationships between the files and their
 //! versions. From there the appropriate version set is derived
 //! [`crate::Graph`] which need to be compiled with different
-//! [`crate::Solc`] versions.
+//! [`crate::compilers::solc::Solc`] versions.
 //!
 //! At this point we check if we need to compile a source file or whether we can reuse an _existing_
 //! `Artifact`. We don't to compile if:

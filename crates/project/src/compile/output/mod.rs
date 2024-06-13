@@ -215,8 +215,8 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     ///
     /// Note: this only returns the `SourceFiles` for freshly compiled contracts because, if not
     /// included in the `Artifact` itself (see
-    /// [`crate::ConfigurableContractArtifact::source_file()`]), is only available via the solc
-    /// `CompilerOutput`
+    /// [`foundry_compilers_artifacts::ConfigurableContractArtifact::source_file()`]), is only
+    /// available via the solc `CompilerOutput`
     pub fn into_artifacts_with_sources(
         self,
     ) -> (BTreeMap<ArtifactId, T::Artifact>, VersionedSourceFiles) {
@@ -456,7 +456,7 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     }
 
     /// A helper functions that extracts the underlying [`CompactContractBytecode`] from the
-    /// [`crate::ConfigurableContractArtifact`]
+    /// [`foundry_compilers_artifacts::ConfigurableContractArtifact`]
     ///
     /// # Examples
     ///
