@@ -46,6 +46,8 @@ pub mod report;
 #[cfg(feature = "project-util")]
 pub mod project_util;
 
+pub use foundry_compilers_artifacts as artifacts;
+
 use cache::CompilerCache;
 use compile::output::contracts::VersionedContracts;
 use compilers::multi::MultiCompiler;
