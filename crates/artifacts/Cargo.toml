@@ -31,11 +31,13 @@ rayon.workspace = true
 thiserror.workspace = true
 md-5.workspace = true
 yansi.workspace = true
-path-slash.workspace = true
 futures-util = { workspace = true, optional = true}
 tokio = { workspace = true, optional = true }
 
 walkdir = "2.4"
+
+[target.'cfg(windows)'.dependencies]
+path-slash.workspace = true
 
 [dev_dependencies]
 serde_path_to_error = "0.1"
