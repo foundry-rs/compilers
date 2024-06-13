@@ -1014,7 +1014,7 @@ src/Dapp.t.sol >=0.6.6
     fn can_read_different_case() {
         use crate::resolver::parse::SolData;
         use std::fs::{self, create_dir_all};
-        use utils::tempdir;    
+        use utils::tempdir;
 
         let tmp_dir = tempdir("out").unwrap();
         let path = tmp_dir.path().join("forge-std");
