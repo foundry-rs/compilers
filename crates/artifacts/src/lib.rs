@@ -624,25 +624,6 @@ impl Libraries {
         f(self)
     }
 
-    /// Solc expects the lib paths to match the global path after remappings were applied
-    ///
-    /// See also [ProjectPathsConfig::resolve_import]
-    #[cfg(ignore)]
-    pub fn with_applied_remappings(mut self, config: &ProjectPathsConfig) -> Self {
-        self.libs = self
-            .libs
-            .into_iter()
-            .map(|(file, target)| {
-                let file = config.resolve_import(&config.root, &file).unwrap_or_else(|err| {
-                    warn!(target: "libs", "Failed to resolve library `{}` for linking: {:?}", file.display(), err);
-                    file
-                });
-                (file, target)
-            })
-            .collect();
-        self
-    }
-
     /// Strips the given prefix from all library file paths to make them relative to the given
     /// `base` argument
     pub fn with_stripped_file_prefixes(mut self, base: impl AsRef<Path>) -> Self {

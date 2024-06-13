@@ -570,7 +570,7 @@ cfg_if! {
 }
 
 /// Creates a new named tempdir.
-#[cfg(any(test, feature = "project-util"))]
+#[cfg(any(test, feature = "project-util", feature = "test-utils"))]
 pub fn tempdir(name: &str) -> Result<tempfile::TempDir, SolcIoError> {
     tempfile::Builder::new().prefix(name).tempdir().map_err(|err| SolcIoError::new(err, name))
 }

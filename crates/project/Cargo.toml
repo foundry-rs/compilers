@@ -64,6 +64,7 @@ pretty_assertions.workspace = true
 fd-lock = "4.0.0"
 tokio = { version = "1.35", features = ["rt-multi-thread", "macros"] }
 reqwest = "0.12"
+tempfile = "3.9"
 
 [features]
 default = ["rustls"]

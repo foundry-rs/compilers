@@ -45,4 +45,4 @@ solang-parser.workspace = true
 project-util = ["dep:tempfile", "dep:fs_extra"]
 svm-solc = ["dep:svm", "dep:tokio"]
 async = ["dep:tokio"]
-test-utils = []
+test-utils = ["dep:tempfile"]
