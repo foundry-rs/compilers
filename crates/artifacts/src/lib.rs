@@ -33,11 +33,9 @@ pub mod output_selection;
 pub mod serde_helpers;
 pub mod sourcemap;
 pub mod sources;
+pub use sources::*;
 pub mod vyper;
-use crate::{
-    output_selection::{ContractOutputSelection, OutputSelection},
-    sources::{Source, Sources},
-};
+use crate::output_selection::{ContractOutputSelection, OutputSelection};
 use foundry_compilers_core::{
     error::SolcError,
     utils::{
