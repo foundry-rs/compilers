@@ -19,9 +19,9 @@ pub type Sources = BTreeMap<PathBuf, Source>;
 pub struct Source {
     /// Content of the file
     ///
-    /// This is an `Arc` because it may be cloned. If the [Graph](crate::resolver::Graph) of the
-    /// project contains multiple conflicting versions then the same [Source] may be required by
-    /// conflicting versions and needs to be duplicated.
+    /// This is an `Arc` because it may be cloned. If the graph of the project contains multiple
+    /// conflicting versions then the same [Source] may be required by conflicting versions and
+    /// needs to be duplicated.
     pub content: Arc<String>,
 }
 
