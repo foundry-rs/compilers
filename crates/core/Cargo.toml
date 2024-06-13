@@ -1,6 +1,6 @@
 [package]
 name = "foundry-compilers-core"
-description = "Rust bindings for Solc and Vyper JSON artifacts"
+description = "Core utilities for foundry-compilers crates"
 
 version.workspace = true
 edition.workspace = true

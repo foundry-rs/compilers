@@ -1,6 +1,6 @@
 [package]
 name = "foundry-compilers-project"
-description = "Compiler abstraction and implementations for Solc and Vyper"
+description = "Compiler abstraction and Foundry project implementation"
 
 version.workspace = true
 edition.workspace = true

@@ -2823,9 +2823,8 @@ fn test_compiler_ignored_file_paths() {
     assert!(compiled.has_compiler_warnings());
     compiled.assert_success();
 
-    let testdata = canonicalize(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data"),
-    ).unwrap();
+    let testdata =
+        canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data")).unwrap();
     let compiled = compile_project_with_options(
         Some(foundry_compilers_artifacts::Severity::Warning),
         Some(vec![testdata]),
