@@ -27,7 +27,6 @@ regex.workspace = true
 path-slash.workspace = true
 alloy-primitives.workspace = true
 once_cell.workspace = true
-path-slash.workspace = true
 svm = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 
