@@ -321,4 +321,29 @@ mod tests {
         aggregated.extend(v, build_info, out_converted);
         assert!(!aggregated.is_unchanged());
     }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn can_read_different_case() {
+        use crate::resolver::parse::SolData;
+
+        let tmp_dir = tempdir("out").unwrap();
+        let path = tmp_dir.path().join("forge-std");
+        create_dir_all(&path).unwrap();
+        let existing = path.join("Test.sol");
+        let non_existing = path.join("test.sol");
+        fs::write(
+            existing,
+            "
+pragma solidity ^0.8.10;
+contract A {}
+        ",
+        )
+        .unwrap();
+
+        assert!(!non_existing.exists());
+
+        let found = crate::resolver::Node::<SolData>::read(&non_existing).unwrap_err();
+        matches!(found, SolcError::ResolveCaseSensitiveFileName { .. });
+    }
 }
