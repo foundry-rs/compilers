@@ -207,16 +207,7 @@ impl Flattener {
         let output =
             project.compile_file(target).map_err(FlattenerError::Compilation)?.compiler_output;
 
-        let input_files = output
-            .sources
-            .0
-            .iter()
-            .map(|(file, _)| PathBuf::from(file))
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-
-        let sources = Source::read_all_files(input_files)?;
+        let sources = Source::read_all_files(vec![target.to_path_buf()])?;
         let graph = Graph::<C::ParsedSource>::resolve_sources(&project.paths, sources)?;
 
         let ordered_sources = collect_ordered_deps(&target.to_path_buf(), &project.paths, &graph)?;
