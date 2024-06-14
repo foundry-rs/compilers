@@ -2,10 +2,11 @@ use crate::{
     compilers::{Compiler, ParsedSource},
     filter::MaybeSolData,
     resolver::parse::SolData,
-    Graph, Project, ProjectCompileOutput, ProjectPathsConfig,
+    CompilerSettings, Graph, Project, ProjectPathsConfig,
 };
 use foundry_compilers_artifacts::{
     ast::{visitor::Visitor, *},
+    output_selection::OutputSelection,
     solc::ExternalInlineAssemblyReference,
     sources::{Source, Sources},
     ContractDefinitionPart, SourceUnit, SourceUnitPart,
@@ -162,6 +163,20 @@ impl<'a> FlatteningResult<'a> {
     }
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum FlattenerError {
+    #[error("Failed to compile {0}")]
+    Compilation(SolcError),
+    #[error(transparent)]
+    Other(SolcError),
+}
+
+impl<T: Into<SolcError>> From<T> for FlattenerError {
+    fn from(err: T) -> Self {
+        Self::Other(err.into())
+    }
+}
+
 /// Context for flattening. Stores all sources and ASTs that are in scope of the flattening target.
 pub struct Flattener {
     /// Target file to flatten.
@@ -177,25 +192,25 @@ pub struct Flattener {
 }
 
 impl Flattener {
-    /// Compilation output is expected to contain all artifacts for all sources.
-    /// Flattener caller is expected to resolve all imports of target file, compile them and pass
-    /// into this function.
+    /// Compiles the target file and prepares AST and analysis data for flattening.
     pub fn new<C: Compiler>(
-        project: &Project<C>,
-        output: &ProjectCompileOutput<C>,
+        mut project: Project<C>,
         target: &Path,
-    ) -> Result<Self>
+    ) -> std::result::Result<Self, FlattenerError>
     where
         C::ParsedSource: MaybeSolData,
     {
-        let input_files = output
-            .artifacts_with_files()
-            .map(|(file, _, _)| PathBuf::from(file))
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
+        // Configure project to compile the target file and only request AST for target file.
+        project.cached = false;
+        project.no_artifacts = true;
+        project.settings.update_output_selection(|selection| {
+            *selection = OutputSelection::ast_output_selection();
+        });
 
-        let sources = Source::read_all_files(input_files)?;
+        let output =
+            project.compile_file(target).map_err(FlattenerError::Compilation)?.compiler_output;
+
+        let sources = Source::read_all_files(vec![target.to_path_buf()])?;
         let graph = Graph::<C::ParsedSource>::resolve_sources(&project.paths, sources)?;
 
         let ordered_sources = collect_ordered_deps(&target.to_path_buf(), &project.paths, &graph)?;
@@ -214,9 +229,9 @@ impl Flattener {
 
         // Convert all ASTs from artifacts to strongly typed ASTs
         let mut asts: Vec<(PathBuf, SourceUnit)> = Vec::new();
-        for (path, ast) in output.artifacts_with_files().filter_map(|(path, _, artifact)| {
-            if let Some(ast) = artifact.ast.as_ref() {
-                if sources.contains_key(Path::new(path)) {
+        for (path, ast) in output.sources.0.iter().filter_map(|(path, files)| {
+            if let Some(ast) = files.first().and_then(|source| source.source_file.ast.as_ref()) {
+                if sources.contains_key(path) {
                     return Some((path, ast));
                 }
             }
