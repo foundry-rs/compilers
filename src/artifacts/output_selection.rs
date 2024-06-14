@@ -130,6 +130,20 @@ impl OutputSelection {
         Default::default()
     }
 
+    /// Returns output selection which requests only AST for all sources.
+    pub fn ast_output_selection() -> Self {
+        BTreeMap::from([(
+            "*".to_string(),
+            BTreeMap::from([
+                // Do not request any output for separate contracts
+                ("*".to_string(), vec![]),
+                // Request AST for all sources.
+                ("".to_string(), vec!["ast".to_string()]),
+            ]),
+        )])
+        .into()
+    }
+
     /// Returns true if this output selection is a subset of the other output selection.
     /// TODO: correctly process wildcard keys to reduce false negatives
     pub fn is_subset_of(&self, other: &Self) -> bool {
