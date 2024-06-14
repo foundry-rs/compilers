@@ -28,8 +28,8 @@ use foundry_compilers_project::{
     ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, TestFileFilter,
 };
 use once_cell::sync::Lazy;
-use pretty_assertions::assert_eq;
 use semver::Version;
+use similar_asserts::assert_eq;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs::{self},

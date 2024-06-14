@@ -30,6 +30,6 @@ path-slash.workspace = true
 
 [dev-dependencies]
 serde_path_to_error = "0.1"
-pretty_assertions.workspace = true
+similar-asserts.workspace = true
 foundry-compilers-core = { workspace = true, features = ["test-utils"] }
 serde_json.workspace = true

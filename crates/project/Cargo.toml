@@ -34,7 +34,7 @@ path-slash.workspace = true
 yansi.workspace = true
 solang-parser.workspace = true
 once_cell = { workspace = true, optional = true }
-futures-util = { workspace = true, optional = true}
+futures-util = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 
 auto_impl = "1"
@@ -60,7 +60,7 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
     "env-filter",
     "fmt",
 ] }
-pretty_assertions.workspace = true
+similar-asserts.workspace = true
 fd-lock = "4.0.0"
 tokio = { version = "1.35", features = ["rt-multi-thread", "macros"] }
 reqwest = "0.12"
@@ -83,9 +83,21 @@ async = [
     "foundry-compilers-artifacts/async",
 ]
 # Enables `svm` to auto-detect and manage `solc` builds.
-svm-solc = ["dep:svm", "dep:svm-builds", "dep:sha2", "foundry-compilers-core/svm-solc", "dep:once_cell"]
+svm-solc = [
+    "dep:svm",
+    "dep:svm-builds",
+    "dep:sha2",
+    "foundry-compilers-core/svm-solc",
+    "dep:once_cell",
+]
 # Utilities for creating and testing project workspaces.
-project-util = ["dep:tempfile", "dep:fs_extra", "dep:rand", "svm-solc", "foundry-compilers-core/project-util"]
+project-util = [
+    "dep:tempfile",
+    "dep:fs_extra",
+    "dep:rand",
+    "svm-solc",
+    "foundry-compilers-core/project-util",
+]
 
 rustls = ["svm?/rustls"]
 openssl = ["svm?/openssl"]
