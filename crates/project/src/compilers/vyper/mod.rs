@@ -158,18 +158,22 @@ impl Vyper {
     /// Invokes `vyper --version` and parses the output as a SemVer [`Version`].
     #[instrument(level = "debug", skip_all)]
     pub fn version(vyper: impl Into<PathBuf>) -> Result<Version> {
-        let vyper = vyper.into();
-        let mut cmd = Command::new(vyper.clone());
-        cmd.arg("--version").stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
-        debug!(?cmd, "getting Vyper version");
-        let output = cmd.output().map_err(|e| SolcError::io(e, vyper))?;
-        trace!(?output);
-        if output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            Ok(Version::from_str(&stdout.trim().replace("rc", "-rc"))?)
-        } else {
-            Err(SolcError::solc_output(&output))
-        }
+        crate::cache_version(vyper.into(), |vyper| {
+            let mut cmd = Command::new(vyper);
+            cmd.arg("--version")
+                .stdin(Stdio::piped())
+                .stderr(Stdio::piped())
+                .stdout(Stdio::piped());
+            debug!(?cmd, "getting Vyper version");
+            let output = cmd.output().map_err(|e| SolcError::io(e, vyper))?;
+            trace!(?output);
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                Ok(Version::from_str(&stdout.trim().replace("rc", "-rc"))?)
+            } else {
+                Err(SolcError::solc_output(&output))
+            }
+        })
     }
 
     fn map_io_err(&self) -> impl FnOnce(std::io::Error) -> SolcError + '_ {
