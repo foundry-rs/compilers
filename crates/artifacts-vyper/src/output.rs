@@ -1,7 +1,8 @@
 use super::error::VyperCompilationError;
-use crate::{BytecodeObject, Contract, Evm, FileToContractsMap, SourceFile};
 use alloy_json_abi::JsonAbi;
 use alloy_primitives::Bytes;
+use foundry_compilers_artifacts as solc_artifacts;
+use foundry_compilers_artifacts::BytecodeObject;
 use serde::Deserialize;
 use std::{
     collections::{BTreeMap, HashSet},
@@ -19,9 +20,9 @@ pub struct Bytecode {
     pub source_map: Option<String>,
 }
 
-impl From<Bytecode> for crate::Bytecode {
+impl From<Bytecode> for solc_artifacts::Bytecode {
     fn from(bytecode: Bytecode) -> Self {
-        crate::Bytecode {
+        solc_artifacts::Bytecode {
             object: BytecodeObject::Bytecode(bytecode.object),
             opcodes: bytecode.opcodes,
             source_map: bytecode.source_map,
@@ -44,11 +45,11 @@ pub struct VyperEvm {
     pub method_identifiers: BTreeMap<String, String>,
 }
 
-impl From<VyperEvm> for Evm {
+impl From<VyperEvm> for solc_artifacts::Evm {
     fn from(evm: VyperEvm) -> Self {
-        Evm {
+        solc_artifacts::Evm {
             bytecode: evm.bytecode.map(Into::into),
-            deployed_bytecode: evm.deployed_bytecode.map(|b| crate::DeployedBytecode {
+            deployed_bytecode: evm.deployed_bytecode.map(|b| solc_artifacts::DeployedBytecode {
                 bytecode: Some(b.into()),
                 immutable_references: Default::default(),
             }),
@@ -69,9 +70,9 @@ pub struct VyperContract {
     pub evm: Option<VyperEvm>,
 }
 
-impl From<VyperContract> for Contract {
+impl From<VyperContract> for solc_artifacts::Contract {
     fn from(contract: VyperContract) -> Self {
-        Contract {
+        solc_artifacts::Contract {
             abi: contract.abi,
             evm: contract.evm.map(Into::into),
             metadata: None,
@@ -90,9 +91,9 @@ pub struct VyperSourceFile {
     pub id: u32,
 }
 
-impl From<VyperSourceFile> for SourceFile {
+impl From<VyperSourceFile> for solc_artifacts::SourceFile {
     fn from(source: VyperSourceFile) -> Self {
-        SourceFile { id: source.id, ast: None }
+        solc_artifacts::SourceFile { id: source.id, ast: None }
     }
 }
 
@@ -102,7 +103,7 @@ pub struct VyperOutput {
     #[serde(default = "Vec::new", skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<VyperCompilationError>,
     #[serde(default)]
-    pub contracts: FileToContractsMap<VyperContract>,
+    pub contracts: solc_artifacts::FileToContractsMap<VyperContract>,
     #[serde(default)]
     pub sources: BTreeMap<PathBuf, VyperSourceFile>,
 }

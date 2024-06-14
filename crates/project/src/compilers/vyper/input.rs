@@ -1,9 +1,9 @@
 use super::VyperLanguage;
-use crate::compilers::CompilerInput;
-use foundry_compilers_artifacts::{
-    sources::{Source, Sources},
-    vyper::{input::VyperInput, VyperSettings},
+use crate::{
+    artifacts::vyper::{VyperInput, VyperSettings},
+    compilers::CompilerInput,
 };
+use foundry_compilers_artifacts::sources::{Source, Sources};
 use semver::Version;
 use serde::Serialize;
 use std::{borrow::Cow, path::Path};

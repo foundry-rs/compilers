@@ -1,11 +1,15 @@
-pub mod settings;
+//! Vyper artifact types.
+
+#![cfg_attr(not(test), warn(unused_crate_dependencies))]
+
+mod settings;
 pub use settings::{VyperOptimizationMode, VyperSettings};
 
-pub mod error;
+mod error;
 pub use error::VyperCompilationError;
 
-pub mod input;
+mod input;
 pub use input::VyperInput;
 
-pub mod output;
+mod output;
 pub use output::VyperOutput;

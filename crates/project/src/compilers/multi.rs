@@ -7,13 +7,15 @@ use super::{
     CompilationError, Compiler, CompilerInput, CompilerOutput, CompilerSettings, CompilerVersion,
     Language, ParsedSource,
 };
-use crate::resolver::parse::SolData;
+use crate::{
+    artifacts::vyper::{VyperCompilationError, VyperSettings},
+    resolver::parse::SolData,
+};
 use foundry_compilers_artifacts::{
     error::SourceLocation,
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    vyper::{error::VyperCompilationError, VyperSettings},
     Error, Settings as SolcSettings, Severity, SolcLanguage,
 };
 use foundry_compilers_core::error::{Result, SolcError};

@@ -1,6 +1,7 @@
 use crate::compilers::CompilationError;
+use crate::artifacts::vyper::VyperCompilationError;
 use foundry_compilers_artifacts::{
-    error::SourceLocation, vyper::error::VyperCompilationError, Severity,
+    error::SourceLocation, Severity,
 };
 
 impl CompilationError for VyperCompilationError {

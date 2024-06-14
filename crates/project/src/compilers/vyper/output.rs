@@ -1,4 +1,4 @@
-use foundry_compilers_artifacts::vyper::{error::VyperCompilationError, output::VyperOutput};
+use crate::artifacts::vyper::{VyperCompilationError, VyperOutput};
 
 impl From<VyperOutput> for super::CompilerOutput<VyperCompilationError> {
     fn from(output: VyperOutput) -> Self {

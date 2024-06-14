@@ -1,6 +1,6 @@
 [package]
-name = "foundry-compilers-artifacts"
-description = "Rust bindings for Solc JSON artifacts"
+name = "foundry-compilers-artifacts-vyper"
+description = "Rust bindings for Vyper JSON artifacts"
 
 version.workspace = true
 edition.workspace = true
@@ -19,22 +19,11 @@ rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
 
 [dependencies]
-foundry-compilers-core.workspace = true
+foundry-compilers-artifacts.workspace = true
 
 serde.workspace = true
-semver.workspace = true
-serde_json.workspace = true
-tracing.workspace = true
 alloy-primitives.workspace = true
 alloy-json-abi.workspace = true
-rayon.workspace = true
-thiserror.workspace = true
-md-5.workspace = true
-yansi.workspace = true
-futures-util = { workspace = true, optional = true}
-tokio = { workspace = true, optional = true }
-
-walkdir = "2.4"
 
 [target.'cfg(windows)'.dependencies]
 path-slash.workspace = true
@@ -43,6 +32,4 @@ path-slash.workspace = true
 serde_path_to_error = "0.1"
 pretty_assertions.workspace = true
 foundry-compilers-core = { workspace = true, features = ["test-utils"] }
-
-[features]
-async = ["dep:tokio", "futures-util", "tokio/fs"]
+serde_json.workspace = true

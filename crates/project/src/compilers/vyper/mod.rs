@@ -1,11 +1,10 @@
 use self::{input::VyperVersionedInput, parser::VyperParsedSource};
 use super::{Compiler, CompilerOutput, Language};
-use core::fmt;
-pub use foundry_compilers_artifacts::vyper::VyperSettings;
-use foundry_compilers_artifacts::{
-    sources::Source,
-    vyper::{error::VyperCompilationError, input::VyperInput, output::VyperOutput},
+pub use crate::artifacts::vyper::{
+    VyperCompilationError, VyperInput, VyperOutput, VyperSettings,
 };
+use core::fmt;
+use foundry_compilers_artifacts::sources::Source;
 use foundry_compilers_core::error::{Result, SolcError};
 use semver::Version;
 use serde::{de::DeserializeOwned, Serialize};

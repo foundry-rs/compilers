@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use super::VyperSettings;
-use crate::sources::Sources;
+use foundry_compilers_artifacts::sources::Sources;
 use serde::{Deserialize, Serialize};
 
 /// Extension of Vyper interface file.

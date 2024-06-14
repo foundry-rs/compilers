@@ -33,8 +33,6 @@ pub mod output_selection;
 pub mod serde_helpers;
 pub mod sourcemap;
 pub mod sources;
-pub use sources::*;
-pub mod vyper;
 use crate::output_selection::{ContractOutputSelection, OutputSelection};
 use foundry_compilers_core::{
     error::SolcError,
@@ -44,6 +42,7 @@ use foundry_compilers_core::{
     },
 };
 pub use serde_helpers::{deserialize_bytes, deserialize_opt_bytes};
+pub use sources::*;
 
 /// Solidity files are made up of multiple `source units`, a solidity contract is such a `source
 /// unit`, therefore a solidity file can contain multiple contracts: (1-N*) relationship.
