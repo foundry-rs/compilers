@@ -190,14 +190,13 @@ pub struct Flattener {
 impl Flattener {
     /// Compiles the target file and prepares AST and analysis data for flattening.
     pub fn new<C: Compiler>(
-        project: &Project<C>,
+        mut project: Project<C>,
         target: &Path,
     ) -> std::result::Result<Self, FlattenerError>
     where
         C::ParsedSource: MaybeSolData,
     {
         // Configure project to compile the target file and only request AST for target file.
-        let mut project = project.clone();
         project.cached = false;
         project.no_artifacts = true;
         project.settings.update_output_selection(|selection| {

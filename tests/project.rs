@@ -542,7 +542,7 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> 
 fn test_flatteners(project: &TempProject, target: &Path, additional_checks: fn(&str)) {
     let result =
         project.project().paths.clone().with_language::<SolcLanguage>().flatten(target).unwrap();
-    let solc_result = Flattener::new(project.project(), target).unwrap().flatten();
+    let solc_result = Flattener::new(project.project().clone(), target).unwrap().flatten();
 
     assert_eq!(result, solc_result);
 
@@ -1145,7 +1145,7 @@ contract Bar is Foo {}
         )
         .unwrap();
 
-    let result = Flattener::new(project.project(), &target).unwrap().flatten();
+    let result = Flattener::new(project.project().clone(), &target).unwrap().flatten();
     assert_eq!(
         result,
         r"pragma solidity ^0.8.10;
@@ -1250,7 +1250,7 @@ contract D is C_File.B_File.A_File.A {
 }
 "#,).unwrap();
 
-    let result = Flattener::new(project.project(), &target).unwrap().flatten();
+    let result = Flattener::new(project.project().clone(), &target).unwrap().flatten();
     assert_eq!(
         result,
         r"pragma solidity ^0.8.10;
@@ -1345,7 +1345,7 @@ contract B {
         )
         .unwrap();
 
-    let result = Flattener::new(project.project(), &target).unwrap().flatten();
+    let result = Flattener::new(project.project().clone(), &target).unwrap().flatten();
     assert_eq!(
         result,
         r#"pragma solidity ^0.8.10;
@@ -1404,7 +1404,7 @@ contract B is A {}
         )
         .unwrap();
 
-    let result = Flattener::new(project.project(), &target).unwrap().flatten();
+    let result = Flattener::new(project.project().clone(), &target).unwrap().flatten();
     assert_eq!(
         result,
         r"pragma solidity =0.6.12;
@@ -1522,7 +1522,7 @@ contract B is A {
         )
         .unwrap();
 
-    let result = Flattener::new(project.project(), &target).unwrap().flatten();
+    let result = Flattener::new(project.project().clone(), &target).unwrap().flatten();
     assert_eq!(
         result,
         r"pragma solidity ^0.8.10;
@@ -1578,7 +1578,7 @@ contract B is Alias {
         )
         .unwrap();
 
-    let result = Flattener::new(project.project(), &target).unwrap().flatten();
+    let result = Flattener::new(project.project().clone(), &target).unwrap().flatten();
     assert_eq!(
         result,
         r"pragma solidity ^0.8.10;
@@ -1655,7 +1655,7 @@ contract Foo {
         )
         .unwrap();
 
-    let result = Flattener::new(project.project(), &target).unwrap().flatten();
+    let result = Flattener::new(project.project().clone(), &target).unwrap().flatten();
     assert_eq!(
         result,
         r"pragma solidity ^0.8.10;
@@ -1736,7 +1736,7 @@ contract Foo {
         )
         .unwrap();
 
-    let result = Flattener::new(project.project(), &target).unwrap().flatten();
+    let result = Flattener::new(project.project().clone(), &target).unwrap().flatten();
     assert_eq!(
         result,
         r"pragma solidity ^0.8.10;
@@ -1803,7 +1803,7 @@ contract Foo {
         )
         .unwrap();
 
-    let result = Flattener::new(project.project(), &target).unwrap().flatten();
+    let result = Flattener::new(project.project().clone(), &target).unwrap().flatten();
     assert_eq!(
         result,
         r"pragma solidity ^0.8.10;
