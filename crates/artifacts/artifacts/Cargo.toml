@@ -1,0 +1,26 @@
+[package]
+name = "foundry-compilers-artifacts"
+description = "Rust bindings for compilers JSON artifacts"
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.playground]
+all-features = true
+
+[dependencies]
+foundry-compilers-artifacts-solc.workspace = true
+foundry-compilers-artifacts-vyper.workspace = true
+
+[features]
+async = ["foundry-compilers-artifacts-solc/async"]
