@@ -1,8 +1,15 @@
 use crate::{
-    compilers::{Compiler, ParsedSource}, filter::MaybeSolData, resolver::parse::SolData, CompilerSettings, Graph, Project, ProjectPathsConfig
+    compilers::{Compiler, ParsedSource},
+    filter::MaybeSolData,
+    resolver::parse::SolData,
+    CompilerSettings, Graph, Project, ProjectPathsConfig,
 };
 use foundry_compilers_artifacts::{
-    ast::{visitor::Visitor, *}, output_selection::OutputSelection, solc::ExternalInlineAssemblyReference, sources::{Source, Sources}, ContractDefinitionPart, SourceUnit, SourceUnitPart
+    ast::{visitor::Visitor, *},
+    output_selection::OutputSelection,
+    solc::ExternalInlineAssemblyReference,
+    sources::{Source, Sources},
+    ContractDefinitionPart, SourceUnit, SourceUnitPart,
 };
 use foundry_compilers_core::{
     error::{Result, SolcError},
