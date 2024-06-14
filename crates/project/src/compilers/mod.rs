@@ -12,10 +12,11 @@ use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::{Debug, Display},
     hash::Hash,
     path::{Path, PathBuf},
+    sync::{Mutex, OnceLock},
 };
 
 pub mod multi;
@@ -264,4 +265,19 @@ pub trait Compiler: Send + Sync + Clone {
     /// Returns all versions available locally and remotely. Should return versions with stripped
     /// metadata.
     fn available_versions(&self, language: &Self::Language) -> Vec<CompilerVersion>;
+}
+
+pub(crate) fn cache_version(
+    path: PathBuf,
+    f: impl FnOnce(&Path) -> Result<Version>,
+) -> Result<Version> {
+    static VERSION_CACHE: OnceLock<Mutex<HashMap<PathBuf, Version>>> = OnceLock::new();
+    Ok(match VERSION_CACHE.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap().entry(path) {
+        std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            let value = f(entry.key())?;
+            entry.insert(value)
+        }
+    }
+    .clone())
 }

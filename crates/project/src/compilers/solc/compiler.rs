@@ -422,15 +422,19 @@ impl Solc {
     /// Invokes `solc --version` and parses the output as a SemVer [`Version`].
     #[instrument(level = "debug", skip_all)]
     pub fn version(solc: impl Into<PathBuf>) -> Result<Version> {
-        let solc = solc.into();
-        let mut cmd = Command::new(solc.clone());
-        cmd.arg("--version").stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
-        debug!(?cmd, "getting Solc version");
-        let output = cmd.output().map_err(|e| SolcError::io(e, solc))?;
-        trace!(?output);
-        let version = version_from_output(output)?;
-        debug!(%version);
-        Ok(version)
+        crate::cache_version(solc.into(), |solc| {
+            let mut cmd = Command::new(solc);
+            cmd.arg("--version")
+                .stdin(Stdio::piped())
+                .stderr(Stdio::piped())
+                .stdout(Stdio::piped());
+            debug!(?cmd, "getting Solc version");
+            let output = cmd.output().map_err(|e| SolcError::io(e, solc))?;
+            trace!(?output);
+            let version = version_from_output(output)?;
+            debug!(%version);
+            Ok(version)
+        })
     }
 
     fn map_io_err(&self) -> impl FnOnce(std::io::Error) -> SolcError + '_ {
