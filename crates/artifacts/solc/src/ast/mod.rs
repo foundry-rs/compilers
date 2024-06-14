@@ -1093,24 +1093,26 @@ mod tests {
 
     #[test]
     fn can_parse_ast() {
-        fs::read_dir(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data").join("ast"))
-            .unwrap()
-            .for_each(|path| {
-                let path = path.unwrap().path();
-                let path_str = path.to_string_lossy();
+        fs::read_dir(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../test-data").join("ast"),
+        )
+        .unwrap()
+        .for_each(|path| {
+            let path = path.unwrap().path();
+            let path_str = path.to_string_lossy();
 
-                let input = fs::read_to_string(&path).unwrap();
-                let deserializer = &mut serde_json::Deserializer::from_str(&input);
-                let result: Result<SourceUnit, _> = serde_path_to_error::deserialize(deserializer);
-                match result {
-                    Err(e) => {
-                        println!("... {path_str} fail: {e}");
-                        panic!();
-                    }
-                    Ok(_) => {
-                        println!("... {path_str} ok");
-                    }
+            let input = fs::read_to_string(&path).unwrap();
+            let deserializer = &mut serde_json::Deserializer::from_str(&input);
+            let result: Result<SourceUnit, _> = serde_path_to_error::deserialize(deserializer);
+            match result {
+                Err(e) => {
+                    println!("... {path_str} fail: {e}");
+                    panic!();
                 }
-            })
+                Ok(_) => {
+                    println!("... {path_str} ok");
+                }
+            }
+        })
     }
 }

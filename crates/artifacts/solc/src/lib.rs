@@ -1924,7 +1924,7 @@ mod tests {
 
     #[test]
     fn can_parse_compiler_output() {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/out");
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../test-data/out");
 
         for path in fs::read_dir(dir).unwrap() {
             let path = path.unwrap().path();
@@ -1937,7 +1937,7 @@ mod tests {
 
     #[test]
     fn can_parse_compiler_input() {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/in");
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../test-data/in");
 
         for path in fs::read_dir(dir).unwrap() {
             let path = path.unwrap().path();
@@ -1950,7 +1950,7 @@ mod tests {
 
     #[test]
     fn can_parse_standard_json_compiler_input() {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/in");
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../test-data/in");
 
         for path in fs::read_dir(dir).unwrap() {
             let path = path.unwrap().path();
@@ -2204,7 +2204,7 @@ mod tests {
 
     #[test]
     fn test_lossless_storage_layout() {
-        let input = include_str!("../../../test-data/foundryissue2462.json").trim();
+        let input = include_str!("../../../../test-data/foundryissue2462.json").trim();
         let layout: StorageLayout = serde_json::from_str(input).unwrap();
         pretty_assertions::assert_eq!(input, &serde_json::to_string(&layout).unwrap());
     }
@@ -2212,8 +2212,8 @@ mod tests {
     // <https://github.com/foundry-rs/foundry/issues/3012>
     #[test]
     fn can_parse_compiler_output_spells_0_6_12() {
-        let path =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/0.6.12-with-libs.json");
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../test-data/0.6.12-with-libs.json");
         let content = fs::read_to_string(path).unwrap();
         let _output: CompilerOutput = serde_json::from_str(&content).unwrap();
     }

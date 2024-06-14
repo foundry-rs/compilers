@@ -152,7 +152,7 @@ mod tests {
 
     fn test_output(artifact_path: &str) {
         let output = std::fs::read_to_string(
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data").join(artifact_path),
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../test-data").join(artifact_path),
         )
         .unwrap();
         let output: super::VyperOutput = serde_json::from_str(&output).unwrap();
