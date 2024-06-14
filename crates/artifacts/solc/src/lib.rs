@@ -1872,6 +1872,7 @@ impl SourceFiles {
 mod tests {
     use super::*;
     use alloy_primitives::Address;
+    use similar_asserts::assert_eq;
     use std::fs;
 
     #[test]
@@ -2085,7 +2086,7 @@ mod tests {
             .with_stripped_file_prefixes("/global/root")
             .libs;
 
-        pretty_assertions::assert_eq!(
+        assert_eq!(
             libs,
             BTreeMap::from([
                 (
@@ -2139,7 +2140,7 @@ mod tests {
 
         let libs = Libraries::parse(&libraries[..]).unwrap().libs;
 
-        pretty_assertions::assert_eq!(
+        assert_eq!(
             libs,
             BTreeMap::from([
                 (
@@ -2199,14 +2200,14 @@ mod tests {
         assert_eq!(c.metadata.as_ref().unwrap().raw_metadata, "{\"compiler\":{\"version\":\"0.4.18+commit.9cf6e910\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"constant\":true,\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"name\":\"\",\"type\":\"address\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"}],\"devdoc\":{\"methods\":{\"transferOwnership(address)\":{\"details\":\"Allows the current owner to transfer control of the contract to a newOwner.\",\"params\":{\"newOwner\":\"The address to transfer ownership to.\"}}},\"title\":\"Ownable\"},\"userdoc\":{\"methods\":{}}},\"settings\":{\"compilationTarget\":{\"src/Contract.sol\":\"Ownable\"},\"libraries\":{},\"optimizer\":{\"enabled\":true,\"runs\":1000000},\"remappings\":[\":src/=src/\"]},\"sources\":{\"src/Contract.sol\":{\"keccak256\":\"0x3e0d611f53491f313ae035797ed7ecfd1dfd8db8fef8f82737e6f0cd86d71de7\",\"urls\":[\"bzzr://9c33025fa9d1b8389e4c7c9534a1d70fad91c6c2ad70eb5e4b7dc3a701a5f892\"]}},\"version\":1}");
 
         let value = serde_json::to_string(&c).unwrap();
-        pretty_assertions::assert_eq!(s, value);
+        assert_eq!(s, value);
     }
 
     #[test]
     fn test_lossless_storage_layout() {
         let input = include_str!("../../../../test-data/foundryissue2462.json").trim();
         let layout: StorageLayout = serde_json::from_str(input).unwrap();
-        pretty_assertions::assert_eq!(input, &serde_json::to_string(&layout).unwrap());
+        assert_eq!(input, &serde_json::to_string(&layout).unwrap());
     }
 
     // <https://github.com/foundry-rs/foundry/issues/3012>

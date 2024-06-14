@@ -811,9 +811,9 @@ fn last_nested_source_dir(root: &Path, dir: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use foundry_compilers_core::utils::{mkdir_or_touch, tempdir, touch};
-
     use super::*;
+    use foundry_compilers_core::utils::{mkdir_or_touch, tempdir, touch};
+    use similar_asserts::assert_eq;
 
     #[test]
     fn relative_remapping() {
@@ -890,7 +890,7 @@ mod tests {
             name: "timeless/".to_string(),
             path: to_str(tmp_dir_path.join("timeless/src")),
         }];
-        pretty_assertions::assert_eq!(remappings, expected);
+        assert_eq!(remappings, expected);
     }
 
     #[test]
@@ -959,7 +959,7 @@ mod tests {
             },
         ];
         expected.sort_unstable();
-        pretty_assertions::assert_eq!(remappings, expected);
+        assert_eq!(remappings, expected);
     }
 
     #[test]
@@ -999,7 +999,7 @@ mod tests {
             name: "@chainlink/".to_string(),
             path: to_str(tmp_dir.path().join("@chainlink")),
         }];
-        pretty_assertions::assert_eq!(remappings, expected);
+        assert_eq!(remappings, expected);
     }
 
     #[test]
@@ -1084,7 +1084,7 @@ mod tests {
             name: "@openzeppelin/".to_string(),
             path: to_str(tmp_dir.path().join("@openzeppelin")),
         }];
-        pretty_assertions::assert_eq!(remappings, expected);
+        assert_eq!(remappings, expected);
     }
 
     #[test]
@@ -1155,7 +1155,7 @@ mod tests {
             },
         ];
         expected.sort_unstable();
-        pretty_assertions::assert_eq!(remappings, expected);
+        assert_eq!(remappings, expected);
     }
 
     #[test]
@@ -1236,7 +1236,7 @@ mod tests {
             },
         ];
         expected.sort_unstable();
-        pretty_assertions::assert_eq!(remappings, expected);
+        assert_eq!(remappings, expected);
     }
 
     #[test]
@@ -1278,7 +1278,7 @@ mod tests {
             },
         ];
         expected.sort_unstable();
-        pretty_assertions::assert_eq!(remappings, expected);
+        assert_eq!(remappings, expected);
     }
 
     #[test]
@@ -1326,7 +1326,7 @@ mod tests {
             },
         ];
         expected.sort_unstable();
-        pretty_assertions::assert_eq!(remappings, expected);
+        assert_eq!(remappings, expected);
     }
 
     #[test]
@@ -1376,6 +1376,6 @@ mod tests {
             },
         ];
         expected.sort_unstable();
-        pretty_assertions::assert_eq!(remappings, expected);
+        assert_eq!(remappings, expected);
     }
 }

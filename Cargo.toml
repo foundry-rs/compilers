@@ -36,7 +36,7 @@ yansi = "1.0.1"
 once_cell = "1.19"
 svm = { package = "svm-rs", version = "0.5", default-features = false }
 solang-parser = { version = "=0.3.3", default-features = false }
-pretty_assertions = "1"
+similar-asserts = "1"
 tempfile = "3.9"
 
 # async
