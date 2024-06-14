@@ -47,17 +47,13 @@ pub mod report;
 pub mod project_util;
 
 pub use foundry_compilers_core::{error, utils};
-
-pub mod artifacts {
-    pub use foundry_compilers_artifacts::*;
-    pub use foundry_compilers_artifacts_vyper as vyper;
-}
+pub use foundry_compilers_artifacts as artifacts;
 
 use cache::CompilerCache;
 use compile::output::contracts::VersionedContracts;
 use compilers::multi::MultiCompiler;
 use derivative::Derivative;
-use foundry_compilers_artifacts::{
+use foundry_compilers_artifacts::solc::{
     output_selection::OutputSelection,
     sources::{Source, Sources},
     Contract, Settings, Severity, SourceFile, StandardJsonCompilerInput,

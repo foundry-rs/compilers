@@ -1,8 +1,8 @@
 use super::error::VyperCompilationError;
 use alloy_json_abi::JsonAbi;
 use alloy_primitives::Bytes;
-use foundry_compilers_artifacts as solc_artifacts;
-use foundry_compilers_artifacts::BytecodeObject;
+use foundry_compilers_artifacts_solc as solc_artifacts;
+use foundry_compilers_artifacts_solc::BytecodeObject;
 use serde::Deserialize;
 use std::{
     collections::{BTreeMap, HashSet},

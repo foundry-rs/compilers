@@ -1,5 +1,5 @@
 use core::fmt;
-use foundry_compilers_artifacts::Severity;
+use foundry_compilers_artifacts_solc::Severity;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 

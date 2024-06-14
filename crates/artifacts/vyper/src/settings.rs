@@ -1,4 +1,6 @@
-use foundry_compilers_artifacts::{output_selection::OutputSelection, serde_helpers, EvmVersion};
+use foundry_compilers_artifacts_solc::{
+    output_selection::OutputSelection, serde_helpers, EvmVersion,
+};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 

@@ -19,7 +19,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
 
 [dependencies]
-foundry-compilers-artifacts.workspace = true
+foundry-compilers-artifacts-solc.workspace = true
 
 serde.workspace = true
 alloy-primitives.workspace = true

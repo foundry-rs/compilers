@@ -20,7 +20,6 @@ all-features = true
 
 [dependencies]
 foundry-compilers-artifacts.workspace = true
-foundry-compilers-artifacts-vyper.workspace = true
 foundry-compilers-core.workspace = true
 serde.workspace = true
 semver.workspace = true

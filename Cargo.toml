@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/artifacts/*", "crates/core", "crates/project"]
 resolver = "2"
 
 [workspace.package]
@@ -17,8 +17,9 @@ edition = "2021"
 exclude = [".github/", "scripts/", "test-data/"]
 
 [workspace.dependencies]
-foundry-compilers-artifacts = { path = "crates/artifacts", version = "0.7.0" }
-foundry-compilers-artifacts-vyper = { path = "crates/artifacts-vyper", version = "0.7.0" }
+foundry-compilers-artifacts-solc = { path = "crates/artifacts/solc", version = "0.7.0" }
+foundry-compilers-artifacts-vyper = { path = "crates/artifacts/vyper", version = "0.7.0" }
+foundry-compilers-artifacts = { path = "crates/artifacts/artifacts", version = "0.7.0" }
 foundry-compilers-core = { path = "crates/core", version = "0.7.0" }
 serde = { version = "1", features = ["derive", "rc"] }
 semver = { version = "1.0", features = ["serde"] }

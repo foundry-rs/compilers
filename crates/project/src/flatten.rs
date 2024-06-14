@@ -6,6 +6,7 @@ use crate::{
 };
 use foundry_compilers_artifacts::{
     ast::{visitor::Visitor, *},
+    solc::ExternalInlineAssemblyReference,
     sources::{Source, Sources},
     ContractDefinitionPart, SourceUnit, SourceUnitPart,
 };
