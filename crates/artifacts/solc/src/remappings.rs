@@ -261,11 +261,7 @@ impl Remapping {
 
         all_remappings
             .into_iter()
-            .map(|(name, path)| Self {
-                context: None,
-                name,
-                path: format!("{}/", path.display()),
-            })
+            .map(|(name, path)| Self { context: None, name, path: format!("{}/", path.display()) })
             .collect()
     }
 
@@ -447,11 +443,7 @@ impl<'de> Deserialize<'de> for RelativeRemapping {
     {
         let remapping = String::deserialize(deserializer)?;
         let remapping = Remapping::from_str(&remapping).map_err(serde::de::Error::custom)?;
-        Ok(Self {
-            context: remapping.context,
-            name: remapping.name,
-            path: remapping.path.into(),
-        })
+        Ok(Self { context: remapping.context, name: remapping.name, path: remapping.path.into() })
     }
 }
 

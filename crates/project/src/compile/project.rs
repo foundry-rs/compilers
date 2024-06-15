@@ -437,9 +437,7 @@ impl<L: Language> CompilerSources<L> {
         }
 
         match self {
-            Self::Sequential(s) => {
-                FilteredCompilerSources::Sequential(filtered_sources(s, cache))
-            }
+            Self::Sequential(s) => FilteredCompilerSources::Sequential(filtered_sources(s, cache)),
             Self::Parallel(s, j) => {
                 FilteredCompilerSources::Parallel(filtered_sources(s, cache), j)
             }

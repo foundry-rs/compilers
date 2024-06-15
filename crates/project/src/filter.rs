@@ -220,9 +220,7 @@ impl From<FilteredSources> for Sources {
 
 impl From<Sources> for FilteredSources {
     fn from(s: Sources) -> Self {
-        Self(
-            s.into_iter().map(|(key, val)| (key, SourceCompilationKind::Complete(val))).collect(),
-        )
+        Self(s.into_iter().map(|(key, val)| (key, SourceCompilationKind::Complete(val))).collect())
     }
 }
 

@@ -442,9 +442,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
         let mut contracts = self.collect_contract_names()?;
 
         if contracts.get(target_name).map_or(true, |paths| paths.is_empty()) {
-            return Err(SolcError::msg(format!(
-                "No contract found with the name `{target_name}`"
-            )));
+            return Err(SolcError::msg(format!("No contract found with the name `{target_name}`")));
         }
         let mut paths = contracts.remove(target_name).unwrap();
         if paths.len() > 1 {

@@ -285,12 +285,8 @@ impl FromStr for ContractOutputSelection {
             "userdoc" => Ok(Self::UserDoc),
             "metadata" => Ok(Self::Metadata),
             "ir" => Ok(Self::Ir),
-            "ir-optimized" | "irOptimized" | "iroptimized" => {
-                Ok(Self::IrOptimized)
-            }
-            "storage-layout" | "storagelayout" | "storageLayout" => {
-                Ok(Self::StorageLayout)
-            }
+            "ir-optimized" | "irOptimized" | "iroptimized" => Ok(Self::IrOptimized),
+            "storage-layout" | "storagelayout" | "storageLayout" => Ok(Self::StorageLayout),
             s => EvmOutputSelection::from_str(s)
                 .map(ContractOutputSelection::Evm)
                 .or_else(|_| EwasmOutputSelection::from_str(s).map(ContractOutputSelection::Ewasm))
@@ -424,16 +420,12 @@ impl fmt::Display for BytecodeOutputSelection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::All => f.write_str("evm.bytecode"),
-            Self::FunctionDebugData => {
-                f.write_str("evm.bytecode.functionDebugData")
-            }
+            Self::FunctionDebugData => f.write_str("evm.bytecode.functionDebugData"),
             Self::Object => f.write_str("evm.bytecode.object"),
             Self::Opcodes => f.write_str("evm.bytecode.opcodes"),
             Self::SourceMap => f.write_str("evm.bytecode.sourceMap"),
             Self::LinkReferences => f.write_str("evm.bytecode.linkReferences"),
-            Self::GeneratedSources => {
-                f.write_str("evm.bytecode.generatedSources")
-            }
+            Self::GeneratedSources => f.write_str("evm.bytecode.generatedSources"),
         }
     }
 }
@@ -490,23 +482,13 @@ impl fmt::Display for DeployedBytecodeOutputSelection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::All => f.write_str("evm.deployedBytecode"),
-            Self::FunctionDebugData => {
-                f.write_str("evm.deployedBytecode.functionDebugData")
-            }
+            Self::FunctionDebugData => f.write_str("evm.deployedBytecode.functionDebugData"),
             Self::Object => f.write_str("evm.deployedBytecode.object"),
             Self::Opcodes => f.write_str("evm.deployedBytecode.opcodes"),
-            Self::SourceMap => {
-                f.write_str("evm.deployedBytecode.sourceMap")
-            }
-            Self::LinkReferences => {
-                f.write_str("evm.deployedBytecode.linkReferences")
-            }
-            Self::GeneratedSources => {
-                f.write_str("evm.deployedBytecode.generatedSources")
-            }
-            Self::ImmutableReferences => {
-                f.write_str("evm.deployedBytecode.immutableReferences")
-            }
+            Self::SourceMap => f.write_str("evm.deployedBytecode.sourceMap"),
+            Self::LinkReferences => f.write_str("evm.deployedBytecode.linkReferences"),
+            Self::GeneratedSources => f.write_str("evm.deployedBytecode.generatedSources"),
+            Self::ImmutableReferences => f.write_str("evm.deployedBytecode.immutableReferences"),
         }
     }
 }
@@ -517,9 +499,7 @@ impl FromStr for DeployedBytecodeOutputSelection {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "evm.deployedBytecode" => Ok(Self::All),
-            "evm.deployedBytecode.functionDebugData" => {
-                Ok(Self::FunctionDebugData)
-            }
+            "evm.deployedBytecode.functionDebugData" => Ok(Self::FunctionDebugData),
             "deployed-code"
             | "deployed-bin"
             | "runtime-code"
@@ -527,15 +507,9 @@ impl FromStr for DeployedBytecodeOutputSelection {
             | "evm.deployedBytecode.object" => Ok(Self::Object),
             "evm.deployedBytecode.opcodes" => Ok(Self::Opcodes),
             "evm.deployedBytecode.sourceMap" => Ok(Self::SourceMap),
-            "evm.deployedBytecode.linkReferences" => {
-                Ok(Self::LinkReferences)
-            }
-            "evm.deployedBytecode.generatedSources" => {
-                Ok(Self::GeneratedSources)
-            }
-            "evm.deployedBytecode.immutableReferences" => {
-                Ok(Self::ImmutableReferences)
-            }
+            "evm.deployedBytecode.linkReferences" => Ok(Self::LinkReferences),
+            "evm.deployedBytecode.generatedSources" => Ok(Self::GeneratedSources),
+            "evm.deployedBytecode.immutableReferences" => Ok(Self::ImmutableReferences),
             s => Err(format!("Invalid deployedBytecode selection: {s}")),
         }
     }
