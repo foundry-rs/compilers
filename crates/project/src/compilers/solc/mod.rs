@@ -184,7 +184,7 @@ impl CompilerSettings for SolcSettings {
     }
 
     fn can_use_cached(&self, other: &Self) -> bool {
-        let SolcSettings {
+        let Self {
             stop_after,
             remappings,
             optimizer,
@@ -214,7 +214,7 @@ impl ParsedSource for SolData {
     type Language = SolcLanguage;
 
     fn parse(content: &str, file: &std::path::Path) -> Result<Self> {
-        Ok(SolData::parse(content, file))
+        Ok(Self::parse(content, file))
     }
 
     fn version_req(&self) -> Option<&semver::VersionReq> {

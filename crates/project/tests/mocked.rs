@@ -19,12 +19,12 @@ struct MockSettings {
 
 impl From<MockProjectSettings> for MockSettings {
     fn from(settings: MockProjectSettings) -> Self {
-        MockSettings { settings, version: DEFAULT_VERSION }
+        Self { settings, version: DEFAULT_VERSION }
     }
 }
 impl From<(MockProjectSettings, &'static str)> for MockSettings {
     fn from(input: (MockProjectSettings, &'static str)) -> Self {
-        MockSettings { settings: input.0, version: input.1 }
+        Self { settings: input.0, version: input.1 }
     }
 }
 

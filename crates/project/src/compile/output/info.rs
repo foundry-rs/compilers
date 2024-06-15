@@ -39,7 +39,7 @@ impl ContractInfo {
     /// ```
     pub fn new(info: impl AsRef<str>) -> Self {
         let info = info.as_ref();
-        info.parse().unwrap_or_else(|_| ContractInfo { path: None, name: info.to_string() })
+        info.parse().unwrap_or_else(|_| Self { path: None, name: info.to_string() })
     }
 }
 
@@ -78,7 +78,7 @@ impl FromStr for ContractInfo {
 impl From<FullContractInfo> for ContractInfo {
     fn from(info: FullContractInfo) -> Self {
         let FullContractInfo { path, name } = info;
-        ContractInfo { path: Some(path), name }
+        Self { path: Some(path), name }
     }
 }
 
@@ -146,7 +146,7 @@ impl TryFrom<ContractInfo> for FullContractInfo {
 
     fn try_from(value: ContractInfo) -> Result<Self, Self::Error> {
         let ContractInfo { path, name } = value;
-        Ok(FullContractInfo {
+        Ok(Self {
             path: path.ok_or_else(|| {
                 ParseContractInfoError("path to contract must be present".to_string())
             })?,

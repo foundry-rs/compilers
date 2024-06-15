@@ -63,7 +63,7 @@ impl MaybeSolData for SolData {
 impl MaybeSolData for MultiCompilerParsedSource {
     fn sol_data(&self) -> Option<&SolData> {
         match self {
-            MultiCompilerParsedSource::Solc(data) => Some(data),
+            Self::Solc(data) => Some(data),
             _ => None,
         }
     }
@@ -220,7 +220,7 @@ impl From<FilteredSources> for Sources {
 
 impl From<Sources> for FilteredSources {
     fn from(s: Sources) -> Self {
-        FilteredSources(
+        Self(
             s.into_iter().map(|(key, val)| (key, SourceCompilationKind::Complete(val))).collect(),
         )
     }
@@ -228,7 +228,7 @@ impl From<Sources> for FilteredSources {
 
 impl From<BTreeMap<PathBuf, SourceCompilationKind>> for FilteredSources {
     fn from(s: BTreeMap<PathBuf, SourceCompilationKind>) -> Self {
-        FilteredSources(s)
+        Self(s)
     }
 }
 
@@ -258,21 +258,21 @@ impl SourceCompilationKind {
     /// Returns the underlying source
     pub fn source(&self) -> &Source {
         match self {
-            SourceCompilationKind::Complete(s) => s,
-            SourceCompilationKind::Optimized(s) => s,
+            Self::Complete(s) => s,
+            Self::Optimized(s) => s,
         }
     }
 
     /// Consumes the type and returns the underlying source
     pub fn into_source(self) -> Source {
         match self {
-            SourceCompilationKind::Complete(s) => s,
-            SourceCompilationKind::Optimized(s) => s,
+            Self::Complete(s) => s,
+            Self::Optimized(s) => s,
         }
     }
 
     /// Whether this file should be compiled with full output selection
     pub fn is_dirty(&self) -> bool {
-        matches!(self, SourceCompilationKind::Complete(_))
+        matches!(self, Self::Complete(_))
     }
 }

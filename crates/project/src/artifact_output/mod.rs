@@ -369,7 +369,7 @@ impl<T> Artifacts<T> {
             })
             .collect();
 
-        Artifacts(artifacts)
+        Self(artifacts)
     }
 
     /// Finds the first artifact `T` with a matching contract name

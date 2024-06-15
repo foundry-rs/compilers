@@ -2,7 +2,7 @@ use crate::artifacts::vyper::{VyperCompilationError, VyperOutput};
 
 impl From<VyperOutput> for super::CompilerOutput<VyperCompilationError> {
     fn from(output: VyperOutput) -> Self {
-        super::CompilerOutput {
+        Self {
             errors: output.errors,
             contracts: output
                 .contracts

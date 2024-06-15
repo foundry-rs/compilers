@@ -70,7 +70,7 @@ impl MockProjectGenerator {
         }
 
         let graph = Graph::<MultiCompilerParsedSource>::resolve(paths)?;
-        let mut gen = MockProjectGenerator::default();
+        let mut gen = Self::default();
         let (_, edges) = graph.into_sources();
 
         // add all files as source files
@@ -508,8 +508,8 @@ pub enum MockImport {
 impl MockImport {
     pub fn file_id(&self) -> usize {
         *match self {
-            MockImport::Internal(id) => id,
-            MockImport::External(_, id) => id,
+            Self::Internal(id) => id,
+            Self::External(_, id) => id,
         }
     }
 }
@@ -559,7 +559,7 @@ impl MockProjectSettings {
     pub fn random() -> Self {
         let mut rng = rand::thread_rng();
         // arbitrary thresholds
-        MockProjectSettings {
+        Self {
             num_sources: rng.gen_range(2..25),
             num_libs: rng.gen_range(0..5),
             num_lib_files: rng.gen_range(1..10),
@@ -572,7 +572,7 @@ impl MockProjectSettings {
     /// Generates settings for a large project
     pub fn large() -> Self {
         // arbitrary thresholds
-        MockProjectSettings {
+        Self {
             num_sources: 35,
             num_libs: 4,
             num_lib_files: 15,

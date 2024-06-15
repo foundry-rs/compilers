@@ -91,12 +91,12 @@ impl SolcError {
                 trimmed = "<empty output>";
             }
         }
-        SolcError::SolcError(output.status, trimmed.into())
+        Self::SolcError(output.status, trimmed.into())
     }
 
     /// General purpose message.
     pub fn msg(msg: impl std::fmt::Display) -> Self {
-        SolcError::Message(msg.to_string())
+        Self::Message(msg.to_string())
     }
 }
 

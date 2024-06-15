@@ -22,7 +22,7 @@ pub struct Bytecode {
 
 impl From<Bytecode> for solc_artifacts::Bytecode {
     fn from(bytecode: Bytecode) -> Self {
-        solc_artifacts::Bytecode {
+        Self {
             object: BytecodeObject::Bytecode(bytecode.object),
             opcodes: bytecode.opcodes,
             source_map: bytecode.source_map,
@@ -47,7 +47,7 @@ pub struct VyperEvm {
 
 impl From<VyperEvm> for solc_artifacts::Evm {
     fn from(evm: VyperEvm) -> Self {
-        solc_artifacts::Evm {
+        Self {
             bytecode: evm.bytecode.map(Into::into),
             deployed_bytecode: evm.deployed_bytecode.map(|b| solc_artifacts::DeployedBytecode {
                 bytecode: Some(b.into()),
@@ -72,7 +72,7 @@ pub struct VyperContract {
 
 impl From<VyperContract> for solc_artifacts::Contract {
     fn from(contract: VyperContract) -> Self {
-        solc_artifacts::Contract {
+        Self {
             abi: contract.abi,
             evm: contract.evm.map(Into::into),
             metadata: None,
@@ -93,7 +93,7 @@ pub struct VyperSourceFile {
 
 impl From<VyperSourceFile> for solc_artifacts::SourceFile {
     fn from(source: VyperSourceFile) -> Self {
-        solc_artifacts::SourceFile { id: source.id, ast: None }
+        Self { id: source.id, ast: None }
     }
 }
 

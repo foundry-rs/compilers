@@ -31,7 +31,7 @@ impl VyperInput {
         }
 
         settings.sanitize_output_selection();
-        VyperInput { language: "Vyper".to_string(), sources: new_sources, interfaces, settings }
+        Self { language: "Vyper".to_string(), sources: new_sources, interfaces, settings }
     }
 
     pub fn strip_prefix(&mut self, base: &Path) {

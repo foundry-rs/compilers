@@ -86,7 +86,7 @@ pub struct SolcInput {
 /// Default `language` field is set to `"Solidity"`.
 impl Default for SolcInput {
     fn default() -> Self {
-        SolcInput {
+        Self {
             language: SolcLanguage::Solidity,
             sources: Sources::default(),
             settings: Settings::default(),
@@ -120,11 +120,11 @@ impl SolcInput {
         let mut res = Vec::new();
 
         if !solidity_sources.is_empty() {
-            res.push(SolcInput::new(SolcLanguage::Solidity, solidity_sources, settings.clone()))
+            res.push(Self::new(SolcLanguage::Solidity, solidity_sources, settings.clone()))
         }
 
         if !yul_sources.is_empty() {
-            res.push(SolcInput::new(SolcLanguage::Yul, yul_sources, settings))
+            res.push(Self::new(SolcLanguage::Yul, yul_sources, settings))
         }
 
         res
@@ -229,14 +229,14 @@ impl StandardJsonCompilerInput {
 impl From<StandardJsonCompilerInput> for SolcInput {
     fn from(input: StandardJsonCompilerInput) -> Self {
         let StandardJsonCompilerInput { language, sources, settings } = input;
-        SolcInput { language, sources: sources.into_iter().collect(), settings }
+        Self { language, sources: sources.into_iter().collect(), settings }
     }
 }
 
 impl From<SolcInput> for StandardJsonCompilerInput {
     fn from(input: SolcInput) -> Self {
         let SolcInput { language, sources, settings, .. } = input;
-        StandardJsonCompilerInput { language, sources: sources.into_iter().collect(), settings }
+        Self { language, sources: sources.into_iter().collect(), settings }
     }
 }
 
@@ -979,10 +979,10 @@ pub enum RevertStrings {
 impl fmt::Display for RevertStrings {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let string = match self {
-            RevertStrings::Default => "default",
-            RevertStrings::Strip => "strip",
-            RevertStrings::Debug => "debug",
-            RevertStrings::VerboseDebug => "verboseDebug",
+            Self::Default => "default",
+            Self::Strip => "strip",
+            Self::Debug => "debug",
+            Self::VerboseDebug => "verboseDebug",
         };
         write!(f, "{string}")
     }
@@ -993,10 +993,10 @@ impl FromStr for RevertStrings {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "default" => Ok(RevertStrings::Default),
-            "strip" => Ok(RevertStrings::Strip),
-            "debug" => Ok(RevertStrings::Debug),
-            "verboseDebug" | "verbosedebug" => Ok(RevertStrings::VerboseDebug),
+            "default" => Ok(Self::Default),
+            "strip" => Ok(Self::Strip),
+            "debug" => Ok(Self::Debug),
+            "verboseDebug" | "verbosedebug" => Ok(Self::VerboseDebug),
             s => Err(format!("Unknown revert string mode: {s}")),
         }
     }
@@ -1050,9 +1050,9 @@ impl FromStr for BytecodeHash {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "none" => Ok(BytecodeHash::None),
-            "ipfs" => Ok(BytecodeHash::Ipfs),
-            "bzzr1" => Ok(BytecodeHash::Bzzr1),
+            "none" => Ok(Self::None),
+            "ipfs" => Ok(Self::Ipfs),
+            "bzzr1" => Ok(Self::Bzzr1),
             s => Err(format!("Unknown bytecode hash: {s}")),
         }
     }
@@ -1061,9 +1061,9 @@ impl FromStr for BytecodeHash {
 impl fmt::Display for BytecodeHash {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            BytecodeHash::Ipfs => "ipfs",
-            BytecodeHash::None => "none",
-            BytecodeHash::Bzzr1 => "bzzr1",
+            Self::Ipfs => "ipfs",
+            Self::None => "none",
+            Self::Bzzr1 => "bzzr1",
         };
         f.write_str(s)
     }
@@ -1233,10 +1233,10 @@ pub enum ModelCheckerEngine {
 impl fmt::Display for ModelCheckerEngine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let string = match self {
-            ModelCheckerEngine::Default => "none",
-            ModelCheckerEngine::All => "all",
-            ModelCheckerEngine::BMC => "bmc",
-            ModelCheckerEngine::CHC => "chc",
+            Self::Default => "none",
+            Self::All => "all",
+            Self::BMC => "bmc",
+            Self::CHC => "chc",
         };
         write!(f, "{string}")
     }
@@ -1247,10 +1247,10 @@ impl FromStr for ModelCheckerEngine {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "none" => Ok(ModelCheckerEngine::Default),
-            "all" => Ok(ModelCheckerEngine::All),
-            "bmc" => Ok(ModelCheckerEngine::BMC),
-            "chc" => Ok(ModelCheckerEngine::CHC),
+            "none" => Ok(Self::Default),
+            "all" => Ok(Self::All),
+            "bmc" => Ok(Self::BMC),
+            "chc" => Ok(Self::CHC),
             s => Err(format!("Unknown model checker engine: {s}")),
         }
     }
@@ -1273,14 +1273,14 @@ pub enum ModelCheckerTarget {
 impl fmt::Display for ModelCheckerTarget {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let string = match self {
-            ModelCheckerTarget::Assert => "assert",
-            ModelCheckerTarget::Underflow => "underflow",
-            ModelCheckerTarget::Overflow => "overflow",
-            ModelCheckerTarget::DivByZero => "divByZero",
-            ModelCheckerTarget::ConstantCondition => "constantCondition",
-            ModelCheckerTarget::PopEmptyArray => "popEmptyArray",
-            ModelCheckerTarget::OutOfBounds => "outOfBounds",
-            ModelCheckerTarget::Balance => "balance",
+            Self::Assert => "assert",
+            Self::Underflow => "underflow",
+            Self::Overflow => "overflow",
+            Self::DivByZero => "divByZero",
+            Self::ConstantCondition => "constantCondition",
+            Self::PopEmptyArray => "popEmptyArray",
+            Self::OutOfBounds => "outOfBounds",
+            Self::Balance => "balance",
         };
         write!(f, "{string}")
     }
@@ -1291,14 +1291,14 @@ impl FromStr for ModelCheckerTarget {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "assert" => Ok(ModelCheckerTarget::Assert),
-            "underflow" => Ok(ModelCheckerTarget::Underflow),
-            "overflow" => Ok(ModelCheckerTarget::Overflow),
-            "divByZero" => Ok(ModelCheckerTarget::DivByZero),
-            "constantCondition" => Ok(ModelCheckerTarget::ConstantCondition),
-            "popEmptyArray" => Ok(ModelCheckerTarget::PopEmptyArray),
-            "outOfBounds" => Ok(ModelCheckerTarget::OutOfBounds),
-            "balance" => Ok(ModelCheckerTarget::Balance),
+            "assert" => Ok(Self::Assert),
+            "underflow" => Ok(Self::Underflow),
+            "overflow" => Ok(Self::Overflow),
+            "divByZero" => Ok(Self::DivByZero),
+            "constantCondition" => Ok(Self::ConstantCondition),
+            "popEmptyArray" => Ok(Self::PopEmptyArray),
+            "outOfBounds" => Ok(Self::OutOfBounds),
+            "balance" => Ok(Self::Balance),
             s => Err(format!("Unknown model checker target: {s}")),
         }
     }
@@ -1315,8 +1315,8 @@ pub enum ModelCheckerInvariant {
 impl fmt::Display for ModelCheckerInvariant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let string = match self {
-            ModelCheckerInvariant::Contract => "contract",
-            ModelCheckerInvariant::Reentrancy => "reentrancy",
+            Self::Contract => "contract",
+            Self::Reentrancy => "reentrancy",
         };
         write!(f, "{string}")
     }
@@ -1327,8 +1327,8 @@ impl FromStr for ModelCheckerInvariant {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "contract" => Ok(ModelCheckerInvariant::Contract),
-            "reentrancy" => Ok(ModelCheckerInvariant::Reentrancy),
+            "contract" => Ok(Self::Contract),
+            "reentrancy" => Ok(Self::Reentrancy),
             s => Err(format!("Unknown model checker invariant: {s}")),
         }
     }
@@ -1347,10 +1347,10 @@ pub enum ModelCheckerSolver {
 impl fmt::Display for ModelCheckerSolver {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let string = match self {
-            ModelCheckerSolver::Cvc4 => "cvc4",
-            ModelCheckerSolver::Eld => "eld",
-            ModelCheckerSolver::Smtlib2 => "smtlib2",
-            ModelCheckerSolver::Z3 => "z3",
+            Self::Cvc4 => "cvc4",
+            Self::Eld => "eld",
+            Self::Smtlib2 => "smtlib2",
+            Self::Z3 => "z3",
         };
         write!(f, "{string}")
     }
@@ -1361,10 +1361,10 @@ impl FromStr for ModelCheckerSolver {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "cvc4" => Ok(ModelCheckerSolver::Cvc4),
-            "eld" => Ok(ModelCheckerSolver::Cvc4),
-            "smtlib2" => Ok(ModelCheckerSolver::Smtlib2),
-            "z3" => Ok(ModelCheckerSolver::Z3),
+            "cvc4" => Ok(Self::Cvc4),
+            "eld" => Ok(Self::Cvc4),
+            "smtlib2" => Ok(Self::Smtlib2),
+            "z3" => Ok(Self::Z3),
             s => Err(format!("Unknown model checker invariant: {s}")),
         }
     }
@@ -1563,7 +1563,7 @@ impl CompilerOutput {
         self.sources.retain(|f, _| files.contains(&f.to_string_lossy().to_lowercase()));
     }
 
-    pub fn merge(&mut self, other: CompilerOutput) {
+    pub fn merge(&mut self, other: Self) {
         self.errors.extend(other.errors);
         self.contracts.extend(other.contracts);
         self.sources.extend(other.sources);
@@ -1694,7 +1694,7 @@ impl Evm {
     /// Crate internal helper do transform the underlying bytecode artifacts into a more convenient
     /// structure
     pub(crate) fn into_compact(self) -> CompactEvm {
-        let Evm {
+        let Self {
             assembly,
             legacy_assembly,
             bytecode,

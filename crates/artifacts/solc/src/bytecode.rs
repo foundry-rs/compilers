@@ -104,8 +104,8 @@ impl CompactBytecode {
 }
 
 impl From<Bytecode> for CompactBytecode {
-    fn from(bcode: Bytecode) -> CompactBytecode {
-        CompactBytecode {
+    fn from(bcode: Bytecode) -> Self {
+        Self {
             object: bcode.object,
             source_map: bcode.source_map,
             link_references: bcode.link_references,
@@ -114,8 +114,8 @@ impl From<Bytecode> for CompactBytecode {
 }
 
 impl From<CompactBytecode> for Bytecode {
-    fn from(bcode: CompactBytecode) -> Bytecode {
-        Bytecode {
+    fn from(bcode: CompactBytecode) -> Self {
+        Self {
             object: bcode.object,
             source_map: bcode.source_map,
             link_references: bcode.link_references,
@@ -127,8 +127,8 @@ impl From<CompactBytecode> for Bytecode {
 }
 
 impl From<BytecodeObject> for Bytecode {
-    fn from(object: BytecodeObject) -> Bytecode {
-        Bytecode {
+    fn from(object: BytecodeObject) -> Self {
+        Self {
             object,
             function_debug_data: Default::default(),
             opcodes: Default::default(),
@@ -243,16 +243,16 @@ impl BytecodeObject {
     /// Returns a reference to the underlying `Bytes` if the object is a valid bytecode.
     pub fn as_bytes(&self) -> Option<&Bytes> {
         match self {
-            BytecodeObject::Bytecode(bytes) => Some(bytes),
-            BytecodeObject::Unlinked(_) => None,
+            Self::Bytecode(bytes) => Some(bytes),
+            Self::Unlinked(_) => None,
         }
     }
 
     /// Returns the underlying `Bytes` if the object is a valid bytecode.
     pub fn into_bytes(self) -> Option<Bytes> {
         match self {
-            BytecodeObject::Bytecode(bytes) => Some(bytes),
-            BytecodeObject::Unlinked(_) => None,
+            Self::Bytecode(bytes) => Some(bytes),
+            Self::Unlinked(_) => None,
         }
     }
 
@@ -266,27 +266,27 @@ impl BytecodeObject {
     /// Returns a reference to the underlying `String` if the object is unlinked.
     pub fn as_str(&self) -> Option<&str> {
         match self {
-            BytecodeObject::Bytecode(_) => None,
-            BytecodeObject::Unlinked(s) => Some(s.as_str()),
+            Self::Bytecode(_) => None,
+            Self::Unlinked(s) => Some(s.as_str()),
         }
     }
 
     /// Returns the unlinked `String` if the object is unlinked.
     pub fn into_unlinked(self) -> Option<String> {
         match self {
-            BytecodeObject::Bytecode(_) => None,
-            BytecodeObject::Unlinked(code) => Some(code),
+            Self::Bytecode(_) => None,
+            Self::Unlinked(code) => Some(code),
         }
     }
 
     /// Whether this object is still unlinked.
     pub fn is_unlinked(&self) -> bool {
-        matches!(self, BytecodeObject::Unlinked(_))
+        matches!(self, Self::Unlinked(_))
     }
 
     /// Whether this object a valid bytecode.
     pub fn is_bytecode(&self) -> bool {
-        matches!(self, BytecodeObject::Bytecode(_))
+        matches!(self, Self::Bytecode(_))
     }
 
     /// Returns `true` if the object is a valid bytecode and not empty.
@@ -300,9 +300,9 @@ impl BytecodeObject {
     ///
     /// Returns the string if it is a valid
     pub fn resolve(&mut self) -> Option<&Bytes> {
-        if let BytecodeObject::Unlinked(unlinked) = self {
+        if let Self::Unlinked(unlinked) = self {
             if let Ok(linked) = hex::decode(unlinked) {
-                *self = BytecodeObject::Bytecode(linked.into());
+                *self = Self::Bytecode(linked.into());
             }
         }
         self.as_bytes()
@@ -317,7 +317,7 @@ impl BytecodeObject {
     ///
     /// See also: <https://docs.soliditylang.org/en/develop/using-the-compiler.html#library-linking>
     pub fn link_fully_qualified(&mut self, name: impl AsRef<str>, addr: Address) -> &mut Self {
-        if let BytecodeObject::Unlinked(ref mut unlinked) = self {
+        if let Self::Unlinked(ref mut unlinked) = self {
             let name = name.as_ref();
             let place_holder = utils::library_hash_placeholder(name);
             // the address as hex without prefix
@@ -361,7 +361,7 @@ impl BytecodeObject {
 
     /// Returns whether the bytecode contains a matching placeholder using the qualified name.
     pub fn contains_fully_qualified_placeholder(&self, name: impl AsRef<str>) -> bool {
-        if let BytecodeObject::Unlinked(unlinked) = self {
+        if let Self::Unlinked(unlinked) = self {
             let name = name.as_ref();
             unlinked.contains(&utils::library_hash_placeholder(name))
                 || unlinked.contains(&utils::library_fully_qualified_placeholder(name))
@@ -379,15 +379,15 @@ impl BytecodeObject {
 // Returns an empty bytecode object
 impl Default for BytecodeObject {
     fn default() -> Self {
-        BytecodeObject::Bytecode(Default::default())
+        Self::Bytecode(Default::default())
     }
 }
 
 impl AsRef<[u8]> for BytecodeObject {
     fn as_ref(&self) -> &[u8] {
         match self {
-            BytecodeObject::Bytecode(code) => code.as_ref(),
-            BytecodeObject::Unlinked(code) => code.as_bytes(),
+            Self::Bytecode(code) => code.as_ref(),
+            Self::Unlinked(code) => code.as_bytes(),
         }
     }
 }
@@ -436,8 +436,8 @@ impl DeployedBytecode {
 }
 
 impl From<Bytecode> for DeployedBytecode {
-    fn from(bcode: Bytecode) -> DeployedBytecode {
-        DeployedBytecode { bytecode: Some(bcode), immutable_references: Default::default() }
+    fn from(bcode: Bytecode) -> Self {
+        Self { bytecode: Some(bcode), immutable_references: Default::default() }
     }
 }
 
@@ -480,8 +480,8 @@ impl CompactDeployedBytecode {
 }
 
 impl From<DeployedBytecode> for CompactDeployedBytecode {
-    fn from(bcode: DeployedBytecode) -> CompactDeployedBytecode {
-        CompactDeployedBytecode {
+    fn from(bcode: DeployedBytecode) -> Self {
+        Self {
             bytecode: bcode.bytecode.map(|d_bcode| d_bcode.into()),
             immutable_references: bcode.immutable_references,
         }
@@ -489,8 +489,8 @@ impl From<DeployedBytecode> for CompactDeployedBytecode {
 }
 
 impl From<CompactDeployedBytecode> for DeployedBytecode {
-    fn from(bcode: CompactDeployedBytecode) -> DeployedBytecode {
-        DeployedBytecode {
+    fn from(bcode: CompactDeployedBytecode) -> Self {
+        Self {
             bytecode: bcode.bytecode.map(|d_bcode| d_bcode.into()),
             immutable_references: bcode.immutable_references,
         }

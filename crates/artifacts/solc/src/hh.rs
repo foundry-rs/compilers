@@ -51,7 +51,7 @@ impl<'a> From<&'a HardhatArtifact> for CompactContractBytecodeCow<'a> {
 
 impl From<HardhatArtifact> for CompactContract {
     fn from(artifact: HardhatArtifact) -> Self {
-        CompactContract {
+        Self {
             abi: Some(artifact.abi),
             bin: artifact.bytecode,
             bin_runtime: artifact.deployed_bytecode,
@@ -73,7 +73,7 @@ impl From<HardhatArtifact> for ContractBytecode {
             bcode.into()
         });
 
-        ContractBytecode { abi: Some(artifact.abi), bytecode, deployed_bytecode }
+        Self { abi: Some(artifact.abi), bytecode, deployed_bytecode }
     }
 }
 

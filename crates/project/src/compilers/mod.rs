@@ -35,20 +35,20 @@ pub enum CompilerVersion {
 
 impl CompilerVersion {
     pub fn is_installed(&self) -> bool {
-        matches!(self, CompilerVersion::Installed(_))
+        matches!(self, Self::Installed(_))
     }
 }
 
 impl AsRef<Version> for CompilerVersion {
     fn as_ref(&self) -> &Version {
         match self {
-            CompilerVersion::Installed(v) | CompilerVersion::Remote(v) => v,
+            Self::Installed(v) | Self::Remote(v) => v,
         }
     }
 }
 
 impl From<CompilerVersion> for Version {
-    fn from(s: CompilerVersion) -> Version {
+    fn from(s: CompilerVersion) -> Self {
         match s {
             CompilerVersion::Installed(v) | CompilerVersion::Remote(v) => v,
         }
@@ -200,7 +200,7 @@ impl<E> CompilerOutput<E> {
         self.sources.retain(|f, _| files.contains(&f.to_string_lossy().to_lowercase()));
     }
 
-    pub fn merge(&mut self, other: CompilerOutput<E>) {
+    pub fn merge(&mut self, other: Self) {
         self.errors.extend(other.errors);
         self.contracts.extend(other.contracts);
         self.sources.extend(other.sources);

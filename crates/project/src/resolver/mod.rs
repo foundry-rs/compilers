@@ -274,7 +274,7 @@ impl<D: ParsedSource> Graph<D> {
     }
 
     fn split(self) -> (Vec<(PathBuf, Source)>, GraphEdges<D>) {
-        let Graph { nodes, mut edges, .. } = self;
+        let Self { nodes, mut edges, .. } = self;
         // need to move the extracted data to the edges, essentially splitting the node so we have
         // access to the data at a later stage in the compile pipeline
         let mut sources = Vec::new();
@@ -310,7 +310,7 @@ impl<D: ParsedSource> Graph<D> {
     pub fn resolve_sources(
         paths: &ProjectPathsConfig<D::Language>,
         sources: Sources,
-    ) -> Result<Graph<D>> {
+    ) -> Result<Self> {
         /// checks if the given target path was already resolved, if so it adds its id to the list
         /// of resolved imports. If it hasn't been resolved yet, it queues in the file for
         /// processing
@@ -446,11 +446,11 @@ impl<D: ParsedSource> Graph<D> {
             unresolved_imports,
             resolved_solc_include_paths,
         };
-        Ok(Graph { nodes, edges, root: paths.root.clone() })
+        Ok(Self { nodes, edges, root: paths.root.clone() })
     }
 
     /// Resolves the dependencies of a project's source contracts
-    pub fn resolve(paths: &ProjectPathsConfig<D::Language>) -> Result<Graph<D>> {
+    pub fn resolve(paths: &ProjectPathsConfig<D::Language>) -> Result<Self> {
         Self::resolve_sources(paths, paths.read_input_files()?)
     }
 }
@@ -553,14 +553,14 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         let node = self.node(idx);
         write!(f, "{} ", utils::source_name(&node.path, &self.root).display())?;
         if let Some(req) = node.data.version_req() {
-            write!(f, "{}", req)?;
+            write!(f, "{req}")?;
         }
         write!(f, " imports:")?;
         for dep in self.node_ids(idx).skip(1) {
             let dep = self.node(dep);
             write!(f, "\n    {} ", utils::source_name(&dep.path, &self.root).display())?;
             if let Some(req) = dep.data.version_req() {
-                write!(f, "{}", req)?;
+                write!(f, "{req}")?;
             }
         }
 
@@ -902,7 +902,7 @@ impl<'a, D: ParsedSource> fmt::Display for DisplayNode<'a, D> {
         let path = utils::source_name(&self.node.path, self.root);
         write!(f, "{}", path.display())?;
         if let Some(ref v) = self.node.data.version_req() {
-            write!(f, " {}", v)?;
+            write!(f, " {v}")?;
         }
         Ok(())
     }

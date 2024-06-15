@@ -714,7 +714,7 @@ impl PathStyle {
         let root = utils::canonicalize(root)?;
 
         Ok(match self {
-            PathStyle::Dapptools => ProjectPathsConfig::builder()
+            Self::Dapptools => ProjectPathsConfig::builder()
                 .sources(root.join("src"))
                 .artifacts(root.join("out"))
                 .build_infos(root.join("out").join("build-info"))
@@ -722,7 +722,7 @@ impl PathStyle {
                 .remappings(Remapping::find_many(root.join("lib")))
                 .root(root)
                 .build()?,
-            PathStyle::HardHat => ProjectPathsConfig::builder()
+            Self::HardHat => ProjectPathsConfig::builder()
                 .sources(root.join("contracts"))
                 .artifacts(root.join("artifacts"))
                 .build_infos(root.join("artifacts").join("build-info"))

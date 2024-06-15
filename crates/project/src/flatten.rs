@@ -36,7 +36,7 @@ impl ItemLocation {
         let start = src.start?;
         let end = start + src.length?;
 
-        Some(ItemLocation { path, start, end })
+        Some(Self { path, start, end })
     }
 
     fn length(&self) -> usize {
@@ -150,13 +150,13 @@ impl<'a> FlatteningResult<'a> {
         let mut result = String::new();
 
         if let Some(license) = &self.license {
-            result.push_str(&format!("{}\n", license));
+            result.push_str(&format!("{license}\n"));
         }
         for pragma in &self.pragmas {
-            result.push_str(&format!("{}\n", pragma));
+            result.push_str(&format!("{pragma}\n"));
         }
         for source in &self.sources {
-            result.push_str(&format!("\n\n{}", source));
+            result.push_str(&format!("\n\n{source}"));
         }
 
         format!("{}\n", utils::RE_THREE_OR_MORE_NEWLINES.replace_all(&result, "\n\n").trim())
@@ -240,7 +240,7 @@ impl Flattener {
             asts.push((PathBuf::from(path), serde_json::from_str(&serde_json::to_string(ast)?)?));
         }
 
-        Ok(Flattener {
+        Ok(Self {
             target: target.into(),
             sources,
             asts,
@@ -314,7 +314,7 @@ impl Flattener {
             }
             for (i, (id, loc)) in ids.iter().enumerate() {
                 if needs_rename {
-                    definition_name = format!("{}_{}", name, i);
+                    definition_name = format!("{name}_{i}");
                 }
                 updates.entry(loc.path.clone()).or_default().insert((
                     loc.start,
@@ -373,7 +373,7 @@ impl Flattener {
                 updates.entry(loc.path).or_default().insert((
                     loc.start,
                     loc.end + 1,
-                    "".to_string(),
+                    String::new(),
                 ));
             }
         }
@@ -417,7 +417,7 @@ impl Flattener {
                             updates.entry(path.clone()).or_default().insert((
                                 loc.start,
                                 loc.end,
-                                format!("{}.{}", parent_name, name),
+                                format!("{parent_name}.{name}"),
                             ));
                         }
                     }
@@ -521,7 +521,7 @@ impl Flattener {
                             updates.entry(path.to_path_buf()).or_default().insert((
                                 src_start + tag_start,
                                 src_start + name_end,
-                                "".to_string(),
+                                String::new(),
                             ));
                         }
                     }
@@ -658,7 +658,7 @@ impl Flattener {
             updates.entry(loc.path.clone()).or_default().insert((
                 loc.start,
                 loc.end,
-                "".to_string(),
+                String::new(),
             ));
         }
     }
@@ -699,7 +699,7 @@ impl Flattener {
             updates.entry(loc.path.clone()).or_default().insert((
                 loc.start,
                 loc.end,
-                "".to_string(),
+                String::new(),
             ));
         }
 
@@ -743,7 +743,7 @@ impl Flattener {
             updates.entry(loc.path.clone()).or_default().insert((
                 loc.start,
                 loc.end,
-                "".to_string(),
+                String::new(),
             ));
         }
 

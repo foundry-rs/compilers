@@ -81,7 +81,7 @@ impl OutputSelection {
             "*".to_string(),
             BTreeMap::from([
                 ("*".to_string(), vec!["*".to_string()]),
-                ("".to_string(), vec!["*".to_string()]),
+                (String::new(), vec!["*".to_string()]),
             ]),
         )])
         .into()
@@ -138,7 +138,7 @@ impl OutputSelection {
                 // Do not request any output for separate contracts
                 ("*".to_string(), vec![]),
                 // Request AST for all sources.
-                ("".to_string(), vec!["ast".to_string()]),
+                (String::new(), vec!["ast".to_string()]),
             ]),
         )])
         .into()
@@ -206,7 +206,7 @@ impl AsMut<BTreeMap<String, FileOutputSelection>> for OutputSelection {
 
 impl From<BTreeMap<String, FileOutputSelection>> for OutputSelection {
     fn from(s: BTreeMap<String, FileOutputSelection>) -> Self {
-        OutputSelection(s)
+        Self(s)
     }
 }
 
@@ -231,9 +231,9 @@ impl ContractOutputSelection {
     ///    - "evm.bytecode"
     ///    - "evm.deployedBytecode"
     ///    - "evm.methodIdentifiers"
-    pub fn basic() -> Vec<ContractOutputSelection> {
+    pub fn basic() -> Vec<Self> {
         vec![
-            ContractOutputSelection::Abi,
+            Self::Abi,
             BytecodeOutputSelection::All.into(),
             DeployedBytecodeOutputSelection::All.into(),
             EvmOutputSelection::MethodIdentifiers.into(),
@@ -262,15 +262,15 @@ impl<'de> Deserialize<'de> for ContractOutputSelection {
 impl fmt::Display for ContractOutputSelection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ContractOutputSelection::Abi => f.write_str("abi"),
-            ContractOutputSelection::DevDoc => f.write_str("devdoc"),
-            ContractOutputSelection::UserDoc => f.write_str("userdoc"),
-            ContractOutputSelection::Metadata => f.write_str("metadata"),
-            ContractOutputSelection::Ir => f.write_str("ir"),
-            ContractOutputSelection::IrOptimized => f.write_str("irOptimized"),
-            ContractOutputSelection::StorageLayout => f.write_str("storageLayout"),
-            ContractOutputSelection::Evm(e) => e.fmt(f),
-            ContractOutputSelection::Ewasm(e) => e.fmt(f),
+            Self::Abi => f.write_str("abi"),
+            Self::DevDoc => f.write_str("devdoc"),
+            Self::UserDoc => f.write_str("userdoc"),
+            Self::Metadata => f.write_str("metadata"),
+            Self::Ir => f.write_str("ir"),
+            Self::IrOptimized => f.write_str("irOptimized"),
+            Self::StorageLayout => f.write_str("storageLayout"),
+            Self::Evm(e) => e.fmt(f),
+            Self::Ewasm(e) => e.fmt(f),
         }
     }
 }
@@ -280,16 +280,16 @@ impl FromStr for ContractOutputSelection {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "abi" => Ok(ContractOutputSelection::Abi),
-            "devdoc" => Ok(ContractOutputSelection::DevDoc),
-            "userdoc" => Ok(ContractOutputSelection::UserDoc),
-            "metadata" => Ok(ContractOutputSelection::Metadata),
-            "ir" => Ok(ContractOutputSelection::Ir),
+            "abi" => Ok(Self::Abi),
+            "devdoc" => Ok(Self::DevDoc),
+            "userdoc" => Ok(Self::UserDoc),
+            "metadata" => Ok(Self::Metadata),
+            "ir" => Ok(Self::Ir),
             "ir-optimized" | "irOptimized" | "iroptimized" => {
-                Ok(ContractOutputSelection::IrOptimized)
+                Ok(Self::IrOptimized)
             }
             "storage-layout" | "storagelayout" | "storageLayout" => {
-                Ok(ContractOutputSelection::StorageLayout)
+                Ok(Self::StorageLayout)
             }
             s => EvmOutputSelection::from_str(s)
                 .map(ContractOutputSelection::Evm)
@@ -301,13 +301,13 @@ impl FromStr for ContractOutputSelection {
 
 impl<T: Into<EvmOutputSelection>> From<T> for ContractOutputSelection {
     fn from(evm: T) -> Self {
-        ContractOutputSelection::Evm(evm.into())
+        Self::Evm(evm.into())
     }
 }
 
 impl From<EwasmOutputSelection> for ContractOutputSelection {
     fn from(ewasm: EwasmOutputSelection) -> Self {
-        ContractOutputSelection::Ewasm(ewasm)
+        Self::Ewasm(ewasm)
     }
 }
 
@@ -325,13 +325,13 @@ pub enum EvmOutputSelection {
 
 impl From<BytecodeOutputSelection> for EvmOutputSelection {
     fn from(b: BytecodeOutputSelection) -> Self {
-        EvmOutputSelection::ByteCode(b)
+        Self::ByteCode(b)
     }
 }
 
 impl From<DeployedBytecodeOutputSelection> for EvmOutputSelection {
     fn from(b: DeployedBytecodeOutputSelection) -> Self {
-        EvmOutputSelection::DeployedByteCode(b)
+        Self::DeployedByteCode(b)
     }
 }
 
@@ -356,13 +356,13 @@ impl<'de> Deserialize<'de> for EvmOutputSelection {
 impl fmt::Display for EvmOutputSelection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EvmOutputSelection::All => f.write_str("evm"),
-            EvmOutputSelection::Assembly => f.write_str("evm.assembly"),
-            EvmOutputSelection::LegacyAssembly => f.write_str("evm.legacyAssembly"),
-            EvmOutputSelection::MethodIdentifiers => f.write_str("evm.methodIdentifiers"),
-            EvmOutputSelection::GasEstimates => f.write_str("evm.gasEstimates"),
-            EvmOutputSelection::ByteCode(b) => b.fmt(f),
-            EvmOutputSelection::DeployedByteCode(b) => b.fmt(f),
+            Self::All => f.write_str("evm"),
+            Self::Assembly => f.write_str("evm.assembly"),
+            Self::LegacyAssembly => f.write_str("evm.legacyAssembly"),
+            Self::MethodIdentifiers => f.write_str("evm.methodIdentifiers"),
+            Self::GasEstimates => f.write_str("evm.gasEstimates"),
+            Self::ByteCode(b) => b.fmt(f),
+            Self::DeployedByteCode(b) => b.fmt(f),
         }
     }
 }
@@ -372,13 +372,13 @@ impl FromStr for EvmOutputSelection {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "evm" => Ok(EvmOutputSelection::All),
-            "asm" | "evm.assembly" => Ok(EvmOutputSelection::Assembly),
-            "evm.legacyAssembly" => Ok(EvmOutputSelection::LegacyAssembly),
+            "evm" => Ok(Self::All),
+            "asm" | "evm.assembly" => Ok(Self::Assembly),
+            "evm.legacyAssembly" => Ok(Self::LegacyAssembly),
             "methodidentifiers" | "evm.methodIdentifiers" | "evm.methodidentifiers" => {
-                Ok(EvmOutputSelection::MethodIdentifiers)
+                Ok(Self::MethodIdentifiers)
             }
-            "gas" | "evm.gasEstimates" | "evm.gasestimates" => Ok(EvmOutputSelection::GasEstimates),
+            "gas" | "evm.gasEstimates" | "evm.gasestimates" => Ok(Self::GasEstimates),
             s => BytecodeOutputSelection::from_str(s)
                 .map(EvmOutputSelection::ByteCode)
                 .or_else(|_| {
@@ -423,15 +423,15 @@ impl<'de> Deserialize<'de> for BytecodeOutputSelection {
 impl fmt::Display for BytecodeOutputSelection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BytecodeOutputSelection::All => f.write_str("evm.bytecode"),
-            BytecodeOutputSelection::FunctionDebugData => {
+            Self::All => f.write_str("evm.bytecode"),
+            Self::FunctionDebugData => {
                 f.write_str("evm.bytecode.functionDebugData")
             }
-            BytecodeOutputSelection::Object => f.write_str("evm.bytecode.object"),
-            BytecodeOutputSelection::Opcodes => f.write_str("evm.bytecode.opcodes"),
-            BytecodeOutputSelection::SourceMap => f.write_str("evm.bytecode.sourceMap"),
-            BytecodeOutputSelection::LinkReferences => f.write_str("evm.bytecode.linkReferences"),
-            BytecodeOutputSelection::GeneratedSources => {
+            Self::Object => f.write_str("evm.bytecode.object"),
+            Self::Opcodes => f.write_str("evm.bytecode.opcodes"),
+            Self::SourceMap => f.write_str("evm.bytecode.sourceMap"),
+            Self::LinkReferences => f.write_str("evm.bytecode.linkReferences"),
+            Self::GeneratedSources => {
                 f.write_str("evm.bytecode.generatedSources")
             }
         }
@@ -443,13 +443,13 @@ impl FromStr for BytecodeOutputSelection {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "evm.bytecode" => Ok(BytecodeOutputSelection::All),
-            "evm.bytecode.functionDebugData" => Ok(BytecodeOutputSelection::FunctionDebugData),
-            "code" | "bin" | "evm.bytecode.object" => Ok(BytecodeOutputSelection::Object),
-            "evm.bytecode.opcodes" => Ok(BytecodeOutputSelection::Opcodes),
-            "evm.bytecode.sourceMap" => Ok(BytecodeOutputSelection::SourceMap),
-            "evm.bytecode.linkReferences" => Ok(BytecodeOutputSelection::LinkReferences),
-            "evm.bytecode.generatedSources" => Ok(BytecodeOutputSelection::GeneratedSources),
+            "evm.bytecode" => Ok(Self::All),
+            "evm.bytecode.functionDebugData" => Ok(Self::FunctionDebugData),
+            "code" | "bin" | "evm.bytecode.object" => Ok(Self::Object),
+            "evm.bytecode.opcodes" => Ok(Self::Opcodes),
+            "evm.bytecode.sourceMap" => Ok(Self::SourceMap),
+            "evm.bytecode.linkReferences" => Ok(Self::LinkReferences),
+            "evm.bytecode.generatedSources" => Ok(Self::GeneratedSources),
             s => Err(format!("Invalid bytecode selection: {s}")),
         }
     }
@@ -489,22 +489,22 @@ impl<'de> Deserialize<'de> for DeployedBytecodeOutputSelection {
 impl fmt::Display for DeployedBytecodeOutputSelection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DeployedBytecodeOutputSelection::All => f.write_str("evm.deployedBytecode"),
-            DeployedBytecodeOutputSelection::FunctionDebugData => {
+            Self::All => f.write_str("evm.deployedBytecode"),
+            Self::FunctionDebugData => {
                 f.write_str("evm.deployedBytecode.functionDebugData")
             }
-            DeployedBytecodeOutputSelection::Object => f.write_str("evm.deployedBytecode.object"),
-            DeployedBytecodeOutputSelection::Opcodes => f.write_str("evm.deployedBytecode.opcodes"),
-            DeployedBytecodeOutputSelection::SourceMap => {
+            Self::Object => f.write_str("evm.deployedBytecode.object"),
+            Self::Opcodes => f.write_str("evm.deployedBytecode.opcodes"),
+            Self::SourceMap => {
                 f.write_str("evm.deployedBytecode.sourceMap")
             }
-            DeployedBytecodeOutputSelection::LinkReferences => {
+            Self::LinkReferences => {
                 f.write_str("evm.deployedBytecode.linkReferences")
             }
-            DeployedBytecodeOutputSelection::GeneratedSources => {
+            Self::GeneratedSources => {
                 f.write_str("evm.deployedBytecode.generatedSources")
             }
-            DeployedBytecodeOutputSelection::ImmutableReferences => {
+            Self::ImmutableReferences => {
                 f.write_str("evm.deployedBytecode.immutableReferences")
             }
         }
@@ -516,25 +516,25 @@ impl FromStr for DeployedBytecodeOutputSelection {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "evm.deployedBytecode" => Ok(DeployedBytecodeOutputSelection::All),
+            "evm.deployedBytecode" => Ok(Self::All),
             "evm.deployedBytecode.functionDebugData" => {
-                Ok(DeployedBytecodeOutputSelection::FunctionDebugData)
+                Ok(Self::FunctionDebugData)
             }
             "deployed-code"
             | "deployed-bin"
             | "runtime-code"
             | "runtime-bin"
-            | "evm.deployedBytecode.object" => Ok(DeployedBytecodeOutputSelection::Object),
-            "evm.deployedBytecode.opcodes" => Ok(DeployedBytecodeOutputSelection::Opcodes),
-            "evm.deployedBytecode.sourceMap" => Ok(DeployedBytecodeOutputSelection::SourceMap),
+            | "evm.deployedBytecode.object" => Ok(Self::Object),
+            "evm.deployedBytecode.opcodes" => Ok(Self::Opcodes),
+            "evm.deployedBytecode.sourceMap" => Ok(Self::SourceMap),
             "evm.deployedBytecode.linkReferences" => {
-                Ok(DeployedBytecodeOutputSelection::LinkReferences)
+                Ok(Self::LinkReferences)
             }
             "evm.deployedBytecode.generatedSources" => {
-                Ok(DeployedBytecodeOutputSelection::GeneratedSources)
+                Ok(Self::GeneratedSources)
             }
             "evm.deployedBytecode.immutableReferences" => {
-                Ok(DeployedBytecodeOutputSelection::ImmutableReferences)
+                Ok(Self::ImmutableReferences)
             }
             s => Err(format!("Invalid deployedBytecode selection: {s}")),
         }
@@ -570,9 +570,9 @@ impl<'de> Deserialize<'de> for EwasmOutputSelection {
 impl fmt::Display for EwasmOutputSelection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EwasmOutputSelection::All => f.write_str("ewasm"),
-            EwasmOutputSelection::Wast => f.write_str("ewasm.wast"),
-            EwasmOutputSelection::Wasm => f.write_str("ewasm.wasm"),
+            Self::All => f.write_str("ewasm"),
+            Self::Wast => f.write_str("ewasm.wast"),
+            Self::Wasm => f.write_str("ewasm.wasm"),
         }
     }
 }
@@ -582,9 +582,9 @@ impl FromStr for EwasmOutputSelection {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "ewasm" => Ok(EwasmOutputSelection::All),
-            "ewasm.wast" => Ok(EwasmOutputSelection::Wast),
-            "ewasm.wasm" => Ok(EwasmOutputSelection::Wasm),
+            "ewasm" => Ok(Self::All),
+            "ewasm.wast" => Ok(Self::Wast),
+            "ewasm.wasm" => Ok(Self::Wasm),
             s => Err(format!("Invalid ewasm selection: {s}")),
         }
     }

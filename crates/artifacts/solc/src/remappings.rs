@@ -103,7 +103,7 @@ impl FromStr for Remapping {
         // if the remapping just starts with : (no context name), treat it as global
         let context =
             context.and_then(|c| if c.trim().is_empty() { None } else { Some(c.to_string()) });
-        Ok(Remapping { context, name: name.to_string(), path: path.to_string() })
+        Ok(Self { context, name: name.to_string(), path: path.to_string() })
     }
 }
 
@@ -122,7 +122,7 @@ impl<'de> Deserialize<'de> for Remapping {
         D: serde::de::Deserializer<'de>,
     {
         let remapping = String::deserialize(deserializer)?;
-        Remapping::from_str(&remapping).map_err(serde::de::Error::custom)
+        Self::from_str(&remapping).map_err(serde::de::Error::custom)
     }
 }
 
@@ -201,7 +201,7 @@ impl Remapping {
     /// which would be multiple rededications according to our rules ("governance", "protocol-v2"),
     /// are unified into `@aave` by looking at their common ancestor, the root of this subdirectory
     /// (`@aave`)
-    pub fn find_many(dir: impl AsRef<Path>) -> Vec<Remapping> {
+    pub fn find_many(dir: impl AsRef<Path>) -> Vec<Self> {
         /// prioritize
         ///   - ("a", "1/2") over ("a", "1/2/3")
         ///   - if a path ends with `src`
@@ -261,7 +261,7 @@ impl Remapping {
 
         all_remappings
             .into_iter()
-            .map(|(name, path)| Remapping {
+            .map(|(name, path)| Self {
                 context: None,
                 name,
                 path: format!("{}/", path.display()),
@@ -369,7 +369,7 @@ impl From<RelativeRemapping> for Remapping {
         if !name.ends_with('/') {
             name.push('/');
         }
-        Remapping { context, name, path }
+        Self { context, name, path }
     }
 }
 
@@ -426,7 +426,7 @@ impl RelativeRemappingPathBuf {
 }
 
 impl<P: AsRef<Path>> From<P> for RelativeRemappingPathBuf {
-    fn from(path: P) -> RelativeRemappingPathBuf {
+    fn from(path: P) -> Self {
         Self { parent: None, path: path.as_ref().to_path_buf() }
     }
 }
@@ -447,7 +447,7 @@ impl<'de> Deserialize<'de> for RelativeRemapping {
     {
         let remapping = String::deserialize(deserializer)?;
         let remapping = Remapping::from_str(&remapping).map_err(serde::de::Error::custom)?;
-        Ok(RelativeRemapping {
+        Ok(Self {
             context: remapping.context,
             name: remapping.name,
             path: remapping.path.into(),
@@ -533,7 +533,7 @@ impl Candidate {
     ///     [`next_nested_window()`]
     ///   - `is_inside_node_modules` whether we're inside a `node_modules` lib
     fn merge_on_same_level(
-        candidates: &mut Vec<Candidate>,
+        candidates: &mut Vec<Self>,
         current_dir: &Path,
         current_level: usize,
         window_start: PathBuf,
@@ -579,7 +579,7 @@ impl Candidate {
             {
                 return;
             }
-            candidates.push(Candidate { window_start, source_dir, window_level: current_level });
+            candidates.push(Self { window_start, source_dir, window_level: current_level });
         }
     }
 

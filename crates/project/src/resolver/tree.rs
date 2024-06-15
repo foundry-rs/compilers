@@ -16,8 +16,8 @@ impl FromStr for Charset {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "utf8" => Ok(Charset::Utf8),
-            "ascii" => Ok(Charset::Ascii),
+            "utf8" => Ok(Self::Utf8),
+            "ascii" => Ok(Self::Ascii),
             s => Err(format!("invalid charset: {s}")),
         }
     }
