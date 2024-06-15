@@ -51,9 +51,9 @@ impl Compiler for SolcCompiler {
             #[cfg(feature = "svm-solc")]
             Self::AutoDetect => Solc::find_or_install(&input.version)?,
         };
-        solc.base_path = input.base_path.clone();
-        solc.allow_paths = input.allow_paths.clone();
-        solc.include_paths = input.include_paths.clone();
+        solc.base_path.clone_from(&input.base_path);
+        solc.allow_paths.clone_from(&input.allow_paths);
+        solc.include_paths.clone_from(&input.include_paths);
 
         let solc_output = solc.compile(&input.input)?;
 
