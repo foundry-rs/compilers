@@ -1,7 +1,5 @@
 #![doc = include_str!("../../../README.md")]
-#![warn(rustdoc::all)]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
-#![deny(unused_must_use, rust_2018_idioms)]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 #[macro_use]
@@ -444,16 +442,12 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
         let mut contracts = self.collect_contract_names()?;
 
         if contracts.get(target_name).map_or(true, |paths| paths.is_empty()) {
-            return Err(SolcError::msg(format!(
-                "No contract found with the name `{}`",
-                target_name
-            )));
+            return Err(SolcError::msg(format!("No contract found with the name `{target_name}`")));
         }
         let mut paths = contracts.remove(target_name).unwrap();
         if paths.len() > 1 {
             return Err(SolcError::msg(format!(
-                "Multiple contracts found with the name `{}`",
-                target_name
+                "Multiple contracts found with the name `{target_name}`"
             )));
         }
 
@@ -647,7 +641,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
 
     /// Set arbitrary `ArtifactOutputHandler`
     pub fn artifacts<A: ArtifactOutput>(self, artifacts: A) -> ProjectBuilder<C, A> {
-        let ProjectBuilder {
+        let Self {
             paths,
             cached,
             no_artifacts,

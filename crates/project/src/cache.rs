@@ -48,7 +48,7 @@ pub struct CompilerCache<S = Settings> {
 
 impl<S> CompilerCache<S> {
     pub fn new(format: String, paths: ProjectPaths) -> Self {
-        CompilerCache { format, paths, files: Default::default(), builds: Default::default() }
+        Self { format, paths, files: Default::default(), builds: Default::default() }
     }
 }
 
@@ -137,7 +137,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn read_joined<L>(paths: &ProjectPathsConfig<L>) -> Result<Self> {
-        let mut cache = CompilerCache::read(&paths.cache)?;
+        let mut cache = Self::read(&paths.cache)?;
         cache.join_entries(&paths.root).join_artifacts_files(&paths.artifacts);
         Ok(cache)
     }
@@ -365,7 +365,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
 
 impl<S> Default for CompilerCache<S> {
     fn default() -> Self {
-        CompilerCache {
+        Self {
             format: ETHERS_FORMAT_VERSION.to_string(),
             builds: Default::default(),
             files: Default::default(),
@@ -377,7 +377,7 @@ impl<S> Default for CompilerCache<S> {
 impl<'a, S: CompilerSettings> From<&'a ProjectPathsConfig> for CompilerCache<S> {
     fn from(config: &'a ProjectPathsConfig) -> Self {
         let paths = config.paths_relative();
-        CompilerCache::new(Default::default(), paths)
+        Self::new(Default::default(), paths)
     }
 }
 

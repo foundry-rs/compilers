@@ -397,7 +397,7 @@ pub struct Report {
 impl Report {
     /// Returns a new `Report` that does nothing
     pub fn none() -> Self {
-        Report { reporter: Arc::new(NoReporter::default()) }
+        Self { reporter: Arc::new(NoReporter::default()) }
     }
 
     /// Returns a `Report` that forwards to the given [`Reporter`].

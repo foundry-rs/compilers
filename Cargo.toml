@@ -16,6 +16,20 @@ keywords = ["foundry", "solidity", "solc", "ethereum", "ethers"]
 edition = "2021"
 exclude = [".github/", "scripts/", "test-data/"]
 
+[workspace.lints.clippy]
+dbg-macro = "warn"
+manual-string-new = "warn"
+uninlined-format-args = "warn"
+use-self = "warn"
+
+[workspace.lints.rust]
+rust-2018-idioms = "deny"
+# unreachable-pub = "warn"
+unused-must-use = "deny"
+
+[workspace.lints.rustdoc]
+all = "warn"
+
 [workspace.dependencies]
 foundry-compilers-artifacts-solc = { path = "crates/artifacts/solc", version = "0.7.0" }
 foundry-compilers-artifacts-vyper = { path = "crates/artifacts/vyper", version = "0.7.0" }

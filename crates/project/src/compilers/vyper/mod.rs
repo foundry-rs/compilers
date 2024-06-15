@@ -45,9 +45,9 @@ impl<'de> serde::Deserialize<'de> for VyperLanguage {
     {
         let res = String::deserialize(deserializer)?;
         if res != "vyper" {
-            Err(serde::de::Error::custom(format!("Invalid Vyper language: {}", res)))
+            Err(serde::de::Error::custom(format!("Invalid Vyper language: {res}")))
         } else {
-            Ok(VyperLanguage)
+            Ok(Self)
         }
     }
 }

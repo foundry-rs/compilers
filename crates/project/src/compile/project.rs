@@ -437,10 +437,8 @@ impl<L: Language> CompilerSources<L> {
         }
 
         match self {
-            CompilerSources::Sequential(s) => {
-                FilteredCompilerSources::Sequential(filtered_sources(s, cache))
-            }
-            CompilerSources::Parallel(s, j) => {
+            Self::Sequential(s) => FilteredCompilerSources::Sequential(filtered_sources(s, cache)),
+            Self::Parallel(s, j) => {
                 FilteredCompilerSources::Parallel(filtered_sources(s, cache), j)
             }
         }
@@ -545,15 +543,15 @@ impl<L: Language> FilteredCompilerSources<L> {
     #[cfg(all(feature = "project-util", feature = "svm-solc"))]
     fn sources(&self) -> &VersionedFilteredSources<L> {
         match self {
-            FilteredCompilerSources::Sequential(v) => v,
-            FilteredCompilerSources::Parallel(v, _) => v,
+            Self::Sequential(v) => v,
+            Self::Parallel(v, _) => v,
         }
     }
 
     fn into_sources(self) -> VersionedFilteredSources<L> {
         match self {
-            FilteredCompilerSources::Sequential(v) => v,
-            FilteredCompilerSources::Parallel(v, _) => v,
+            Self::Sequential(v) => v,
+            Self::Parallel(v, _) => v,
         }
     }
 }

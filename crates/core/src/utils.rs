@@ -552,17 +552,17 @@ cfg_if! {
         }
 
         impl RuntimeOrHandle {
-            pub fn new() -> RuntimeOrHandle {
+            pub fn new() -> Self {
                 match Handle::try_current() {
-                    Ok(handle) => RuntimeOrHandle::Handle(handle),
-                    Err(_) => RuntimeOrHandle::Runtime(Runtime::new().expect("Failed to start runtime")),
+                    Ok(handle) => Self::Handle(handle),
+                    Err(_) => Self::Runtime(Runtime::new().expect("Failed to start runtime")),
                 }
             }
 
             pub fn block_on<F: std::future::Future>(&self, f: F) -> F::Output {
                 match &self {
-                    RuntimeOrHandle::Runtime(runtime) => runtime.block_on(f),
-                    RuntimeOrHandle::Handle(handle) => tokio::task::block_in_place(|| handle.block_on(f)),
+                    Self::Runtime(runtime) => runtime.block_on(f),
+                    Self::Handle(handle) => tokio::task::block_in_place(|| handle.block_on(f)),
                 }
             }
         }

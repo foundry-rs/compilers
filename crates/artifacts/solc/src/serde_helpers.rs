@@ -205,7 +205,7 @@ pub mod tuple_vec_map {
 
         impl<K, V> TupleVecMapVisitor<K, V> {
             pub fn new() -> Self {
-                TupleVecMapVisitor { marker: PhantomData }
+                Self { marker: PhantomData }
             }
         }
 

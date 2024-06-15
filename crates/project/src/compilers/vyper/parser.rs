@@ -42,7 +42,7 @@ impl ParsedSource for VyperParsedSource {
 
         let path = file.to_path_buf();
 
-        Ok(VyperParsedSource { path, version_req, imports })
+        Ok(Self { path, version_req, imports })
     }
 
     fn version_req(&self) -> Option<&VersionReq> {

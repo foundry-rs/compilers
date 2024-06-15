@@ -94,7 +94,7 @@ impl Solc {
 
     /// A new instance which points to `solc` with the given version
     pub fn new_with_version(path: impl Into<PathBuf>, version: Version) -> Self {
-        Solc {
+        Self {
             solc: path.into(),
             version,
             base_path: None,
@@ -249,7 +249,7 @@ impl Solc {
         match svm::install(version).await {
             Ok(path) => {
                 crate::report::solc_installation_success(version);
-                Ok(Solc::new_with_version(path, version.clone()))
+                Ok(Self::new_with_version(path, version.clone()))
             }
             Err(err) => {
                 crate::report::solc_installation_error(version, &err.to_string());
@@ -276,7 +276,7 @@ impl Solc {
         match RuntimeOrHandle::new().block_on(svm::install(&version)) {
             Ok(path) => {
                 crate::report::solc_installation_success(&version);
-                Ok(Solc::new_with_version(path, version.clone()))
+                Ok(Self::new_with_version(path, version.clone()))
             }
             Err(err) => {
                 crate::report::solc_installation_error(&version, &err.to_string());
@@ -548,7 +548,7 @@ impl Solc {
     /// time, and less than `n` may also be buffered depending on the state of each future.
     pub async fn compile_many<I>(jobs: I, n: usize) -> crate::many::CompiledMany
     where
-        I: IntoIterator<Item = (Solc, SolcInput)>,
+        I: IntoIterator<Item = (Self, SolcInput)>,
     {
         use futures_util::stream::StreamExt;
 

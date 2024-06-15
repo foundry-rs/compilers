@@ -91,7 +91,7 @@ impl<L: Language> RawBuildInfo<L> {
         input: &I,
         output: &CompilerOutput<E>,
         full_build_info: bool,
-    ) -> Result<RawBuildInfo<L>> {
+    ) -> Result<Self> {
         let version = input.version().clone();
         let build_context = BuildContext::new(input, output)?;
 
@@ -122,7 +122,7 @@ impl<L: Language> RawBuildInfo<L> {
             build_info.insert("output".to_string(), serde_json::to_value(output)?);
         }
 
-        Ok(RawBuildInfo { id, build_info, build_context })
+        Ok(Self { id, build_info, build_context })
     }
 }
 

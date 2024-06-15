@@ -26,15 +26,15 @@ impl fmt::Display for VyperCompilationError {
         if let Some(location) = &self.source_location {
             write!(f, "Location: {}", location.file.display())?;
             if let Some(line) = location.line {
-                write!(f, ":{}", line)?;
+                write!(f, ":{line}")?;
             }
             if let Some(offset) = location.offset {
-                write!(f, ":{}", offset)?;
+                write!(f, ":{offset}")?;
             }
             writeln!(f)?;
         }
         if let Some(message) = &self.formatted_message {
-            write!(f, "{}", message)
+            write!(f, "{message}")
         } else {
             write!(f, "{}", self.message)
         }

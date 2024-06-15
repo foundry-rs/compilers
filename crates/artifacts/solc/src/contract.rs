@@ -387,7 +387,7 @@ impl From<serde_json::Value> for CompactContract {
                 map.remove("bin-runtime").and_then(|val| serde_json::from_value(val).ok());
             Self { abi, bin, bin_runtime }
         } else {
-            CompactContract::default()
+            Self::default()
         }
     }
 }

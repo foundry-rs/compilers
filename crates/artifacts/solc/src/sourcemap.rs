@@ -18,13 +18,13 @@ pub struct SyntaxError(String);
 
 impl SyntaxError {
     pub fn new(s: impl Into<String>) -> Self {
-        SyntaxError(s.into())
+        Self(s.into())
     }
 }
 
 impl From<std::num::TryFromIntError> for SyntaxError {
     fn from(_value: std::num::TryFromIntError) -> Self {
-        SyntaxError::new("offset overflow".to_string())
+        Self::new("offset overflow".to_string())
     }
 }
 
@@ -73,7 +73,7 @@ struct TokenStream<'input> {
 }
 
 impl<'input> TokenStream<'input> {
-    pub fn new(input: &'input str) -> TokenStream<'input> {
+    pub fn new(input: &'input str) -> Self {
         TokenStream { chars: input.char_indices().peekable(), input }
     }
 
@@ -133,17 +133,17 @@ pub enum Jump {
 impl Jump {
     fn to_int(self) -> u32 {
         match self {
-            Jump::In => 0,
-            Jump::Out => 1,
-            Jump::Regular => 2,
+            Self::In => 0,
+            Self::Out => 1,
+            Self::Regular => 2,
         }
     }
 
     fn from_int(i: u32) -> Self {
         match i {
-            0 => Jump::In,
-            1 => Jump::Out,
-            2 => Jump::Regular,
+            0 => Self::In,
+            1 => Self::Out,
+            2 => Self::Regular,
             _ => unreachable!(),
         }
     }
@@ -152,9 +152,9 @@ impl Jump {
 impl AsRef<str> for Jump {
     fn as_ref(&self) -> &str {
         match self {
-            Jump::In => "i",
-            Jump::Out => "o",
-            Jump::Regular => "-",
+            Self::In => "i",
+            Self::Out => "o",
+            Self::Regular => "-",
         }
     }
 }
@@ -556,11 +556,11 @@ enum State {
 impl State {
     fn advance(&mut self, i: usize) -> Option<SyntaxError> {
         match self {
-            State::Offset => *self = State::Length,
-            State::Length => *self = State::Index,
-            State::Index => *self = State::Jmp,
-            State::Jmp => *self = State::Modifier,
-            State::Modifier => return Some(SyntaxError::new(format!("unexpected colon at {i}"))),
+            Self::Offset => *self = Self::Length,
+            Self::Length => *self = Self::Index,
+            Self::Index => *self = Self::Jmp,
+            Self::Jmp => *self = Self::Modifier,
+            Self::Modifier => return Some(SyntaxError::new(format!("unexpected colon at {i}"))),
         }
         None
     }
