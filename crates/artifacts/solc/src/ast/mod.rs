@@ -906,9 +906,9 @@ pub enum AssemblyReferenceSuffix {
 impl fmt::Display for AssemblyReferenceSuffix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AssemblyReferenceSuffix::Slot => f.write_str("slot"),
-            AssemblyReferenceSuffix::Offset => f.write_str("offset"),
-            AssemblyReferenceSuffix::Length => f.write_str("length"),
+            Self::Slot => f.write_str("slot"),
+            Self::Offset => f.write_str("offset"),
+            Self::Length => f.write_str("length"),
         }
     }
 }

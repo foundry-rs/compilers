@@ -482,7 +482,7 @@ impl Solc {
         let solc = if let Some(solc) = Self::find_svm_installed_version(version)? {
             solc
         } else {
-            Self::blocking_install(&version)?
+            Self::blocking_install(version)?
         };
 
         Ok(solc)

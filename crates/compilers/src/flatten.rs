@@ -100,8 +100,10 @@ impl Visitor for ReferencesCollector {
         // If suffix is used in assembly reference (e.g. value.slot), it will be included into src.
         // However, we are only interested in the referenced name, thus we strip .<suffix> part.
         if let Some(suffix) = &reference.suffix {
-            let suffix_len = suffix.to_string().len();
-            src.length.as_mut().map(|len| *len -= suffix_len + 1);
+            if let Some(len) = src.length.as_mut() {
+                let suffix_len = suffix.to_string().len();
+                *len -= suffix_len + 1;
+            }
         }
 
         self.process_referenced_declaration(reference.declaration as isize, &src);
