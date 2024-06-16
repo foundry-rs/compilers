@@ -95,7 +95,16 @@ impl Visitor for ReferencesCollector {
     }
 
     fn visit_external_assembly_reference(&mut self, reference: &ExternalInlineAssemblyReference) {
-        self.process_referenced_declaration(reference.declaration as isize, &reference.src);
+        let mut src = reference.src.clone();
+
+        // If suffix is used in assembly reference (e.g. value.slot), it will be included into src.
+        // However, we are only interested in the referenced name, thus we strip .<suffix> part.
+        if let Some(suffix) = &reference.suffix {
+            let suffix_len = suffix.to_string().len();
+            src.length.as_mut().map(|len| *len -= suffix_len + 1);
+        }
+
+        self.process_referenced_declaration(reference.declaration as isize, &src);
     }
 }
 
@@ -207,8 +216,13 @@ impl Flattener {
             *selection = OutputSelection::ast_output_selection();
         });
 
-        let output =
-            project.compile_file(target).map_err(FlattenerError::Compilation)?.compiler_output;
+        let output = project.compile_file(target).map_err(FlattenerError::Compilation)?;
+
+        if output.has_compiler_errors() {
+            return Err(FlattenerError::Compilation(SolcError::msg(&output)));
+        }
+
+        let output = output.compiler_output;
 
         let sources = Source::read_all_files(vec![target.to_path_buf()])?;
         let graph = Graph::<C::ParsedSource>::resolve_sources(&project.paths, sources)?;
@@ -681,16 +695,16 @@ impl Flattener {
     /// Removes all pragma directives from all sources. Returns Vec with experimental and combined
     /// version pragmas (if present).
     fn process_pragmas(&self, updates: &mut Updates) -> Vec<String> {
-        let mut experimental = None;
+        let mut abicoder_v2 = None;
 
         let pragmas = self.collect_pragmas();
         let mut version_pragmas = Vec::new();
 
         for loc in &pragmas {
             let pragma_content = self.read_location(loc);
-            if pragma_content.contains("experimental") {
-                if experimental.is_none() {
-                    experimental = Some(self.read_location(loc).to_string());
+            if pragma_content.contains("experimental") || pragma_content.contains("abicoder") {
+                if abicoder_v2.is_none() {
+                    abicoder_v2 = Some(self.read_location(loc).to_string());
                 }
             } else if pragma_content.contains("solidity") {
                 version_pragmas.push(pragma_content);
@@ -709,7 +723,7 @@ impl Flattener {
             pragmas.push(version_pragma);
         }
 
-        if let Some(pragma) = experimental {
+        if let Some(pragma) = abicoder_v2 {
             pragmas.push(pragma);
         }
 

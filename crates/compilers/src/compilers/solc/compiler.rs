@@ -177,11 +177,11 @@ impl Solc {
     /// let solc = Solc::find_svm_installed_version("0.8.9")?;
     /// assert_eq!(solc, Some(Solc::new("~/.svm/0.8.9/solc-0.8.9")));
     /// ```
-    pub fn find_svm_installed_version(version: impl AsRef<str>) -> Result<Option<Self>> {
-        let version = version.as_ref();
+    pub fn find_svm_installed_version(version: &Version) -> Result<Option<Self>> {
+        let version = format!("{}.{}.{}", version.major, version.minor, version.patch);
         let solc = Self::svm_home()
             .ok_or_else(|| SolcError::msg("svm home dir not found"))?
-            .join(version)
+            .join(&version)
             .join(format!("solc-{version}"));
 
         if !solc.is_file() {
@@ -479,10 +479,10 @@ impl Solc {
     /// Either finds an installed Solc version or installs it if it's not found.
     #[cfg(feature = "svm-solc")]
     pub fn find_or_install(version: &Version) -> Result<Self> {
-        let solc = if let Some(solc) = Self::find_svm_installed_version(version.to_string())? {
+        let solc = if let Some(solc) = Self::find_svm_installed_version(version)? {
             solc
         } else {
-            Self::blocking_install(version)?
+            Self::blocking_install(&version)?
         };
 
         Ok(solc)
@@ -607,7 +607,7 @@ mod tests {
     }
 
     fn solc() -> Solc {
-        if let Some(solc) = Solc::find_svm_installed_version("0.8.18").unwrap() {
+        if let Some(solc) = Solc::find_svm_installed_version(&Version::new(0, 8, 18)).unwrap() {
             solc
         } else {
             Solc::blocking_install(&Version::new(0, 8, 18)).unwrap()
@@ -719,8 +719,7 @@ mod tests {
     fn test_find_installed_version_path() {
         // This test does not take the lock by default, so we need to manually add it here.
         take_solc_installer_lock!(_lock);
-        let ver = "0.8.6";
-        let version = Version::from_str(ver).unwrap();
+        let version = Version::new(0, 8, 6);
         if utils::installed_versions(svm::data_dir())
             .map(|versions| !versions.contains(&version))
             .unwrap_or_default()
@@ -728,8 +727,8 @@ mod tests {
             Solc::blocking_install(&version).unwrap();
         }
         drop(_lock);
-        let res = Solc::find_svm_installed_version(ver).unwrap().unwrap();
-        let expected = svm::data_dir().join(ver).join(format!("solc-{ver}"));
+        let res = Solc::find_svm_installed_version(&version).unwrap().unwrap();
+        let expected = svm::data_dir().join(version.to_string()).join(format!("solc-{version}"));
         assert_eq!(res.solc, expected);
     }
 
@@ -744,8 +743,8 @@ mod tests {
 
     #[test]
     fn does_not_find_not_installed_version() {
-        let ver = "1.1.1";
-        let res = Solc::find_svm_installed_version(ver).unwrap();
+        let ver = Version::new(1, 1, 1);
+        let res = Solc::find_svm_installed_version(&ver).unwrap();
         assert!(res.is_none());
     }
 }

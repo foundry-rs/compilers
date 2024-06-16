@@ -1872,6 +1872,50 @@ contract B {}
 }
 
 #[test]
+fn can_flatten_with_assembly_reference_suffix() {
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
+
+    let target = project
+        .add_source(
+            "A",
+            r"pragma solidity >=0.5.0;
+
+contract A {
+    uint256 val;
+
+    function useSuffix() public {
+        bytes32 slot;
+        assembly {
+            slot := val.slot
+        }
+    }
+}",
+        )
+        .unwrap();
+
+    test_flatteners(&project, &target, |result| {
+        assert_eq!(
+            result,
+            r"pragma solidity >=0.5.0;
+
+// src/A.sol
+
+contract A {
+    uint256 val;
+
+    function useSuffix() public {
+        bytes32 slot;
+        assembly {
+            slot := val.slot
+        }
+    }
+}
+"
+        );
+    });
+}
+
+#[test]
 fn can_compile_single_files() {
     let tmp = TempProject::<MultiCompiler>::dapptools().unwrap();
 
@@ -2847,7 +2891,7 @@ fn test_compiler_severity_filter_and_ignored_error_codes() {
 }
 
 fn remove_solc_if_exists(version: &Version) {
-    if Solc::find_svm_installed_version(version.to_string()).unwrap().is_some() {
+    if Solc::find_svm_installed_version(version).unwrap().is_some() {
         svm::remove_version(version).expect("failed to remove version")
     }
 }

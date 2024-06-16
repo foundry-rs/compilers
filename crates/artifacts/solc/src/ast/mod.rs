@@ -28,6 +28,7 @@ pub use lowfidelity::{Ast, Node, NodeType, SourceLocation as LowFidelitySourceLo
 pub mod yul;
 
 use crate::serde_helpers;
+use core::fmt;
 use macros::{ast_node, expr_node, node_group, stmt_node};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -900,6 +901,16 @@ pub enum AssemblyReferenceSuffix {
     Offset,
     /// The reference refers to a length.
     Length,
+}
+
+impl fmt::Display for AssemblyReferenceSuffix {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AssemblyReferenceSuffix::Slot => f.write_str("slot"),
+            AssemblyReferenceSuffix::Offset => f.write_str("offset"),
+            AssemblyReferenceSuffix::Length => f.write_str("length"),
+        }
+    }
 }
 
 /// Inline assembly flags.
