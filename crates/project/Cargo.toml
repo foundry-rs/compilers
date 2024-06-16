@@ -1,5 +1,5 @@
 [package]
-name = "foundry-compilers-project"
+name = "foundry-compilers"
 description = "Compiler abstraction and Foundry project implementation"
 
 version.workspace = true

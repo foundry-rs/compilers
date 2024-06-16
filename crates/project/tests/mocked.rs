@@ -1,13 +1,13 @@
 //! mocked project tests
 
-use foundry_compilers_core::error::Result;
-use foundry_compilers_project::{
+use foundry_compilers::{
     compilers::multi::MultiCompiler,
     project_util::{
         mock::{MockProjectGenerator, MockProjectSettings, MockProjectSkeleton},
         TempProject,
     },
 };
+use foundry_compilers_core::error::Result;
 
 // default version to use
 const DEFAULT_VERSION: &str = "^0.8.10";
