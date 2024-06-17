@@ -110,30 +110,30 @@ impl Project {
     ///
     /// # Examples
     ///
-    /// Configure with `ConfigurableArtifacts` artifacts output:
-    ///
-    /// ```
+    /// Configure with [ConfigurableArtifacts] artifacts output and [MultiCompiler] compiler:
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
+    /// ```no_run
     /// use foundry_compilers::Project;
     ///
-    /// let config = Project::builder().build()?;
+    /// let config = Project::builder().build(Default::default())?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     ///
     /// To configure any a project with any `ArtifactOutput` use either:
-    ///
-    /// ```
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
+    /// ```no_run
     /// use foundry_compilers::Project;
     ///
-    /// let config = Project::builder().build()?;
+    /// let config = Project::builder().build(Default::default())?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     ///
     /// or use the builder directly:
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
+    /// ```no_run
+    /// use foundry_compilers::{multi::MultiCompiler, ConfigurableArtifacts, ProjectBuilder};
     ///
-    /// ```
-    /// use foundry_compilers::{ConfigurableArtifacts, ProjectBuilder};
-    ///
-    /// let config = ProjectBuilder::<ConfigurableArtifacts>::default().build()?;
+    /// let config = ProjectBuilder::<MultiCompiler>::default().build(Default::default())?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn builder() -> ProjectBuilder {
@@ -254,14 +254,14 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// Use this if you compile a project in a `build.rs` file.
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{Project, ProjectPathsConfig};
     ///
     /// // Configure the project with all its paths, solc, cache etc.
     /// // where the root dir is the current Rust project.
     /// let paths = ProjectPathsConfig::hardhat(env!("CARGO_MANIFEST_DIR"))?;
-    /// let project = Project::builder().paths(paths).build()?;
+    /// let project = Project::builder().paths(paths).build(Default::default())?;
     /// let output = project.compile()?;
     ///
     /// // Tell Cargo to rerun this build script that if a source file changes.
@@ -279,11 +279,11 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// Convenience function to compile a single solidity file with the project's settings.
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile_file("example/Greeter.sol")?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -297,11 +297,11 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// Same as [`Self::compile()`] but with the given `files` as input.
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile_files(["examples/Foo.sol", "examples/Bar.sol"])?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -320,11 +320,11 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// If the cache file was the only file in the folder, this also removes the empty folder.
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```
     /// use foundry_compilers::Project;
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let _ = project.compile()?;
     /// assert!(project.artifacts_path().exists());
     /// assert!(project.cache_path().exists());

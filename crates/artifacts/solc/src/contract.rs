@@ -81,18 +81,6 @@ impl ContractBytecode {
     /// # Panics
     ///
     /// Panics if any field is `None`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
-    ///
-    /// let project = Project::builder().build()?;
-    /// let mut output = project.compile()?.into_output();
-    /// let contract: ContractBytecode = output.remove_first("Greeter").unwrap().into();
-    /// let contract: ContractBytecodeSome = contract.unwrap();
-    /// # Ok::<_, Box<dyn std::error::Error>>(())
-    /// ```
     #[track_caller]
     pub fn unwrap(self) -> ContractBytecodeSome {
         ContractBytecodeSome {
@@ -344,18 +332,6 @@ impl CompactContract {
     /// # Panics
     ///
     /// Panics if any field is `None`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
-    ///
-    /// let project = Project::builder().build()?;
-    /// let mut output = project.compile()?.into_output();
-    /// let contract: CompactContract = output.remove_first("Greeter").unwrap().into();
-    /// let contract: CompactContractSome = contract.unwrap();
-    /// # Ok::<_, Box<dyn std::error::Error>>(())
-    /// ```
     #[track_caller]
     pub fn unwrap(self) -> CompactContractSome {
         CompactContractSome {
@@ -531,18 +507,6 @@ impl<'a> CompactContractRef<'a> {
     /// # Panics
     ///
     /// Panics if any field is `None`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
-    ///
-    /// let project = Project::builder().build()?;
-    /// let output = project.compile()?.into_output();
-    /// let contract: CompactContractRef<'_> = output.find_first("Greeter").unwrap();
-    /// let contract: CompactContractRefSome<'_> = contract.unwrap();
-    /// # Ok::<_, Box<dyn std::error::Error>>(())
-    /// ```
     #[track_caller]
     pub fn unwrap(self) -> CompactContractRefSome<'a> {
         CompactContractRefSome {

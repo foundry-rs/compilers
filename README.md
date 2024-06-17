@@ -50,13 +50,13 @@ foundry-compilers = { git = "https://github.com/foundry-rs/compilers" }
 
 Example usage:
 
-```rust
+```rust,ignore
 use foundry_compilers::{Project, ProjectPathsConfig};
 
 // configure the project with all its paths, solc, cache etc.
 let project = Project::builder()
     .paths(ProjectPathsConfig::hardhat(env!("CARGO_MANIFEST_DIR")).unwrap())
-    .build()
+    .build(Default::default())
     .unwrap();
 let output = project.compile().unwrap();
 

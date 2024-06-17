@@ -342,7 +342,7 @@ impl<L> ProjectPathsConfig<L> {
     /// use foundry_compilers::ProjectPathsConfig;
     /// use std::path::Path;
     ///
-    /// let config = ProjectPathsConfig::builder().lib("lib").build()?;
+    /// let config: ProjectPathsConfig = ProjectPathsConfig::builder().lib("lib").build()?;
     /// assert_eq!(config.find_library_ancestor("lib/src/Greeter.sol"), Some(Path::new("lib")));
     /// Ok::<_, Box<dyn std::error::Error>>(())
     /// ```

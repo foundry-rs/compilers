@@ -101,12 +101,12 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// If the cache file does not exist
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
-    /// use foundry_compilers::{cache::SolFilesCache, Project};
+    /// use foundry_compilers::{artifacts::Settings, cache::CompilerCache, Project};
     ///
-    /// let project = Project::builder().build()?;
-    /// let mut cache = SolFilesCache::read(project.cache_path())?;
+    /// let project = Project::builder().build(Default::default())?;
+    /// let mut cache = CompilerCache::<Settings>::read(project.cache_path())?;
     /// cache.join_artifacts_files(project.artifacts_path());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -128,12 +128,12 @@ impl<S: CompilerSettings> CompilerCache<S> {
     ///
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
-    /// use foundry_compilers::{cache::SolFilesCache, Project};
+    /// use foundry_compilers::{artifacts::Settings, cache::CompilerCache, Project};
     ///
-    /// let project = Project::builder().build()?;
-    /// let cache = SolFilesCache::read_joined(&project.paths)?;
+    /// let project = Project::builder().build(Default::default())?;
+    /// let cache: CompilerCache<Settings> = CompilerCache::read_joined(&project.paths)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn read_joined<L>(paths: &ProjectPathsConfig<L>) -> Result<Self> {
@@ -213,13 +213,17 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// `src/Greeter.sol` if `base` is `/Users/me/project`
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
-    /// use foundry_compilers::{artifacts::contract::CompactContract, cache::SolFilesCache, Project};
+    /// use foundry_compilers::{
+    ///     artifacts::{contract::CompactContract, Settings},
+    ///     cache::CompilerCache,
+    ///     Project,
+    /// };
     ///
-    /// let project = Project::builder().build()?;
-    /// let cache =
-    ///     SolFilesCache::read(project.cache_path())?.with_stripped_file_prefixes(project.root());
+    /// let project = Project::builder().build(Default::default())?;
+    /// let cache: CompilerCache<Settings> =
+    ///     CompilerCache::read(project.cache_path())?.with_stripped_file_prefixes(project.root());
     /// let artifact: CompactContract = cache.read_artifact("src/Greeter.sol", "Greeter")?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -238,12 +242,12 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// Returns the path to the artifact of the given `(file, contract)` pair
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
-    /// use foundry_compilers::{cache::SolFilesCache, Project};
+    /// use foundry_compilers::{artifacts::Settings, cache::CompilerCache, Project};
     ///
-    /// let project = Project::builder().build()?;
-    /// let cache = SolFilesCache::read_joined(&project.paths)?;
+    /// let project = Project::builder().build(Default::default())?;
+    /// let cache: CompilerCache<Settings> = CompilerCache::read_joined(&project.paths)?;
     /// cache.find_artifact_path("/Users/git/myproject/src/Greeter.sol", "Greeter");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -260,12 +264,16 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// [`Self::find_artifact_path()`]) and deserializes the artifact file as JSON.
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
-    /// use foundry_compilers::{artifacts::contract::CompactContract, cache::SolFilesCache, Project};
+    /// use foundry_compilers::{
+    ///     artifacts::{contract::CompactContract, Settings},
+    ///     cache::CompilerCache,
+    ///     Project,
+    /// };
     ///
-    /// let project = Project::builder().build()?;
-    /// let cache = SolFilesCache::read_joined(&project.paths)?;
+    /// let project = Project::builder().build(Default::default())?;
+    /// let cache = CompilerCache::<Settings>::read_joined(&project.paths)?;
     /// let artifact: CompactContract =
     ///     cache.read_artifact("/Users/git/myproject/src/Greeter.sol", "Greeter")?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -292,14 +300,16 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// Reads all cached artifacts from disk using the given ArtifactOutput handler
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{
-    ///     artifacts::contract::CompactContractBytecode, cache::SolFilesCache, Project,
+    ///     artifacts::{contract::CompactContractBytecode, Settings},
+    ///     cache::CompilerCache,
+    ///     Project,
     /// };
     ///
-    /// let project = Project::builder().build()?;
-    /// let cache = SolFilesCache::read_joined(&project.paths)?;
+    /// let project = Project::builder().build(Default::default())?;
+    /// let cache: CompilerCache<Settings> = CompilerCache::read_joined(&project.paths)?;
     /// let artifacts = cache.read_artifacts::<CompactContractBytecode>()?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -858,7 +868,7 @@ pub(crate) enum ArtifactsCache<'a, T: ArtifactOutput, C: Compiler> {
 impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
     /// Create a new cache instance with the given files
     pub fn new(project: &'a Project<C, T>, edges: GraphEdges<C::ParsedSource>) -> Result<Self> {
-        /// Returns the [SolFilesCache] to use
+        /// Returns the [CompilerCache] to use
         ///
         /// Returns a new empty cache if the cache does not exist or `invalidate_cache` is set.
         fn get_cache<T: ArtifactOutput, C: Compiler>(

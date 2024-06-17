@@ -43,11 +43,11 @@ impl VersionedContracts {
     /// Finds the _first_ contract with the given name
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
     /// let contract = output.find_first("Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -62,11 +62,11 @@ impl VersionedContracts {
     /// Finds the contract with matching path and name
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
     /// let contract = output.contracts.find("src/Greeter.sol", "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -87,11 +87,11 @@ impl VersionedContracts {
     /// Removes the _first_ contract with the given name from the set
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let (_, mut contracts) = project.compile()?.into_output().split();
     /// let contract = contracts.remove_first("Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -115,11 +115,11 @@ impl VersionedContracts {
     ///  Removes the contract with matching path and name
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let (_, mut contracts) = project.compile()?.into_output().split();
     /// let contract = contracts.remove("src/Greeter.sol", "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
