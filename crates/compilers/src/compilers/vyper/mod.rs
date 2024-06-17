@@ -103,11 +103,18 @@ impl Vyper {
     /// # Examples
     ///
     /// ```no_run
-    /// use foundry_compilers::{CompilerInput, Solc};
+    /// use foundry_compilers::{
+    ///     artifacts::{
+    ///         vyper::{VyperInput, VyperSettings},
+    ///         Source,
+    ///     },
+    ///     Vyper,
+    /// };
     ///
-    /// let solc = Solc::default();
-    /// let input = CompilerInput::new("./contracts")?;
-    /// let output = solc.compile(&input)?;
+    /// let vyper = Vyper::new("vyper")?;
+    /// let sources = Source::read_all_from("path/to/sources", &["vy", "vyi"])?;
+    /// let input = VyperInput::new(sources, VyperSettings::default());
+    /// let output = vyper.compile(&input)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn compile<T: Serialize>(&self, input: &T) -> Result<VyperOutput> {

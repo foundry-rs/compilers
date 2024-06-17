@@ -55,11 +55,11 @@ impl VersionedSourceFiles {
     /// Finds the _first_ source file with the given path.
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
     /// let source_file = output.sources.find_file("src/Greeter.sol").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -93,11 +93,11 @@ impl VersionedSourceFiles {
     /// Finds the _first_ source file with the given id
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
     /// let source_file = output.sources.find_id(0).unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -117,11 +117,11 @@ impl VersionedSourceFiles {
     /// Removes the _first_ source_file with the given path from the set
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let (mut sources, _) = project.compile()?.into_output().split();
     /// let source_file = sources.remove_by_path("src/Greeter.sol").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -140,11 +140,11 @@ impl VersionedSourceFiles {
     /// Removes the _first_ source_file with the given id from the set
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let (mut sources, _) = project.compile()?.into_output().split();
     /// let source_file = sources.remove_by_id(0).unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())

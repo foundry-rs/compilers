@@ -154,8 +154,8 @@ pub fn source_files_iter<'a>(
 /// # Examples
 ///
 /// ```no_run
-/// use foundry_compilers::utils;
-/// let sources = utils::source_files("./contracts");
+/// use foundry_compilers_core::utils;
+/// let sources = utils::source_files("./contracts", &utils::SOLC_EXTENSIONS);
 /// ```
 pub fn source_files(root: impl AsRef<Path>, extensions: &[&str]) -> Vec<PathBuf> {
     source_files_iter(root, extensions).collect()
@@ -172,7 +172,7 @@ pub fn sol_source_files(root: impl AsRef<Path>) -> Vec<PathBuf> {
 /// # Examples
 ///
 /// ```no_run
-/// use foundry_compilers::utils;
+/// use foundry_compilers_core::utils;
 /// let dirs = utils::solidity_dirs("./lib");
 /// ```
 ///
@@ -440,7 +440,7 @@ pub fn library_hash(name: impl AsRef<[u8]>) -> [u8; 17] {
 /// # Examples
 ///
 /// ```
-/// use foundry_compilers::utils::common_ancestor_all;
+/// use foundry_compilers_core::utils::common_ancestor_all;
 /// use std::path::{Path, PathBuf};
 ///
 /// let baz = Path::new("/foo/bar/baz");
@@ -471,7 +471,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use foundry_compilers::utils::common_ancestor;
+/// use foundry_compilers_core::utils::common_ancestor;
 /// use std::path::{Path, PathBuf};
 ///
 /// let foo = Path::new("/foo/bar/foo");

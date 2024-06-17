@@ -112,12 +112,12 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// This returns a chained iterator of both cached and recompiled contract artifacts
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
-    /// use foundry_compilers::{ArtifactId, ConfigurableContractArtifact, Project};
+    /// use foundry_compilers::{artifacts::ConfigurableContractArtifact, ArtifactId, Project};
     /// use std::collections::btree_map::BTreeMap;
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let contracts: BTreeMap<ArtifactId, ConfigurableContractArtifact> =
     ///     project.compile()?.into_artifacts().collect();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -131,12 +131,12 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// the contract name and the corresponding artifact
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
-    /// use foundry_compilers::{ConfigurableContractArtifact, Project};
+    /// use foundry_compilers::{artifacts::ConfigurableContractArtifact, Project};
     /// use std::collections::btree_map::BTreeMap;
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let artifacts: BTreeMap<String, &ConfigurableContractArtifact> =
     ///     project.compile()?.artifacts().collect();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -149,13 +149,13 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// the contract name and the corresponding artifact with its version
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
-    /// use foundry_compilers::{ConfigurableContractArtifact, Project};
+    /// use foundry_compilers::{artifacts::ConfigurableContractArtifact, Project};
     /// use semver::Version;
     /// use std::collections::btree_map::BTreeMap;
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let artifacts: BTreeMap<String, (&ConfigurableContractArtifact, &Version)> =
     ///     project.compile()?.versioned_artifacts().collect();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -192,13 +192,13 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// This returns a chained iterator of both cached and recompiled contract artifacts
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
-    /// use foundry_compilers::{ConfigurableContractArtifact, Project};
-    /// use std::collections::btree_map::BTreeMap;
+    /// use foundry_compilers::{artifacts::ConfigurableContractArtifact, Project};
+    /// use std::{collections::btree_map::BTreeMap, path::PathBuf};
     ///
-    /// let project = Project::builder().build()?;
-    /// let contracts: Vec<(String, String, ConfigurableContractArtifact)> =
+    /// let project = Project::builder().build(Default::default())?;
+    /// let contracts: Vec<(PathBuf, String, ConfigurableContractArtifact)> =
     ///     project.compile()?.into_artifacts_with_files().collect();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -237,14 +237,13 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// # Examples
     ///
     /// Make all artifact files relative to the project's root directory
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.with_stripped_file_prefixes(project.root());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
-    /// ```
     pub fn with_stripped_file_prefixes(mut self, base: impl AsRef<Path>) -> Self {
         let base = base.as_ref();
         self.cached_artifacts = self.cached_artifacts.into_stripped_file_prefixes(base);
@@ -256,12 +255,12 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// Returns a reference to the (merged) solc compiler output.
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::contract::Contract, Project};
     /// use std::collections::btree_map::BTreeMap;
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let contracts: BTreeMap<String, Contract> =
     ///     project.compile()?.into_output().contracts_into_iter().collect();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -331,11 +330,11 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// [`Self::remove_first`].
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, info::ContractInfo, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?;
     /// let info = ContractInfo::new("src/Greeter.sol:Greeter");
     /// let contract = output.find_contract(&info).unwrap();
@@ -353,11 +352,11 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// Finds the artifact with matching path and name
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?;
     /// let contract = output.find("src/Greeter.sol", "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -383,11 +382,11 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// Finds the artifact with matching path and name
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?;
     /// let contract = output.find("src/Greeter.sol", "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -408,11 +407,11 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// Removes the _first_ contract with the given name from the set
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let mut output = project.compile()?;
     /// let contract = output.remove_first("Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -433,11 +432,11 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     ///
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, info::ContractInfo, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let mut output = project.compile()?;
     /// let info = ContractInfo::new("src/Greeter.sol:Greeter");
     /// let contract = output.remove_contract(&info).unwrap();
@@ -459,7 +458,7 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// [`foundry_compilers_artifacts::ConfigurableContractArtifact`]
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{
     ///     artifacts::contract::CompactContractBytecode, contracts::ArtifactContracts, ArtifactId,
@@ -467,7 +466,7 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// };
     /// use std::collections::btree_map::BTreeMap;
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let contracts: ArtifactContracts = project.compile()?.into_contract_bytecodes().collect();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -645,11 +644,11 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// Finds the _first_ contract with the given name
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
     /// let contract = output.find_first("Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -661,11 +660,11 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// Removes the _first_ contract with the given name from the set
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let mut output = project.compile()?.into_output();
     /// let contract = output.remove_first("Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -677,11 +676,11 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// Removes the contract with matching path and name
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let mut output = project.compile()?.into_output();
     /// let contract = output.remove("src/Greeter.sol", "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -701,11 +700,11 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// [Self::remove_first]
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, info::ContractInfo, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let mut output = project.compile()?.into_output();
     /// let info = ContractInfo::new("src/Greeter.sol:Greeter");
     /// let contract = output.remove_contract(&info).unwrap();
@@ -765,11 +764,11 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// bytecode, runtime bytecode, and ABI.
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
     /// let contract = output.get("src/Greeter.sol", "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -786,11 +785,11 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// provide several helper methods
     ///
     /// # Examples
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
     /// let (sources, contracts) = output.split();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -815,11 +814,11 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// # Examples
     ///
     /// Make all sources and contracts relative to the project's root directory
-    ///
+    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
-    /// let project = Project::builder().build()?;
+    /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output().with_stripped_file_prefixes(project.root());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```

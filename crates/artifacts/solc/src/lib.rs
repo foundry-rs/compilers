@@ -390,7 +390,7 @@ impl Settings {
     /// Inserts the value for all files and contracts
     ///
     /// ```
-    /// use foundry_compilers::artifacts::{output_selection::ContractOutputSelection, Settings};
+    /// use foundry_compilers_artifacts_solc::{output_selection::ContractOutputSelection, Settings};
     /// let mut selection = Settings::default();
     /// selection.push_output_selection(ContractOutputSelection::Metadata);
     /// ```
@@ -576,7 +576,7 @@ impl Libraries {
     /// # Examples
     ///
     /// ```
-    /// use foundry_compilers::artifacts::Libraries;
+    /// use foundry_compilers_artifacts_solc::Libraries;
     ///
     /// let libs = Libraries::parse(&[
     ///     "src/DssSpell.sol:DssExecLib:0xfD88CeE74f7D78697775aBDAE53f9Da1559728E4".to_string(),

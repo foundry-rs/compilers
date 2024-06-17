@@ -172,10 +172,13 @@ impl Solc {
     /// # Examples
     ///
     /// ```no_run
-    /// use foundry_compilers::Solc;
+    /// use foundry_compilers::solc::Solc;
+    /// use semver::Version;
     ///
-    /// let solc = Solc::find_svm_installed_version("0.8.9")?;
-    /// assert_eq!(solc, Some(Solc::new("~/.svm/0.8.9/solc-0.8.9")));
+    /// let solc = Solc::find_svm_installed_version(&Version::new(0, 8, 9))?;
+    /// assert_eq!(solc, Some(Solc::new("~/.svm/0.8.9/solc-0.8.9")?));
+    ///
+    /// Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn find_svm_installed_version(version: &Version) -> Result<Option<Self>> {
         let version = format!("{}.{}.{}", version.major, version.minor, version.patch);
@@ -235,7 +238,7 @@ impl Solc {
     /// # Examples
     ///
     /// ```no_run
-    /// use foundry_compilers::{Solc, ISTANBUL_SOLC};
+    /// use foundry_compilers::{solc::Solc, utils::ISTANBUL_SOLC};
     ///
     /// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
     /// let solc = Solc::install(&ISTANBUL_SOLC).await?;
@@ -366,15 +369,17 @@ impl Solc {
     /// # Examples
     ///
     /// ```no_run
-    /// use foundry_compilers::{artifacts::Source, compilers::CompilerInput, Solc, SolcInput};
+    /// use foundry_compilers::{
+    ///     artifacts::{SolcInput, Source},
+    ///     compilers::{Compiler, CompilerInput},
+    ///     solc::Solc,
+    /// };
     ///
-    /// let solc = Solc::default();
-    /// let input = SolcInput::build(
+    /// let solc = Solc::new("solc")?;
+    /// let input = SolcInput::resolve_and_build(
     ///     Source::read_sol_yul_from("./contracts").unwrap(),
     ///     Default::default(),
-    ///     &("0.8.12".parse().unwrap()),
-    /// )
-    /// .unwrap();
+    /// );
     /// let output = solc.compile(&input)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
