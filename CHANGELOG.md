@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0](https://github.com/foundry-rs/compilers/releases/tag/v0.8.0) - 2024-06-17
+
+### Bug Fixes
+
+- [flatten] Small bugs ([#153](https://github.com/foundry-rs/compilers/issues/153))
+
+### Miscellaneous Tasks
+
+- Rename foundry-compilers-project into foundry-compilers ([#152](https://github.com/foundry-rs/compilers/issues/152))
+- Clippy
+- Move lints to workspace ([#149](https://github.com/foundry-rs/compilers/issues/149))
+- Remove unused files and workflow ([#148](https://github.com/foundry-rs/compilers/issues/148))
+
+### Other
+
+- Sync workflows
+
+### Performance
+
+- Cache --version output ([#144](https://github.com/foundry-rs/compilers/issues/144))
+
+### Refactor
+
+- [flatten] Move compilation logic into `Flattener` ([#143](https://github.com/foundry-rs/compilers/issues/143))
+- Extract artifacts to a separate crate ([#142](https://github.com/foundry-rs/compilers/issues/142))
+
+### Testing
+
+- Use similar-asserts ([#145](https://github.com/foundry-rs/compilers/issues/145))
+
 ## [0.7.0](https://github.com/foundry-rs/compilers/releases/tag/v0.7.0) - 2024-06-11
 
 ### Bug Fixes
@@ -14,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 - Track and cache context of each compiler invocation ([#140](https://github.com/foundry-rs/compilers/issues/140))
+
+### Miscellaneous Tasks
+
+- Release 0.7.0
 
 ## [0.6.2](https://github.com/foundry-rs/compilers/releases/tag/v0.6.2) - 2024-06-06
 

@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 authors = ["Foundry Maintainers"]
-version = "0.7.0"
+version = "0.8.0"
 rust-version = "1.70"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
@@ -31,10 +31,10 @@ unused-must-use = "deny"
 all = "warn"
 
 [workspace.dependencies]
-foundry-compilers-artifacts-solc = { path = "crates/artifacts/solc", version = "0.7.0" }
-foundry-compilers-artifacts-vyper = { path = "crates/artifacts/vyper", version = "0.7.0" }
-foundry-compilers-artifacts = { path = "crates/artifacts/artifacts", version = "0.7.0" }
-foundry-compilers-core = { path = "crates/core", version = "0.7.0" }
+foundry-compilers-artifacts-solc = { path = "crates/artifacts/solc", version = "0.8.0" }
+foundry-compilers-artifacts-vyper = { path = "crates/artifacts/vyper", version = "0.8.0" }
+foundry-compilers-artifacts = { path = "crates/artifacts/artifacts", version = "0.8.0" }
+foundry-compilers-core = { path = "crates/core", version = "0.8.0" }
 serde = { version = "1", features = ["derive", "rc"] }
 semver = { version = "1.0", features = ["serde"] }
 serde_json = "1.0"
