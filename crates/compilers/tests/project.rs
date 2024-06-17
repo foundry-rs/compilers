@@ -1,16 +1,7 @@
 //! project tests
 
 use alloy_primitives::{Address, Bytes};
-use foundry_compilers_artifacts::{
-    output_selection::OutputSelection, remappings::Remapping, BytecodeHash, DevDoc, Error,
-    ErrorDoc, EventDoc, Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings,
-    Settings, Severity, SolcInput, UserDoc, UserDocNotice,
-};
-use foundry_compilers_core::{
-    error::SolcError,
-    utils::{self, canonicalize, RuntimeOrHandle},
-};
-use foundry_compilers_project::{
+use foundry_compilers::{
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
     compilers::{
@@ -26,6 +17,15 @@ use foundry_compilers_project::{
     project_util::*,
     take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
     ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, TestFileFilter,
+};
+use foundry_compilers_artifacts::{
+    output_selection::OutputSelection, remappings::Remapping, BytecodeHash, DevDoc, Error,
+    ErrorDoc, EventDoc, Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings,
+    Settings, Severity, SolcInput, UserDoc, UserDocNotice,
+};
+use foundry_compilers_core::{
+    error::SolcError,
+    utils::{self, canonicalize, RuntimeOrHandle},
 };
 use once_cell::sync::Lazy;
 use semver::Version;
