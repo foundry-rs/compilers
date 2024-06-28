@@ -690,6 +690,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
     }
 
     /// Returns whether we are missing artifacts for the given file and version.
+    #[instrument(level = "trace", skip(self))]
     fn is_missing_artifacts(&self, file: &Path, version: &Version) -> bool {
         let Some(entry) = self.cache.entry(file) else {
             trace!("missing cache entry");
@@ -705,7 +706,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
         }
 
         if !entry.contains_version(version) {
-            trace!("missing linked artifacts",);
+            trace!("missing linked artifacts");
             return true;
         }
 
