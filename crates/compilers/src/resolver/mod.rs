@@ -333,6 +333,7 @@ impl<D: ParsedSource> Graph<D> {
         // we start off by reading all input files, which includes all solidity files from the
         // source and test folder
         let mut unresolved: VecDeque<_> = sources
+            .0
             .into_par_iter()
             .map(|(path, source)| {
                 let data = D::parse(source.as_ref(), &path)?;

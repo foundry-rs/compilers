@@ -9,8 +9,97 @@ use std::{
     sync::Arc,
 };
 
-/// An ordered list of files and their source
-pub type Sources = BTreeMap<PathBuf, Source>;
+type SourcesInner = BTreeMap<PathBuf, Source>;
+
+/// An ordered list of files and their source.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Sources(pub SourcesInner);
+
+impl Sources {
+    /// Returns a new instance of [Sources].
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Returns `true` if no sources should have optimized output selection.
+    pub fn all_dirty(&self) -> bool {
+        self.0.values().all(|s| s.is_dirty())
+    }
+
+    /// Returns all entries that should not be optimized.
+    pub fn dirty(&self) -> impl Iterator<Item = (&PathBuf, &Source)> + '_ {
+        self.0.iter().filter(|(_, s)| s.is_dirty())
+    }
+
+    /// Returns all entries that should be optimized.
+    pub fn clean(&self) -> impl Iterator<Item = (&PathBuf, &Source)> + '_ {
+        self.0.iter().filter(|(_, s)| !s.is_dirty())
+    }
+
+    /// Returns all files that should not be optimized.
+    pub fn dirty_files(&self) -> impl Iterator<Item = &PathBuf> + '_ {
+        self.dirty().map(|(k, _)| k)
+    }
+}
+
+impl std::ops::Deref for Sources {
+    type Target = SourcesInner;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Sources {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<I> From<I> for Sources
+where
+    SourcesInner: From<I>,
+{
+    fn from(value: I) -> Self {
+        Self(From::from(value))
+    }
+}
+
+impl<I> FromIterator<I> for Sources
+where
+    SourcesInner: FromIterator<I>,
+{
+    fn from_iter<T: IntoIterator<Item = I>>(iter: T) -> Self {
+        Self(FromIterator::from_iter(iter))
+    }
+}
+
+impl IntoIterator for Sources {
+    type Item = <SourcesInner as IntoIterator>::Item;
+    type IntoIter = <SourcesInner as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Sources {
+    type Item = <&'a SourcesInner as IntoIterator>::Item;
+    type IntoIter = <&'a SourcesInner as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Sources {
+    type Item = <&'a mut SourcesInner as IntoIterator>::Item;
+    type IntoIter = <&'a mut SourcesInner as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter_mut()
+    }
+}
 
 /// Content of a solidity file
 ///
@@ -23,12 +112,14 @@ pub struct Source {
     /// conflicting versions then the same [Source] may be required by conflicting versions and
     /// needs to be duplicated.
     pub content: Arc<String>,
+    #[serde(skip, default)]
+    pub kind: SourceCompilationKind,
 }
 
 impl Source {
     /// Creates a new instance of [Source] with the given content.
     pub fn new(content: impl Into<String>) -> Self {
-        Self { content: Arc::new(content.into()) }
+        Self { content: Arc::new(content.into()), kind: SourceCompilationKind::Complete }
     }
 
     /// Reads the file's content
@@ -43,6 +134,11 @@ impl Source {
         }
 
         Ok(Self::new(content))
+    }
+
+    /// Returns `true` if the source should be compiled with full output selection.
+    pub fn is_dirty(&self) -> bool {
+        self.kind.is_dirty()
     }
 
     /// Recursively finds all source files under the given dir path and reads them all
@@ -91,7 +187,8 @@ impl Source {
             .par_bridge()
             .map(Into::into)
             .map(|file| Self::read(&file).map(|source| (file, source)))
-            .collect()
+            .collect::<Result<BTreeMap<_, _>, _>>()
+            .map(Sources)
     }
 
     /// Generate a non-cryptographically secure checksum of the file's content
@@ -154,5 +251,23 @@ impl AsRef<str> for Source {
 impl AsRef<[u8]> for Source {
     fn as_ref(&self) -> &[u8] {
         self.content.as_bytes()
+    }
+}
+
+/// Represents the state of a filtered [`Source`].
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum SourceCompilationKind {
+    /// We need a complete compilation output for the source.
+    #[default]
+    Complete,
+    /// A source for which we don't need a complete output and want to optimize its compilation by
+    /// reducing output selection.
+    Optimized,
+}
+
+impl SourceCompilationKind {
+    /// Whether this file should be compiled with full output selection
+    pub fn is_dirty(&self) -> bool {
+        matches!(self, Self::Complete)
     }
 }

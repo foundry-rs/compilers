@@ -5,8 +5,8 @@ use crate::{
     compilers::{Compiler, CompilerSettings, Language},
     output::Builds,
     resolver::GraphEdges,
-    ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, FilteredSources, Graph, OutputContext,
-    Project, ProjectPaths, ProjectPathsConfig, SourceCompilationKind,
+    ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
+    ProjectPaths, ProjectPathsConfig, SourceCompilationKind,
 };
 use foundry_compilers_artifacts::{
     sources::{Source, Sources},
@@ -648,10 +648,10 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
     /// 2. [SourceCompilationKind::Optimized] - the file is not dirty, but is imported by a dirty
     ///    file and thus will be processed by solc. For such files we don't need full data, so we
     ///    are marking them as clean to optimize output selection later.
-    fn filter(&mut self, sources: Sources, version: &Version) -> FilteredSources {
+    fn filter(&mut self, sources: &mut Sources, version: &Version) {
         // sources that should be passed to compiler.
-        let mut compile_complete = BTreeSet::new();
-        let mut compile_optimized = BTreeSet::new();
+        let mut compile_complete = HashSet::new();
+        let mut compile_optimized = HashSet::new();
 
         for (file, source) in sources.iter() {
             self.sources_in_scope.insert(file.clone(), version.clone());
@@ -677,20 +677,16 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             }
         }
 
-        let filtered = sources
-            .into_iter()
-            .filter_map(|(file, source)| {
-                if compile_complete.contains(&file) {
-                    Some((file, SourceCompilationKind::Complete(source)))
-                } else if compile_optimized.contains(&file) {
-                    Some((file, SourceCompilationKind::Optimized(source)))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        FilteredSources(filtered)
+        sources.retain(|file, source| {
+            source.kind = if compile_complete.contains(file) {
+                SourceCompilationKind::Complete
+            } else if compile_optimized.contains(file) {
+                SourceCompilationKind::Optimized
+            } else {
+                return false;
+            };
+            true
+        });
     }
 
     /// Returns whether we are missing artifacts for the given file and version.
@@ -746,7 +742,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
         // Iterate over existing cache entries.
         let files = self.cache.files.keys().cloned().collect::<HashSet<_>>();
 
-        let mut sources = BTreeMap::new();
+        let mut sources = Sources::new();
 
         // Read all sources, marking entries as dirty on I/O errors.
         for file in &files {
@@ -939,14 +935,14 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
     // only useful for debugging for debugging purposes
     pub fn as_cached(&self) -> Option<&ArtifactsCacheInner<'a, T, C>> {
         match self {
-            ArtifactsCache::Ephemeral(_, _) => None,
+            ArtifactsCache::Ephemeral(..) => None,
             ArtifactsCache::Cached(cached) => Some(cached),
         }
     }
 
     pub fn output_ctx(&self) -> OutputContext<'_> {
         match self {
-            ArtifactsCache::Ephemeral(_, _) => Default::default(),
+            ArtifactsCache::Ephemeral(..) => Default::default(),
             ArtifactsCache::Cached(inner) => OutputContext::new(&inner.cache),
         }
     }
@@ -961,15 +957,15 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
     /// Adds the file's hashes to the set if not set yet
     pub fn remove_dirty_sources(&mut self) {
         match self {
-            ArtifactsCache::Ephemeral(_, _) => {}
+            ArtifactsCache::Ephemeral(..) => {}
             ArtifactsCache::Cached(cache) => cache.find_and_remove_dirty(),
         }
     }
 
     /// Filters out those sources that don't need to be compiled
-    pub fn filter(&mut self, sources: Sources, version: &Version) -> FilteredSources {
+    pub fn filter(&mut self, sources: &mut Sources, version: &Version) {
         match self {
-            ArtifactsCache::Ephemeral(_, _) => sources.into(),
+            ArtifactsCache::Ephemeral(..) => {}
             ArtifactsCache::Cached(cache) => cache.filter(sources, version),
         }
     }

@@ -3,12 +3,12 @@
 use crate::{
     compilers::{multi::MultiCompilerParsedSource, CompilerSettings, ParsedSource},
     resolver::{parse::SolData, GraphEdges},
-    Source, Sources,
+    Sources,
 };
 use foundry_compilers_artifacts::output_selection::OutputSelection;
 use std::{
-    collections::{BTreeMap, HashSet},
-    fmt::{self, Formatter},
+    collections::HashSet,
+    fmt,
     path::{Path, PathBuf},
 };
 
@@ -33,13 +33,13 @@ pub struct TestFileFilter {
 }
 
 impl fmt::Debug for TestFileFilter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TestFileFilter").finish()
     }
 }
 
 impl fmt::Display for TestFileFilter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("TestFileFilter")
     }
 }
@@ -69,7 +69,7 @@ impl MaybeSolData for MultiCompilerParsedSource {
     }
 }
 
-/// A type that can apply a filter to a set of preprocessed [FilteredSources] in order to set sparse
+/// A type that can apply a filter to a set of preprocessed [Sources] in order to set sparse
 /// output for specific files
 #[derive(Default)]
 pub enum SparseOutputFilter<'a> {
@@ -79,7 +79,7 @@ pub enum SparseOutputFilter<'a> {
     /// _dirty_.
     #[default]
     Optimized,
-    /// Apply an additional filter to [FilteredSources] to
+    /// Apply an additional filter to [Sources] to
     Custom(&'a dyn FileFilter),
 }
 
@@ -103,10 +103,10 @@ impl<'a> SparseOutputFilter<'a> {
     /// filter matches depend on libraries that need to be linked
     pub fn sparse_sources<D: ParsedSource, S: CompilerSettings>(
         &self,
-        sources: FilteredSources,
+        sources: &Sources,
         settings: &mut S,
         graph: &GraphEdges<D>,
-    ) -> (Sources, Vec<PathBuf>) {
+    ) -> Vec<PathBuf> {
         let mut full_compilation: HashSet<PathBuf> = sources
             .dirty_files()
             .flat_map(|file| {
@@ -165,112 +165,15 @@ impl<'a> SparseOutputFilter<'a> {
             }
         });
 
-        (sources.into(), full_compilation.into_iter().collect())
+        full_compilation.into_iter().collect()
     }
 }
 
 impl<'a> fmt::Debug for SparseOutputFilter<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SparseOutputFilter::Optimized => f.write_str("Optimized"),
             SparseOutputFilter::Custom(_) => f.write_str("Custom"),
         }
-    }
-}
-
-/// Container type for a mapping from source path to [SourceCompilationKind]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FilteredSources(pub BTreeMap<PathBuf, SourceCompilationKind>);
-
-impl FilteredSources {
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Returns `true` if no sources should have optimized output selection.
-    pub fn all_dirty(&self) -> bool {
-        self.0.values().all(|s| s.is_dirty())
-    }
-
-    /// Returns all entries that should not be optimized.
-    pub fn dirty(&self) -> impl Iterator<Item = (&PathBuf, &SourceCompilationKind)> + '_ {
-        self.0.iter().filter(|(_, s)| s.is_dirty())
-    }
-
-    /// Returns all entries that should be optimized.
-    pub fn clean(&self) -> impl Iterator<Item = (&PathBuf, &SourceCompilationKind)> + '_ {
-        self.0.iter().filter(|(_, s)| !s.is_dirty())
-    }
-
-    /// Returns all files that should not be optimized.
-    pub fn dirty_files(&self) -> impl Iterator<Item = &PathBuf> + fmt::Debug + '_ {
-        self.0.iter().filter_map(|(k, s)| s.is_dirty().then_some(k))
-    }
-}
-
-impl From<FilteredSources> for Sources {
-    fn from(sources: FilteredSources) -> Self {
-        sources.0.into_iter().map(|(k, v)| (k, v.into_source())).collect()
-    }
-}
-
-impl From<Sources> for FilteredSources {
-    fn from(s: Sources) -> Self {
-        Self(s.into_iter().map(|(key, val)| (key, SourceCompilationKind::Complete(val))).collect())
-    }
-}
-
-impl From<BTreeMap<PathBuf, SourceCompilationKind>> for FilteredSources {
-    fn from(s: BTreeMap<PathBuf, SourceCompilationKind>) -> Self {
-        Self(s)
-    }
-}
-
-impl AsRef<BTreeMap<PathBuf, SourceCompilationKind>> for FilteredSources {
-    fn as_ref(&self) -> &BTreeMap<PathBuf, SourceCompilationKind> {
-        &self.0
-    }
-}
-
-impl AsMut<BTreeMap<PathBuf, SourceCompilationKind>> for FilteredSources {
-    fn as_mut(&mut self) -> &mut BTreeMap<PathBuf, SourceCompilationKind> {
-        &mut self.0
-    }
-}
-
-/// Represents the state of a filtered [Source]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SourceCompilationKind {
-    /// We need a complete compilation output for the source.
-    Complete(Source),
-    /// A source for which we don't need a complete output and want to optimize its compilation by
-    /// reducing output selection.
-    Optimized(Source),
-}
-
-impl SourceCompilationKind {
-    /// Returns the underlying source
-    pub fn source(&self) -> &Source {
-        match self {
-            Self::Complete(s) => s,
-            Self::Optimized(s) => s,
-        }
-    }
-
-    /// Consumes the type and returns the underlying source
-    pub fn into_source(self) -> Source {
-        match self {
-            Self::Complete(s) => s,
-            Self::Optimized(s) => s,
-        }
-    }
-
-    /// Whether this file should be compiled with full output selection
-    pub fn is_dirty(&self) -> bool {
-        matches!(self, Self::Complete(_))
     }
 }
