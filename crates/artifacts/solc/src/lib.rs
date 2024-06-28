@@ -1830,12 +1830,20 @@ pub struct StorageType {
     pub other: BTreeMap<String, serde_json::Value>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SourceFile {
     pub id: u32,
     #[serde(default, with = "serde_helpers::empty_json_object_opt")]
     pub ast: Option<RawValueWrapper>,
 }
+
+impl PartialEq for SourceFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for SourceFile {}
 
 impl SourceFile {
     /// Returns `true` if the source file contains at least 1 `ContractDefinition` such as

@@ -357,7 +357,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
 }
 
 /// Determines how the `solc <-> sources` pairs are executed
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 enum CompilerSources<L> {
     /// Compile all these sequentially
     Sequential(VersionedSources<L>),
