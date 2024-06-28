@@ -14,6 +14,6 @@ impl CompilerSettings for VyperSettings {
             && optimize == &other.optimize
             && bytecode_metadata == &other.bytecode_metadata
             && output_selection.is_subset_of(&other.output_selection)
-            && search_paths == search_paths
+            && search_paths == &other.search_paths
     }
 }
