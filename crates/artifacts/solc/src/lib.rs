@@ -1834,16 +1834,14 @@ pub struct StorageType {
 pub struct SourceFile {
     pub id: u32,
     #[serde(default, with = "serde_helpers::empty_json_object_opt")]
-    pub ast: Option<Ast>,
+    pub ast: Option<RawValueWrapper>,
 }
 
 impl SourceFile {
     /// Returns `true` if the source file contains at least 1 `ContractDefinition` such as
     /// `contract`, `abstract contract`, `interface` or `library`.
     pub fn contains_contract_definition(&self) -> bool {
-        self.ast.as_ref().is_some_and(|ast| {
-            ast.nodes.iter().any(|node| matches!(node.node_type, NodeType::ContractDefinition))
-        })
+        self.ast.as_ref().is_some_and(|s| s.get().contains("ContractDefinition"))
     }
 }
 
