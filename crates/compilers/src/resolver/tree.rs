@@ -1,7 +1,7 @@
 use crate::{compilers::ParsedSource, Graph};
 use std::{collections::HashSet, io, io::Write, str::FromStr};
 
-#[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Charset {
     // when operating in a console on windows non-UTF-8 byte sequences are not supported on
     // stdout, See also [`StdoutLock`]
@@ -24,7 +24,7 @@ impl FromStr for Charset {
 }
 
 /// Options to configure formatting
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct TreeOptions {
     /// The style of characters to use.
     pub charset: Charset,

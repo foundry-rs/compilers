@@ -12,7 +12,7 @@ macro_rules! syntax_err {
 }
 
 /// An error that can happen during source map parsing.
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[error("{0}")]
 pub struct SyntaxError(String);
 
@@ -120,7 +120,7 @@ impl<'input> Iterator for TokenStream<'input> {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Jump {
     /// A jump instruction that goes into a function
     In,
@@ -174,7 +174,7 @@ pub type SourceMap = Vec<SourceElement>;
 /// A single element in a [`SourceMap`].
 ///
 /// Solidity reference: <https://docs.soliditylang.org/en/latest/internals/source_mappings.html#source-mappings>
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SourceElement {
     offset: u32,
     length: u32,
@@ -539,7 +539,7 @@ impl<'input> Iterator for Parser<'input> {
 }
 
 /// State machine to keep track of separating `:`
-#[derive(Clone, PartialEq, Eq, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum State {
     // s
     Offset,

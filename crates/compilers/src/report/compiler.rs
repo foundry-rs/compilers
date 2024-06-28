@@ -23,7 +23,7 @@ use std::{env, path::PathBuf, str::FromStr};
 /// std::env::set_var("foundry_compilers_LOG", "in=in.json,out=out.json");
 /// let rep = SolcCompilerIoReporter::from_default_env();
 /// ```
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct SolcCompilerIoReporter {
     /// where to write the output to, `None` if not enabled
     target: Option<Target>,
@@ -79,7 +79,7 @@ where
 }
 
 /// Represents the `in=<path>,out=<path>` value
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Target {
     /// path where the compiler input file should be written to
     dest_input: PathBuf,

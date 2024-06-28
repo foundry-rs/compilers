@@ -27,7 +27,7 @@ node_group! {
 }
 
 /// A Yul block.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct YulBlock {
     #[serde(with = "serde_helpers::display_from_str")]
     pub src: SourceLocation,
@@ -35,7 +35,7 @@ pub struct YulBlock {
 }
 
 /// A Yul assignment statement.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct YulAssignment {
     #[serde(with = "serde_helpers::display_from_str")]
@@ -45,7 +45,7 @@ pub struct YulAssignment {
 }
 
 /// A Yul function call.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct YulFunctionCall {
     #[serde(with = "serde_helpers::display_from_str")]
@@ -55,7 +55,7 @@ pub struct YulFunctionCall {
 }
 
 /// A Yul identifier.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct YulIdentifier {
     #[serde(with = "serde_helpers::display_from_str")]
     pub src: SourceLocation,
@@ -63,7 +63,7 @@ pub struct YulIdentifier {
 }
 
 /// A literal Yul value.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct YulLiteral {
     #[serde(with = "serde_helpers::display_from_str")]
@@ -75,7 +75,7 @@ pub struct YulLiteral {
 }
 
 /// Yul literal value kinds.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum YulLiteralKind {
     /// A number literal.
@@ -87,7 +87,7 @@ pub enum YulLiteralKind {
 }
 
 /// A Yul keyword.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct YulKeyword {
     #[serde(with = "serde_helpers::display_from_str")]
     pub src: SourceLocation,
@@ -101,7 +101,7 @@ pub type YulContinue = YulKeyword;
 pub type YulLeave = YulKeyword;
 
 /// A Yul expression statement.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct YulExpressionStatement {
     #[serde(with = "serde_helpers::display_from_str")]
     pub src: SourceLocation,
@@ -109,7 +109,7 @@ pub struct YulExpressionStatement {
 }
 
 /// A Yul for loop.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct YulForLoop {
     #[serde(with = "serde_helpers::display_from_str")]
     pub src: SourceLocation,
@@ -120,7 +120,7 @@ pub struct YulForLoop {
 }
 
 /// A Yul function definition.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct YulFunctionDefinition {
     #[serde(with = "serde_helpers::display_from_str")]
@@ -134,7 +134,7 @@ pub struct YulFunctionDefinition {
 }
 
 /// A Yul type name.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct YulTypedName {
     #[serde(with = "serde_helpers::display_from_str")]
@@ -145,7 +145,7 @@ pub struct YulTypedName {
 }
 
 /// A Yul if statement.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct YulIf {
     #[serde(with = "serde_helpers::display_from_str")]
     pub src: SourceLocation,
@@ -154,7 +154,7 @@ pub struct YulIf {
 }
 
 /// A Yul switch statement.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct YulSwitch {
     #[serde(with = "serde_helpers::display_from_str")]
     pub src: SourceLocation,
@@ -163,7 +163,7 @@ pub struct YulSwitch {
 }
 
 /// A Yul switch statement case.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct YulCase {
     #[serde(with = "serde_helpers::display_from_str")]
     pub src: SourceLocation,
@@ -172,7 +172,7 @@ pub struct YulCase {
 }
 
 /// A Yul switch case value.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum YulCaseValue {
     /// A case defined by a literal value.
@@ -183,7 +183,7 @@ pub enum YulCaseValue {
 }
 
 /// A Yul variable declaration.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct YulVariableDeclaration {
     #[serde(with = "serde_helpers::display_from_str")]
     pub src: SourceLocation,

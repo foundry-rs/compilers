@@ -27,7 +27,7 @@ pub mod info;
 pub mod sources;
 
 /// A mapping from build_id to [BuildContext].
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Builds<L>(pub BTreeMap<String, BuildContext<L>>);
 
@@ -62,7 +62,7 @@ impl<L> IntoIterator for Builds<L> {
 
 /// Contains a mixture of already compiled/cached artifacts and the input set of sources that still
 /// need to be compiled.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProjectCompileOutput<
     C: Compiler = MultiCompiler,
     T: ArtifactOutput = ConfigurableArtifacts,
@@ -531,7 +531,7 @@ impl<C: Compiler, T: ArtifactOutput> fmt::Display for ProjectCompileOutput<C, T>
 /// The aggregated output of (multiple) compile jobs
 ///
 /// This is effectively a solc version aware `CompilerOutput`
-#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct AggregatedCompilerOutput<C: Compiler> {
     /// all errors from all `CompilerOutput`
     pub errors: Vec<C::CompilationError>,

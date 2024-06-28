@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Extension of Vyper interface file.
 pub const VYPER_INTERFACE_EXTENSION: &str = "vyi";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VyperInput {
     pub language: String,
     pub sources: Sources,

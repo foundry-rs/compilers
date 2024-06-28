@@ -4,7 +4,7 @@ use std::{fmt, fmt::Write, str::FromStr};
 /// Represents the source location of a node: `<start byte>:<length>:<source index>`.
 ///
 /// The `start`, `length` and `index` can be -1 which is represented as `None`
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SourceLocation {
     pub start: Option<usize>,
     pub length: Option<usize>,
@@ -66,7 +66,7 @@ impl fmt::Display for SourceLocation {
 }
 
 /// Function mutability specifier.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum StateMutability {
     Payable,
@@ -76,7 +76,7 @@ pub enum StateMutability {
 }
 
 /// Variable mutability specifier.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Mutability {
     Mutable,
@@ -85,7 +85,7 @@ pub enum Mutability {
 }
 
 /// Storage location specifier.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum StorageLocation {
     Calldata,
@@ -95,7 +95,7 @@ pub enum StorageLocation {
 }
 
 /// Visibility specifier.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Visibility {
     External,
@@ -105,7 +105,7 @@ pub enum Visibility {
 }
 
 /// A type description.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TypeDescriptions {
     pub type_identifier: Option<String>,

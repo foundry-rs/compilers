@@ -7,7 +7,7 @@ use std::{
 };
 
 /// (source_file path  -> `SourceFile` + solc version)
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct VersionedSourceFiles(pub BTreeMap<PathBuf, Vec<VersionedSourceFile>>);
 
@@ -236,7 +236,7 @@ impl IntoIterator for VersionedSourceFiles {
 }
 
 /// A [SourceFile] and the compiler version used to compile it
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VersionedSourceFile {
     pub source_file: SourceFile,
     pub version: Version,

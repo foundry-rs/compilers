@@ -34,7 +34,7 @@ impl<I: DeserializeOwned, O: DeserializeOwned> BuildInfo<I, O> {
 }
 
 /// Additional context we cache for each compiler run.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BuildContext<L> {
     /// Mapping from internal compiler source id to path of the source file.
     pub source_id_to_path: BTreeMap<u32, PathBuf>,
@@ -72,7 +72,7 @@ impl<L: Language> BuildContext<L> {
 }
 
 /// Represents `BuildInfo` object
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RawBuildInfo<L> {
     /// The hash that identifies the BuildInfo
     pub id: String,

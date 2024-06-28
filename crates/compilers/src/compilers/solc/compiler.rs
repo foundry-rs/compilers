@@ -68,7 +68,7 @@ pub static RELEASES: once_cell::sync::Lazy<(svm::Releases, Vec<Version>, bool)> 
 ///   2. [svm](https://github.com/roynalnaruto/svm-rs)'s  `global_version` (set via `svm use
 ///      <version>`), stored at `<svm_home>/.global_version`
 ///   3. `solc` otherwise
-#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Solc {
     /// Path to the `solc` executable
     pub solc: PathBuf,

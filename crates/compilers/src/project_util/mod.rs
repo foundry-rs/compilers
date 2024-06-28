@@ -484,7 +484,7 @@ impl<T: ArtifactOutput + Default> AsRef<Project<MultiCompiler, T>>
 }
 
 /// The cache file and all the artifacts it references
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct ArtifactsSnapshot<T, S> {
     pub cache: CompilerCache<S>,
     pub artifacts: Artifacts<T>,

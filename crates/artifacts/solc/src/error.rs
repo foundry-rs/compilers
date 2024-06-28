@@ -3,14 +3,14 @@ use serde::{Deserialize, Serialize};
 use std::{fmt, ops::Range, str::FromStr};
 use yansi::{Color, Style};
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SourceLocation {
     pub file: String,
     pub start: i32,
     pub end: i32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SecondarySourceLocation {
     pub file: Option<String>,
     pub start: Option<i32>,
@@ -87,7 +87,7 @@ impl Severity {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Error {
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -27,7 +27,7 @@ impl<F: Fn(&Path) -> bool + Clone + Send + Sync> FileFilter for F {
 }
 
 /// An [FileFilter] that matches all solidity files that end with `.t.sol`
-#[derive(Default, Clone)]
+#[derive(Clone, Default)]
 pub struct TestFileFilter {
     _priv: (),
 }
@@ -179,7 +179,7 @@ impl<'a> fmt::Debug for SparseOutputFilter<'a> {
 }
 
 /// Container type for a mapping from source path to [SourceCompilationKind]
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FilteredSources(pub BTreeMap<PathBuf, SourceCompilationKind>);
 
 impl FilteredSources {
@@ -243,7 +243,7 @@ impl AsMut<BTreeMap<PathBuf, SourceCompilationKind>> for FilteredSources {
 }
 
 /// Represents the state of a filtered [Source]
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SourceCompilationKind {
     /// We need a complete compilation output for the source.
     Complete(Source),

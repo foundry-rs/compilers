@@ -25,7 +25,7 @@ use std::{
 };
 
 /// Where to find all files or where to write them
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectPathsConfig<L = MultiCompilerLanguage> {
     /// Project root
     pub root: PathBuf,
@@ -635,7 +635,7 @@ impl fmt::Display for ProjectPathsConfig {
 }
 
 /// This is a subset of [ProjectPathsConfig] that contains all relevant folders in the project
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectPaths {
     pub artifacts: PathBuf,
     pub build_infos: PathBuf,
@@ -701,7 +701,7 @@ impl Default for ProjectPaths {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PathStyle {
     HardHat,
     Dapptools,
@@ -733,7 +733,7 @@ impl PathStyle {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ProjectPathsConfigBuilder {
     root: Option<PathBuf>,
     cache: Option<PathBuf>,
@@ -895,7 +895,7 @@ impl ProjectPathsConfigBuilder {
 }
 
 /// The config to use when compiling the contracts
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SolcConfig {
     /// How the file was compiled
     pub settings: Settings,

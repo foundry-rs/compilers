@@ -8,7 +8,7 @@ use semver::Version;
 use serde::Serialize;
 use std::{borrow::Cow, path::Path};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct VyperVersionedInput {
     #[serde(flatten)]
     pub input: VyperInput,

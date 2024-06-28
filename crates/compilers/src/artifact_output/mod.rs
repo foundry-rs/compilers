@@ -41,7 +41,7 @@ use crate::{
 };
 
 /// Represents unique artifact metadata for identifying artifacts on output
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ArtifactId {
     /// `artifact` cache path
     pub path: PathBuf,
@@ -97,7 +97,7 @@ impl ArtifactId {
 }
 
 /// Represents an artifact file representing a [`crate::Contract`]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ArtifactFile<T> {
     /// The Artifact that was written
     pub artifact: T,
@@ -135,7 +135,7 @@ impl<T> ArtifactFile<T> {
 pub(crate) type ArtifactsMap<T> = FileToContractsMap<Vec<ArtifactFile<T>>>;
 
 /// Represents a set of Artifacts
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Artifacts<T>(pub ArtifactsMap<T>);
 
 impl<T> From<ArtifactsMap<T>> for Artifacts<T> {
@@ -1024,7 +1024,7 @@ pub trait ArtifactOutput {
 }
 
 /// Additional context to use during [`ArtifactOutput::on_output()`]
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct OutputContext<'a> {
     /// Cache file of the project or empty if no caching is enabled
@@ -1085,7 +1085,7 @@ impl<'a> OutputContext<'a> {
 ///    "deployedBytecode": {...}
 ///  }
 /// ```
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MinimalCombinedArtifacts {
     _priv: (),
 }
@@ -1114,7 +1114,7 @@ impl ArtifactOutput for MinimalCombinedArtifacts {
 
 /// An Artifacts handler implementation that works the same as `MinimalCombinedArtifacts` but also
 /// supports reading hardhat artifacts if an initial attempt to deserialize an artifact failed
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MinimalCombinedArtifactsHardhatFallback {
     _priv: (),
 }

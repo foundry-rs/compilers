@@ -2,13 +2,13 @@
 
 use std::{borrow::Cow, fmt, str::FromStr};
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("{0}")]
 pub struct ParseContractInfoError(String);
 
 /// Represents the common contract argument pattern for `<path>:<contractname>` where `<path>:` is
 /// optional.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ContractInfo {
     /// Location of the contract
     pub path: Option<String>,
@@ -83,7 +83,7 @@ impl From<FullContractInfo> for ContractInfo {
 }
 
 /// The reference type for `ContractInfo`
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ContractInfoRef<'a> {
     pub path: Option<Cow<'a, str>>,
     pub name: Cow<'a, str>,
@@ -116,7 +116,7 @@ impl<'a> From<&'a FullContractInfo> for ContractInfoRef<'a> {
 }
 
 /// Represents the common contract argument pattern `<path>:<contractname>`
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FullContractInfo {
     /// Location of the contract
     pub path: String,

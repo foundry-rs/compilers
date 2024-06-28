@@ -52,7 +52,7 @@ const JS_LIB_DIR: &str = "node_modules";
 /// The format is: `solc context:prefix=target ./MyContract.sol`
 ///
 /// [Source](https://ethereum.stackexchange.com/questions/74448/what-are-remappings-and-how-do-they-work-in-solidity)
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Remapping {
     pub context: Option<String>,
     pub name: String,
@@ -74,7 +74,7 @@ impl Remapping {
     }
 }
 
-#[derive(thiserror::Error, Debug, PartialEq, Eq, PartialOrd)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, thiserror::Error)]
 pub enum RemappingError {
     #[error("invalid remapping format, found `{0}`, expected `<key>=<value>`")]
     InvalidRemapping(String),
@@ -281,7 +281,7 @@ impl Remapping {
 /// A relative [`Remapping`] that's aware of the current location
 ///
 /// See [`RelativeRemappingPathBuf`]
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RelativeRemapping {
     pub context: Option<String>,
     pub name: String,
@@ -381,7 +381,7 @@ impl From<Remapping> for RelativeRemapping {
 /// to be relative to the configuration file itself. For example, a path of
 /// `weird-erc20/=lib/weird-erc20/src/` configured in a file `/var/foundry.toml` might be desired to
 /// resolve as a `weird-erc20/=/var/lib/weird-erc20/src/` remapping.
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RelativeRemappingPathBuf {
     pub parent: Option<PathBuf>,
     pub path: PathBuf,
@@ -447,7 +447,7 @@ impl<'de> Deserialize<'de> for RelativeRemapping {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct Candidate {
     /// dir that opened the window
     window_start: PathBuf,

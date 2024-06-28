@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Bytecode {
     pub object: Bytes,
@@ -61,7 +61,7 @@ impl From<VyperEvm> for solc_artifacts::Evm {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct VyperContract {
     /// Contract ABI.
     pub abi: Option<JsonAbi>,
@@ -86,7 +86,7 @@ impl From<VyperContract> for solc_artifacts::Contract {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct VyperSourceFile {
     pub id: u32,
 }

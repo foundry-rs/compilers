@@ -3,7 +3,7 @@ use foundry_compilers_artifacts_solc::Severity;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VyperSourceLocation {
     file: PathBuf,
     #[serde(rename = "lineno")]
@@ -12,7 +12,7 @@ pub struct VyperSourceLocation {
     offset: Option<u64>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VyperCompilationError {
     pub message: String,
