@@ -8,10 +8,12 @@ impl CompilerSettings for VyperSettings {
     }
 
     fn can_use_cached(&self, other: &Self) -> bool {
-        let Self { evm_version, optimize, bytecode_metadata, output_selection } = self;
+        let Self { evm_version, optimize, bytecode_metadata, output_selection, search_paths } =
+            self;
         evm_version == &other.evm_version
             && optimize == &other.optimize
             && bytecode_metadata == &other.bytecode_metadata
             && output_selection.is_subset_of(&other.output_selection)
+            && search_paths == search_paths
     }
 }
