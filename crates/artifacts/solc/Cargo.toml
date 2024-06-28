@@ -17,20 +17,19 @@ workspace = true
 [dependencies]
 foundry-compilers-core.workspace = true
 
-serde.workspace = true
+alloy-json-abi.workspace = true
+alloy-primitives.workspace = true
+futures-util = { workspace = true, optional = true }
+md-5.workspace = true
+rayon.workspace = true
 semver.workspace = true
 serde_json.workspace = true
-tracing.workspace = true
-alloy-primitives.workspace = true
-alloy-json-abi.workspace = true
-rayon.workspace = true
+serde.workspace = true
 thiserror.workspace = true
-md-5.workspace = true
-yansi.workspace = true
-futures-util = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
-
-walkdir = "2.4"
+tracing.workspace = true
+walkdir.workspace = true
+yansi.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 path-slash.workspace = true

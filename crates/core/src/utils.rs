@@ -663,7 +663,6 @@ pub fn mkdir_or_touch(tmp: &std::path::Path, paths: &[&str]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solang_parser::pt::SourceUnitPart;
     use std::fs::{create_dir_all, File};
 
     #[test]
@@ -740,15 +739,7 @@ mod tests {
     fn can_parse_curly_bracket_imports() {
         let s =
             r#"import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";"#;
-
-        let (unit, _) = solang_parser::parse(s, 0).unwrap();
-        assert_eq!(unit.0.len(), 1);
-        match unit.0[0] {
-            SourceUnitPart::ImportDirective(_) => {}
-            _ => unreachable!("failed to parse import"),
-        }
         let imports: Vec<_> = find_import_paths(s).map(|m| m.as_str()).collect();
-
         assert_eq!(imports, vec!["@openzeppelin/contracts/utils/ReentrancyGuard.sol"])
     }
 
