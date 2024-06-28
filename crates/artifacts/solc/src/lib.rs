@@ -1470,7 +1470,7 @@ impl<'a> From<&'a [u64]> for ErrorFilter<'a> {
 }
 
 /// Output type `solc` produces
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct CompilerOutput {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<Error>,
@@ -1830,14 +1830,20 @@ pub struct StorageType {
     pub other: BTreeMap<String, serde_json::Value>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SourceFile {
     pub id: u32,
     #[serde(default, with = "serde_helpers::empty_json_object_opt")]
     pub ast: Option<Ast>,
 }
 
-// === impl SourceFile ===
+impl PartialEq for SourceFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for SourceFile {}
 
 impl SourceFile {
     /// Returns `true` if the source file contains at least 1 `ContractDefinition` such as

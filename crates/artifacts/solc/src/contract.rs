@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::BTreeMap};
 
 /// Represents a compiled solidity contract
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contract {
     /// The Ethereum Contract Metadata.

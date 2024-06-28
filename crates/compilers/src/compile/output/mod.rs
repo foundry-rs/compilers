@@ -62,7 +62,7 @@ impl<L> IntoIterator for Builds<L> {
 
 /// Contains a mixture of already compiled/cached artifacts and the input set of sources that still
 /// need to be compiled.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProjectCompileOutput<
     C: Compiler = MultiCompiler,
     T: ArtifactOutput = ConfigurableArtifacts,
@@ -531,7 +531,7 @@ impl<C: Compiler, T: ArtifactOutput> fmt::Display for ProjectCompileOutput<C, T>
 /// The aggregated output of (multiple) compile jobs
 ///
 /// This is effectively a solc version aware `CompilerOutput`
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct AggregatedCompilerOutput<C: Compiler> {
     /// all errors from all `CompilerOutput`
     pub errors: Vec<C::CompilationError>,

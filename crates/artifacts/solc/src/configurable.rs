@@ -1,17 +1,16 @@
-use std::{borrow::Cow, collections::BTreeMap};
-
 use crate::{
-    Ast, CompactBytecode, CompactContract, CompactContractBytecode, CompactContractBytecodeCow,
+    CompactBytecode, CompactContract, CompactContractBytecode, CompactContractBytecodeCow,
     CompactDeployedBytecode, DevDoc, Ewasm, FunctionDebugData, GasEstimates, GeneratedSource,
     Metadata, Offsets, SourceFile, StorageLayout, UserDoc,
 };
 use alloy_json_abi::JsonAbi;
 use serde::{Deserialize, Serialize};
+use std::{borrow::Cow, collections::BTreeMap};
 
 /// Represents the `Artifact` that `ConfigurableArtifacts` emits.
 ///
 /// This is essentially a superset of [`CompactContractBytecode`].
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigurableContractArtifact {
     /// The Ethereum Contract ABI. If empty, it is represented as an empty

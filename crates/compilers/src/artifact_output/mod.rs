@@ -950,8 +950,8 @@ pub trait ArtifactOutput {
                     // source units
                     // there's also no need to create a standalone artifact for source files that
                     // don't contain an ast
-                    if source.source_file.contains_contract_definition()
-                        || source.source_file.ast.is_none()
+                    if source.source_file.ast.is_none()
+                        || source.source_file.contains_contract_definition()
                     {
                         continue;
                     }

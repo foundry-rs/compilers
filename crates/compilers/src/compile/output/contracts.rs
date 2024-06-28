@@ -11,7 +11,7 @@ use std::{
 };
 
 /// file -> [(contract name  -> Contract + solc version)]
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(transparent)]
 pub struct VersionedContracts(pub FileToContractsMap<Vec<VersionedContract>>);
 
@@ -277,7 +277,7 @@ impl IntoIterator for VersionedContracts {
 }
 
 /// A contract and the compiler version used to compile it
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VersionedContract {
     pub contract: Contract,
     pub version: Version,
@@ -285,7 +285,7 @@ pub struct VersionedContract {
 }
 
 /// A mapping of `ArtifactId` and their `CompactContractBytecode`
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ArtifactContracts<T = CompactContractBytecode>(pub BTreeMap<ArtifactId, T>);
 
 impl<T: Serialize> Serialize for ArtifactContracts<T> {
