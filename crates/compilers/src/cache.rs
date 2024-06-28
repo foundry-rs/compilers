@@ -83,13 +83,13 @@ impl<S: CompilerSettings> CompilerCache<S> {
     }
 
     /// Returns the corresponding `CacheEntry` for the file if it exists
-    pub fn entry(&self, file: impl AsRef<Path>) -> Option<&CacheEntry<S>> {
-        self.files.get(file.as_ref())
+    pub fn entry(&self, file: &Path) -> Option<&CacheEntry<S>> {
+        self.files.get(file)
     }
 
     /// Returns the corresponding `CacheEntry` for the file if it exists
-    pub fn entry_mut(&mut self, file: impl AsRef<Path>) -> Option<&mut CacheEntry<S>> {
-        self.files.get_mut(file.as_ref())
+    pub fn entry_mut(&mut self, file: &Path) -> Option<&mut CacheEntry<S>> {
+        self.files.get_mut(file)
     }
 
     /// Reads the cache json file from the given path
@@ -111,8 +111,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[instrument(skip_all, name = "sol-files-cache::read")]
-    pub fn read(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
+    pub fn read(path: &Path) -> Result<Self> {
         trace!("reading solfiles cache at {}", path.display());
         let cache: Self = utils::read_json_file(path)?;
         trace!("read cache \"{}\" with {} entries", cache.format, cache.files.len());
@@ -143,8 +142,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     }
 
     /// Write the cache as json file to the given path
-    pub fn write(&self, path: impl AsRef<Path>) -> Result<()> {
-        let path = path.as_ref();
+    pub fn write(&self, path: &Path) -> Result<()> {
         trace!("writing cache with {} entries to json file: \"{}\"", self.len(), path.display());
         utils::create_parent_dir_all(path)?;
         utils::write_json_file(self, path, 128 * 1024)?;
@@ -153,8 +151,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     }
 
     /// Sets the `CacheEntry`'s file paths to `root` adjoined to `self.file`.
-    pub fn join_entries(&mut self, root: impl AsRef<Path>) -> &mut Self {
-        let root = root.as_ref();
+    pub fn join_entries(&mut self, root: &Path) -> &mut Self {
         self.files = std::mem::take(&mut self.files)
             .into_iter()
             .map(|(path, entry)| (root.join(path), entry))
@@ -163,8 +160,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     }
 
     /// Removes `base` from all `CacheEntry` paths
-    pub fn strip_entries_prefix(&mut self, base: impl AsRef<Path>) -> &mut Self {
-        let base = base.as_ref();
+    pub fn strip_entries_prefix(&mut self, base: &Path) -> &mut Self {
         self.files = std::mem::take(&mut self.files)
             .into_iter()
             .map(|(path, entry)| (path.strip_prefix(base).map(Into::into).unwrap_or(path), entry))
@@ -173,15 +169,13 @@ impl<S: CompilerSettings> CompilerCache<S> {
     }
 
     /// Sets the artifact files location to `base` adjoined to the `CachEntries` artifacts.
-    pub fn join_artifacts_files(&mut self, base: impl AsRef<Path>) -> &mut Self {
-        let base = base.as_ref();
+    pub fn join_artifacts_files(&mut self, base: &Path) -> &mut Self {
         self.files.values_mut().for_each(|entry| entry.join_artifacts_files(base));
         self
     }
 
     /// Removes `base` from all artifact file paths
-    pub fn strip_artifact_files_prefixes(&mut self, base: impl AsRef<Path>) -> &mut Self {
-        let base = base.as_ref();
+    pub fn strip_artifact_files_prefixes(&mut self, base: &Path) -> &mut Self {
         self.files.values_mut().for_each(|entry| entry.strip_artifact_files_prefixes(base));
         self
     }
@@ -224,13 +218,12 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// let project = Project::builder().build(Default::default())?;
     /// let cache: CompilerCache<Settings> =
     ///     CompilerCache::read(project.cache_path())?.with_stripped_file_prefixes(project.root());
-    /// let artifact: CompactContract = cache.read_artifact("src/Greeter.sol", "Greeter")?;
+    /// let artifact: CompactContract = cache.read_artifact("src/Greeter.sol".as_ref(), "Greeter")?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     ///
     /// **Note:** this only affects the source files, see [`Self::strip_artifact_files_prefixes()`]
-    pub fn with_stripped_file_prefixes(mut self, base: impl AsRef<Path>) -> Self {
-        let base = base.as_ref();
+    pub fn with_stripped_file_prefixes(mut self, base: &Path) -> Self {
         self.files = self
             .files
             .into_iter()
@@ -248,14 +241,10 @@ impl<S: CompilerSettings> CompilerCache<S> {
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let cache: CompilerCache<Settings> = CompilerCache::read_joined(&project.paths)?;
-    /// cache.find_artifact_path("/Users/git/myproject/src/Greeter.sol", "Greeter");
+    /// cache.find_artifact_path("/Users/git/myproject/src/Greeter.sol".as_ref(), "Greeter");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn find_artifact_path(
-        &self,
-        contract_file: impl AsRef<Path>,
-        contract_name: impl AsRef<str>,
-    ) -> Option<&Path> {
+    pub fn find_artifact_path(&self, contract_file: &Path, contract_name: &str) -> Option<&Path> {
         let entry = self.entry(contract_file)?;
         entry.find_artifact_path(contract_name)
     }
@@ -275,7 +264,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// let project = Project::builder().build(Default::default())?;
     /// let cache = CompilerCache::<Settings>::read_joined(&project.paths)?;
     /// let artifact: CompactContract =
-    ///     cache.read_artifact("/Users/git/myproject/src/Greeter.sol", "Greeter")?;
+    ///     cache.read_artifact("/Users/git/myproject/src/Greeter.sol".as_ref(), "Greeter")?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     ///
@@ -283,17 +272,13 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// absolute.
     pub fn read_artifact<Artifact: DeserializeOwned>(
         &self,
-        contract_file: impl AsRef<Path>,
-        contract_name: impl AsRef<str>,
+        contract_file: &Path,
+        contract_name: &str,
     ) -> Result<Artifact> {
-        let contract_file = contract_file.as_ref();
-        let contract_name = contract_name.as_ref();
-
         let artifact_path =
             self.find_artifact_path(contract_file, contract_name).ok_or_else(|| {
                 SolcError::ArtifactNotFound(contract_file.to_path_buf(), contract_name.to_string())
             })?;
-
         utils::read_json_file(artifact_path)
     }
 
@@ -330,14 +315,13 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// objects, so we are basically just partially deserializing build infos here.
     ///
     /// [BuildContext]: crate::buildinfo::BuildContext
-    pub fn read_builds<L: Language>(&self, build_info_dir: impl AsRef<Path>) -> Result<Builds<L>> {
+    pub fn read_builds<L: Language>(&self, build_info_dir: &Path) -> Result<Builds<L>> {
         use rayon::prelude::*;
 
-        let build_info_dir = build_info_dir.as_ref();
         self.builds
             .par_iter()
             .map(|build_id| {
-                utils::read_json_file(build_info_dir.join(build_id).with_extension("json"))
+                utils::read_json_file(&build_info_dir.join(build_id).with_extension("json"))
                     .map(|b| (build_id.clone(), b))
             })
             .collect::<Result<_>>()
@@ -347,13 +331,12 @@ impl<S: CompilerSettings> CompilerCache<S> {
 
 #[cfg(feature = "async")]
 impl<S: CompilerSettings> CompilerCache<S> {
-    pub async fn async_read(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref().to_owned();
-        Self::asyncify(move || Self::read(path)).await
+    pub async fn async_read(path: &Path) -> Result<Self> {
+        let path = path.to_owned();
+        Self::asyncify(move || Self::read(&path)).await
     }
 
-    pub async fn async_write(&self, path: impl AsRef<Path>) -> Result<()> {
-        let path = path.as_ref();
+    pub async fn async_write(&self, path: &Path) -> Result<()> {
         let content = serde_json::to_vec(self)?;
         tokio::fs::write(path, content).await.map_err(|err| SolcError::io(err, path))
     }
@@ -462,13 +445,12 @@ impl<S> CacheEntry<S> {
     /// entry.find_artifact_path("Greeter");
     /// # }
     /// ```
-    pub fn find_artifact_path(&self, contract_name: impl AsRef<str>) -> Option<&Path> {
-        self.artifacts.get(contract_name.as_ref())?.iter().next().map(|(_, p)| p.path.as_path())
+    pub fn find_artifact_path(&self, contract_name: &str) -> Option<&Path> {
+        self.artifacts.get(contract_name)?.iter().next().map(|(_, p)| p.path.as_path())
     }
 
     /// Reads the last modification date from the file's metadata
-    pub fn read_last_modification_date(file: impl AsRef<Path>) -> Result<u64> {
-        let file = file.as_ref();
+    pub fn read_last_modification_date(file: &Path) -> Result<u64> {
         let last_modification_date = fs::metadata(file)
             .map_err(|err| SolcError::io(err, file.to_path_buf()))?
             .modified()
@@ -559,14 +541,12 @@ impl<S> CacheEntry<S> {
     }
 
     /// Sets the artifact's paths to `base` adjoined to the artifact's `path`.
-    pub fn join_artifacts_files(&mut self, base: impl AsRef<Path>) {
-        let base = base.as_ref();
+    pub fn join_artifacts_files(&mut self, base: &Path) {
         self.artifacts_mut().for_each(|a| a.path = base.join(&a.path))
     }
 
     /// Removes `base` from the artifact's path
-    pub fn strip_artifact_files_prefixes(&mut self, base: impl AsRef<Path>) {
-        let base = base.as_ref();
+    pub fn strip_artifact_files_prefixes(&mut self, base: &Path) {
         self.artifacts_mut().for_each(|a| {
             if let Ok(rem) = a.path.strip_prefix(base) {
                 a.path = rem.to_path_buf();

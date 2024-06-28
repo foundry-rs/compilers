@@ -48,7 +48,7 @@ pub static VYPER: Lazy<Vyper> = Lazy::new(|| {
         let path = std::env::temp_dir().join("vyper");
 
         if path.exists() {
-            return Vyper::new(path).unwrap();
+            return Vyper::new(&path).unwrap();
         }
 
         let url = match platform() {
@@ -69,14 +69,14 @@ pub static VYPER: Lazy<Vyper> = Lazy::new(|| {
         #[cfg(target_family = "unix")]
         std::fs::set_permissions(&path, Permissions::from_mode(0o755)).unwrap();
 
-        Vyper::new(path).unwrap()
+        Vyper::new(&path).unwrap()
     })
 });
 
 #[test]
 fn can_get_versioned_linkrefs() {
     let root =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/test-versioned-linkrefs");
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/test-versioned-linkrefs");
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("src"))
         .lib(root.join("lib"))
@@ -94,7 +94,7 @@ fn can_get_versioned_linkrefs() {
 
 #[test]
 fn can_compile_hardhat_sample() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("contracts"))
         .lib(root.join("node_modules"));
@@ -121,7 +121,7 @@ fn can_compile_hardhat_sample() {
 
 #[test]
 fn can_compile_dapp_sample() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
     let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
@@ -148,7 +148,7 @@ fn can_compile_dapp_sample() {
 
 #[test]
 fn can_compile_yul_sample() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/yul-sample");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/yul-sample");
     let paths = ProjectPathsConfig::builder().sources(root);
     let project = TempProject::<SolcCompiler, ConfigurableArtifacts>::new(paths).unwrap();
 
@@ -178,7 +178,7 @@ fn can_compile_yul_sample() {
 
 #[test]
 fn can_compile_configured() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
 
     let handler = ConfigurableArtifacts {
@@ -399,7 +399,7 @@ contract B { }
     let mut build_info_count = 0;
     for entry in fs::read_dir(info_dir).unwrap() {
         let _info =
-            BuildInfo::<SolcInput, CompilerOutput<Error>>::read(entry.unwrap().path()).unwrap();
+            BuildInfo::<SolcInput, CompilerOutput<Error>>::read(&entry.unwrap().path()).unwrap();
         build_info_count += 1;
     }
     assert_eq!(build_info_count, 1);
@@ -441,7 +441,7 @@ contract B { }
     let mut build_info_count = 0;
     for entry in fs::read_dir(info_dir).unwrap() {
         let _info =
-            BuildInfo::<SolcInput, CompilerOutput<Error>>::read(entry.unwrap().path()).unwrap();
+            BuildInfo::<SolcInput, CompilerOutput<Error>>::read(&entry.unwrap().path()).unwrap();
         build_info_count += 1;
     }
     assert_eq!(build_info_count, 1);
@@ -458,10 +458,10 @@ fn can_compile_dapp_sample_with_cache() {
     let cache = root.join("cache").join(SOLIDITY_FILES_CACHE_FILENAME);
     let artifacts = root.join("out");
 
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let orig_root = manifest_dir.join("../../test-data/dapp-sample");
     let cache_testdata_dir = manifest_dir.join("../../test-data/cache-sample/");
-    copy_dir_all(orig_root, &tmp_dir).unwrap();
+    copy_dir_all(&orig_root, tmp_dir.path()).unwrap();
     let paths = ProjectPathsConfig::builder()
         .cache(cache)
         .sources(root.join("src"))
@@ -524,15 +524,15 @@ fn can_compile_dapp_sample_with_cache() {
     assert!(compiled.find_first("Dapp").is_none());
 }
 
-fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
-    std::fs::create_dir_all(&dst)?;
+fn copy_dir_all(src: &Path, dst: &Path) -> io::Result<()> {
+    std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {
         let entry = entry?;
         let ty = entry.file_type()?;
         if ty.is_dir() {
-            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
         } else {
-            std::fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            std::fs::copy(entry.path(), dst.join(entry.file_name()))?;
         }
     }
     Ok(())
@@ -553,7 +553,7 @@ fn test_flatteners(project: &TempProject, target: &Path, additional_checks: fn(&
 
 #[test]
 fn can_flatten_file_with_external_lib() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("contracts"))
         .lib(root.join("node_modules"));
@@ -570,7 +570,7 @@ fn can_flatten_file_with_external_lib() {
 
 #[test]
 fn can_flatten_file_in_dapp_sample() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
     let project = TempProject::<MultiCompiler>::new(paths).unwrap();
 
@@ -2503,22 +2503,22 @@ fn can_detect_contract_def_source_files() {
     compiled.assert_success();
 
     let mut sources = compiled.into_output().sources;
-    let myfunc = sources.remove_by_path(myfunc).unwrap();
+    let myfunc = sources.remove_by_path(&myfunc).unwrap();
     assert!(!myfunc.contains_contract_definition());
 
-    let myerr = sources.remove_by_path(myerr).unwrap();
+    let myerr = sources.remove_by_path(&myerr).unwrap();
     assert!(!myerr.contains_contract_definition());
 
-    let mylib = sources.remove_by_path(mylib).unwrap();
+    let mylib = sources.remove_by_path(&mylib).unwrap();
     assert!(mylib.contains_contract_definition());
 
-    let myabstract_contract = sources.remove_by_path(myabstract_contract).unwrap();
+    let myabstract_contract = sources.remove_by_path(&myabstract_contract).unwrap();
     assert!(myabstract_contract.contains_contract_definition());
 
-    let myinterface = sources.remove_by_path(myinterface).unwrap();
+    let myinterface = sources.remove_by_path(&myinterface).unwrap();
     assert!(myinterface.contains_contract_definition());
 
-    let mycontract = sources.remove_by_path(mycontract).unwrap();
+    let mycontract = sources.remove_by_path(&mycontract).unwrap();
     assert!(mycontract.contains_contract_definition());
 }
 
@@ -2578,7 +2578,7 @@ fn can_compile_sparse_with_link_references() {
     assert!(lib.is_none());
 
     #[cfg(not(windows))]
-    let info = ContractInfo::new(format!("{}:{}", my_lib_path.display(), "MyLib"));
+    let info = ContractInfo::new(&format!("{}:{}", my_lib_path.display(), "MyLib"));
     #[cfg(windows)]
     let info = {
         use path_slash::PathBufExt;
@@ -2656,7 +2656,7 @@ fn can_create_standard_json_input_with_external_file() {
     compiled.assert_success();
 
     // can create project root based paths
-    let std_json = verif_project.standard_json_input(verif_dir.join("src/Counter.sol")).unwrap();
+    let std_json = verif_project.standard_json_input(&verif_dir.join("src/Counter.sol")).unwrap();
     assert_eq!(
         std_json.sources.iter().map(|(path, _)| path.clone()).collect::<Vec<_>>(),
         vec![
@@ -2684,7 +2684,7 @@ fn can_compile_std_json_input() {
     let tmp = TempProject::<MultiCompiler>::dapptools_init().unwrap();
     tmp.assert_no_errors();
     let source = tmp.list_source_files().into_iter().find(|p| p.ends_with("Dapp.t.sol")).unwrap();
-    let input = tmp.project().standard_json_input(source).unwrap();
+    let input = tmp.project().standard_json_input(&source).unwrap();
 
     assert!(input.settings.remappings.contains(&"ds-test/=lib/ds-test/src/".parse().unwrap()));
     let input: SolcInput = input.into();
@@ -2745,7 +2745,7 @@ fn can_create_standard_json_input_with_symlink() {
 
     // can create project root based paths
     let std_json =
-        project.project().standard_json_input(project.sources_path().join("A.sol")).unwrap();
+        project.project().standard_json_input(&project.sources_path().join("A.sol")).unwrap();
     assert_eq!(
         std_json.sources.iter().map(|(path, _)| path.clone()).collect::<Vec<_>>(),
         vec![
@@ -2770,8 +2770,7 @@ fn can_create_standard_json_input_with_symlink() {
 
 #[test]
 fn can_compile_model_checker_sample() {
-    let root =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/model-checker-sample");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/model-checker-sample");
     let paths = ProjectPathsConfig::builder().sources(root);
 
     let mut project = TempProject::<MultiCompiler, ConfigurableArtifacts>::new(paths).unwrap();
@@ -2790,8 +2789,8 @@ fn can_compile_model_checker_sample() {
 #[test]
 fn test_compiler_severity_filter() {
     fn gen_test_data_warning_path() -> ProjectPathsConfig {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../test-data/test-contract-warnings");
+        let root =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/test-contract-warnings");
 
         ProjectPathsConfig::builder().sources(root).build().unwrap()
     }
@@ -2820,7 +2819,7 @@ fn test_compiler_severity_filter() {
 
 fn gen_test_data_licensing_warning() -> ProjectPathsConfig {
     let root = canonicalize(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../test-data/test-contract-warnings/LicenseWarning.sol"),
     )
     .unwrap();
@@ -2858,7 +2857,7 @@ fn test_compiler_ignored_file_paths() {
     compiled.assert_success();
 
     let testdata =
-        canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data")).unwrap();
+        canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data")).unwrap();
     let compiled = compile_project_with_options(
         Some(foundry_compilers_artifacts::Severity::Warning),
         Some(vec![testdata]),
@@ -2924,7 +2923,7 @@ async fn can_install_solc_and_compile_std_json_input_async() {
     let tmp = TempProject::<MultiCompiler>::dapptools_init().unwrap();
     tmp.assert_no_errors();
     let source = tmp.list_source_files().into_iter().find(|p| p.ends_with("Dapp.t.sol")).unwrap();
-    let input = tmp.project().standard_json_input(source).unwrap();
+    let input = tmp.project().standard_json_input(&source).unwrap();
     let solc = Solc::find_or_install(&Version::new(0, 8, 24)).unwrap();
 
     assert!(input.settings.remappings.contains(&"ds-test/=lib/ds-test/src/".parse().unwrap()));
@@ -3487,11 +3486,11 @@ fn can_handle_conflicting_files_recompile() {
     assert_eq!(artifact_files, expected_files);
 
     // ensure that `a.sol/A.json` is unchanged
-    let outer = artifacts.find("src/A.sol", "A").unwrap();
-    let outer_recompiled = recompiled_artifacts.find("src/A.sol", "A").unwrap();
+    let outer = artifacts.find("src/A.sol".as_ref(), "A").unwrap();
+    let outer_recompiled = recompiled_artifacts.find("src/A.sol".as_ref(), "A").unwrap();
     assert_eq!(outer, outer_recompiled);
 
-    let inner_recompiled = recompiled_artifacts.find("src/inner/A.sol", "A").unwrap();
+    let inner_recompiled = recompiled_artifacts.find("src/inner/A.sol".as_ref(), "A").unwrap();
     assert!(inner_recompiled.get_abi().unwrap().functions.contains_key("baz"));
 }
 
@@ -3584,11 +3583,11 @@ fn can_handle_conflicting_files_case_sensitive_recompile() {
     assert_eq!(artifact_files, expected_files);
 
     // ensure that `a.sol/A.json` is unchanged
-    let outer = artifacts.find("src/a.sol", "A").unwrap();
-    let outer_recompiled = recompiled_artifacts.find("src/a.sol", "A").unwrap();
+    let outer = artifacts.find("src/a.sol".as_ref(), "A").unwrap();
+    let outer_recompiled = recompiled_artifacts.find("src/a.sol".as_ref(), "A").unwrap();
     assert_eq!(outer, outer_recompiled);
 
-    let inner_recompiled = recompiled_artifacts.find("src/inner/A.sol", "A").unwrap();
+    let inner_recompiled = recompiled_artifacts.find("src/inner/A.sol".as_ref(), "A").unwrap();
     assert!(inner_recompiled.get_abi().unwrap().functions.contains_key("baz"));
 }
 
@@ -3842,8 +3841,8 @@ contract D {
 fn test_deterministic_metadata() {
     let tmp_dir = tempfile::tempdir().unwrap();
     let root = tmp_dir.path();
-    let orig_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
-    copy_dir_all(orig_root, &tmp_dir).unwrap();
+    let orig_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
+    copy_dir_all(&orig_root, tmp_dir.path()).unwrap();
 
     let paths = ProjectPathsConfig::builder().root(root).build().unwrap();
     let project = Project::builder()
@@ -3859,8 +3858,7 @@ fn test_deterministic_metadata() {
     let bytecode = artifact.bytecode.as_ref().unwrap().bytes().unwrap().clone();
     let expected_bytecode = Bytes::from_str(
         &std::fs::read_to_string(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../test-data/dapp-test-bytecode.txt"),
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-test-bytecode.txt"),
         )
         .unwrap(),
     )
@@ -3874,9 +3872,9 @@ fn can_compile_vyper_with_cache() {
     let root = tmp_dir.path();
     let cache = root.join("cache").join(SOLIDITY_FILES_CACHE_FILENAME);
 
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let orig_root = manifest_dir.join("../../test-data/vyper-sample");
-    copy_dir_all(orig_root, &tmp_dir).unwrap();
+    copy_dir_all(&orig_root, tmp_dir.path()).unwrap();
 
     let paths = ProjectPathsConfig::builder()
         .cache(cache)
@@ -3916,7 +3914,7 @@ fn can_compile_vyper_with_cache() {
 
 #[test]
 fn yul_remappings_ignored() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/yul-sample");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/yul-sample");
     // Add dummy remapping.
     let paths = ProjectPathsConfig::builder().sources(root.clone()).remapping(Remapping {
         context: None,
@@ -3931,7 +3929,7 @@ fn yul_remappings_ignored() {
 
 #[test]
 fn test_vyper_imports() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/vyper-imports");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/vyper-imports");
 
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("src"))
@@ -3956,10 +3954,9 @@ fn test_vyper_imports() {
 
 #[test]
 fn test_can_compile_multi() {
-    let root = canonicalize(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/multi-sample"),
-    )
-    .unwrap();
+    let root =
+        canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/multi-sample"))
+            .unwrap();
 
     let paths = ProjectPathsConfig::builder()
         .sources(root.join("src"))
@@ -3985,7 +3982,7 @@ fn test_can_compile_multi() {
         .unwrap();
 
     let compiled = project.compile().unwrap();
-    assert!(compiled.find(root.join("src/Counter.sol").to_string_lossy(), "Counter").is_some());
-    assert!(compiled.find(root.join("src/Counter.vy").to_string_lossy(), "Counter").is_some());
+    assert!(compiled.find(&root.join("src/Counter.sol"), "Counter").is_some());
+    assert!(compiled.find(&root.join("src/Counter.vy"), "Counter").is_some());
     compiled.assert_success();
 }

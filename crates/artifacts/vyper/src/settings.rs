@@ -36,9 +36,7 @@ pub struct VyperSettings {
 }
 
 impl VyperSettings {
-    pub fn strip_prefix(&mut self, base: impl AsRef<Path>) {
-        let base = base.as_ref();
-
+    pub fn strip_prefix(&mut self, base: &Path) {
         self.output_selection = OutputSelection(
             std::mem::take(&mut self.output_selection.0)
                 .into_iter()

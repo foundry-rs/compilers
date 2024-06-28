@@ -148,8 +148,8 @@ impl<D> GraphEdges<D> {
     }
 
     /// Returns all files imported by the given file
-    pub fn imports(&self, file: impl AsRef<Path>) -> HashSet<&PathBuf> {
-        if let Some(start) = self.indices.get(file.as_ref()).copied() {
+    pub fn imports(&self, file: &Path) -> HashSet<&PathBuf> {
+        if let Some(start) = self.indices.get(file).copied() {
             NodesIter::new(start, self).skip(1).map(move |idx| &self.rev_indices[&idx]).collect()
         } else {
             HashSet::new()
@@ -157,8 +157,8 @@ impl<D> GraphEdges<D> {
     }
 
     /// Returns all files that import the given file
-    pub fn importers(&self, file: impl AsRef<Path>) -> HashSet<&PathBuf> {
-        if let Some(start) = self.indices.get(file.as_ref()).copied() {
+    pub fn importers(&self, file: &Path) -> HashSet<&PathBuf> {
+        if let Some(start) = self.indices.get(file).copied() {
             self.rev_edges[start].iter().map(move |idx| &self.rev_indices[idx]).collect()
         } else {
             HashSet::new()
@@ -166,8 +166,8 @@ impl<D> GraphEdges<D> {
     }
 
     /// Returns the id of the given file
-    pub fn node_id(&self, file: impl AsRef<Path>) -> usize {
-        self.indices[file.as_ref()]
+    pub fn node_id(&self, file: &Path) -> usize {
+        self.indices[file]
     }
 
     /// Returns the path of the given node
@@ -177,8 +177,8 @@ impl<D> GraphEdges<D> {
 
     /// Returns true if the `file` was originally included when the graph was first created and not
     /// added when all `imports` were resolved
-    pub fn is_input_file(&self, file: impl AsRef<Path>) -> bool {
-        if let Some(idx) = self.indices.get(file.as_ref()).copied() {
+    pub fn is_input_file(&self, file: &Path) -> bool {
+        if let Some(idx) = self.indices.get(file).copied() {
             idx < self.num_input_files
         } else {
             false
@@ -186,16 +186,13 @@ impl<D> GraphEdges<D> {
     }
 
     /// Returns the `VersionReq` for the given file
-    pub fn version_requirement(&self, file: impl AsRef<Path>) -> Option<&VersionReq> {
-        self.indices
-            .get(file.as_ref())
-            .and_then(|idx| self.versions.get(idx))
-            .and_then(|v| v.as_ref())
+    pub fn version_requirement(&self, file: &Path) -> Option<&VersionReq> {
+        self.indices.get(file).and_then(|idx| self.versions.get(idx)).and_then(Option::as_ref)
     }
 
     /// Returns the parsed source data for the given file
-    pub fn get_parsed_source(&self, file: impl AsRef<Path>) -> Option<&D> {
-        self.indices.get(file.as_ref()).and_then(|idx| self.data.get(idx))
+    pub fn get_parsed_source(&self, file: &Path) -> Option<&D> {
+        self.indices.get(file).and_then(|idx| self.data.get(idx))
     }
 }
 
@@ -302,7 +299,7 @@ impl<D: ParsedSource> Graph<D> {
     }
 
     /// Returns all files imported by the given file
-    pub fn imports(&self, path: impl AsRef<Path>) -> HashSet<&PathBuf> {
+    pub fn imports(&self, path: &Path) -> HashSet<&PathBuf> {
         self.edges.imports(path)
     }
 
@@ -837,8 +834,7 @@ pub struct Node<D> {
 
 impl<D: ParsedSource> Node<D> {
     /// Reads the content of the file and returns a [Node] containing relevant information
-    pub fn read(file: impl AsRef<Path>) -> Result<Self> {
-        let file = file.as_ref();
+    pub fn read(file: &Path) -> Result<Self> {
         let source = Source::read(file).map_err(|err| {
             let exists = err.path().exists();
             if !exists && err.path().is_symlink() {
@@ -927,8 +923,8 @@ mod tests {
 
     #[test]
     fn can_resolve_hardhat_dependency_graph() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
-        let paths = ProjectPathsConfig::hardhat(root).unwrap();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
+        let paths = ProjectPathsConfig::hardhat(&root).unwrap();
 
         let graph = Graph::<SolData>::resolve(&paths).unwrap();
 
@@ -946,8 +942,8 @@ mod tests {
 
     #[test]
     fn can_resolve_dapp_dependency_graph() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
-        let paths = ProjectPathsConfig::dapptools(root).unwrap();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
+        let paths = ProjectPathsConfig::dapptools(&root).unwrap();
 
         let graph = Graph::<SolData>::resolve(&paths).unwrap();
 
@@ -974,8 +970,8 @@ mod tests {
     #[test]
     #[cfg(not(target_os = "windows"))]
     fn can_print_dapp_sample_graph() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
-        let paths = ProjectPathsConfig::dapptools(root).unwrap();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
+        let paths = ProjectPathsConfig::dapptools(&root).unwrap();
         let graph = Graph::<SolData>::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();
         tree::print(&graph, &Default::default(), &mut out).unwrap();
@@ -997,8 +993,8 @@ src/Dapp.t.sol >=0.6.6
     #[test]
     #[cfg(not(target_os = "windows"))]
     fn can_print_hardhat_sample_graph() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
-        let paths = ProjectPathsConfig::hardhat(root).unwrap();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
+        let paths = ProjectPathsConfig::hardhat(&root).unwrap();
         let graph = Graph::<SolData>::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();
         tree::print(&graph, &Default::default(), &mut out).unwrap();

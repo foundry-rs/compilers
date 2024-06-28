@@ -158,15 +158,13 @@ impl SolcInput {
 
     /// Sets the path of the source files to `root` adjoined to the existing path
     #[must_use]
-    pub fn join_path(mut self, root: impl AsRef<Path>) -> Self {
-        let root = root.as_ref();
+    pub fn join_path(mut self, root: &Path) -> Self {
         self.sources = self.sources.into_iter().map(|(path, s)| (root.join(path), s)).collect();
         self
     }
 
     /// Removes the `base` path from all source files
-    pub fn strip_prefix(&mut self, base: impl AsRef<Path>) {
-        let base = base.as_ref();
+    pub fn strip_prefix(&mut self, base: &Path) {
         self.sources = std::mem::take(&mut self.sources)
             .into_iter()
             .map(|(path, s)| (path.strip_prefix(base).map(Into::into).unwrap_or(path), s))
@@ -490,8 +488,7 @@ impl Settings {
         self
     }
 
-    pub fn strip_prefix(&mut self, base: impl AsRef<Path>) {
-        let base = base.as_ref();
+    pub fn strip_prefix(&mut self, base: &Path) {
         self.remappings.iter_mut().for_each(|r| {
             r.strip_prefix(base);
         });
@@ -535,7 +532,7 @@ impl Settings {
     }
 
     /// Strips `base` from all paths
-    pub fn with_base_path(mut self, base: impl AsRef<Path>) -> Self {
+    pub fn with_base_path(mut self, base: &Path) -> Self {
         self.strip_prefix(base);
         self
     }
@@ -624,8 +621,7 @@ impl Libraries {
 
     /// Strips the given prefix from all library file paths to make them relative to the given
     /// `base` argument
-    pub fn with_stripped_file_prefixes(mut self, base: impl AsRef<Path>) -> Self {
-        let base = base.as_ref();
+    pub fn with_stripped_file_prefixes(mut self, base: &Path) -> Self {
         self.libs = self
             .libs
             .into_iter()
@@ -1510,16 +1506,14 @@ impl CompilerOutput {
     }
 
     /// Finds the _first_ contract with the given name
-    pub fn find(&self, contract: impl AsRef<str>) -> Option<CompactContractRef<'_>> {
-        let contract_name = contract.as_ref();
+    pub fn find(&self, contract_name: &str) -> Option<CompactContractRef<'_>> {
         self.contracts_iter().find_map(|(name, contract)| {
             (name == contract_name).then(|| CompactContractRef::from(contract))
         })
     }
 
     /// Finds the first contract with the given name and removes it from the set
-    pub fn remove(&mut self, contract: impl AsRef<str>) -> Option<Contract> {
-        let contract_name = contract.as_ref();
+    pub fn remove(&mut self, contract_name: &str) -> Option<Contract> {
         self.contracts.values_mut().find_map(|c| c.remove(contract_name))
     }
 
@@ -1586,16 +1580,14 @@ impl OutputContracts {
     }
 
     /// Finds the _first_ contract with the given name
-    pub fn find(&self, contract: impl AsRef<str>) -> Option<CompactContractRef<'_>> {
-        let contract_name = contract.as_ref();
+    pub fn find(&self, contract_name: &str) -> Option<CompactContractRef<'_>> {
         self.contracts_iter().find_map(|(name, contract)| {
             (name == contract_name).then(|| CompactContractRef::from(contract))
         })
     }
 
     /// Finds the first contract with the given name and removes it from the set
-    pub fn remove(&mut self, contract: impl AsRef<str>) -> Option<Contract> {
-        let contract_name = contract.as_ref();
+    pub fn remove(&mut self, contract_name: &str) -> Option<Contract> {
         self.0.values_mut().find_map(|c| c.remove(contract_name))
     }
 }
@@ -1920,7 +1912,7 @@ mod tests {
 
     #[test]
     fn can_parse_compiler_output() {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../test-data/out");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../test-data/out");
 
         for path in fs::read_dir(dir).unwrap() {
             let path = path.unwrap().path();
@@ -1933,7 +1925,7 @@ mod tests {
 
     #[test]
     fn can_parse_compiler_input() {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../test-data/in");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../test-data/in");
 
         for path in fs::read_dir(dir).unwrap() {
             let path = path.unwrap().path();
@@ -1946,7 +1938,7 @@ mod tests {
 
     #[test]
     fn can_parse_standard_json_compiler_input() {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../test-data/in");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../test-data/in");
 
         for path in fs::read_dir(dir).unwrap() {
             let path = path.unwrap().path();
@@ -2078,7 +2070,7 @@ mod tests {
 
         let libs = Libraries::parse(&libraries[..])
             .unwrap()
-            .with_stripped_file_prefixes("/global/root")
+            .with_stripped_file_prefixes("/global/root".as_ref())
             .libs;
 
         assert_eq!(
@@ -2208,8 +2200,8 @@ mod tests {
     // <https://github.com/foundry-rs/foundry/issues/3012>
     #[test]
     fn can_parse_compiler_output_spells_0_6_12() {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../test-data/0.6.12-with-libs.json");
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../test-data/0.6.12-with-libs.json");
         let content = fs::read_to_string(path).unwrap();
         let _output: CompilerOutput = serde_json::from_str(&content).unwrap();
     }

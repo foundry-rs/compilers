@@ -52,8 +52,7 @@ impl VersionedContracts {
     /// let contract = output.find_first("Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn find_first(&self, contract: impl AsRef<str>) -> Option<CompactContractRef<'_>> {
-        let contract_name = contract.as_ref();
+    pub fn find_first(&self, contract_name: &str) -> Option<CompactContractRef<'_>> {
         self.contracts().find_map(|(name, contract)| {
             (name == contract_name).then(|| CompactContractRef::from(contract))
         })
@@ -68,16 +67,14 @@ impl VersionedContracts {
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
-    /// let contract = output.contracts.find("src/Greeter.sol", "Greeter").unwrap();
+    /// let contract = output.contracts.find("src/Greeter.sol".as_ref(), "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn find(
         &self,
-        path: impl AsRef<Path>,
-        contract: impl AsRef<str>,
+        contract_path: &Path,
+        contract_name: &str,
     ) -> Option<CompactContractRef<'_>> {
-        let contract_path = path.as_ref();
-        let contract_name = contract.as_ref();
         self.contracts_with_files().find_map(|(path, name, contract)| {
             (path == contract_path && name == contract_name)
                 .then(|| CompactContractRef::from(contract))
@@ -96,8 +93,7 @@ impl VersionedContracts {
     /// let contract = contracts.remove_first("Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn remove_first(&mut self, contract: impl AsRef<str>) -> Option<Contract> {
-        let contract_name = contract.as_ref();
+    pub fn remove_first(&mut self, contract_name: &str) -> Option<Contract> {
         self.0.values_mut().find_map(|all_contracts| {
             let mut contract = None;
             if let Some((c, mut contracts)) = all_contracts.remove_entry(contract_name) {
@@ -121,16 +117,11 @@ impl VersionedContracts {
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let (_, mut contracts) = project.compile()?.into_output().split();
-    /// let contract = contracts.remove("src/Greeter.sol", "Greeter").unwrap();
+    /// let contract = contracts.remove("src/Greeter.sol".as_ref(), "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn remove(
-        &mut self,
-        path: impl AsRef<Path>,
-        contract: impl AsRef<str>,
-    ) -> Option<Contract> {
-        let contract_name = contract.as_ref();
-        let (key, mut all_contracts) = self.0.remove_entry(path.as_ref())?;
+    pub fn remove(&mut self, path: &Path, contract_name: &str) -> Option<Contract> {
+        let (key, mut all_contracts) = self.0.remove_entry(path)?;
         let mut contract = None;
         if let Some((c, mut contracts)) = all_contracts.remove_entry(contract_name) {
             if !contracts.is_empty() {
@@ -149,14 +140,9 @@ impl VersionedContracts {
 
     /// Given the contract file's path and the contract's name, tries to return the contract's
     /// bytecode, runtime bytecode, and ABI.
-    pub fn get(
-        &self,
-        path: impl AsRef<Path>,
-        contract: impl AsRef<str>,
-    ) -> Option<CompactContractRef<'_>> {
-        let contract = contract.as_ref();
+    pub fn get(&self, path: &Path, contract: &str) -> Option<CompactContractRef<'_>> {
         self.0
-            .get(path.as_ref())
+            .get(path)
             .and_then(|contracts| {
                 contracts.get(contract).and_then(|c| c.first().map(|c| &c.contract))
             })
@@ -221,8 +207,7 @@ impl VersionedContracts {
     }
 
     /// Sets the contract's file paths to `root` adjoined to `self.file`.
-    pub fn join_all(&mut self, root: impl AsRef<Path>) -> &mut Self {
-        let root = root.as_ref();
+    pub fn join_all(&mut self, root: &Path) -> &mut Self {
         self.0 = std::mem::take(&mut self.0)
             .into_iter()
             .map(|(contract_path, contracts)| (root.join(contract_path), contracts))
@@ -231,8 +216,7 @@ impl VersionedContracts {
     }
 
     /// Removes `base` from all contract paths
-    pub fn strip_prefix_all(&mut self, base: impl AsRef<Path>) -> &mut Self {
-        let base = base.as_ref();
+    pub fn strip_prefix_all(&mut self, base: &Path) -> &mut Self {
         self.0 = std::mem::take(&mut self.0)
             .into_iter()
             .map(|(contract_path, contracts)| {

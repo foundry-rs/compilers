@@ -37,8 +37,7 @@ impl ContractInfo {
     ///     ContractInfo { path: Some("src/Greeter.sol".to_string()), name: "Greeter".to_string() }
     /// );
     /// ```
-    pub fn new(info: impl AsRef<str>) -> Self {
-        let info = info.as_ref();
+    pub fn new(info: &str) -> Self {
         info.parse().unwrap_or_else(|_| Self { path: None, name: info.to_string() })
     }
 }

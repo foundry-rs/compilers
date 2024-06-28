@@ -28,7 +28,7 @@ pub const SOLC_EXTENSIONS: &[&str] = &["sol", "yul"];
 #[macro_export]
 macro_rules! take_solc_installer_lock {
     ($lock:ident) => {
-        let lock_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".lock");
+        let lock_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".lock");
         let lock_file = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
@@ -86,9 +86,9 @@ impl Solc {
     /// A new instance which points to `solc`. Invokes `solc --version` to determine the version.
     ///
     /// Returns error if `solc` is not found in the system or if the version cannot be retrieved.
-    pub fn new(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
-        let version = Self::version(path)?;
+    pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
+        let path = path.into();
+        let version = Self::version(path.clone())?;
         Ok(Self::new_with_version(path, version))
     }
 
@@ -190,7 +190,7 @@ impl Solc {
         if !solc.is_file() {
             return Ok(None);
         }
-        Self::new(solc).map(Some)
+        Self::new(&solc).map(Some)
     }
 
     /// Returns the directory in which [svm](https://github.com/roynalnaruto/svm-rs) stores all versions
@@ -222,7 +222,7 @@ impl Solc {
     /// Returns the list of all solc instances installed at `SVM_HOME`
     pub fn installed_versions() -> Vec<Version> {
         Self::svm_home()
-            .map(|home| utils::installed_versions(home).unwrap_or_default())
+            .map(|home| utils::installed_versions(&home).unwrap_or_default())
             .unwrap_or_default()
     }
 
@@ -337,8 +337,7 @@ impl Solc {
     }
 
     /// Convenience function for compiling all sources under the given path
-    pub fn compile_source(&self, path: impl AsRef<Path>) -> Result<CompilerOutput> {
-        let path = path.as_ref();
+    pub fn compile_source(&self, path: &Path) -> Result<CompilerOutput> {
         let mut res: CompilerOutput = Default::default();
         for input in
             SolcInput::resolve_and_build(Source::read_sol_yul_from(path)?, Default::default())
@@ -377,7 +376,7 @@ impl Solc {
     ///
     /// let solc = Solc::new("solc")?;
     /// let input = SolcInput::resolve_and_build(
-    ///     Source::read_sol_yul_from("./contracts").unwrap(),
+    ///     Source::read_sol_yul_from("./contracts".as_ref()).unwrap(),
     ///     Default::default(),
     /// );
     /// let output = solc.compile(&input)?;
@@ -497,7 +496,7 @@ impl Solc {
 #[cfg(feature = "async")]
 impl Solc {
     /// Convenience function for compiling all sources under the given path
-    pub async fn async_compile_source(&self, path: impl AsRef<Path>) -> Result<CompilerOutput> {
+    pub async fn async_compile_source(&self, path: &Path) -> Result<CompilerOutput> {
         self.async_compile(&SolcInput::resolve_and_build(
             Source::async_read_all_from(path, SOLC_EXTENSIONS).await?,
             Default::default(),
@@ -536,11 +535,11 @@ impl Solc {
         compile_output(child.wait_with_output().await.map_err(self.map_io_err())?)
     }
 
-    pub async fn async_version(solc: impl AsRef<Path>) -> Result<Version> {
-        let mut cmd = tokio::process::Command::new(solc.as_ref());
+    pub async fn async_version(solc: &Path) -> Result<Version> {
+        let mut cmd = tokio::process::Command::new(solc);
         cmd.arg("--version").stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
         debug!(?cmd, "getting version");
-        let output = cmd.output().await.map_err(|e| SolcError::io(e, solc.as_ref()))?;
+        let output = cmd.output().await.map_err(|e| SolcError::io(e, solc))?;
         let version = version_from_output(output)?;
         debug!(%version);
         Ok(version)
@@ -632,7 +631,7 @@ mod tests {
     #[cfg(feature = "async")]
     #[tokio::test(flavor = "multi_thread")]
     async fn async_solc_version_works() {
-        Solc::async_version(solc().solc).await.unwrap();
+        Solc::async_version(&solc().solc).await.unwrap();
     }
 
     #[test]

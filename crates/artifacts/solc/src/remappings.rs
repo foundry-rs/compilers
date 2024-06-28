@@ -61,13 +61,13 @@ pub struct Remapping {
 
 impl Remapping {
     /// Convenience function for [`RelativeRemapping::new`]
-    pub fn into_relative(self, root: impl AsRef<Path>) -> RelativeRemapping {
+    pub fn into_relative(self, root: &Path) -> RelativeRemapping {
         RelativeRemapping::new(self, root)
     }
 
     /// Removes the `base` path from the remapping
-    pub fn strip_prefix(&mut self, base: impl AsRef<Path>) -> &mut Self {
-        if let Ok(stripped) = Path::new(&self.path).strip_prefix(base.as_ref()) {
+    pub fn strip_prefix(&mut self, base: &Path) -> &mut Self {
+        if let Ok(stripped) = Path::new(&self.path).strip_prefix(base) {
             self.path = format!("{}", stripped.display());
         }
         self
@@ -164,8 +164,10 @@ impl fmt::Display for Remapping {
 }
 
 impl Remapping {
-    /// Returns all formatted remappings
-    pub fn find_many_str(path: &str) -> Vec<String> {
+    /// Attempts to autodetect all remappings given a certain root path.
+    ///
+    /// See [`Self::find_many`] for more information.
+    pub fn find_many_str(path: &Path) -> Vec<String> {
         Self::find_many(path).into_iter().map(|r| r.to_string()).collect()
     }
 
@@ -201,7 +203,7 @@ impl Remapping {
     /// which would be multiple rededications according to our rules ("governance", "protocol-v2"),
     /// are unified into `@aave` by looking at their common ancestor, the root of this subdirectory
     /// (`@aave`)
-    pub fn find_many(dir: impl AsRef<Path>) -> Vec<Self> {
+    pub fn find_many(dir: &Path) -> Vec<Self> {
         /// prioritize
         ///   - ("a", "1/2") over ("a", "1/2/3")
         ///   - if a path ends with `src`
@@ -224,7 +226,6 @@ impl Remapping {
         // all combined remappings from all subdirs
         let mut all_remappings = HashMap::new();
 
-        let dir = dir.as_ref();
         let is_inside_node_modules = dir.ends_with("node_modules");
 
         let mut visited_symlink_dirs = HashSet::new();
@@ -290,13 +291,10 @@ pub struct RelativeRemapping {
 
 impl RelativeRemapping {
     /// Creates a new `RelativeRemapping` starting prefixed with `root`
-    pub fn new(remapping: Remapping, root: impl AsRef<Path>) -> Self {
+    pub fn new(remapping: Remapping, root: &Path) -> Self {
         Self {
             context: remapping.context.map(|c| {
-                RelativeRemappingPathBuf::with_root(root.as_ref(), c)
-                    .path
-                    .to_string_lossy()
-                    .to_string()
+                RelativeRemappingPathBuf::with_root(root, c).path.to_string_lossy().to_string()
             }),
             name: remapping.name,
             path: RelativeRemappingPathBuf::with_root(root, remapping.path),
@@ -390,15 +388,16 @@ pub struct RelativeRemappingPathBuf {
 impl RelativeRemappingPathBuf {
     /// Creates a new `RelativeRemappingPathBuf` that checks if the `path` is a child path of
     /// `parent`.
-    pub fn with_root(parent: impl AsRef<Path>, path: impl AsRef<Path>) -> Self {
-        let parent = parent.as_ref();
-        let path = path.as_ref();
-        if let Ok(path) = path.strip_prefix(parent) {
-            Self { parent: Some(parent.to_path_buf()), path: path.to_path_buf() }
-        } else if path.has_root() {
-            Self { parent: None, path: path.to_path_buf() }
+    pub fn with_root(
+        parent: impl AsRef<Path> + Into<PathBuf>,
+        path: impl AsRef<Path> + Into<PathBuf>,
+    ) -> Self {
+        if let Ok(path) = path.as_ref().strip_prefix(parent.as_ref()) {
+            Self { parent: Some(parent.into()), path: path.to_path_buf() }
+        } else if path.as_ref().has_root() {
+            Self { parent: None, path: path.into() }
         } else {
-            Self { parent: Some(parent.to_path_buf()), path: path.to_path_buf() }
+            Self { parent: Some(parent.into()), path: path.into() }
         }
     }
 
@@ -421,9 +420,9 @@ impl RelativeRemappingPathBuf {
     }
 }
 
-impl<P: AsRef<Path>> From<P> for RelativeRemappingPathBuf {
+impl<P: Into<PathBuf>> From<P> for RelativeRemappingPathBuf {
     fn from(path: P) -> Self {
-        Self { parent: None, path: path.as_ref().to_path_buf() }
+        Self { parent: None, path: path.into() }
     }
 }
 
@@ -812,22 +811,22 @@ mod tests {
         let remapping = "oz=a/b/c/d";
         let remapping = Remapping::from_str(remapping).unwrap();
 
-        let relative = RelativeRemapping::new(remapping.clone(), "a/b/c");
+        let relative = RelativeRemapping::new(remapping.clone(), Path::new("a/b/c"));
         assert_eq!(relative.path.relative(), Path::new(&remapping.path));
         assert_eq!(relative.path.original(), Path::new("d"));
 
-        let relative = RelativeRemapping::new(remapping.clone(), "x/y");
+        let relative = RelativeRemapping::new(remapping.clone(), Path::new("x/y"));
         assert_eq!(relative.path.relative(), Path::new("x/y/a/b/c/d"));
         assert_eq!(relative.path.original(), Path::new(&remapping.path));
 
         let remapping = "oz=/a/b/c/d";
         let remapping = Remapping::from_str(remapping).unwrap();
-        let relative = RelativeRemapping::new(remapping.clone(), "a/b");
+        let relative = RelativeRemapping::new(remapping.clone(), Path::new("a/b"));
         assert_eq!(relative.path.relative(), Path::new(&remapping.path));
         assert_eq!(relative.path.original(), Path::new(&remapping.path));
         assert!(relative.path.parent.is_none());
 
-        let relative = RelativeRemapping::new(remapping, "/a/b");
+        let relative = RelativeRemapping::new(remapping, Path::new("/a/b"));
         assert_eq!(relative.to_relative_remapping(), Remapping::from_str("oz/=c/d/").unwrap());
     }
 
@@ -1100,8 +1099,7 @@ mod tests {
         ];
         mkdir_or_touch(tmp_dir_path, &paths[..]);
 
-        let path = tmp_dir_path.display().to_string();
-        let mut remappings = Remapping::find_many(path);
+        let mut remappings = Remapping::find_many(tmp_dir_path);
         remappings.sort_unstable();
 
         let mut expected = vec![
@@ -1209,8 +1207,7 @@ mod tests {
         let contract2 = dir2.join("contract.sol");
         touch(&contract2).unwrap();
 
-        let path = tmp_dir_path.display().to_string();
-        let mut remappings = Remapping::find_many(path);
+        let mut remappings = Remapping::find_many(&tmp_dir_path);
         remappings.sort_unstable();
         let mut expected = vec![
             Remapping {
@@ -1248,8 +1245,7 @@ mod tests {
         ];
         mkdir_or_touch(tmp_dir_path, &paths[..]);
 
-        let path = tmp_dir_path.display().to_string();
-        let mut remappings = Remapping::find_many(path);
+        let mut remappings = Remapping::find_many(tmp_dir_path);
         remappings.sort_unstable();
 
         let mut expected = vec![
@@ -1347,7 +1343,7 @@ mod tests {
         mkdir_or_touch(tmp_dir_path, &paths[..]);
 
         let path = tmp_dir_path.display().to_string();
-        let mut remappings = Remapping::find_many(path);
+        let mut remappings = Remapping::find_many(path.as_ref());
         remappings.sort_unstable();
 
         let mut expected = vec![

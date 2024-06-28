@@ -64,7 +64,7 @@ impl ProjectPathsConfig {
     /// This will return:
     ///   - `<root>/out` if it exists or `<root>/artifacts` does not exist,
     ///   - `<root>/artifacts` if it exists and `<root>/out` does not exist.
-    pub fn find_artifacts_dir(root: impl AsRef<Path>) -> PathBuf {
+    pub fn find_artifacts_dir(root: &Path) -> PathBuf {
         utils::find_fave_or_alt_path(root, "out", "artifacts")
     }
 
@@ -74,7 +74,7 @@ impl ProjectPathsConfig {
     /// This will return:
     ///   - `<root>/src` if it exists or `<root>/contracts` does not exist,
     ///   - `<root>/contracts` if it exists and `<root>/src` does not exist.
-    pub fn find_source_dir(root: impl AsRef<Path>) -> PathBuf {
+    pub fn find_source_dir(root: &Path) -> PathBuf {
         utils::find_fave_or_alt_path(root, "src", "contracts")
     }
 
@@ -84,7 +84,7 @@ impl ProjectPathsConfig {
     /// This will return:
     ///   - `<root>/lib` if it exists or `<root>/node_modules` does not exist,
     ///   - `<root>/node_modules` if it exists and `<root>/lib` does not exist.
-    pub fn find_libs(root: impl AsRef<Path>) -> Vec<PathBuf> {
+    pub fn find_libs(root: &Path) -> Vec<PathBuf> {
         vec![utils::find_fave_or_alt_path(root, "lib", "node_modules")]
     }
 }
@@ -230,23 +230,23 @@ impl ProjectPathsConfig<SolcLanguage> {
 
 impl<L> ProjectPathsConfig<L> {
     /// Creates a new hardhat style config instance which points to the canonicalized root path
-    pub fn hardhat(root: impl AsRef<Path>) -> Result<Self> {
+    pub fn hardhat(root: &Path) -> Result<Self> {
         PathStyle::HardHat.paths(root)
     }
 
     /// Creates a new dapptools style config instance which points to the canonicalized root path
-    pub fn dapptools(root: impl AsRef<Path>) -> Result<Self> {
+    pub fn dapptools(root: &Path) -> Result<Self> {
         PathStyle::Dapptools.paths(root)
     }
 
     /// Creates a new config with the current directory as the root
     pub fn current_hardhat() -> Result<Self> {
-        Self::hardhat(std::env::current_dir().map_err(|err| SolcError::io(err, "."))?)
+        Self::hardhat(&std::env::current_dir().map_err(|err| SolcError::io(err, "."))?)
     }
 
     /// Creates a new config with the current directory as the root
     pub fn current_dapptools() -> Result<Self> {
-        Self::dapptools(std::env::current_dir().map_err(|err| SolcError::io(err, "."))?)
+        Self::dapptools(&std::env::current_dir().map_err(|err| SolcError::io(err, "."))?)
     }
 
     /// Returns a new [ProjectPaths] instance that contains all directories configured for this
@@ -325,7 +325,7 @@ impl<L> ProjectPathsConfig<L> {
     }
 
     /// Returns true if the `file` belongs to a `library`, See [`Self::find_library_ancestor()`]
-    pub fn has_library_ancestor(&self, file: impl AsRef<Path>) -> bool {
+    pub fn has_library_ancestor(&self, file: &Path) -> bool {
         self.find_library_ancestor(file).is_some()
     }
 
@@ -343,12 +343,13 @@ impl<L> ProjectPathsConfig<L> {
     /// use std::path::Path;
     ///
     /// let config: ProjectPathsConfig = ProjectPathsConfig::builder().lib("lib").build()?;
-    /// assert_eq!(config.find_library_ancestor("lib/src/Greeter.sol"), Some(Path::new("lib")));
+    /// assert_eq!(
+    ///     config.find_library_ancestor("lib/src/Greeter.sol".as_ref()),
+    ///     Some(Path::new("lib"))
+    /// );
     /// Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn find_library_ancestor(&self, file: impl AsRef<Path>) -> Option<&Path> {
-        let file = file.as_ref();
-
+    pub fn find_library_ancestor(&self, file: &Path) -> Option<&Path> {
         for lib in &self.libraries {
             if lib.is_relative()
                 && file.is_absolute()
@@ -647,8 +648,7 @@ pub struct ProjectPaths {
 
 impl ProjectPaths {
     /// Joins the folders' location with `root`
-    pub fn join_all(&mut self, root: impl AsRef<Path>) -> &mut Self {
-        let root = root.as_ref();
+    pub fn join_all(&mut self, root: &Path) -> &mut Self {
         self.artifacts = root.join(&self.artifacts);
         self.build_infos = root.join(&self.build_infos);
         self.sources = root.join(&self.sources);
@@ -660,9 +660,7 @@ impl ProjectPaths {
     }
 
     /// Removes `base` from all folders
-    pub fn strip_prefix_all(&mut self, base: impl AsRef<Path>) -> &mut Self {
-        let base = base.as_ref();
-
+    pub fn strip_prefix_all(&mut self, base: &Path) -> &mut Self {
         if let Ok(prefix) = self.artifacts.strip_prefix(base) {
             self.artifacts = prefix.to_path_buf();
         }
@@ -709,8 +707,7 @@ pub enum PathStyle {
 
 impl PathStyle {
     /// Convert into a `ProjectPathsConfig` given the root path and based on the styled
-    pub fn paths<C>(&self, root: impl AsRef<Path>) -> Result<ProjectPathsConfig<C>> {
-        let root = root.as_ref();
+    pub fn paths<C>(&self, root: &Path) -> Result<ProjectPathsConfig<C>> {
         let root = utils::canonicalize(root)?;
 
         Ok(match self {
@@ -719,7 +716,7 @@ impl PathStyle {
                 .artifacts(root.join("out"))
                 .build_infos(root.join("out").join("build-info"))
                 .lib(root.join("lib"))
-                .remappings(Remapping::find_many(root.join("lib")))
+                .remappings(Remapping::find_many(&root.join("lib")))
                 .root(root)
                 .build()?,
             Self::HardHat => ProjectPathsConfig::builder()
@@ -872,9 +869,9 @@ impl ProjectPathsConfigBuilder {
             sources: self.sources.unwrap_or_else(|| ProjectPathsConfig::find_source_dir(&root)),
             tests: self.tests.unwrap_or_else(|| root.join("test")),
             scripts: self.scripts.unwrap_or_else(|| root.join("script")),
-            remappings: self
-                .remappings
-                .unwrap_or_else(|| libraries.iter().flat_map(Remapping::find_many).collect()),
+            remappings: self.remappings.unwrap_or_else(|| {
+                libraries.iter().flat_map(|p| Remapping::find_many(p)).collect()
+            }),
             libraries,
             root,
             include_paths: self.include_paths,
@@ -1057,22 +1054,25 @@ mod tests {
         let mut config = ProjectPathsConfig::builder().lib("lib").build::<()>().unwrap();
         config.root = "/root/".into();
 
-        assert_eq!(config.find_library_ancestor("lib/src/Greeter.sol").unwrap(), Path::new("lib"));
+        assert_eq!(
+            config.find_library_ancestor("lib/src/Greeter.sol".as_ref()).unwrap(),
+            Path::new("lib")
+        );
 
         assert_eq!(
-            config.find_library_ancestor("/root/lib/src/Greeter.sol").unwrap(),
+            config.find_library_ancestor("/root/lib/src/Greeter.sol".as_ref()).unwrap(),
             Path::new("lib")
         );
 
         config.libraries.push("/root/test/".into());
 
         assert_eq!(
-            config.find_library_ancestor("test/src/Greeter.sol").unwrap(),
+            config.find_library_ancestor("test/src/Greeter.sol".as_ref()).unwrap(),
             Path::new("/root/test/")
         );
 
         assert_eq!(
-            config.find_library_ancestor("/root/test/src/Greeter.sol").unwrap(),
+            config.find_library_ancestor("/root/test/src/Greeter.sol".as_ref()).unwrap(),
             Path::new("/root/test/")
         );
     }

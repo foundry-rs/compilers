@@ -119,12 +119,12 @@ impl<T: Serialize> ArtifactFile<T> {
 
 impl<T> ArtifactFile<T> {
     /// Sets the file to `root` adjoined to `self.file`.
-    pub fn join(&mut self, root: impl AsRef<Path>) {
-        self.file = root.as_ref().join(&self.file);
+    pub fn join(&mut self, root: &Path) {
+        self.file = root.join(&self.file);
     }
 
     /// Removes `base` from the artifact's path
-    pub fn strip_prefix(&mut self, base: impl AsRef<Path>) {
+    pub fn strip_prefix(&mut self, base: &Path) {
         if let Ok(prefix) = self.file.strip_prefix(base) {
             self.file = prefix.to_path_buf();
         }
@@ -217,15 +217,13 @@ impl<T> Artifacts<T> {
     }
 
     /// Sets the artifact files location to `root` adjoined to `self.file`.
-    pub fn join_all(&mut self, root: impl AsRef<Path>) -> &mut Self {
-        let root = root.as_ref();
+    pub fn join_all(&mut self, root: &Path) -> &mut Self {
         self.artifact_files_mut().for_each(|artifact| artifact.join(root));
         self
     }
 
     /// Removes `base` from all artifacts
-    pub fn strip_prefix_all(&mut self, base: impl AsRef<Path>) -> &mut Self {
-        let base = base.as_ref();
+    pub fn strip_prefix_all(&mut self, base: &Path) -> &mut Self {
         self.artifact_files_mut().for_each(|artifact| artifact.strip_prefix(base));
         self
     }
@@ -353,8 +351,7 @@ impl<T> Artifacts<T> {
 
     /// Strips the given prefix from all artifact file paths to make them relative to the given
     /// `root` argument
-    pub fn into_stripped_file_prefixes(self, base: impl AsRef<Path>) -> Self {
-        let base = base.as_ref();
+    pub fn into_stripped_file_prefixes(self, base: &Path) -> Self {
         let artifacts = self
             .0
             .into_iter()
@@ -372,17 +369,14 @@ impl<T> Artifacts<T> {
     }
 
     /// Finds the first artifact `T` with a matching contract name
-    pub fn find_first(&self, contract_name: impl AsRef<str>) -> Option<&T> {
-        let contract_name = contract_name.as_ref();
+    pub fn find_first(&self, contract_name: &str) -> Option<&T> {
         self.0.iter().find_map(|(_file, contracts)| {
             contracts.get(contract_name).and_then(|c| c.first().map(|a| &a.artifact))
         })
     }
 
     ///  Finds the artifact with matching path and name
-    pub fn find(&self, path: impl AsRef<Path>, contract: impl AsRef<str>) -> Option<&T> {
-        let contract_path = path.as_ref();
-        let contract_name = contract.as_ref();
+    pub fn find(&self, contract_path: &Path, contract_name: &str) -> Option<&T> {
         self.0.iter().filter(|(path, _)| path.as_path() == contract_path).find_map(
             |(_file, contracts)| {
                 contracts.get(contract_name).and_then(|c| c.first().map(|a| &a.artifact))
@@ -391,9 +385,7 @@ impl<T> Artifacts<T> {
     }
 
     /// Removes the artifact with matching file and name
-    pub fn remove(&mut self, path: impl AsRef<Path>, contract: impl AsRef<str>) -> Option<T> {
-        let contract_path = path.as_ref();
-        let contract_name = contract.as_ref();
+    pub fn remove(&mut self, contract_path: &Path, contract_name: &str) -> Option<T> {
         self.0.iter_mut().filter(|(path, _)| path.as_path() == contract_path).find_map(
             |(_file, contracts)| {
                 let mut artifact = None;
@@ -414,8 +406,7 @@ impl<T> Artifacts<T> {
     ///
     /// *Note:* if there are multiple artifacts (contract compiled with different solc) then this
     /// returns the first artifact in that set
-    pub fn remove_first(&mut self, contract_name: impl AsRef<str>) -> Option<T> {
-        let contract_name = contract_name.as_ref();
+    pub fn remove_first(&mut self, contract_name: &str) -> Option<T> {
         self.0.iter_mut().find_map(|(_file, contracts)| {
             let mut artifact = None;
             if let Some((c, mut artifacts)) = contracts.remove_entry(contract_name) {
@@ -649,15 +640,14 @@ pub trait ArtifactOutput {
 
     /// Returns the file name for the contract's artifact
     /// `Greeter.json`
-    fn output_file_name(name: impl AsRef<str>) -> PathBuf {
-        format!("{}.json", name.as_ref()).into()
+    fn output_file_name(name: &str) -> PathBuf {
+        format!("{name}.json").into()
     }
 
     /// Returns the file name for the contract's artifact and the given version
     /// `Greeter.0.8.11.json`
-    fn output_file_name_versioned(name: impl AsRef<str>, version: &Version) -> PathBuf {
-        format!("{}.{}.{}.{}.json", name.as_ref(), version.major, version.minor, version.patch)
-            .into()
+    fn output_file_name_versioned(name: &str, version: &Version) -> PathBuf {
+        format!("{}.{}.{}.{}.json", name, version.major, version.minor, version.patch).into()
     }
 
     /// Returns the appropriate file name for the conflicting file.
@@ -675,17 +665,15 @@ pub trait ArtifactOutput {
     fn conflict_free_output_file(
         already_taken: &HashSet<String>,
         conflict: PathBuf,
-        contract_file: impl AsRef<Path>,
-        artifacts_folder: impl AsRef<Path>,
+        contract_file: &Path,
+        artifacts_folder: &Path,
     ) -> PathBuf {
-        let artifacts_folder = artifacts_folder.as_ref();
         let mut rel_candidate = conflict;
         if let Ok(stripped) = rel_candidate.strip_prefix(artifacts_folder) {
             rel_candidate = stripped.to_path_buf();
         }
         #[allow(clippy::redundant_clone)] // false positive
         let mut candidate = rel_candidate.clone();
-        let contract_file = contract_file.as_ref();
         let mut current_parent = contract_file.parent();
 
         while let Some(parent_name) = current_parent.and_then(|f| f.file_name()) {
@@ -734,10 +722,8 @@ pub trait ArtifactOutput {
     /// Returns the path to the contract's artifact location based on the contract's file and name
     ///
     /// This returns `contract.sol/contract.json` by default
-    fn output_file(contract_file: impl AsRef<Path>, name: impl AsRef<str>) -> PathBuf {
-        let name = name.as_ref();
+    fn output_file(contract_file: &Path, name: &str) -> PathBuf {
         contract_file
-            .as_ref()
             .file_name()
             .map(Path::new)
             .map(|p| p.join(Self::output_file_name(name)))
@@ -748,14 +734,8 @@ pub trait ArtifactOutput {
     /// version
     ///
     /// This returns `contract.sol/contract.0.8.11.json` by default
-    fn output_file_versioned(
-        contract_file: impl AsRef<Path>,
-        name: impl AsRef<str>,
-        version: &Version,
-    ) -> PathBuf {
-        let name = name.as_ref();
+    fn output_file_versioned(contract_file: &Path, name: &str, version: &Version) -> PathBuf {
         contract_file
-            .as_ref()
             .file_name()
             .map(Path::new)
             .map(|p| p.join(Self::output_file_name_versioned(name, version)))
@@ -766,17 +746,13 @@ pub trait ArtifactOutput {
     ///
     /// Expected to return the solidity contract's name derived from the file path
     /// `sources/Greeter.sol` -> `Greeter`
-    fn contract_name(file: impl AsRef<Path>) -> Option<String> {
-        file.as_ref().file_stem().and_then(|s| s.to_str().map(|s| s.to_string()))
+    fn contract_name(file: &Path) -> Option<String> {
+        file.file_stem().and_then(|s| s.to_str().map(|s| s.to_string()))
     }
 
     /// Whether the corresponding artifact of the given contract file and name exists
-    fn output_exists(
-        contract_file: impl AsRef<Path>,
-        name: impl AsRef<str>,
-        root: impl AsRef<Path>,
-    ) -> bool {
-        root.as_ref().join(Self::output_file(contract_file, name)).exists()
+    fn output_exists(contract_file: &Path, name: &str, root: &Path) -> bool {
+        root.join(Self::output_file(contract_file, name)).exists()
     }
 
     /// Read the artifact that's stored at the given path
@@ -786,7 +762,7 @@ pub trait ArtifactOutput {
     /// Returns an error if
     ///     - The file does not exist
     ///     - The file's content couldn't be deserialized into the `Artifact` type
-    fn read_cached_artifact(path: impl AsRef<Path>) -> Result<Self::Artifact> {
+    fn read_cached_artifact(path: &Path) -> Result<Self::Artifact> {
         utils::read_json_file(path)
     }
 
@@ -1061,11 +1037,11 @@ impl<'a> OutputContext<'a> {
     /// Returns `None` if no file exists
     pub fn existing_artifact(
         &self,
-        file: impl AsRef<Path>,
+        file: &Path,
         contract: &str,
         version: &Version,
     ) -> Option<&Path> {
-        self.existing_artifacts.get(file.as_ref()).and_then(|contracts| {
+        self.existing_artifacts.get(file).and_then(|contracts| {
             contracts
                 .get(contract)
                 .and_then(|versions| versions.get(version))
@@ -1131,8 +1107,7 @@ impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
         MinimalCombinedArtifacts::default().on_output(output, sources, layout, ctx)
     }
 
-    fn read_cached_artifact(path: impl AsRef<Path>) -> Result<Self::Artifact> {
-        let path = path.as_ref();
+    fn read_cached_artifact(path: &Path) -> Result<Self::Artifact> {
         let content = fs::read_to_string(path).map_err(|err| SolcError::io(err, path))?;
         if let Ok(a) = serde_json::from_str(&content) {
             Ok(a)
@@ -1180,14 +1155,15 @@ mod tests {
     fn can_find_alternate_paths() {
         let mut already_taken = HashSet::new();
 
-        let file = "v1/tokens/Greeter.sol";
+        let file = Path::new("v1/tokens/Greeter.sol");
         let conflict = PathBuf::from("out/Greeter.sol/Greeter.json");
+        let artifacts_folder = Path::new("out");
 
         let alternative = ConfigurableArtifacts::conflict_free_output_file(
             &already_taken,
             conflict.clone(),
             file,
-            "out",
+            artifacts_folder,
         );
         assert_eq!(alternative.to_slash_lossy(), "out/tokens/Greeter.sol/Greeter.json");
 
@@ -1196,13 +1172,17 @@ mod tests {
             &already_taken,
             conflict.clone(),
             file,
-            "out",
+            artifacts_folder,
         );
         assert_eq!(alternative.to_slash_lossy(), "out/v1/tokens/Greeter.sol/Greeter.json");
 
         already_taken.insert("out/v1/tokens/Greeter.sol/Greeter.json".to_lowercase());
-        let alternative =
-            ConfigurableArtifacts::conflict_free_output_file(&already_taken, conflict, file, "out");
+        let alternative = ConfigurableArtifacts::conflict_free_output_file(
+            &already_taken,
+            conflict,
+            file,
+            artifacts_folder,
+        );
         assert_eq!(alternative, PathBuf::from("Greeter.sol_1/Greeter.json"));
     }
 
@@ -1217,8 +1197,8 @@ mod tests {
         let alternative = ConfigurableArtifacts::conflict_free_output_file(
             &already_taken,
             conflict,
-            file,
-            "/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts",
+            file.as_ref(),
+            "/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts".as_ref(),
         );
 
         assert_eq!(alternative.to_slash_lossy(), "/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts/utils/BaseMainnetForkingTest.t.sol/BaseMainnetForkingTest.json");

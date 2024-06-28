@@ -53,11 +53,11 @@ impl<T: ArtifactOutput + Default> TempProject<MultiCompiler, T> {
 
     /// Explicitly sets the solc version for the project
     #[cfg(feature = "svm-solc")]
-    pub fn set_solc(&mut self, solc: impl AsRef<str>) -> &mut Self {
+    pub fn set_solc(&mut self, solc: &str) -> &mut Self {
         use crate::compilers::{multi::MultiCompilerLanguage, solc::SolcLanguage};
         use semver::Version;
 
-        let version = Version::parse(solc.as_ref()).unwrap();
+        let version = Version::parse(solc).unwrap();
         self.inner
             .locked_versions
             .insert(MultiCompilerLanguage::Solc(SolcLanguage::Solidity), version.clone());
@@ -86,17 +86,17 @@ impl<T: ArtifactOutput> fmt::Debug for TempProject<MultiCompiler, T> {
     }
 }
 
-pub(crate) fn create_contract_file(path: PathBuf, content: impl AsRef<str>) -> Result<PathBuf> {
+pub(crate) fn create_contract_file(path: &Path, content: impl AsRef<str>) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|err| SolcIoError::new(err, parent.to_path_buf()))?;
     }
-    std::fs::write(&path, content.as_ref()).map_err(|err| SolcIoError::new(err, path.clone()))?;
-    Ok(path)
+    std::fs::write(path, content.as_ref()).map_err(|err| SolcIoError::new(err, path))?;
+    Ok(())
 }
 
-fn contract_file_name(name: impl AsRef<str>) -> String {
-    let name = name.as_ref().trim();
+fn contract_file_name(name: &str) -> String {
+    let name = name.trim();
     if name.ends_with(".sol") {
         name.to_string()
     } else {
@@ -177,9 +177,8 @@ impl<C: Compiler + Default, T: ArtifactOutput + Default> TempProject<C, T> {
     /// Creates an initialized dapptools style workspace in a new temporary dir
     pub fn dapptools_init() -> Result<Self> {
         let mut project = Self::dapptools()?;
-        let orig_root =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
-        copy_dir(orig_root, project.root())?;
+        let orig_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
+        copy_dir(&orig_root, project.root())?;
         project.project_mut().paths.remappings = Remapping::find_many(project.root());
         project.project_mut().paths.remappings.iter_mut().for_each(|r| r.slash_path());
 
@@ -205,7 +204,7 @@ impl<C: Compiler + Default, T: ArtifactOutput + Default> TempProject<C, T> {
     }
 
     /// Copies a single file into the projects source
-    pub fn copy_source(&self, source: impl AsRef<Path>) -> Result<()> {
+    pub fn copy_source(&self, source: &Path) -> Result<()> {
         copy_file(source, &self.paths().sources)
     }
 
@@ -215,7 +214,7 @@ impl<C: Compiler + Default, T: ArtifactOutput + Default> TempProject<C, T> {
         S: AsRef<Path>,
     {
         for path in sources {
-            self.copy_source(path)?;
+            self.copy_source(path.as_ref())?;
         }
         Ok(())
     }
@@ -229,9 +228,9 @@ impl<C: Compiler + Default, T: ArtifactOutput + Default> TempProject<C, T> {
     }
 
     /// Copies a single file into the project's main library directory
-    pub fn copy_lib(&self, lib: impl AsRef<Path>) -> Result<()> {
+    pub fn copy_lib(&self, lib: &Path) -> Result<()> {
         let lib_dir = self.get_lib()?;
-        copy_file(lib, lib_dir)
+        copy_file(lib, &lib_dir)
     }
 
     /// Copy a series of files into the main library dir
@@ -241,90 +240,81 @@ impl<C: Compiler + Default, T: ArtifactOutput + Default> TempProject<C, T> {
         S: AsRef<Path>,
     {
         for path in libs {
-            self.copy_lib(path)?;
+            self.copy_lib(path.as_ref())?;
         }
         Ok(())
     }
 
     /// Adds a new library file
-    pub fn add_lib(&self, name: impl AsRef<str>, content: impl AsRef<str>) -> Result<PathBuf> {
+    pub fn add_lib(&self, name: &str, content: impl AsRef<str>) -> Result<PathBuf> {
         let name = contract_file_name(name);
         let lib_dir = self.get_lib()?;
         let lib = lib_dir.join(name);
-        create_contract_file(lib, content)
+        create_contract_file(&lib, content)?;
+        Ok(lib)
     }
 
     /// Adds a basic lib contract `contract <name> {}` as a new file
-    pub fn add_basic_lib(
-        &self,
-        name: impl AsRef<str>,
-        version: impl AsRef<str>,
-    ) -> Result<PathBuf> {
-        let name = name.as_ref();
+    pub fn add_basic_lib(&self, name: &str, version: &str) -> Result<PathBuf> {
         let name = name.strip_suffix(".sol").unwrap_or(name);
         self.add_lib(
             name,
             format!(
                 r#"
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity {};
-contract {} {{}}
+pragma solidity {version};
+contract {name} {{}}
             "#,
-                version.as_ref(),
-                name,
             ),
         )
     }
 
     /// Adds a new test file inside the project's test dir
-    pub fn add_test(&self, name: impl AsRef<str>, content: impl AsRef<str>) -> Result<PathBuf> {
+    pub fn add_test(&self, name: &str, content: impl AsRef<str>) -> Result<PathBuf> {
         let name = contract_file_name(name);
         let tests = self.paths().tests.join(name);
-        create_contract_file(tests, content)
+        create_contract_file(&tests, content)?;
+        Ok(tests)
     }
 
     /// Adds a new script file inside the project's script dir
-    pub fn add_script(&self, name: impl AsRef<str>, content: impl AsRef<str>) -> Result<PathBuf> {
+    pub fn add_script(&self, name: &str, content: impl AsRef<str>) -> Result<PathBuf> {
         let name = contract_file_name(name);
         let script = self.paths().scripts.join(name);
-        create_contract_file(script, content)
+        create_contract_file(&script, content)?;
+        Ok(script)
     }
 
     /// Adds a new source file inside the project's source dir
-    pub fn add_source(&self, name: impl AsRef<str>, content: impl AsRef<str>) -> Result<PathBuf> {
+    pub fn add_source(&self, name: &str, content: impl AsRef<str>) -> Result<PathBuf> {
         let name = contract_file_name(name);
         let source = self.paths().sources.join(name);
-        create_contract_file(source, content)
+        create_contract_file(&source, content)?;
+        Ok(source)
     }
 
     /// Adds a basic source contract `contract <name> {}` as a new file
-    pub fn add_basic_source(
-        &self,
-        name: impl AsRef<str>,
-        version: impl AsRef<str>,
-    ) -> Result<PathBuf> {
-        let name = name.as_ref();
+    pub fn add_basic_source(&self, name: &str, version: &str) -> Result<PathBuf> {
         let name = name.strip_suffix(".sol").unwrap_or(name);
         self.add_source(
             name,
             format!(
                 r#"
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity {};
-contract {} {{}}
+pragma solidity {version};
+contract {name} {{}}
             "#,
-                version.as_ref(),
-                name,
             ),
         )
     }
 
     /// Adds a solidity contract in the project's root dir.
     /// This will also create all intermediary dirs.
-    pub fn add_contract(&self, name: impl AsRef<str>, content: impl AsRef<str>) -> Result<PathBuf> {
+    pub fn add_contract(&self, name: &str, content: impl AsRef<str>) -> Result<PathBuf> {
         let name = contract_file_name(name);
         let source = self.root().join(name);
-        create_contract_file(source, content)
+        create_contract_file(&source, content)?;
+        Ok(source)
     }
 
     /// Returns the path to the artifacts directory
@@ -359,7 +349,7 @@ contract {} {{}}
     }
 
     /// Populate the project with mock files
-    pub fn mock(&self, gen: &MockProjectGenerator, version: impl AsRef<str>) -> Result<()> {
+    pub fn mock(&self, gen: &MockProjectGenerator, version: &str) -> Result<()> {
         gen.write_to(self.paths(), version)
     }
 
@@ -449,9 +439,9 @@ impl TempProject {
     }
 
     /// Clones the given repo into a temp dir, initializes it recursively and configures it.
-    pub fn checkout(repo: impl AsRef<str>) -> Result<Self> {
+    pub fn checkout(repo: &str) -> Result<Self> {
         let tmp_dir = tempdir("tmp_checkout")?;
-        clone_remote(&format!("https://github.com/{}", repo.as_ref()), tmp_dir.path())
+        clone_remote(&format!("https://github.com/{repo}"), tmp_dir.path())
             .map_err(|err| SolcIoError::new(err, tmp_dir.path()))?;
         let paths = ProjectPathsConfig::dapptools(tmp_dir.path())?;
 
@@ -460,7 +450,7 @@ impl TempProject {
     }
 
     /// Create a new temporary project and populate it with mock files.
-    pub fn mocked(settings: &MockProjectSettings, version: impl AsRef<str>) -> Result<Self> {
+    pub fn mocked(settings: &MockProjectSettings, version: &str) -> Result<Self> {
         let mut tmp = Self::dapptools()?;
         let gen = MockProjectGenerator::new(settings);
         tmp.mock(&gen, version)?;
@@ -470,7 +460,7 @@ impl TempProject {
     }
 
     /// Create a new temporary project and populate it with a random layout.
-    pub fn mocked_random(version: impl AsRef<str>) -> Result<Self> {
+    pub fn mocked_random(version: &str) -> Result<Self> {
         Self::mocked(&MockProjectSettings::random(), version)
     }
 }
@@ -524,32 +514,27 @@ fn file_copy_options() -> file::CopyOptions {
 }
 
 /// Copies a single file into the given dir
-pub fn copy_file(source: impl AsRef<Path>, target_dir: impl AsRef<Path>) -> Result<()> {
-    let source = source.as_ref();
-    let target = target_dir.as_ref().join(
+pub fn copy_file(source: &Path, target_dir: &Path) -> Result<()> {
+    let target = target_dir.join(
         source
             .file_name()
             .ok_or_else(|| SolcError::msg(format!("No file name for {}", source.display())))?,
     );
-
     fs_extra::file::copy(source, target, &file_copy_options())?;
     Ok(())
 }
 
 /// Copies all content of the source dir into the target dir
-pub fn copy_dir(source: impl AsRef<Path>, target_dir: impl AsRef<Path>) -> Result<()> {
+pub fn copy_dir(source: &Path, target_dir: &Path) -> Result<()> {
     fs_extra::dir::copy(source, target_dir, &dir_copy_options())?;
     Ok(())
 }
 
 /// Clones a remote repository into the specified directory.
-pub fn clone_remote(
-    repo_url: &str,
-    target_dir: impl AsRef<Path>,
-) -> std::io::Result<process::Output> {
+pub fn clone_remote(repo_url: &str, target_dir: &Path) -> std::io::Result<process::Output> {
     Command::new("git")
         .args(["clone", "--depth", "1", "--recursive", repo_url])
-        .arg(target_dir.as_ref())
+        .arg(target_dir)
         .output()
 }
 

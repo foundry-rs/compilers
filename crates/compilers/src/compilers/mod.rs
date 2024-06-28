@@ -213,8 +213,7 @@ impl<E> CompilerOutput<E> {
         self.sources.extend(other.sources);
     }
 
-    pub fn join_all(&mut self, root: impl AsRef<Path>) {
-        let root = root.as_ref();
+    pub fn join_all(&mut self, root: &Path) {
         self.contracts = std::mem::take(&mut self.contracts)
             .into_iter()
             .map(|(path, contracts)| (root.join(path), contracts))

@@ -115,13 +115,12 @@ impl MockProjectGenerator {
     pub fn write_to<L: Language>(
         &self,
         paths: &ProjectPathsConfig<L>,
-        version: impl AsRef<str>,
+        version: &str,
     ) -> Result<()> {
-        let version = version.as_ref();
         for file in self.inner.files.iter() {
             let imports = self.get_imports(file.id);
             let content = file.mock_content(version, imports.join("\n").as_str());
-            super::create_contract_file(file.target_path(self, paths), content)?;
+            super::create_contract_file(&file.target_path(self, paths), content)?;
         }
 
         Ok(())
@@ -342,13 +341,12 @@ impl MockProjectGenerator {
         &self,
         id: usize,
         paths: &ProjectPathsConfig,
-        version: impl AsRef<str>,
+        version: &str,
     ) -> Result<PathBuf> {
         let file = &self.inner.files[id];
         let target = file.target_path(self, paths);
         let content = file.modified_content(version, self.get_imports(id).join("\n").as_str());
-        super::create_contract_file(target.clone(), content)?;
-
+        super::create_contract_file(&target, content)?;
         Ok(target)
     }
 
@@ -455,7 +453,7 @@ impl MockFile {
     /// Returns the content to use for a modified file
     ///
     /// The content here is arbitrary, it should only differ from the mocked content
-    pub fn modified_content(&self, version: impl AsRef<str>, imports: &str) -> String {
+    pub fn modified_content(&self, version: &str, imports: &str) -> String {
         format!(
             r#"
 // SPDX-License-Identifier: UNLICENSED
@@ -465,15 +463,12 @@ contract {} {{
     function hello() public {{}}
 }}
             "#,
-            version.as_ref(),
-            imports,
-            self.name
+            version, imports, self.name
         )
     }
 
     /// Returns a mocked content for the file
-    pub fn mock_content(&self, version: impl AsRef<str>, imports: &str) -> String {
-        let version = version.as_ref();
+    pub fn mock_content(&self, version: &str, imports: &str) -> String {
         if self.emit_artifacts {
             format!(
                 r#"
