@@ -259,7 +259,7 @@ impl<C: Compiler + Default, T: ArtifactOutput + Default> TempProject<C, T> {
         let name = name.strip_suffix(".sol").unwrap_or(name);
         self.add_lib(
             name,
-            &format!(
+            format!(
                 r#"
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity {version};
@@ -298,7 +298,7 @@ contract {name} {{}}
         let name = name.strip_suffix(".sol").unwrap_or(name);
         self.add_source(
             name,
-            &format!(
+            format!(
                 r#"
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity {version};
