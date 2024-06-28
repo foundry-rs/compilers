@@ -2,7 +2,10 @@ use foundry_compilers_artifacts_solc::{
     output_selection::OutputSelection, serde_helpers, EvmVersion,
 };
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Serialize, Clone, Copy, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -28,6 +31,8 @@ pub struct VyperSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bytecode_metadata: Option<bool>,
     pub output_selection: OutputSelection,
+    #[serde(rename = "search_paths", skip_serializing_if = "Option::is_none")]
+    pub search_paths: Option<BTreeSet<PathBuf>>,
 }
 
 impl VyperSettings {
@@ -48,6 +53,9 @@ impl VyperSettings {
                 })
                 .collect(),
         );
+        self.search_paths = self.search_paths.as_ref().map(|paths| {
+            paths.iter().map(|p| p.strip_prefix(base).unwrap_or(p.as_path()).into()).collect()
+        });
     }
 
     /// During caching we prune output selection for some of the sources, however, Vyper will reject

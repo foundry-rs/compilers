@@ -305,10 +305,14 @@ impl ParsedSource for MultiCompilerParsedSource {
         }
     }
 
-    fn resolve_imports<C>(&self, paths: &crate::ProjectPathsConfig<C>) -> Result<Vec<PathBuf>> {
+    fn resolve_imports<C>(
+        &self,
+        paths: &crate::ProjectPathsConfig<C>,
+        include_paths: &mut BTreeSet<PathBuf>,
+    ) -> Result<Vec<PathBuf>> {
         match self {
-            Self::Solc(parsed) => parsed.resolve_imports(paths),
-            Self::Vyper(parsed) => parsed.resolve_imports(paths),
+            Self::Solc(parsed) => parsed.resolve_imports(paths, include_paths),
+            Self::Vyper(parsed) => parsed.resolve_imports(paths, include_paths),
         }
     }
 

@@ -8,7 +8,10 @@ use foundry_compilers_core::{
     utils::{capture_outer_and_inner, RE_VYPER_VERSION},
 };
 use semver::VersionReq;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 use winnow::{
     ascii::space1,
     combinator::{alt, opt, preceded},
@@ -49,7 +52,11 @@ impl ParsedSource for VyperParsedSource {
         self.version_req.as_ref()
     }
 
-    fn resolve_imports<C>(&self, paths: &ProjectPathsConfig<C>) -> Result<Vec<PathBuf>> {
+    fn resolve_imports<C>(
+        &self,
+        paths: &ProjectPathsConfig<C>,
+        include_paths: &mut BTreeSet<PathBuf>,
+    ) -> Result<Vec<PathBuf>> {
         let mut imports = Vec::new();
         'outer: for import in &self.imports {
             // skip built-in imports
@@ -92,6 +99,8 @@ impl ParsedSource for VyperParsedSource {
                 candidate_dirs.push(paths.root.as_path());
             }
 
+            candidate_dirs.extend(paths.libraries.iter().map(PathBuf::as_path));
+
             let import_path = {
                 let mut path = PathBuf::new();
 
@@ -113,6 +122,7 @@ impl ParsedSource for VyperParsedSource {
                     trace!("trying {}", candidate.display());
                     if candidate.exists() {
                         imports.push(candidate);
+                        include_paths.insert(candidate_dir.to_path_buf());
                         continue 'outer;
                     }
                 }

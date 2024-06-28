@@ -357,6 +357,7 @@ impl<D: ParsedSource> Graph<D> {
         // tracks additional paths that should be used with `--include-path`, these are libraries
         // that use absolute imports like `import "src/Contract.sol"`
         let mut resolved_solc_include_paths = BTreeSet::new();
+        resolved_solc_include_paths.insert(paths.root.clone());
 
         // keep track of all unique paths that we failed to resolve to not spam the reporter with
         // the same path
@@ -365,14 +366,14 @@ impl<D: ParsedSource> Graph<D> {
         // now we need to resolve all imports for the source file and those imported from other
         // locations
         while let Some((path, node)) = unresolved.pop_front() {
-            let mut resolved_imports = Vec::with_capacity(node.data.resolve_imports(paths)?.len());
+            let mut resolved_imports = Vec::new();
             // parent directory of the current file
             let cwd = match path.parent() {
                 Some(inner) => inner,
                 None => continue,
             };
 
-            for import_path in node.data.resolve_imports(paths)? {
+            for import_path in node.data.resolve_imports(paths, &mut resolved_solc_include_paths)? {
                 match paths.resolve_import_and_include_paths(
                     cwd,
                     &import_path,

@@ -221,7 +221,11 @@ impl ParsedSource for SolData {
         self.version_req.as_ref()
     }
 
-    fn resolve_imports<C>(&self, _paths: &crate::ProjectPathsConfig<C>) -> Result<Vec<PathBuf>> {
+    fn resolve_imports<C>(
+        &self,
+        _paths: &crate::ProjectPathsConfig<C>,
+        _include_paths: &mut BTreeSet<PathBuf>,
+    ) -> Result<Vec<PathBuf>> {
         return Ok(self.imports.iter().map(|i| i.data().path().to_path_buf()).collect_vec());
     }
 

@@ -136,7 +136,14 @@ pub trait ParsedSource: Debug + Sized + Send + Clone {
 
     fn parse(content: &str, file: &Path) -> Result<Self>;
     fn version_req(&self) -> Option<&VersionReq>;
-    fn resolve_imports<C>(&self, paths: &ProjectPathsConfig<C>) -> Result<Vec<PathBuf>>;
+
+    /// Invoked during import resolution. Should resolve imports for the given source, and populate
+    /// include_paths for compilers which support this config.
+    fn resolve_imports<C>(
+        &self,
+        paths: &ProjectPathsConfig<C>,
+        include_paths: &mut BTreeSet<PathBuf>,
+    ) -> Result<Vec<PathBuf>>;
     fn language(&self) -> Self::Language;
 
     /// Used to configure [OutputSelection] for sparse builds. In certain cases, we might want to
