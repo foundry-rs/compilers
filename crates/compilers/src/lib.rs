@@ -34,9 +34,7 @@ mod config;
 pub use config::{PathStyle, ProjectPaths, ProjectPathsConfig, SolcConfig};
 
 mod filter;
-pub use filter::{
-    FileFilter, FilteredSources, SourceCompilationKind, SparseOutputFilter, TestFileFilter,
-};
+pub use filter::{FileFilter, SparseOutputFilter, TestFileFilter};
 
 pub mod report;
 
@@ -53,7 +51,7 @@ use compilers::multi::MultiCompiler;
 use derivative::Derivative;
 use foundry_compilers_artifacts::solc::{
     output_selection::OutputSelection,
-    sources::{Source, Sources},
+    sources::{Source, SourceCompilationKind, Sources},
     Contract, Settings, Severity, SourceFile, StandardJsonCompilerInput,
 };
 use foundry_compilers_core::error::{Result, SolcError, SolcIoError};

@@ -128,18 +128,16 @@ impl<L: Language> RawBuildInfo<L> {
 
 #[cfg(test)]
 mod tests {
-    use foundry_compilers_artifacts::{sources::Source, Error, SolcLanguage};
-
-    use crate::compilers::solc::SolcVersionedInput;
-
     use super::*;
-    use std::{collections::BTreeMap, path::PathBuf};
+    use crate::compilers::solc::SolcVersionedInput;
+    use foundry_compilers_artifacts::{sources::Source, Error, SolcLanguage, Sources};
+    use std::path::PathBuf;
 
     #[test]
     fn build_info_serde() {
         let v: Version = "0.8.4+commit.c7e474f2".parse().unwrap();
         let input = SolcVersionedInput::build(
-            BTreeMap::from([(PathBuf::from("input.sol"), Source::new(""))]),
+            Sources::from([(PathBuf::from("input.sol"), Source::new(""))]),
             Default::default(),
             SolcLanguage::Solidity,
             v,

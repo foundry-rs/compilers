@@ -106,8 +106,8 @@ impl SolcInput {
     /// Builds one or two inputs from given sources set. Returns two inputs in cases when there are
     /// both Solidity and Yul sources.
     pub fn resolve_and_build(sources: Sources, settings: Settings) -> Vec<Self> {
-        let mut solidity_sources = BTreeMap::new();
-        let mut yul_sources = BTreeMap::new();
+        let mut solidity_sources = Sources::new();
+        let mut yul_sources = Sources::new();
 
         for (file, source) in sources {
             if file.extension().map_or(false, |e| e == "yul") {

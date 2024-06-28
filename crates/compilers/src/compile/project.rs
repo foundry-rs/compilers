@@ -109,7 +109,7 @@ use crate::{
     output::{AggregatedCompilerOutput, Builds},
     report,
     resolver::GraphEdges,
-    ArtifactOutput, FilteredSources, Graph, Project, ProjectCompileOutput, Sources,
+    ArtifactOutput, Graph, Project, ProjectCompileOutput, Sources,
 };
 use foundry_compilers_core::error::Result;
 use rayon::prelude::*;
@@ -118,9 +118,6 @@ use std::{collections::HashMap, path::PathBuf, time::Instant};
 
 /// A set of different Solc installations with their version and the sources to be compiled
 pub(crate) type VersionedSources<L> = HashMap<L, HashMap<Version, Sources>>;
-
-/// A set of different Solc installations with their version and the sources to be compiled
-pub(crate) type VersionedFilteredSources<L> = HashMap<L, HashMap<Version, FilteredSources>>;
 
 #[derive(Debug)]
 pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
@@ -155,14 +152,12 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
             &project.compiler,
         )?;
 
+        // If there are multiple different versions, and we can use multiple jobs we can compile
+        // them in parallel.
         let jobs_cnt = sources.values().map(|v| v.len()).sum::<usize>();
-
-        let sources = if project.solc_jobs > 1 && jobs_cnt > 1 {
-            // if there are multiple different versions, and we can use multiple jobs we can compile
-            // them in parallel
-            CompilerSources::Parallel(sources, project.solc_jobs)
-        } else {
-            CompilerSources::Sequential(sources)
+        let sources = CompilerSources {
+            sources,
+            jobs: (project.solc_jobs > 1 && jobs_cnt > 1).then_some(project.solc_jobs),
         };
 
         Ok(Self { edges, project, sources })
@@ -211,7 +206,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
 
         let mut cache = ArtifactsCache::new(project, edges)?;
         // retain and compile only dirty sources and all their imports
-        let sources = sources.filtered(&mut cache);
+        sources.filter(&mut cache);
 
         Ok(PreprocessedState { sources, cache })
     }
@@ -223,7 +218,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
 #[derive(Debug)]
 struct PreprocessedState<'a, T: ArtifactOutput, C: Compiler> {
     /// Contains all the sources to compile.
-    sources: FilteredCompilerSources<C::Language>,
+    sources: CompilerSources<C::Language>,
 
     /// Cache that holds `CacheEntry` objects if caching is enabled and the project is recompiled
     cache: ArtifactsCache<'a, T, C>,
@@ -402,59 +397,24 @@ impl<L: Language> CompilerSources<L> {
     }
 
     /// Filters out all sources that don't need to be compiled, see [`ArtifactsCache::filter`]
-    fn filtered<T: ArtifactOutput, C: Compiler<Language = L>>(
-        self,
+    fn filter<T: ArtifactOutput, C: Compiler<Language = L>>(
+        &mut self,
         cache: &mut ArtifactsCache<'_, T, C>,
-    ) -> FilteredCompilerSources<L> {
-        fn filtered_sources<T: ArtifactOutput, C: Compiler>(
-            sources: VersionedSources<C::Language>,
-            cache: &mut ArtifactsCache<'_, T, C>,
-        ) -> VersionedFilteredSources<C::Language> {
-            cache.remove_dirty_sources();
-
-            sources
-                .into_iter()
-                .map(|(language, versioned_sources)| {
-                    (
-                        language,
-                        versioned_sources
-                            .into_iter()
-                            .map(|(version, sources)| {
-                                trace!("Filtering {} sources for {}", sources.len(), version);
-                                let sources_to_compile = cache.filter(sources, &version);
-                                trace!(
-                                    "Detected {} sources to compile {:?}",
-                                    sources_to_compile.dirty().count(),
-                                    sources_to_compile.dirty_files().collect::<Vec<_>>()
-                                );
-
-                                (version, sources_to_compile)
-                            })
-                            .collect(),
-                    )
-                })
-                .collect()
-        }
-
-        match self {
-            Self::Sequential(s) => FilteredCompilerSources::Sequential(filtered_sources(s, cache)),
-            Self::Parallel(s, j) => {
-                FilteredCompilerSources::Parallel(filtered_sources(s, cache), j)
+    ) {
+        cache.remove_dirty_sources();
+        for (_language, versioned_sources) in &mut self.sources {
+            for (version, sources) in versioned_sources {
+                trace!("Filtering {} sources for {}", sources.len(), version);
+                cache.filter(sources, version);
+                trace!(
+                    "Detected {} sources to compile {:?}",
+                    sources.dirty().count(),
+                    sources.dirty_files().collect::<Vec<_>>()
+                );
             }
         }
     }
-}
 
-/// Determines how the `solc <-> sources` pairs are executed
-#[derive(Clone, Debug)]
-enum FilteredCompilerSources<L> {
-    /// Compile all these sequentially
-    Sequential(VersionedFilteredSources<L>),
-    /// Compile all these in parallel using a certain amount of jobs
-    Parallel(VersionedFilteredSources<L>, usize),
-}
-
-impl<L: Language> FilteredCompilerSources<L> {
     /// Compiles all the files with `Solc`
     fn compile<C: Compiler<Language = L>, T: ArtifactOutput>(
         self,
@@ -463,17 +423,16 @@ impl<L: Language> FilteredCompilerSources<L> {
         let project = cache.project();
         let graph = cache.graph();
 
-        let jobs_cnt = if let Self::Parallel(_, jobs_cnt) = self { Some(jobs_cnt) } else { None };
+        let jobs_cnt = self.jobs;
 
         let sparse_output = SparseOutputFilter::new(project.sparse_output.as_deref());
 
-        let sources = self.into_sources();
         // Include additional paths collected during graph resolution.
         let mut include_paths = project.paths.include_paths.clone();
         include_paths.extend(graph.include_paths().clone());
 
         let mut jobs = Vec::new();
-        for (language, versioned_sources) in sources {
+        for (language, versioned_sources) in self.sources {
             for (version, filtered_sources) in versioned_sources {
                 if filtered_sources.is_empty() {
                     // nothing to compile
@@ -537,22 +496,6 @@ impl<L: Language> FilteredCompilerSources<L> {
         }
 
         Ok(aggregated)
-    }
-
-    #[cfg(test)]
-    #[cfg(all(feature = "project-util", feature = "svm-solc"))]
-    fn sources(&self) -> &VersionedFilteredSources<L> {
-        match self {
-            Self::Sequential(v) => v,
-            Self::Parallel(v, _) => v,
-        }
-    }
-
-    fn into_sources(self) -> VersionedFilteredSources<L> {
-        match self {
-            Self::Sequential(v) => v,
-            Self::Parallel(v, _) => v,
-        }
     }
 }
 
@@ -729,7 +672,7 @@ mod tests {
 
         let compiler = ProjectCompiler::new(tmp.project()).unwrap();
         let state = compiler.preprocess().unwrap();
-        let sources = state.sources.sources();
+        let sources = &state.sources.sources;
 
         let cache = state.cache.as_cached().unwrap();
 
