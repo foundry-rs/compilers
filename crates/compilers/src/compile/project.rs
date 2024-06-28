@@ -407,7 +407,7 @@ impl<L: Language> CompilerSources<L> {
         cache: &mut ArtifactsCache<'_, T, C>,
     ) -> FilteredCompilerSources<L> {
         fn filtered_sources<T: ArtifactOutput, C: Compiler>(
-            sources: VersionedSources<C::Language>,
+            mut sources: VersionedSources<C::Language>,
             cache: &mut ArtifactsCache<'_, T, C>,
         ) -> VersionedFilteredSources<C::Language> {
             cache.remove_dirty_sources();

@@ -1,5 +1,5 @@
 use crate::{
-    Ast, CompactBytecode, CompactContract, CompactContractBytecode, CompactContractBytecodeCow,
+    CompactBytecode, CompactContract, CompactContractBytecode, CompactContractBytecodeCow,
     CompactDeployedBytecode, DevDoc, Ewasm, FunctionDebugData, GasEstimates, GeneratedSource,
     Metadata, Offsets, SourceFile, StorageLayout, UserDoc,
 };
@@ -49,7 +49,7 @@ pub struct ConfigurableContractArtifact {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ewasm: Option<Ewasm>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ast: Option<Ast>,
+    pub ast: Option<RawValueWrapper>,
     /// The identifier of the source file
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<u32>,
@@ -105,5 +105,32 @@ impl<'a> From<&'a ConfigurableContractArtifact> for CompactContractBytecodeCow<'
             bytecode: artifact.bytecode.as_ref().map(Cow::Borrowed),
             deployed_bytecode: artifact.deployed_bytecode.as_ref().map(Cow::Borrowed),
         }
+    }
+}
+
+/// A wrapper around `serde_json::value::RawValue` to allow for `PartialEq` and `Eq`
+/// implementations.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RawValueWrapper(pub Box<serde_json::value::RawValue>);
+
+impl PartialEq for RawValueWrapper {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.get().eq(other.0.get())
+    }
+}
+
+impl Eq for RawValueWrapper {}
+
+impl std::ops::Deref for RawValueWrapper {
+    type Target = serde_json::value::RawValue;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+impl std::ops::DerefMut for RawValueWrapper {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.deref_mut()
     }
 }
