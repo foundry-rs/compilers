@@ -50,8 +50,8 @@ impl SolcCompilerIoReporter {
 
     /// Returns a new `SolcCompilerIOLayer` from the value of the given environment
     /// variable, ignoring any invalid filter directives.
-    pub fn from_env<A: AsRef<str>>(env: A) -> Self {
-        env::var(env.as_ref()).map(|var| Self::new(&var)).unwrap_or_default()
+    pub fn from_env(env: impl AsRef<std::ffi::OsStr>) -> Self {
+        env::var(env).map(|var| Self::new(&var)).unwrap_or_default()
     }
 
     /// Callback to write the input to disk if target is set

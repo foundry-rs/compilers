@@ -420,9 +420,9 @@ impl RelativeRemappingPathBuf {
     }
 }
 
-impl<P: AsRef<Path>> From<P> for RelativeRemappingPathBuf {
+impl<P: Into<PathBuf>> From<P> for RelativeRemappingPathBuf {
     fn from(path: P) -> Self {
-        Self { parent: None, path: path.as_ref().to_path_buf() }
+        Self { parent: None, path: path.into() }
     }
 }
 
