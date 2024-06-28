@@ -375,23 +375,16 @@ impl<L: Language> CompilerSources<L> {
         {
             use path_slash::PathBufExt;
 
-            fn slash_versioned_sources<L: Language>(v: &mut VersionedSources<L>) {
-                v.values_mut().for_each(|versioned_sources| {
-                    versioned_sources.values_mut().for_each(|sources| {
-                        *sources = std::mem::take(sources)
-                            .into_iter()
-                            .map(|(path, source)| {
-                                (PathBuf::from(path.to_slash_lossy().as_ref()), source)
-                            })
-                            .collect()
-                    })
-                });
-            }
-
-            match self {
-                CompilerSources::Sequential(v) => slash_versioned_sources(v),
-                CompilerSources::Parallel(v, _) => slash_versioned_sources(v),
-            };
+            self.sources.values_mut().for_each(|versioned_sources| {
+                versioned_sources.values_mut().for_each(|sources| {
+                    *sources = std::mem::take(sources)
+                        .into_iter()
+                        .map(|(path, source)| {
+                            (PathBuf::from(path.to_slash_lossy().as_ref()), source)
+                        })
+                        .collect()
+                })
+            });
         }
     }
 
