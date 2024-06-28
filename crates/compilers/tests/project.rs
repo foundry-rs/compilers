@@ -2255,7 +2255,7 @@ fn can_recompile_with_changes() {
     assert!(compiled.is_unchanged());
 
     // modify A.sol
-    tmp.add_source("A", &format!("{content}\n")).unwrap();
+    tmp.add_source("A", format!("{content}\n")).unwrap();
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
     assert!(!compiled.is_unchanged());
@@ -2310,7 +2310,7 @@ fn can_recompile_with_lowercase_names() {
     assert!(compiled.is_unchanged());
 
     // modify upgradeProxy.sol
-    tmp.add_source("upgradeProxy.sol", &format!("{upgrade}\n")).unwrap();
+    tmp.add_source("upgradeProxy.sol", format!("{upgrade}\n")).unwrap();
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
     assert!(!compiled.is_unchanged());
@@ -2363,7 +2363,7 @@ fn can_recompile_unchanged_with_empty_files() {
     assert!(compiled.is_unchanged());
 
     // modify C.sol
-    tmp.add_source("C", &format!("{c}\n")).unwrap();
+    tmp.add_source("C", format!("{c}\n")).unwrap();
     let compiled = tmp.compile().unwrap();
     compiled.assert_success();
     assert!(!compiled.is_unchanged());
@@ -2903,7 +2903,7 @@ fn can_install_solc_and_compile_version() {
     project
         .add_source(
             "Contract",
-            &format!(
+            format!(
                 r#"
 pragma solidity {version};
 contract Contract {{ }}
