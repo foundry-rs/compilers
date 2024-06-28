@@ -154,10 +154,10 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
 
         // If there are multiple different versions, and we can use multiple jobs we can compile
         // them in parallel.
-        let jobs_cnt = sources.values().map(|v| v.len()).sum::<usize>();
+        let jobs_cnt = || sources.values().map(|v| v.len()).sum::<usize>();
         let sources = CompilerSources {
+            jobs: (project.solc_jobs > 1 && jobs_cnt() > 1).then_some(project.solc_jobs),
             sources,
-            jobs: (project.solc_jobs > 1 && jobs_cnt > 1).then_some(project.solc_jobs),
         };
 
         Ok(Self { edges, project, sources })
@@ -401,7 +401,7 @@ impl<L: Language> CompilerSources<L> {
         cache: &mut ArtifactsCache<'_, T, C>,
     ) {
         cache.remove_dirty_sources();
-        for (_language, versioned_sources) in &mut self.sources {
+        for versioned_sources in self.sources.values_mut() {
             for (version, sources) in versioned_sources {
                 trace!("Filtering {} sources for {}", sources.len(), version);
                 cache.filter(sources, version);
@@ -432,8 +432,8 @@ impl<L: Language> CompilerSources<L> {
 
         let mut jobs = Vec::new();
         for (language, versioned_sources) in self.sources {
-            for (version, filtered_sources) in versioned_sources {
-                if filtered_sources.is_empty() {
+            for (version, sources) in versioned_sources {
+                if sources.is_empty() {
                     // nothing to compile
                     trace!("skip {} for empty sources set", version);
                     continue;
@@ -442,8 +442,8 @@ impl<L: Language> CompilerSources<L> {
                 // depending on the composition of the filtered sources, the output selection can be
                 // optimized
                 let mut opt_settings = project.settings.clone();
-                let (sources, actually_dirty) =
-                    sparse_output.sparse_sources(filtered_sources, &mut opt_settings, graph);
+                let actually_dirty =
+                    sparse_output.sparse_sources(&sources, &mut opt_settings, graph);
 
                 if actually_dirty.is_empty() {
                     // nothing to compile for this particular language, all dirty files are in the

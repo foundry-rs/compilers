@@ -103,10 +103,10 @@ impl<'a> SparseOutputFilter<'a> {
     /// filter matches depend on libraries that need to be linked
     pub fn sparse_sources<D: ParsedSource, S: CompilerSettings>(
         &self,
-        sources: Sources,
+        sources: &Sources,
         settings: &mut S,
         graph: &GraphEdges<D>,
-    ) -> (Sources, Vec<PathBuf>) {
+    ) -> Vec<PathBuf> {
         let mut full_compilation: HashSet<PathBuf> = sources
             .dirty_files()
             .flat_map(|file| {
@@ -165,7 +165,7 @@ impl<'a> SparseOutputFilter<'a> {
             }
         });
 
-        (sources.into(), full_compilation.into_iter().collect())
+        full_compilation.into_iter().collect()
     }
 }
 
