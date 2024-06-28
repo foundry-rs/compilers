@@ -356,18 +356,17 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
     }
 }
 
-/// Determines how the `solc <-> sources` pairs are executed
+/// Determines how the `solc <-> sources` pairs are executed.
 #[derive(Debug, Clone)]
-enum CompilerSources<L> {
-    /// Compile all these sequentially
-    Sequential(VersionedSources<L>),
-    /// Compile all these in parallel using a certain amount of jobs
-    #[allow(dead_code)]
-    Parallel(VersionedSources<L>, usize),
+struct CompilerSources<L> {
+    /// The sources to compile.
+    sources: VersionedSources<L>,
+    /// The number of jobs to use for parallel compilation.
+    jobs: Option<usize>,
 }
 
 impl<L: Language> CompilerSources<L> {
-    /// Converts all `\\` separators to `/`
+    /// Converts all `\\` separators to `/`.
     ///
     /// This effectively ensures that `solc` can find imported files like `/src/Cheats.sol` in the
     /// VFS (the `CompilerInput` as json) under `src/Cheats.sol`.
