@@ -1846,6 +1846,11 @@ impl PartialEq for SourceFile {
 impl Eq for SourceFile {}
 
 impl SourceFile {
+    /// Deserializes the AST of the source file.
+    pub fn deserialize_ast(&self) -> Option<serde_json::Result<Ast>> {
+        self.ast.as_ref().map(|ast| serde_json::from_str(ast.0.get()))
+    }
+
     /// Returns `true` if the source file contains at least 1 `ContractDefinition` such as
     /// `contract`, `abstract contract`, `interface` or `library`.
     pub fn contains_contract_definition(&self) -> bool {
