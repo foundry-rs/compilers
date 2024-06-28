@@ -362,10 +362,13 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
 }
 
 /// Determines how the `solc <-> sources` pairs are executed
-#[derive(Clone, Debug)]
-struct CompilerSources<L> {
-    sources: VersionedSources<L>,
-    jobs: Option<usize>,
+#[derive(Debug, Clone)]
+enum CompilerSources<L> {
+    /// Compile all these sequentially
+    Sequential(VersionedSources<L>),
+    /// Compile all these in parallel using a certain amount of jobs
+    #[allow(dead_code)]
+    Parallel(VersionedSources<L>, usize),
 }
 
 impl<L: Language> CompilerSources<L> {
@@ -378,16 +381,23 @@ impl<L: Language> CompilerSources<L> {
         {
             use path_slash::PathBufExt;
 
-            self.sources.values_mut().for_each(|versioned_sources| {
-                versioned_sources.values_mut().for_each(|sources| {
-                    *sources = std::mem::take(sources)
-                        .into_iter()
-                        .map(|(path, source)| {
-                            (PathBuf::from(path.to_slash_lossy().as_ref()), source)
-                        })
-                        .collect()
-                })
-            });
+            fn slash_versioned_sources<L: Language>(v: &mut VersionedSources<L>) {
+                v.values_mut().for_each(|versioned_sources| {
+                    versioned_sources.values_mut().for_each(|sources| {
+                        *sources = std::mem::take(sources)
+                            .into_iter()
+                            .map(|(path, source)| {
+                                (PathBuf::from(path.to_slash_lossy().as_ref()), source)
+                            })
+                            .collect()
+                    })
+                });
+            }
+
+            match self {
+                CompilerSources::Sequential(v) => slash_versioned_sources(v),
+                CompilerSources::Parallel(v, _) => slash_versioned_sources(v),
+            };
         }
     }
 
@@ -436,7 +446,7 @@ impl<L: Language> CompilerSources<L> {
 }
 
 /// Determines how the `solc <-> sources` pairs are executed
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 enum FilteredCompilerSources<L> {
     /// Compile all these sequentially
     Sequential(VersionedFilteredSources<L>),
