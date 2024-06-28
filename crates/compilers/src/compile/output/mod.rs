@@ -244,8 +244,7 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.with_stripped_file_prefixes(project.root());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
-    pub fn with_stripped_file_prefixes(mut self, base: impl AsRef<Path>) -> Self {
-        let base = base.as_ref();
+    pub fn with_stripped_file_prefixes(mut self, base: &Path) -> Self {
         self.cached_artifacts = self.cached_artifacts.into_stripped_file_prefixes(base);
         self.compiled_artifacts = self.compiled_artifacts.into_stripped_file_prefixes(base);
         self.compiler_output.strip_prefix_all(base);
@@ -343,9 +342,9 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     pub fn find_contract<'a>(&self, info: impl Into<ContractInfoRef<'a>>) -> Option<&T::Artifact> {
         let ContractInfoRef { path, name } = info.into();
         if let Some(path) = path {
-            self.find(path, name)
+            self.find(path[..].as_ref(), &name)
         } else {
-            self.find_first(name)
+            self.find_first(&name)
         }
     }
 
@@ -361,22 +360,19 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// let contract = output.find("src/Greeter.sol", "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn find(&self, path: impl AsRef<str>, contract: impl AsRef<str>) -> Option<&T::Artifact> {
-        let contract_path = path.as_ref();
-        let contract_name = contract.as_ref();
-        if let artifact @ Some(_) = self.compiled_artifacts.find(contract_path, contract_name) {
+    pub fn find(&self, path: &Path, name: &str) -> Option<&T::Artifact> {
+        if let artifact @ Some(_) = self.compiled_artifacts.find(path, name) {
             return artifact;
         }
-        self.cached_artifacts.find(contract_path, contract_name)
+        self.cached_artifacts.find(path, name)
     }
 
     /// Finds the first contract with the given name
-    pub fn find_first(&self, contract_name: impl AsRef<str>) -> Option<&T::Artifact> {
-        let contract_name = contract_name.as_ref();
-        if let artifact @ Some(_) = self.compiled_artifacts.find_first(contract_name) {
+    pub fn find_first(&self, name: &str) -> Option<&T::Artifact> {
+        if let artifact @ Some(_) = self.compiled_artifacts.find_first(name) {
             return artifact;
         }
-        self.cached_artifacts.find_first(contract_name)
+        self.cached_artifacts.find_first(name)
     }
 
     /// Finds the artifact with matching path and name
@@ -391,17 +387,11 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// let contract = output.find("src/Greeter.sol", "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn remove(
-        &mut self,
-        path: impl AsRef<str>,
-        contract: impl AsRef<str>,
-    ) -> Option<T::Artifact> {
-        let contract_path = path.as_ref();
-        let contract_name = contract.as_ref();
-        if let artifact @ Some(_) = self.compiled_artifacts.remove(contract_path, contract_name) {
+    pub fn remove(&mut self, path: &Path, name: &str) -> Option<T::Artifact> {
+        if let artifact @ Some(_) = self.compiled_artifacts.remove(path, name) {
             return artifact;
         }
-        self.cached_artifacts.remove(contract_path, contract_name)
+        self.cached_artifacts.remove(path, name)
     }
 
     /// Removes the _first_ contract with the given name from the set
@@ -416,12 +406,11 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// let contract = output.remove_first("Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn remove_first(&mut self, contract_name: impl AsRef<str>) -> Option<T::Artifact> {
-        let contract_name = contract_name.as_ref();
-        if let artifact @ Some(_) = self.compiled_artifacts.remove_first(contract_name) {
+    pub fn remove_first(&mut self, name: &str) -> Option<T::Artifact> {
+        if let artifact @ Some(_) = self.compiled_artifacts.remove_first(name) {
             return artifact;
         }
-        self.cached_artifacts.remove_first(contract_name)
+        self.cached_artifacts.remove_first(name)
     }
 
     /// Removes the contract with matching path and name using the `<path>:<contractname>` pattern
@@ -448,9 +437,9 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     ) -> Option<T::Artifact> {
         let ContractInfoRef { path, name } = info.into();
         if let Some(path) = path {
-            self.remove(path, name)
+            self.remove(path[..].as_ref(), &name)
         } else {
-            self.remove_first(name)
+            self.remove_first(&name)
         }
     }
 
@@ -624,11 +613,10 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     ///
     /// The created files have the md5 hash `{_format,solcVersion,solcLongVersion,input}` as their
     /// file name
-    pub fn write_build_infos(&self, build_info_dir: impl AsRef<Path>) -> Result<(), SolcError> {
+    pub fn write_build_infos(&self, build_info_dir: &Path) -> Result<(), SolcError> {
         if self.build_infos.is_empty() {
             return Ok(());
         }
-        let build_info_dir = build_info_dir.as_ref();
         std::fs::create_dir_all(build_info_dir)
             .map_err(|err| SolcIoError::new(err, build_info_dir))?;
         for build_info in &self.build_infos {
@@ -653,7 +641,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// let contract = output.find_first("Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn find_first(&self, contract: impl AsRef<str>) -> Option<CompactContractRef<'_>> {
+    pub fn find_first(&self, contract: &str) -> Option<CompactContractRef<'_>> {
         self.contracts.find_first(contract)
     }
 
@@ -669,7 +657,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// let contract = output.remove_first("Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn remove_first(&mut self, contract: impl AsRef<str>) -> Option<Contract> {
+    pub fn remove_first(&mut self, contract: &str) -> Option<Contract> {
         self.contracts.remove_first(contract)
     }
 
@@ -685,11 +673,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// let contract = output.remove("src/Greeter.sol", "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn remove(
-        &mut self,
-        path: impl AsRef<Path>,
-        contract: impl AsRef<str>,
-    ) -> Option<Contract> {
+    pub fn remove(&mut self, path: &Path, contract: &str) -> Option<Contract> {
         self.contracts.remove(path, contract)
     }
 
@@ -716,9 +700,9 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     ) -> Option<Contract> {
         let ContractInfoRef { path, name } = info.into();
         if let Some(path) = path {
-            self.remove(Path::new(path.as_ref()), name)
+            self.remove(path[..].as_ref(), &name)
         } else {
-            self.remove_first(name)
+            self.remove_first(&name)
         }
     }
 
@@ -773,11 +757,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// let contract = output.get("src/Greeter.sol", "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn get(
-        &self,
-        path: impl AsRef<Path>,
-        contract: impl AsRef<str>,
-    ) -> Option<CompactContractRef<'_>> {
+    pub fn get(&self, path: &Path, contract: &str) -> Option<CompactContractRef<'_>> {
         self.contracts.get(path, contract)
     }
 
@@ -799,8 +779,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     }
 
     /// Joins all file path with `root`
-    pub fn join_all(&mut self, root: impl AsRef<Path>) -> &mut Self {
-        let root = root.as_ref();
+    pub fn join_all(&mut self, root: &Path) -> &mut Self {
         self.contracts.join_all(root);
         self.sources.join_all(root);
         self
@@ -822,16 +801,14 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// let output = project.compile()?.into_output().with_stripped_file_prefixes(project.root());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn with_stripped_file_prefixes(mut self, base: impl AsRef<Path>) -> Self {
-        let base = base.as_ref();
+    pub fn with_stripped_file_prefixes(mut self, base: &Path) -> Self {
         self.contracts.strip_prefix_all(base);
         self.sources.strip_prefix_all(base);
         self
     }
 
     /// Removes `base` from all contract paths
-    pub fn strip_prefix_all(&mut self, base: impl AsRef<Path>) -> &mut Self {
-        let base = base.as_ref();
+    pub fn strip_prefix_all(&mut self, base: &Path) -> &mut Self {
         self.contracts.strip_prefix_all(base);
         self.sources.strip_prefix_all(base);
         self
@@ -922,12 +899,12 @@ impl<'a, C: Compiler> OutputDiagnostics<'a, C> {
     }
 
     /// Returns true if the contract is a expected to be a test
-    fn is_test<T: AsRef<str>>(&self, contract_path: T) -> bool {
-        if contract_path.as_ref().ends_with(".t.sol") {
+    fn is_test(&self, contract_path: &str) -> bool {
+        if contract_path.ends_with(".t.sol") {
             return true;
         }
 
-        self.compiler_output.find_first(&contract_path).map_or(false, |contract| {
+        self.compiler_output.find_first(contract_path).map_or(false, |contract| {
             contract.abi.map_or(false, |abi| abi.functions.contains_key("IS_TEST"))
         })
     }

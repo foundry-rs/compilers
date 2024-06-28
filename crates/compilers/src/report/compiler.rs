@@ -32,8 +32,8 @@ pub struct SolcCompilerIoReporter {
 impl SolcCompilerIoReporter {
     /// Returns a new `SolcCompilerIOLayer` from the fields in the given string,
     /// ignoring any that are invalid.
-    pub fn new(value: impl AsRef<str>) -> Self {
-        Self { target: Some(value.as_ref().parse().unwrap_or_default()) }
+    pub fn new(value: &str) -> Self {
+        Self { target: Some(value.parse().unwrap_or_default()) }
     }
 
     /// `foundry_compilers_LOG` is the default environment variable used by
@@ -51,7 +51,7 @@ impl SolcCompilerIoReporter {
     /// Returns a new `SolcCompilerIOLayer` from the value of the given environment
     /// variable, ignoring any invalid filter directives.
     pub fn from_env<A: AsRef<str>>(env: A) -> Self {
-        env::var(env.as_ref()).map(Self::new).unwrap_or_default()
+        env::var(env.as_ref()).map(|var| Self::new(&var)).unwrap_or_default()
     }
 
     /// Callback to write the input to disk if target is set
@@ -69,12 +69,9 @@ impl SolcCompilerIoReporter {
     }
 }
 
-impl<S> From<S> for SolcCompilerIoReporter
-where
-    S: AsRef<str>,
-{
+impl<S: AsRef<str>> From<S> for SolcCompilerIoReporter {
     fn from(s: S) -> Self {
-        Self::new(s)
+        Self::new(s.as_ref())
     }
 }
 

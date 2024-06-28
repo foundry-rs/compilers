@@ -71,15 +71,14 @@ pub struct Vyper {
 
 impl Vyper {
     /// Creates a new instance of the Vyper compiler. Uses the `vyper` binary in the system `PATH`.
-    pub fn new(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
-        let version = Self::version(path)?;
-        Ok(Self { path: path.into(), version })
+    pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
+        let path = path.into();
+        let version = Self::version(path.clone())?;
+        Ok(Self { path, version })
     }
 
     /// Convenience function for compiling all sources under the given path
-    pub fn compile_source(&self, path: impl AsRef<Path>) -> Result<VyperOutput> {
-        let path = path.as_ref();
+    pub fn compile_source(&self, path: &Path) -> Result<VyperOutput> {
         let input =
             VyperInput::new(Source::read_all_from(path, VYPER_EXTENSIONS)?, Default::default());
         self.compile(&input)
@@ -110,9 +109,11 @@ impl Vyper {
     ///     },
     ///     Vyper,
     /// };
+    /// use std::path::Path;
     ///
     /// let vyper = Vyper::new("vyper")?;
-    /// let sources = Source::read_all_from("path/to/sources", &["vy", "vyi"])?;
+    /// let path = Path::new("path/to/sources");
+    /// let sources = Source::read_all_from(path, &["vy", "vyi"])?;
     /// let input = VyperInput::new(sources, VyperSettings::default());
     /// let output = vyper.compile(&input)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())

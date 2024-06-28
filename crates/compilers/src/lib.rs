@@ -153,12 +153,8 @@ where
     C::Settings: Into<Settings>,
 {
     /// Returns standard-json-input to compile the target contract
-    pub fn standard_json_input(
-        &self,
-        target: impl AsRef<Path>,
-    ) -> Result<StandardJsonCompilerInput> {
-        let target = target.as_ref();
-        trace!("Building standard-json-input for {:?}", target);
+    pub fn standard_json_input(&self, target: &Path) -> Result<StandardJsonCompilerInput> {
+        trace!(?target, "Building standard-json-input");
         let graph = Graph::<C::ParsedSource>::resolve(&self.paths)?;
         let target_index = graph.files().get(target).ok_or_else(|| {
             SolcError::msg(format!("cannot resolve file at {:?}", target.display()))
@@ -749,39 +745,31 @@ impl<T: ArtifactOutput, C: Compiler> ArtifactOutput for Project<C, T> {
         self.artifacts_handler().handle_artifacts(contracts, artifacts)
     }
 
-    fn output_file_name(name: impl AsRef<str>) -> PathBuf {
+    fn output_file_name(name: &str) -> PathBuf {
         T::output_file_name(name)
     }
 
-    fn output_file_name_versioned(name: impl AsRef<str>, version: &Version) -> PathBuf {
+    fn output_file_name_versioned(name: &str, version: &Version) -> PathBuf {
         T::output_file_name_versioned(name, version)
     }
 
-    fn output_file(contract_file: impl AsRef<Path>, name: impl AsRef<str>) -> PathBuf {
+    fn output_file(contract_file: &Path, name: &str) -> PathBuf {
         T::output_file(contract_file, name)
     }
 
-    fn output_file_versioned(
-        contract_file: impl AsRef<Path>,
-        name: impl AsRef<str>,
-        version: &Version,
-    ) -> PathBuf {
+    fn output_file_versioned(contract_file: &Path, name: &str, version: &Version) -> PathBuf {
         T::output_file_versioned(contract_file, name, version)
     }
 
-    fn contract_name(file: impl AsRef<Path>) -> Option<String> {
+    fn contract_name(file: &Path) -> Option<String> {
         T::contract_name(file)
     }
 
-    fn output_exists(
-        contract_file: impl AsRef<Path>,
-        name: impl AsRef<str>,
-        root: impl AsRef<Path>,
-    ) -> bool {
+    fn output_exists(contract_file: &Path, name: &str, root: &Path) -> bool {
         T::output_exists(contract_file, name, root)
     }
 
-    fn read_cached_artifact(path: impl AsRef<Path>) -> Result<Self::Artifact> {
+    fn read_cached_artifact(path: &Path) -> Result<Self::Artifact> {
         T::read_cached_artifact(path)
     }
 
@@ -857,11 +845,11 @@ impl<T: ArtifactOutput, C: Compiler> ArtifactOutput for Project<C, T> {
 // On Windows, paths like `a\b\c` are converted to `a/b/c`.
 //
 // For more examples, see the test.
-fn rebase_path(base: impl AsRef<Path>, path: impl AsRef<Path>) -> PathBuf {
+fn rebase_path(base: &Path, path: &Path) -> PathBuf {
     use path_slash::PathExt;
 
-    let mut base_components = base.as_ref().components();
-    let mut path_components = path.as_ref().components();
+    let mut base_components = base.components();
+    let mut path_components = path.components();
 
     let mut new_path = PathBuf::new();
 
@@ -923,9 +911,9 @@ mod tests {
             .lib(root.join("lib1"))
             .lib(root.join("lib2"))
             .remappings(
-                Remapping::find_many(root.join("lib1"))
+                Remapping::find_many(&root.join("lib1"))
                     .into_iter()
-                    .chain(Remapping::find_many(root.join("lib2"))),
+                    .chain(Remapping::find_many(&root.join("lib2"))),
             )
             .build()
             .unwrap();
@@ -947,7 +935,7 @@ mod tests {
             .root(&root)
             .sources(root.join("src"))
             .lib(root.join("lib"))
-            .remappings(Remapping::find_many(root.join("lib")))
+            .remappings(Remapping::find_many(&root.join("lib")))
             .build()
             .unwrap();
         let project = Project::builder()
@@ -962,6 +950,8 @@ mod tests {
 
     #[test]
     fn can_rebase_path() {
+        let rebase_path = |a: &str, b: &str| rebase_path(a.as_ref(), b.as_ref());
+
         assert_eq!(rebase_path("a/b", "a/b/c"), PathBuf::from("c"));
         assert_eq!(rebase_path("a/b", "a/c"), PathBuf::from("../c"));
         assert_eq!(rebase_path("a/b", "c"), PathBuf::from("../../c"));
@@ -1010,7 +1000,7 @@ mod tests {
             "node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol",
         ];
         mkdir_or_touch(tmp_dir.path(), &paths[..]);
-        let remappings = Remapping::find_many(tmp_dir_node_modules);
+        let remappings = Remapping::find_many(&tmp_dir_node_modules);
         let mut paths = ProjectPathsConfig::<()>::hardhat(tmp_dir.path()).unwrap();
         paths.remappings = remappings;
 

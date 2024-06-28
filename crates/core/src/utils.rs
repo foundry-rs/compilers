@@ -130,7 +130,7 @@ pub fn find_version_pragma(contract: &str) -> Option<Match<'_>> {
 ///
 /// This also follows symlinks.
 pub fn source_files_iter<'a>(
-    root: impl AsRef<Path>,
+    root: &Path,
     extensions: &'a [&'a str],
 ) -> impl Iterator<Item = PathBuf> + 'a {
     WalkDir::new(root)
@@ -155,14 +155,14 @@ pub fn source_files_iter<'a>(
 ///
 /// ```no_run
 /// use foundry_compilers_core::utils;
-/// let sources = utils::source_files("./contracts", &utils::SOLC_EXTENSIONS);
+/// let sources = utils::source_files("./contracts".as_ref(), &utils::SOLC_EXTENSIONS);
 /// ```
-pub fn source_files(root: impl AsRef<Path>, extensions: &[&str]) -> Vec<PathBuf> {
+pub fn source_files(root: &Path, extensions: &[&str]) -> Vec<PathBuf> {
     source_files_iter(root, extensions).collect()
 }
 
 /// Same as [source_files] but only returns files acceptable by Solc compiler.
-pub fn sol_source_files(root: impl AsRef<Path>) -> Vec<PathBuf> {
+pub fn sol_source_files(root: &Path) -> Vec<PathBuf> {
     source_files(root, SOLC_EXTENSIONS)
 }
 
@@ -173,7 +173,7 @@ pub fn sol_source_files(root: impl AsRef<Path>) -> Vec<PathBuf> {
 ///
 /// ```no_run
 /// use foundry_compilers_core::utils;
-/// let dirs = utils::solidity_dirs("./lib");
+/// let dirs = utils::solidity_dirs("./lib".as_ref());
 /// ```
 ///
 /// for following layout will return
@@ -195,7 +195,7 @@ pub fn sol_source_files(root: impl AsRef<Path>) -> Vec<PathBuf> {
 ///         │   ├── base.t.sol
 ///         └── token.sol
 /// ```
-pub fn solidity_dirs(root: impl AsRef<Path>) -> Vec<PathBuf> {
+pub fn solidity_dirs(root: &Path) -> Vec<PathBuf> {
     let sources = sol_source_files(root);
     sources
         .iter()
@@ -206,33 +206,29 @@ pub fn solidity_dirs(root: impl AsRef<Path>) -> Vec<PathBuf> {
         .collect()
 }
 
-/// Returns the source name for the given source path, the ancestors of the root path
-/// `/Users/project/sources/contract.sol` -> `sources/contracts.sol`
-pub fn source_name(source: &Path, root: impl AsRef<Path>) -> &Path {
-    source.strip_prefix(root.as_ref()).unwrap_or(source)
-}
-
-/// Attempts to determine if the given source is a local, relative import
-pub fn is_local_source_name(libs: &[impl AsRef<Path>], source: impl AsRef<Path>) -> bool {
-    resolve_library(libs, source).is_none()
-}
-
-/// Canonicalize the path, platform-agnostic
+/// Returns the source name for the given source path, the ancestors of the root path.
 ///
-/// On windows this will ensure the path only consists of `/` separators
+/// `/Users/project/sources/contract.sol` -> `sources/contracts.sol`
+pub fn source_name<'a>(source: &'a Path, root: &Path) -> &'a Path {
+    source.strip_prefix(root).unwrap_or(source)
+}
+
+/// Attempts to determine if the given source is a local, relative import.
+pub fn is_local_source_name(libs: &[impl AsRef<Path>], source: impl AsRef<Path>) -> bool {
+    resolve_library(libs, source.as_ref()).is_none()
+}
+
+/// Canonicalize the path, platform-agnostic.
+///
+/// On windows this will ensure the path only consists of `/` separators.
 pub fn canonicalize(path: impl AsRef<Path>) -> Result<PathBuf, SolcIoError> {
     let path = path.as_ref();
-    cfg_if! {
-        if #[cfg(windows)] {
-            let res = dunce::canonicalize(path).map(|p| {
-                use path_slash::PathBufExt;
-                PathBuf::from(p.to_slash_lossy().as_ref())
-            });
-        } else {
-            let res = dunce::canonicalize(path);
-        }
-    };
-
+    let res = dunce::canonicalize(path);
+    #[cfg(windows)]
+    let res = res.map(|p| {
+        use path_slash::PathBufExt;
+        PathBuf::from(p.to_slash_lossy().as_ref())
+    });
     res.map_err(|err| SolcIoError::new(err, path))
 }
 
@@ -246,10 +242,10 @@ pub fn canonicalize(path: impl AsRef<Path>) -> Result<PathBuf, SolcIoError> {
 ///
 /// See also: <https://docs.soliditylang.org/en/v0.8.23/path-resolution.html>
 pub fn normalize_solidity_import_path(
-    directory: impl AsRef<Path>,
-    import_path: impl AsRef<Path>,
+    directory: &Path,
+    import_path: &Path,
 ) -> Result<PathBuf, SolcIoError> {
-    let original = directory.as_ref().join(import_path);
+    let original = directory.join(import_path);
     let cleaned = clean_solidity_path(&original);
 
     // this is to align the behavior with `canonicalize`
@@ -289,10 +285,10 @@ pub fn normalize_solidity_import_path(
 // * Otherwise, the component remains untouched.
 //
 // Finally, the processed components are reassembled into a path.
-fn clean_solidity_path(original_path: impl AsRef<Path>) -> PathBuf {
+fn clean_solidity_path(original_path: &Path) -> PathBuf {
     let mut new_path = Vec::new();
 
-    for component in original_path.as_ref().components() {
+    for component in original_path.components() {
         match component {
             Component::Prefix(..) | Component::RootDir | Component::Normal(..) => {
                 new_path.push(component);
@@ -394,7 +390,7 @@ pub fn resolve_absolute_library(
 /// Checks for installed solc versions under the given path as
 /// `<root>/<major.minor.path>`, (e.g.: `~/.svm/0.8.10`)
 /// and returns them sorted in ascending order
-pub fn installed_versions(root: impl AsRef<Path>) -> Result<Vec<Version>, SolcError> {
+pub fn installed_versions(root: &Path) -> Result<Vec<Version>, SolcError> {
     let mut versions: Vec<_> = walkdir::WalkDir::new(root)
         .max_depth(1)
         .into_iter()
@@ -412,8 +408,8 @@ pub fn installed_versions(root: impl AsRef<Path>) -> Result<Vec<Version>, SolcEr
 ///
 /// If the name is longer than 36 char, then the name gets truncated,
 /// If the name is shorter than 36 char, then the name is filled with trailing `_`
-pub fn library_fully_qualified_placeholder(name: impl AsRef<str>) -> String {
-    name.as_ref().chars().chain(std::iter::repeat('_')).take(36).collect()
+pub fn library_fully_qualified_placeholder(name: &str) -> String {
+    name.chars().chain(std::iter::repeat('_')).take(36).collect()
 }
 
 /// Returns the library hash placeholder as `$hex(library_hash(name))$`
@@ -457,7 +453,7 @@ where
     let mut iter = paths.into_iter();
     let mut ret = iter.next()?.as_ref().to_path_buf();
     for path in iter {
-        if let Some(r) = common_ancestor(ret, path.as_ref()) {
+        if let Some(r) = common_ancestor(&ret, path.as_ref()) {
             ret = r;
         } else {
             return None;
@@ -477,11 +473,11 @@ where
 /// let foo = Path::new("/foo/bar/foo");
 /// let bar = Path::new("/foo/bar/bar");
 /// let ancestor = common_ancestor(foo, bar).unwrap();
-/// assert_eq!(ancestor, Path::new("/foo/bar").to_path_buf());
+/// assert_eq!(ancestor, Path::new("/foo/bar"));
 /// ```
-pub fn common_ancestor(a: impl AsRef<Path>, b: impl AsRef<Path>) -> Option<PathBuf> {
-    let a = a.as_ref().components();
-    let b = b.as_ref().components();
+pub fn common_ancestor(a: &Path, b: &Path) -> Option<PathBuf> {
+    let a = a.components();
+    let b = b.components();
     let mut ret = PathBuf::new();
     let mut found = false;
     for (c1, c2) in a.zip(b) {
@@ -503,8 +499,7 @@ pub fn common_ancestor(a: impl AsRef<Path>, b: impl AsRef<Path>) -> Option<PathB
 ///
 /// Returns `<root>/<fave>` if it exists or `<root>/<alt>` does not exist,
 /// Returns `<root>/<alt>` if it exists and `<root>/<fave>` does not exist.
-pub fn find_fave_or_alt_path(root: impl AsRef<Path>, fave: &str, alt: &str) -> PathBuf {
-    let root = root.as_ref();
+pub fn find_fave_or_alt_path(root: &Path, fave: &str, alt: &str) -> PathBuf {
     let p = root.join(fave);
     if !p.exists() {
         let alt = root.join(alt);
@@ -576,8 +571,7 @@ pub fn tempdir(name: &str) -> Result<tempfile::TempDir, SolcIoError> {
 }
 
 /// Reads the json file and deserialize it into the provided type.
-pub fn read_json_file<T: DeserializeOwned>(path: impl AsRef<Path>) -> Result<T, SolcError> {
-    let path = path.as_ref();
+pub fn read_json_file<T: DeserializeOwned>(path: &Path) -> Result<T, SolcError> {
     // See: https://github.com/serde-rs/json/issues/160
     let file = fs::File::open(path).map_err(|err| SolcError::io(err, path))?;
     let bytes = unsafe { memmap2::Mmap::map(&file).map_err(|err| SolcError::io(err, path))? };
@@ -587,10 +581,9 @@ pub fn read_json_file<T: DeserializeOwned>(path: impl AsRef<Path>) -> Result<T, 
 /// Writes serializes the provided value to JSON and writes it to a file.
 pub fn write_json_file<T: Serialize>(
     value: &T,
-    path: impl AsRef<Path>,
+    path: &Path,
     capacity: usize,
 ) -> Result<(), SolcError> {
-    let path = path.as_ref();
     let file = fs::File::create(path).map_err(|err| SolcError::io(err, path))?;
     let mut writer = std::io::BufWriter::with_capacity(capacity, file);
     serde_json::to_writer(&mut writer, value)?;
@@ -600,8 +593,7 @@ pub fn write_json_file<T: Serialize>(
 /// Creates the parent directory of the `file` and all its ancestors if it does not exist.
 ///
 /// See [`fs::create_dir_all()`].
-pub fn create_parent_dir_all(file: impl AsRef<Path>) -> Result<(), SolcError> {
-    let file = file.as_ref();
+pub fn create_parent_dir_all(file: &Path) -> Result<(), SolcError> {
     if let Some(parent) = file.parent() {
         fs::create_dir_all(parent).map_err(|err| {
             SolcError::msg(format!(
@@ -811,11 +803,11 @@ pragma solidity ^0.8.0;
         let cwd = dir_path.join("src");
 
         assert_eq!(
-            normalize_solidity_import_path(&cwd, "./common/Burnable.sol").unwrap(),
+            normalize_solidity_import_path(&cwd, "./common/Burnable.sol".as_ref()).unwrap(),
             dir_path.join("src/common/Burnable.sol"),
         );
 
-        assert!(normalize_solidity_import_path(&cwd, "./common/Pausable.sol").is_err());
+        assert!(normalize_solidity_import_path(&cwd, "./common/Pausable.sol".as_ref()).is_err());
     }
 
     // This test is exclusive to unix because creating a symlink is a privileged action on Windows.
@@ -854,13 +846,15 @@ pragma solidity ^0.8.0;
         let cwd = dir_path.join("project/src");
 
         assert_eq!(
-            normalize_solidity_import_path(cwd, "../node_modules/dependency/Math.sol").unwrap(),
+            normalize_solidity_import_path(&cwd, "../node_modules/dependency/Math.sol".as_ref())
+                .unwrap(),
             dir_path.join("project/node_modules/dependency/Math.sol"),
         );
     }
 
     #[test]
     fn can_clean_solidity_path() {
+        let clean_solidity_path = |s: &str| clean_solidity_path(s.as_ref());
         assert_eq!(clean_solidity_path("a"), PathBuf::from("a"));
         assert_eq!(clean_solidity_path("./a"), PathBuf::from("a"));
         assert_eq!(clean_solidity_path("../a"), PathBuf::from("../a"));

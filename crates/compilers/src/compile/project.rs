@@ -641,9 +641,9 @@ mod tests {
 
     #[test]
     fn can_preprocess() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
         let project = Project::builder()
-            .paths(ProjectPathsConfig::dapptools(root).unwrap())
+            .paths(ProjectPathsConfig::dapptools(&root).unwrap())
             .build(Default::default())
             .unwrap();
 
@@ -660,7 +660,7 @@ mod tests {
 
     #[test]
     fn can_detect_cached_files() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
         let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
         let project = TempProject::<MultiCompiler, MinimalCombinedArtifacts>::new(paths).unwrap();
 
@@ -795,7 +795,7 @@ mod tests {
 
     #[test]
     fn extra_output_cached() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
         let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
         let mut project = TempProject::<MultiCompiler>::new(paths.clone()).unwrap();
 

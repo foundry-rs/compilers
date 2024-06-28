@@ -53,9 +53,9 @@ pub struct Node {
 
 impl Node {
     /// Deserialize a serialized node attribute.
-    pub fn attribute<D: DeserializeOwned>(&self, key: impl AsRef<str>) -> Option<D> {
+    pub fn attribute<D: DeserializeOwned>(&self, key: &str) -> Option<D> {
         // TODO: Can we avoid this clone?
-        self.other.get(key.as_ref()).and_then(|v| serde_json::from_value(v.clone()).ok())
+        self.other.get(key).and_then(|v| serde_json::from_value(v.clone()).ok())
     }
 }
 

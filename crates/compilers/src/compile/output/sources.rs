@@ -64,17 +64,8 @@ impl VersionedSourceFiles {
     /// let source_file = output.sources.find_file("src/Greeter.sol").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn find_file(&self, source_file: impl AsRef<Path>) -> Option<&SourceFile> {
-        let source_file_name = source_file.as_ref();
-        self.sources().find_map(
-            |(path, source_file)| {
-                if path == source_file_name {
-                    Some(source_file)
-                } else {
-                    None
-                }
-            },
-        )
+    pub fn find_file(&self, path: &Path) -> Option<&SourceFile> {
+        self.sources().find(|&(p, _)| p == path).map(|(_, sf)| sf)
     }
 
     /// Same as [Self::find_file] but also checks for version
@@ -126,9 +117,8 @@ impl VersionedSourceFiles {
     /// let source_file = sources.remove_by_path("src/Greeter.sol").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn remove_by_path(&mut self, source_file: impl AsRef<Path>) -> Option<SourceFile> {
-        let source_file_path = source_file.as_ref();
-        self.0.get_mut(source_file_path).and_then(|all_sources| {
+    pub fn remove_by_path(&mut self, path: &Path) -> Option<SourceFile> {
+        self.0.get_mut(path).and_then(|all_sources| {
             if !all_sources.is_empty() {
                 Some(all_sources.remove(0).source_file)
             } else {
@@ -192,8 +182,7 @@ impl VersionedSourceFiles {
     }
 
     /// Sets the sources' file paths to `root` adjoined to `self.file`.
-    pub fn join_all(&mut self, root: impl AsRef<Path>) -> &mut Self {
-        let root = root.as_ref();
+    pub fn join_all(&mut self, root: &Path) -> &mut Self {
         self.0 = std::mem::take(&mut self.0)
             .into_iter()
             .map(|(file_path, sources)| (root.join(file_path), sources))
@@ -202,8 +191,7 @@ impl VersionedSourceFiles {
     }
 
     /// Removes `base` from all source file paths
-    pub fn strip_prefix_all(&mut self, base: impl AsRef<Path>) -> &mut Self {
-        let base = base.as_ref();
+    pub fn strip_prefix_all(&mut self, base: &Path) -> &mut Self {
         self.0 = std::mem::take(&mut self.0)
             .into_iter()
             .map(|(file_path, sources)| {

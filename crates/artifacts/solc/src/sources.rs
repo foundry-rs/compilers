@@ -32,9 +32,8 @@ impl Source {
     }
 
     /// Reads the file's content
-    #[instrument(level = "debug", skip_all, err)]
-    pub fn read(file: impl AsRef<Path>) -> Result<Self, SolcIoError> {
-        let file = file.as_ref();
+    #[instrument(name = "read_source", level = "debug", skip_all, err)]
+    pub fn read(file: &Path) -> Result<Self, SolcIoError> {
         trace!(file=%file.display());
         let mut content = fs::read_to_string(file).map_err(|err| SolcIoError::new(err, file))?;
 
@@ -47,15 +46,12 @@ impl Source {
     }
 
     /// Recursively finds all source files under the given dir path and reads them all
-    pub fn read_all_from(
-        dir: impl AsRef<Path>,
-        extensions: &[&str],
-    ) -> Result<Sources, SolcIoError> {
+    pub fn read_all_from(dir: &Path, extensions: &[&str]) -> Result<Sources, SolcIoError> {
         Self::read_all_files(utils::source_files(dir, extensions))
     }
 
     /// Recursively finds all solidity and yul files under the given dir path and reads them all
-    pub fn read_sol_yul_from(dir: impl AsRef<Path>) -> Result<Sources, SolcIoError> {
+    pub fn read_sol_yul_from(dir: &Path) -> Result<Sources, SolcIoError> {
         Self::read_all_from(dir, utils::SOLC_EXTENSIONS)
     }
 
@@ -110,8 +106,8 @@ impl Source {
 #[cfg(feature = "async")]
 impl Source {
     /// async version of `Self::read`
-    pub async fn async_read(file: impl AsRef<Path>) -> Result<Self, SolcIoError> {
-        let file = file.as_ref();
+    #[instrument(name = "async_read_source", level = "debug", skip_all, err)]
+    pub async fn async_read(file: &Path) -> Result<Self, SolcIoError> {
         let mut content =
             tokio::fs::read_to_string(file).await.map_err(|err| SolcIoError::new(err, file))?;
 
@@ -125,10 +121,10 @@ impl Source {
 
     /// Finds all source files under the given dir path and reads them all
     pub async fn async_read_all_from(
-        dir: impl AsRef<Path>,
+        dir: &Path,
         extensions: &[&str],
     ) -> Result<Sources, SolcIoError> {
-        Self::async_read_all(utils::source_files(dir.as_ref(), extensions)).await
+        Self::async_read_all(utils::source_files(dir, extensions)).await
     }
 
     /// async version of `Self::read_all`

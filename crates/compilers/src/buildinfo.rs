@@ -28,7 +28,7 @@ pub struct BuildInfo<I, O> {
 
 impl<I: DeserializeOwned, O: DeserializeOwned> BuildInfo<I, O> {
     /// Deserializes the `BuildInfo` object from the given file
-    pub fn read(path: impl AsRef<Path>) -> Result<Self> {
+    pub fn read(path: &Path) -> Result<Self> {
         utils::read_json_file(path)
     }
 }
@@ -59,13 +59,13 @@ impl<L: Language> BuildContext<L> {
         Ok(Self { source_id_to_path, language: input.language() })
     }
 
-    pub fn join_all(&mut self, root: impl AsRef<Path>) {
+    pub fn join_all(&mut self, root: &Path) {
         self.source_id_to_path.values_mut().for_each(|path| {
-            *path = root.as_ref().join(path.as_path());
+            *path = root.join(path.as_path());
         });
     }
 
-    pub fn with_joined_paths(mut self, root: impl AsRef<Path>) -> Self {
+    pub fn with_joined_paths(mut self, root: &Path) -> Self {
         self.join_all(root);
         self
     }
