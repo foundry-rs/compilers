@@ -61,7 +61,7 @@ impl VersionedSourceFiles {
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
-    /// let source_file = output.sources.find_file("src/Greeter.sol").unwrap();
+    /// let source_file = output.sources.find_file("src/Greeter.sol".as_ref()).unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn find_file(&self, path: &Path) -> Option<&SourceFile> {
@@ -114,7 +114,7 @@ impl VersionedSourceFiles {
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let (mut sources, _) = project.compile()?.into_output().split();
-    /// let source_file = sources.remove_by_path("src/Greeter.sol").unwrap();
+    /// let source_file = sources.remove_by_path("src/Greeter.sol".as_ref()).unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn remove_by_path(&mut self, path: &Path) -> Option<SourceFile> {

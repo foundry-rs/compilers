@@ -218,7 +218,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// let project = Project::builder().build(Default::default())?;
     /// let cache: CompilerCache<Settings> =
     ///     CompilerCache::read(project.cache_path())?.with_stripped_file_prefixes(project.root());
-    /// let artifact: CompactContract = cache.read_artifact("src/Greeter.sol", "Greeter")?;
+    /// let artifact: CompactContract = cache.read_artifact("src/Greeter.sol".as_ref(), "Greeter")?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     ///
@@ -241,7 +241,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let cache: CompilerCache<Settings> = CompilerCache::read_joined(&project.paths)?;
-    /// cache.find_artifact_path("/Users/git/myproject/src/Greeter.sol", "Greeter");
+    /// cache.find_artifact_path("/Users/git/myproject/src/Greeter.sol".as_ref(), "Greeter");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn find_artifact_path(&self, contract_file: &Path, contract_name: &str) -> Option<&Path> {
@@ -264,7 +264,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// let project = Project::builder().build(Default::default())?;
     /// let cache = CompilerCache::<Settings>::read_joined(&project.paths)?;
     /// let artifact: CompactContract =
-    ///     cache.read_artifact("/Users/git/myproject/src/Greeter.sol", "Greeter")?;
+    ///     cache.read_artifact("/Users/git/myproject/src/Greeter.sol".as_ref(), "Greeter")?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     ///

@@ -357,7 +357,7 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?;
-    /// let contract = output.find("src/Greeter.sol", "Greeter").unwrap();
+    /// let contract = output.find("src/Greeter.sol".as_ref(), "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn find(&self, path: &Path, name: &str) -> Option<&T::Artifact> {
@@ -384,7 +384,7 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?;
-    /// let contract = output.find("src/Greeter.sol", "Greeter").unwrap();
+    /// let contract = output.find("src/Greeter.sol".as_ref(), "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn remove(&mut self, path: &Path, name: &str) -> Option<T::Artifact> {
@@ -670,7 +670,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let mut output = project.compile()?.into_output();
-    /// let contract = output.remove("src/Greeter.sol", "Greeter").unwrap();
+    /// let contract = output.remove("src/Greeter.sol".as_ref(), "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn remove(&mut self, path: &Path, contract: &str) -> Option<Contract> {
@@ -754,7 +754,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
-    /// let contract = output.get("src/Greeter.sol", "Greeter").unwrap();
+    /// let contract = output.get("src/Greeter.sol".as_ref(), "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn get(&self, path: &Path, contract: &str) -> Option<CompactContractRef<'_>> {

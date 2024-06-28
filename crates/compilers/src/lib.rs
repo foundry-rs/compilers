@@ -256,7 +256,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     ///
     /// // Configure the project with all its paths, solc, cache etc.
     /// // where the root dir is the current Rust project.
-    /// let paths = ProjectPathsConfig::hardhat(env!("CARGO_MANIFEST_DIR"))?;
+    /// let paths = ProjectPathsConfig::hardhat(env!("CARGO_MANIFEST_DIR").as_ref())?;
     /// let project = Project::builder().paths(paths).build(Default::default())?;
     /// let output = project.compile()?;
     ///

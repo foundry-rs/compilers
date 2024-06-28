@@ -67,7 +67,7 @@ impl VersionedContracts {
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
-    /// let contract = output.contracts.find("src/Greeter.sol", "Greeter").unwrap();
+    /// let contract = output.contracts.find("src/Greeter.sol".as_ref(), "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn find(
@@ -117,7 +117,7 @@ impl VersionedContracts {
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let (_, mut contracts) = project.compile()?.into_output().split();
-    /// let contract = contracts.remove("src/Greeter.sol", "Greeter").unwrap();
+    /// let contract = contracts.remove("src/Greeter.sol".as_ref(), "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn remove(&mut self, path: &Path, contract_name: &str) -> Option<Contract> {
