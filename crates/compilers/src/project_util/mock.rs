@@ -120,7 +120,7 @@ impl MockProjectGenerator {
         for file in self.inner.files.iter() {
             let imports = self.get_imports(file.id);
             let content = file.mock_content(version, imports.join("\n").as_str());
-            super::create_contract_file(&file.target_path(self, paths), &content)?;
+            super::create_contract_file(&file.target_path(self, paths), content)?;
         }
 
         Ok(())
@@ -346,7 +346,7 @@ impl MockProjectGenerator {
         let file = &self.inner.files[id];
         let target = file.target_path(self, paths);
         let content = file.modified_content(version, self.get_imports(id).join("\n").as_str());
-        super::create_contract_file(&target, &content)?;
+        super::create_contract_file(&target, content)?;
         Ok(target)
     }
 
