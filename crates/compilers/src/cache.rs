@@ -36,7 +36,7 @@ const ETHERS_FORMAT_VERSION: &str = "ethers-rs-sol-cache-3";
 pub const SOLIDITY_FILES_CACHE_FILENAME: &str = "solidity-files-cache.json";
 
 /// A multi version cache file
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompilerCache<S = Settings> {
     #[serde(rename = "_format")]
     pub format: String,
@@ -392,7 +392,7 @@ impl<'a, S: CompilerSettings> From<&'a ProjectPathsConfig> for CompilerCache<S> 
 }
 
 /// Cached artifact data.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CachedArtifact {
     /// Path to the artifact file.
     pub path: PathBuf,
@@ -405,7 +405,7 @@ pub struct CachedArtifact {
 /// A solidity file can contain several contracts, for every contract a separate `Artifact` is
 /// emitted. so the `CacheEntry` tracks the artifacts by name. A file can be compiled with multiple
 /// `solc` versions generating version specific artifacts.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CacheEntry<S = Settings> {
     /// the last modification time of this file
@@ -576,7 +576,7 @@ impl<S> CacheEntry<S> {
 }
 
 /// Collection of source file paths mapped to versions.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct GroupedSources {
     pub inner: HashMap<PathBuf, HashSet<Version>>,
 }

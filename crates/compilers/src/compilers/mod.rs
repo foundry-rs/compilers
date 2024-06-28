@@ -26,7 +26,7 @@ pub use vyper::*;
 
 /// A compiler version is either installed (available locally) or can be downloaded, from the remote
 /// endpoint
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CompilerVersion {
     Installed(Version),

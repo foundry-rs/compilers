@@ -14,7 +14,7 @@ use std::{
 
 pub const VYPER_SEARCH_PATHS: Version = Version::new(0, 4, 0);
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct VyperVersionedInput {
     #[serde(flatten)]
     pub input: VyperInput,

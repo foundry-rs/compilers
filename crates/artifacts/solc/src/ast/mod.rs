@@ -137,7 +137,7 @@ node_group! {
 }
 
 // TODO: Better name
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BlockOrStatement {
     Statement(Statement),
@@ -188,7 +188,7 @@ ast_node!(
 );
 
 /// All Solidity contract kinds.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ContractKind {
     /// A normal contract.
@@ -220,7 +220,7 @@ expr_node!(
 );
 
 /// Assignment operators.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AssignmentOperator {
     /// Simple assignment (`=`)
     #[serde(rename = "=")]
@@ -270,7 +270,7 @@ ast_node!(
 );
 
 /// Binary operators.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BinaryOperator {
     /// Addition (`+`)
     #[serde(rename = "+")]
@@ -353,7 +353,7 @@ expr_node!(
 );
 
 // TODO: Better name
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ElementaryOrRawTypeName {
     /// An [ElementaryTypeName] node that describes the type.
@@ -387,7 +387,7 @@ expr_node!(
 );
 
 /// Function call kinds.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum FunctionCallKind {
     /// A regular function call.
@@ -448,7 +448,7 @@ expr_node!(
 );
 
 /// Literal kinds.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum LiteralKind {
     /// A boolean.
@@ -622,7 +622,7 @@ expr_node!(
 );
 
 /// Unary operators.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnaryOperator {
     /// Increment (`++`)
     #[serde(rename = "++")]
@@ -774,7 +774,7 @@ impl FunctionDefinition {
 }
 
 /// Function kinds.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum FunctionKind {
     /// A contract function.
@@ -875,7 +875,7 @@ ast_node!(
 );
 
 /// A reference to an external variable or slot in an inline assembly block.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalInlineAssemblyReference {
     #[serde(with = "serde_helpers::display_from_str")]
@@ -892,7 +892,7 @@ pub struct ExternalInlineAssemblyReference {
 }
 
 /// An assembly reference suffix.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AssemblyReferenceSuffix {
     /// The reference refers to a storage slot.
@@ -914,7 +914,7 @@ impl fmt::Display for AssemblyReferenceSuffix {
 }
 
 /// Inline assembly flags.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InlineAssemblyFlag {
     #[serde(rename = "memory-safe")]
     MemorySafe,
@@ -983,7 +983,7 @@ ast_node!(
 );
 
 /// Modifier invocation kinds.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ModifierInvocationKind {
     /// A regular modifier invocation.
@@ -1046,7 +1046,7 @@ ast_node!(
     }
 );
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UsingForFunctionItem {
     Function(FunctionIdentifierPath),
@@ -1054,12 +1054,12 @@ pub enum UsingForFunctionItem {
 }
 
 /// A wrapper around [IdentifierPath] for the [UsingForDirective].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FunctionIdentifierPath {
     pub function: IdentifierPath,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OverloadedOperator {
     pub definition: IdentifierPath,
     pub operator: String,
@@ -1082,7 +1082,7 @@ ast_node!(
 /// A symbol alias.
 ///
 /// Symbol aliases can be defined using the [ImportDirective].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SymbolAlias {
     pub foreign: Identifier,
     pub local: Option<String>,

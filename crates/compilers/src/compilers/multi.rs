@@ -29,7 +29,7 @@ use std::{
 };
 
 /// Compiler capable of compiling both Solidity and Vyper sources.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct MultiCompiler {
     pub solc: SolcCompiler,
     pub vyper: Option<Vyper>,
@@ -52,7 +52,7 @@ impl MultiCompiler {
 }
 
 /// Languages supported by the [MultiCompiler].
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum MultiCompilerLanguage {
     Solc(SolcLanguage),
@@ -85,7 +85,7 @@ impl fmt::Display for MultiCompilerLanguage {
 }
 
 /// Source parser for the [MultiCompiler]. Recognizes Solc and Vyper sources.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub enum MultiCompilerParsedSource {
     Solc(SolData),
     Vyper(VyperParsedSource),
@@ -108,7 +108,7 @@ impl MultiCompilerParsedSource {
 }
 
 /// Compilation error which may occur when compiling Solidity or Vyper sources.
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum MultiCompilerError {
     Solc(Error),
@@ -125,7 +125,7 @@ impl fmt::Display for MultiCompilerError {
 }
 
 /// Settings for the [MultiCompiler]. Includes settings for both Solc and Vyper compilers.
-#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MultiCompilerSettings {
     pub solc: SolcSettings,
     pub vyper: VyperSettings,
@@ -155,7 +155,7 @@ impl From<MultiCompilerSettings> for VyperSettings {
 }
 
 /// Input for the [MultiCompiler]. Either Solc or Vyper input.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
 pub enum MultiCompilerInput {
     Solc(SolcVersionedInput),

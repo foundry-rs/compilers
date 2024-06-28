@@ -5,7 +5,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt, fmt::Write, str::FromStr};
 
 /// Represents the AST field in the solc output
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ast {
     #[serde(rename = "absolutePath")]
     pub absolute_path: String,
@@ -24,7 +24,7 @@ pub struct Ast {
     pub other: BTreeMap<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Node {
     /// The node ID.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -62,7 +62,7 @@ impl Node {
 /// Represents the source location of a node: `<start byte>:<length>:<source index>`.
 ///
 /// The `length` and `index` can be -1 which is represented as `None`
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SourceLocation {
     pub start: usize,
     pub length: Option<usize>,
@@ -118,7 +118,7 @@ impl fmt::Display for SourceLocation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NodeType {
     // Expressions
     Assignment,

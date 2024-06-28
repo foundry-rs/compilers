@@ -59,7 +59,7 @@ pub const SOLIDITY: &str = "Solidity";
 pub const YUL: &str = "Yul";
 
 /// Languages supported by the Solc compiler.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum SolcLanguage {
     Solidity,
@@ -560,7 +560,7 @@ impl Default for Settings {
 }
 
 /// A wrapper type for all libraries in the form of `<file>:<lib>:<addr>`
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Libraries {
     /// All libraries, `(file path -> (Lib name -> Address))`.
@@ -699,7 +699,7 @@ impl Default for Optimizer {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OptimizerDetails {
     /// The peephole optimizer is always on if no details are given,
@@ -761,7 +761,7 @@ impl OptimizerDetails {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct YulDetails {
     /// Improve allocation of stack slots for variables, can free up stack slots early.
@@ -795,7 +795,7 @@ impl YulDetails {
 // - add the version to the top of `normalize_version` and wherever else the compiler complains
 // - update `FromStr` impl
 // - write a test case in `test_evm_version_normalization` at the bottom of this file.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum EvmVersion {
     Homestead,
     TangerineWhistle,
@@ -960,7 +960,7 @@ pub struct DebuggingSettings {
 }
 
 /// How to treat revert (and require) reason strings.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RevertStrings {
     /// "default" does not inject compiler-generated revert strings and keeps user-supplied ones.
     #[default]
@@ -1037,7 +1037,7 @@ impl From<BytecodeHash> for SettingsMetadata {
 /// Determines the hash method for the metadata hash that is appended to the bytecode.
 ///
 /// Solc's default is `Ipfs`, see <https://docs.soliditylang.org/en/latest/using-the-compiler.html#compiler-api>.
-#[derive(Clone, Debug, Default, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BytecodeHash {
     #[default]
     Ipfs,
@@ -1136,7 +1136,7 @@ impl<'de> Deserialize<'de> for LosslessMetadata {
 }
 
 /// Compiler settings
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MetadataSettings {
     #[serde(default)]
     pub remappings: Vec<Remapping>,
@@ -1174,7 +1174,7 @@ pub struct MetadataSources {
     pub inner: BTreeMap<String, MetadataSource>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MetadataSource {
     /// Required: keccak256 hash of the source file
     pub keccak256: String,
@@ -1423,14 +1423,14 @@ pub struct Doc {
     pub version: Option<u32>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocLibraries {
     #[serde(flatten)]
     pub libs: BTreeMap<String, serde_json::Value>,
 }
 
 /// How to filter errors/warnings
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ErrorFilter<'a> {
     /// Ignore errors/warnings with these codes
     pub error_codes: Cow<'a, [u64]>,
@@ -1470,7 +1470,7 @@ impl<'a> From<&'a [u64]> for ErrorFilter<'a> {
 }
 
 /// Output type `solc` produces
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompilerOutput {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<Error>,
@@ -1571,7 +1571,7 @@ impl CompilerOutput {
 }
 
 /// A wrapper helper type for the `Contracts` type alias
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OutputContracts(pub Contracts);
 
 impl OutputContracts {
@@ -1600,7 +1600,7 @@ impl OutputContracts {
     }
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserDoc {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<u32>,
@@ -1616,7 +1616,7 @@ pub struct UserDoc {
     pub notice: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UserDocNotice {
     // NOTE: this a variant used for constructors on older solc versions
@@ -1624,7 +1624,7 @@ pub enum UserDocNotice {
     Notice { notice: String },
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DevDoc {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<u32>,
@@ -1646,7 +1646,7 @@ pub struct DevDoc {
     pub title: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MethodDoc {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub details: Option<String>,
@@ -1656,7 +1656,7 @@ pub struct MethodDoc {
     pub returns: BTreeMap<String, String>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventDoc {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub details: Option<String>,
@@ -1664,7 +1664,7 @@ pub struct EventDoc {
     pub params: BTreeMap<String, String>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorDoc {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub details: Option<String>,
@@ -1672,7 +1672,7 @@ pub struct ErrorDoc {
     pub params: BTreeMap<String, String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Evm {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1721,7 +1721,7 @@ impl Evm {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CompactEvm {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1739,7 +1739,7 @@ pub(crate) struct CompactEvm {
     pub gas_estimates: Option<GasEstimates>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionDebugData {
     pub entry_point: Option<u32>,
@@ -1748,7 +1748,7 @@ pub struct FunctionDebugData {
     pub return_slots: Option<u32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GeneratedSource {
     pub ast: serde_json::Value,
     pub contents: String,
@@ -1759,13 +1759,13 @@ pub struct GeneratedSource {
 
 /// Byte offsets into the bytecode.
 /// Linking replaces the 20 bytes located there.
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Offsets {
     pub start: u32,
     pub length: u32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GasEstimates {
     pub creation: Creation,
     #[serde(default)]
@@ -1774,7 +1774,7 @@ pub struct GasEstimates {
     pub internal: BTreeMap<String, String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Creation {
     pub code_deposit_cost: String,
@@ -1782,7 +1782,7 @@ pub struct Creation {
     pub total_cost: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ewasm {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wast: Option<String>,
@@ -1790,7 +1790,7 @@ pub struct Ewasm {
 }
 
 /// Represents the `storage-layout` section of the `CompilerOutput` if selected.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StorageLayout {
     pub storage: Vec<Storage>,
     #[serde(default, deserialize_with = "serde_helpers::default_for_null")]
@@ -1803,7 +1803,7 @@ impl StorageLayout {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Storage {
     #[serde(rename = "astId")]
     pub ast_id: u64,
@@ -1815,7 +1815,7 @@ pub struct Storage {
     pub storage_type: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StorageType {
     pub encoding: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1830,31 +1830,25 @@ pub struct StorageType {
     pub other: BTreeMap<String, serde_json::Value>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceFile {
     pub id: u32,
     #[serde(default, with = "serde_helpers::empty_json_object_opt")]
     pub ast: Option<Ast>,
 }
 
-// === impl SourceFile ===
-
 impl SourceFile {
     /// Returns `true` if the source file contains at least 1 `ContractDefinition` such as
-    /// `contract`, `abstract contract`, `interface` or `library`
+    /// `contract`, `abstract contract`, `interface` or `library`.
     pub fn contains_contract_definition(&self) -> bool {
-        if let Some(ref ast) = self.ast {
-            // contract definitions are only allowed at the source-unit level <https://docs.soliditylang.org/en/latest/grammar.html>
-            return ast.nodes.iter().any(|node| node.node_type == NodeType::ContractDefinition);
-            // abstract contract, interfaces: ContractDefinition
-        }
-
-        false
+        self.ast.as_ref().is_some_and(|ast| {
+            ast.nodes.iter().any(|node| matches!(node.node_type, NodeType::ContractDefinition))
+        })
     }
 }
 
 /// A wrapper type for a list of source files: `path -> SourceFile`.
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceFiles(pub BTreeMap<PathBuf, SourceFile>);
 
 impl SourceFiles {

@@ -10,7 +10,7 @@ macro_rules! ast_node {
         }
     ) => {
         $(#[$struct_meta])*
-        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
         #[serde(rename_all = "camelCase")]
         pub struct $name {
             pub id: usize,
@@ -88,7 +88,7 @@ macro_rules! stmt_node {
 /// The inner value of each variant is boxed since AST types are inherently recursive.
 macro_rules! node_group {
     ($group:ident; $( $name:ident ),* $(,)*) => {
-        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
         #[serde(tag = "nodeType")]
         pub enum $group {
             $(

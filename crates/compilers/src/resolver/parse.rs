@@ -10,7 +10,7 @@ use std::{
 };
 
 /// Represents various information about a solidity file parsed via [solang_parser]
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct SolData {
     pub license: Option<SolDataUnit<String>>,
     pub version: Option<SolDataUnit<String>>,
@@ -145,13 +145,13 @@ impl SolData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct SolImport {
     path: PathBuf,
     aliases: Vec<SolImportAlias>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SolImportAlias {
     File(String),
     Contract(String, String),
@@ -177,7 +177,7 @@ impl SolImport {
 }
 
 /// Minimal representation of a contract inside a solidity file
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct SolLibrary {
     pub functions: Vec<FunctionDefinition>,
 }
@@ -207,7 +207,7 @@ impl SolLibrary {
 }
 
 /// Represents an item in a solidity file with its location in the file
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct SolDataUnit<T> {
     loc: Range<usize>,
     data: T,

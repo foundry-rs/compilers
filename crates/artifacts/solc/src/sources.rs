@@ -15,7 +15,7 @@ pub type Sources = BTreeMap<PathBuf, Source>;
 /// Content of a solidity file
 ///
 /// This contains the actual source code of a file
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Source {
     /// Content of the file
     ///

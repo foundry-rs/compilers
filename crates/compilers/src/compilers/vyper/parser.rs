@@ -19,14 +19,14 @@ use winnow::{
     PResult, Parser,
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct VyperImport {
     pub level: usize,
     pub path: Option<String>,
     pub final_part: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct VyperParsedSource {
     path: PathBuf,
     version_req: Option<VersionReq>,

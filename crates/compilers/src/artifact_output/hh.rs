@@ -6,7 +6,7 @@ use foundry_compilers_artifacts::{
 use std::path::Path;
 
 /// Hardhat style artifacts handler
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct HardhatArtifacts {
     _priv: (),
 }

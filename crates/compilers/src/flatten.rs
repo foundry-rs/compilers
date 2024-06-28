@@ -24,7 +24,7 @@ use std::{
 use visitor::Walk;
 
 /// Alternative of `SourceLocation` which includes path of the file.
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct ItemLocation {
     path: PathBuf,
     start: usize,
@@ -174,7 +174,7 @@ impl<'a> FlatteningResult<'a> {
     }
 }
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum FlattenerError {
     #[error("Failed to compile {0}")]
     Compilation(SolcError),

@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Debug, Serialize, Clone, Copy, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum VyperOptimizationMode {
     Gas,
@@ -15,7 +15,7 @@ pub enum VyperOptimizationMode {
     None,
 }
 
-#[derive(Debug, Serialize, Clone, Default, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VyperSettings {
     #[serde(

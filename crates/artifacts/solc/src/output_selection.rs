@@ -68,7 +68,7 @@ pub type FileOutputSelection = BTreeMap<String, Vec<String>>;
 ///    }
 ///  }
 /// ```
-#[derive(Debug, Clone, Eq, PartialEq, Default, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
 #[serde(transparent)]
 pub struct OutputSelection(pub BTreeMap<String, FileOutputSelection>);
 
@@ -211,7 +211,7 @@ impl From<BTreeMap<String, FileOutputSelection>> for OutputSelection {
 }
 
 /// Contract level output selection
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ContractOutputSelection {
     Abi,
     DevDoc,
@@ -308,7 +308,7 @@ impl From<EwasmOutputSelection> for ContractOutputSelection {
 }
 
 /// Contract level output selection for `evm`
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EvmOutputSelection {
     All,
     Assembly,
@@ -387,7 +387,7 @@ impl FromStr for EvmOutputSelection {
 }
 
 /// Contract level output selection for `evm.bytecode`
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BytecodeOutputSelection {
     All,
     FunctionDebugData,
@@ -448,7 +448,7 @@ impl FromStr for BytecodeOutputSelection {
 }
 
 /// Contract level output selection for `evm.deployedBytecode`
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeployedBytecodeOutputSelection {
     All,
     FunctionDebugData,
@@ -516,7 +516,7 @@ impl FromStr for DeployedBytecodeOutputSelection {
 }
 
 /// Contract level output selection for `evm.ewasm`
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EwasmOutputSelection {
     All,
     Wast,

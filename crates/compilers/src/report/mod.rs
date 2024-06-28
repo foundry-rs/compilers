@@ -304,7 +304,7 @@ pub fn set_scoped(reporter: &Report) -> ScopeGuard {
 }
 
 /// A no-op [`Reporter`] that does nothing.
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct NoReporter(());
 
 impl Reporter for NoReporter {}

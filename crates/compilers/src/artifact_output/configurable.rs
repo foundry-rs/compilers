@@ -40,7 +40,7 @@ use std::{fs, path::Path};
 ///    // additional values
 ///  }
 /// ```
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ConfigurableArtifacts {
     /// A set of additional values to include in the contract's artifact file
     pub additional_values: ExtraOutputValues,
@@ -369,7 +369,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
 }
 
 /// Determines the additional values to include in the contract's artifact file
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ExtraOutputValues {
     pub ast: bool,
     pub userdoc: bool,
@@ -493,7 +493,7 @@ impl ExtraOutputValues {
 }
 
 /// Determines what to emit as additional file
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ExtraOutputFiles {
     pub abi: bool,
     pub metadata: bool,

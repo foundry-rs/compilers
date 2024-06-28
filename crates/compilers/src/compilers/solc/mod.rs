@@ -23,7 +23,7 @@ use std::{
 mod compiler;
 pub use compiler::{Solc, SOLC_EXTENSIONS};
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "svm-solc", derive(Default))]
 pub enum SolcCompiler {
     #[default]
@@ -100,7 +100,7 @@ impl Compiler for SolcCompiler {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SolcVersionedInput {
     pub version: Version,

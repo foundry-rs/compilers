@@ -10,7 +10,7 @@ use foundry_compilers_core::utils;
 use serde::{Deserialize, Serialize, Serializer};
 use std::collections::BTreeMap;
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Bytecode {
     /// Debugging information at function level
@@ -34,7 +34,7 @@ pub struct Bytecode {
     pub link_references: BTreeMap<String, BTreeMap<String, Vec<Offsets>>>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompactBytecode {
     /// The bytecode as a hex string.
@@ -228,7 +228,7 @@ impl Bytecode {
 }
 
 /// Represents the bytecode of a contracts that might be not fully linked yet.
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BytecodeObject {
     /// Fully linked bytecode object.
@@ -411,7 +411,7 @@ where
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeployedBytecode {
     #[serde(flatten)]
     pub bytecode: Option<Bytecode>,
@@ -441,7 +441,7 @@ impl From<Bytecode> for DeployedBytecode {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompactDeployedBytecode {
     #[serde(flatten)]

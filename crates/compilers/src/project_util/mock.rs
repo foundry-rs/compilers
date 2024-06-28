@@ -20,7 +20,7 @@ use crate::{
 };
 
 /// Represents the layout of a project
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct MockProjectSkeleton {
     /// all files for the project
     pub files: Vec<MockFile>,
@@ -398,7 +398,7 @@ trait NamingStrategy {
 }
 
 /// A primitive naming that simply uses ids to create unique names
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 #[non_exhaustive]
 pub struct SimpleNamingStrategy;
 
@@ -417,7 +417,7 @@ impl NamingStrategy for SimpleNamingStrategy {
 }
 
 /// Skeleton of a mock source file
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MockFile {
     /// internal id of this file
     pub id: usize,
@@ -496,7 +496,7 @@ pragma solidity {version};
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum MockImport {
     /// Import from the same project
     Internal(usize),
@@ -515,7 +515,7 @@ impl MockImport {
 }
 
 /// Container of a mock lib
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MockLib {
     /// name of the lib, like `ds-test`
     pub name: String,
@@ -538,7 +538,7 @@ impl MockLib {
 }
 
 /// Settings to use when generate a mock project
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MockProjectSettings {
     /// number of source files to generate
     pub num_sources: usize,
