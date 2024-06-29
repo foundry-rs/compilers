@@ -10,7 +10,7 @@ use foundry_compilers_artifacts::{
 };
 use foundry_compilers_core::{
     error::{Result, SolcError, SolcIoError},
-    utils,
+    utils::{self, strip_prefix_owned},
 };
 use path_slash::PathBufExt;
 use semver::Version;
@@ -70,6 +70,19 @@ impl ArtifactId {
         self
     }
 
+    /// Removes `base` from the source's path.
+    pub fn strip_file_prefixes(&mut self, base: &Path) {
+        if let Ok(stripped) = self.source.strip_prefix(base) {
+            self.source = stripped.to_path_buf();
+        }
+    }
+
+    /// Convenience function for [`Self::strip_file_prefixes()`]
+    pub fn with_stripped_file_prefixes(mut self, base: &Path) -> Self {
+        self.strip_file_prefixes(base);
+        self
+    }
+
     /// Returns a `<filename>:<name>` slug that identifies an artifact
     ///
     /// Note: This identifier is not necessarily unique. If two contracts have the same name, they
@@ -125,8 +138,8 @@ impl<T> ArtifactFile<T> {
 
     /// Removes `base` from the artifact's path
     pub fn strip_prefix(&mut self, base: &Path) {
-        if let Ok(prefix) = self.file.strip_prefix(base) {
-            self.file = prefix.to_path_buf();
+        if let Ok(stripped) = self.file.strip_prefix(base) {
+            self.file = stripped.to_path_buf();
         }
     }
 }
@@ -352,19 +365,8 @@ impl<T> Artifacts<T> {
     /// Strips the given prefix from all artifact file paths to make them relative to the given
     /// `root` argument
     pub fn into_stripped_file_prefixes(self, base: &Path) -> Self {
-        let artifacts = self
-            .0
-            .into_iter()
-            .map(|(file, c)| {
-                let file_path = Path::new(&file);
-                if let Ok(p) = file_path.strip_prefix(base) {
-                    (p.to_path_buf(), c)
-                } else {
-                    (file, c)
-                }
-            })
-            .collect();
-
+        let artifacts =
+            self.0.into_iter().map(|(path, c)| (strip_prefix_owned(path, base), c)).collect();
         Self(artifacts)
     }
 

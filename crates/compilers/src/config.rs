@@ -13,7 +13,7 @@ use foundry_compilers_artifacts::{
 };
 use foundry_compilers_core::{
     error::{Result, SolcError, SolcIoError},
-    utils,
+    utils::{self, strip_prefix_owned},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -661,27 +661,25 @@ impl ProjectPaths {
 
     /// Removes `base` from all folders
     pub fn strip_prefix_all(&mut self, base: &Path) -> &mut Self {
-        if let Ok(prefix) = self.artifacts.strip_prefix(base) {
-            self.artifacts = prefix.to_path_buf();
+        if let Ok(stripped) = self.artifacts.strip_prefix(base) {
+            self.artifacts = stripped.to_path_buf();
         }
-        if let Ok(prefix) = self.build_infos.strip_prefix(base) {
-            self.build_infos = prefix.to_path_buf();
+        if let Ok(stripped) = self.build_infos.strip_prefix(base) {
+            self.build_infos = stripped.to_path_buf();
         }
-        if let Ok(prefix) = self.sources.strip_prefix(base) {
-            self.sources = prefix.to_path_buf();
+        if let Ok(stripped) = self.sources.strip_prefix(base) {
+            self.sources = stripped.to_path_buf();
         }
-        if let Ok(prefix) = self.tests.strip_prefix(base) {
-            self.tests = prefix.to_path_buf();
+        if let Ok(stripped) = self.tests.strip_prefix(base) {
+            self.tests = stripped.to_path_buf();
         }
-        if let Ok(prefix) = self.scripts.strip_prefix(base) {
-            self.scripts = prefix.to_path_buf();
+        if let Ok(stripped) = self.scripts.strip_prefix(base) {
+            self.scripts = stripped.to_path_buf();
         }
-        let libraries = std::mem::take(&mut self.libraries);
-        self.libraries.extend(
-            libraries
-                .into_iter()
-                .map(|p| p.strip_prefix(base).map(|p| p.to_path_buf()).unwrap_or(p)),
-        );
+        self.libraries = std::mem::take(&mut self.libraries)
+            .into_iter()
+            .map(|path| strip_prefix_owned(path, base))
+            .collect();
         self
     }
 }

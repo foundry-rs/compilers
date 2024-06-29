@@ -210,7 +210,17 @@ pub fn solidity_dirs(root: &Path) -> Vec<PathBuf> {
 ///
 /// `/Users/project/sources/contract.sol` -> `sources/contracts.sol`
 pub fn source_name<'a>(source: &'a Path, root: &Path) -> &'a Path {
+    strip_prefix(source, root)
+}
+
+/// Strips `root` from `source` and returns the relative path.
+pub fn strip_prefix<'a>(source: &'a Path, root: &Path) -> &'a Path {
     source.strip_prefix(root).unwrap_or(source)
+}
+
+/// Strips `root` from `source` and returns the relative path.
+pub fn strip_prefix_owned(source: PathBuf, root: &Path) -> PathBuf {
+    source.strip_prefix(root).map(Path::to_path_buf).unwrap_or(source)
 }
 
 /// Attempts to determine if the given source is a local, relative import.
