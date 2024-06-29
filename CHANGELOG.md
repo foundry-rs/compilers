@@ -5,14 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0](https://github.com/foundry-rs/compilers/releases/tag/v0.8.0) - 2024-06-17
+## [0.9.0](https://github.com/foundry-rs/compilers/releases/tag/v0.9.0) - 2024-06-29
 
 ### Bug Fixes
 
+- Doctests ([#154](https://github.com/foundry-rs/compilers/issues/154))
 - [flatten] Small bugs ([#153](https://github.com/foundry-rs/compilers/issues/153))
+
+### Dependencies
+
+- Cleanup workspace deps ([#158](https://github.com/foundry-rs/compilers/issues/158))
+
+### Features
+
+- Respect `paths.libraries` for Vyper ([#159](https://github.com/foundry-rs/compilers/issues/159))
 
 ### Miscellaneous Tasks
 
+- Improve stripping file prefixes ([#164](https://github.com/foundry-rs/compilers/issues/164))
+- Improve some trace-level logs ([#163](https://github.com/foundry-rs/compilers/issues/163))
+- Remove most impl AsRef<str,Path> ([#157](https://github.com/foundry-rs/compilers/issues/157))
+- Clarify version cache lock ([#160](https://github.com/foundry-rs/compilers/issues/160))
+- Sort derives, derive Eq more ([#161](https://github.com/foundry-rs/compilers/issues/161))
+- [meta] Update CODEOWNERS
+- Release 0.8.0
 - Rename foundry-compilers-project into foundry-compilers ([#152](https://github.com/foundry-rs/compilers/issues/152))
 - Clippy
 - Move lints to workspace ([#149](https://github.com/foundry-rs/compilers/issues/149))
@@ -20,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
+- Symlink readme
 - Sync workflows
 
 ### Performance
@@ -28,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Refactor
 
+- Unify sources and filtered sources ([#162](https://github.com/foundry-rs/compilers/issues/162))
 - [flatten] Move compilation logic into `Flattener` ([#143](https://github.com/foundry-rs/compilers/issues/143))
 - Extract artifacts to a separate crate ([#142](https://github.com/foundry-rs/compilers/issues/142))
 
