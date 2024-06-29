@@ -44,7 +44,7 @@ impl VyperSettings {
                     (
                         Path::new(&file)
                             .strip_prefix(base)
-                            .map(|p| format!("{}", p.display()))
+                            .map(|p| p.display().to_string())
                             .unwrap_or(file),
                         selection,
                     )

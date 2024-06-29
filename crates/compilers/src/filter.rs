@@ -156,12 +156,13 @@ impl<'a> SparseOutputFilter<'a> {
 
             // set output selections
             for file in sources.0.keys() {
-                let key = format!("{}", file.display());
-                if full_compilation.contains(file) {
-                    selection.as_mut().insert(key, default_selection.clone());
+                let key = file.display().to_string();
+                let output = if full_compilation.contains(file) {
+                    default_selection.clone()
                 } else {
-                    selection.as_mut().insert(key, OutputSelection::empty_file_output_select());
-                }
+                    OutputSelection::empty_file_output_select()
+                };
+                selection.as_mut().insert(key, output);
             }
         });
 

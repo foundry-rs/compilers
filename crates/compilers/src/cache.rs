@@ -14,7 +14,7 @@ use foundry_compilers_artifacts::{
 };
 use foundry_compilers_core::{
     error::{Result, SolcError},
-    utils,
+    utils::{self, strip_prefix},
 };
 use semver::Version;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -619,14 +619,14 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             .edges
             .imports(&file)
             .into_iter()
-            .map(|import| utils::source_name(import, self.project.root()).to_path_buf())
+            .map(|import| strip_prefix(import, self.project.root()).into())
             .collect();
 
         let entry = CacheEntry {
             last_modification_date: CacheEntry::<C::Settings>::read_last_modification_date(&file)
                 .unwrap_or_default(),
             content_hash: source.content_hash(),
-            source_name: utils::source_name(&file, self.project.root()).into(),
+            source_name: strip_prefix(&file, self.project.root()).into(),
             compiler_settings: self.project.settings.clone(),
             imports,
             version_requirement: self.edges.version_requirement(&file).map(|v| v.to_string()),

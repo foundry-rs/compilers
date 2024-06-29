@@ -38,8 +38,8 @@ use crate::output_selection::{ContractOutputSelection, OutputSelection};
 use foundry_compilers_core::{
     error::SolcError,
     utils::{
-        BERLIN_SOLC, BYZANTIUM_SOLC, CANCUN_SOLC, CONSTANTINOPLE_SOLC, ISTANBUL_SOLC, LONDON_SOLC,
-        PARIS_SOLC, PETERSBURG_SOLC, SHANGHAI_SOLC,
+        strip_prefix_owned, BERLIN_SOLC, BYZANTIUM_SOLC, CANCUN_SOLC, CONSTANTINOPLE_SOLC,
+        ISTANBUL_SOLC, LONDON_SOLC, PARIS_SOLC, PETERSBURG_SOLC, SHANGHAI_SOLC,
     },
 };
 pub use serde_helpers::{deserialize_bytes, deserialize_opt_bytes};
@@ -167,7 +167,7 @@ impl SolcInput {
     pub fn strip_prefix(&mut self, base: &Path) {
         self.sources = std::mem::take(&mut self.sources)
             .into_iter()
-            .map(|(path, s)| (path.strip_prefix(base).map(Into::into).unwrap_or(path), s))
+            .map(|(path, s)| (strip_prefix_owned(path, base), s))
             .collect();
 
         self.settings.strip_prefix(base);
@@ -505,7 +505,7 @@ impl Settings {
                     (
                         Path::new(&file)
                             .strip_prefix(base)
-                            .map(|p| format!("{}", p.display()))
+                            .map(|p| p.display().to_string())
                             .unwrap_or(file),
                         selection,
                     )
@@ -521,7 +521,7 @@ impl Settings {
                     (
                         Path::new(&path)
                             .strip_prefix(base)
-                            .map(|p| format!("{}", p.display()))
+                            .map(|p| p.display().to_string())
                             .unwrap_or(path),
                         contracts,
                     )

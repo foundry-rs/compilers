@@ -68,7 +68,7 @@ impl Remapping {
     /// Removes the `base` path from the remapping
     pub fn strip_prefix(&mut self, base: &Path) -> &mut Self {
         if let Ok(stripped) = Path::new(&self.path).strip_prefix(base) {
-            self.path = format!("{}", stripped.display());
+            self.path = stripped.display().to_string();
         }
         self
     }
@@ -356,7 +356,7 @@ impl fmt::Display for RelativeRemapping {
 impl From<RelativeRemapping> for Remapping {
     fn from(r: RelativeRemapping) -> Self {
         let RelativeRemapping { context, mut name, path } = r;
-        let mut path = format!("{}", path.relative().display());
+        let mut path = path.relative().display().to_string();
         if !path.ends_with('/') {
             path.push('/');
         }

@@ -1,8 +1,8 @@
-use std::path::Path;
-
 use super::VyperSettings;
 use foundry_compilers_artifacts_solc::sources::Sources;
+use foundry_compilers_core::utils::strip_prefix_owned;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 /// Extension of Vyper interface file.
 pub const VYPER_INTERFACE_EXTENSION: &str = "vyi";
@@ -37,12 +37,12 @@ impl VyperInput {
     pub fn strip_prefix(&mut self, base: &Path) {
         self.sources = std::mem::take(&mut self.sources)
             .into_iter()
-            .map(|(path, s)| (path.strip_prefix(base).map(Into::into).unwrap_or(path), s))
+            .map(|(path, s)| (strip_prefix_owned(path, base), s))
             .collect();
 
         self.interfaces = std::mem::take(&mut self.interfaces)
             .into_iter()
-            .map(|(path, s)| (path.strip_prefix(base).map(Into::into).unwrap_or(path), s))
+            .map(|(path, s)| (strip_prefix_owned(path, base), s))
             .collect();
 
         self.settings.strip_prefix(base)

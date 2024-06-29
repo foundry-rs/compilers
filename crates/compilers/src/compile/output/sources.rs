@@ -1,4 +1,5 @@
 use crate::SourceFile;
+use foundry_compilers_core::utils::strip_prefix_owned;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -194,9 +195,7 @@ impl VersionedSourceFiles {
     pub fn strip_prefix_all(&mut self, base: &Path) -> &mut Self {
         self.0 = std::mem::take(&mut self.0)
             .into_iter()
-            .map(|(file_path, sources)| {
-                (file_path.strip_prefix(base).unwrap_or(&file_path).to_path_buf(), sources)
-            })
+            .map(|(file, sources)| (strip_prefix_owned(file, base), sources))
             .collect();
         self
     }
