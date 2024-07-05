@@ -4015,9 +4015,7 @@ fn remapping_trailing_slash_issue47() {
         path: ".".into(),
     });
     let input = SolcInput { language: SolcLanguage::Solidity, sources, settings };
-    println!("{:?}", serde_json::to_string(&input));
     let compiler = Solc::find_or_install(&Version::new(0, 6, 8)).unwrap();
     let output = compiler.compile_exact(&input).unwrap();
-    println!("{:?}", output.errors);
     assert!(!output.has_error());
 }
