@@ -4008,8 +4008,10 @@ fn remapping_trailing_slash_issue47() {
         Source { content: Arc::new(r#"contract D {}"#.to_string()), kind: Default::default() },
     );
 
-    let mut settings = Settings::default();
-    settings.evm_version = Some(EvmVersion::Byzantium);
+    let mut settings = Settings {
+        evm_version: Some(EvmVersion::Byzantium),
+        ..Default::default()
+    };
     settings.remappings.push(Remapping {
         context: None,
         name: "@project".into(),
