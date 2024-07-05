@@ -1163,7 +1163,7 @@ mod tests {
                 path: "a/b/c/d".to_string(),
             }
         );
-        assert_eq!(remapping.to_string(), "context:oz=a/b/c/d/".to_string());
+        assert_eq!(remapping.to_string(), "context:oz/=a/b/c/d/".to_string());
 
         let remapping = "context:foo=C:/bar/src/";
         let remapping = Remapping::from_str(remapping).unwrap();
@@ -1187,7 +1187,7 @@ mod tests {
             remapping,
             Remapping { context: None, name: "oz".to_string(), path: "a/b/c/d/".to_string() }
         );
-        assert_eq!(remapping.to_string(), "oz=a/b/c/d/".to_string());
+        assert_eq!(remapping.to_string(), "oz/=a/b/c/d/".to_string());
     }
 
     #[test]
