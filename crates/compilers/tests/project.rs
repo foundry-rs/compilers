@@ -716,7 +716,7 @@ fn can_flatten_on_solang_failure() {
             r#"// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.10;
 
-library Lib {}     
+library Lib {}
 "#,
         )
         .unwrap();
@@ -748,7 +748,7 @@ pragma solidity ^0.8.10;
 
 // src/Lib.sol
 
-library Lib {}     
+library Lib {}
 
 // src/Contract.sol
 
@@ -2980,17 +2980,17 @@ fn can_parse_notice() {
 
         /**
          * @notice hello
-         */    
+         */
          constructor(string memory _greeting) public {
             greeting = _greeting;
         }
-        
+
         /**
          * @notice hello
          */
         function xyz() public {
         }
-        
+
         /// @notice hello
         function abc() public {
         }
@@ -3985,4 +3985,37 @@ fn test_can_compile_multi() {
     assert!(compiled.find(&root.join("src/Counter.sol"), "Counter").is_some());
     assert!(compiled.find(&root.join("src/Counter.vy"), "Counter").is_some());
     compiled.assert_success();
+}
+
+// This is a reproduction of https://github.com/foundry-rs/compilers/issues/47
+#[cfg(feature = "svm-solc")]
+#[test]
+fn remapping_trailing_slash_issue47() {
+    use std::sync::Arc;
+
+    use foundry_compilers_artifacts::{EvmVersion, Source, Sources};
+
+    let mut sources = Sources::new();
+    sources.insert(
+        PathBuf::from("./C.sol"),
+        Source {
+            content: Arc::new(r#"import "@project/D.sol"; contract C {}"#.to_string()),
+            kind: Default::default(),
+        },
+    );
+    sources.insert(
+        PathBuf::from("./D.sol"),
+        Source { content: Arc::new(r#"contract D {}"#.to_string()), kind: Default::default() },
+    );
+
+    let mut settings = Settings { evm_version: Some(EvmVersion::Byzantium), ..Default::default() };
+    settings.remappings.push(Remapping {
+        context: None,
+        name: "@project".into(),
+        path: ".".into(),
+    });
+    let input = SolcInput { language: SolcLanguage::Solidity, sources, settings };
+    let compiler = Solc::find_or_install(&Version::new(0, 6, 8)).unwrap();
+    let output = compiler.compile_exact(&input).unwrap();
+    assert!(!output.has_error());
 }

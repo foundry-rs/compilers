@@ -143,16 +143,18 @@ impl fmt::Display for Remapping {
             }
             s.push(':');
         }
+        let name =
+            if !self.name.ends_with('/') { format!("{}/", self.name) } else { self.name.clone() };
         s.push_str(&{
             #[cfg(target_os = "windows")]
             {
                 // ensure we have `/` slashes on windows
                 use path_slash::PathExt;
-                format!("{}={}", self.name, std::path::Path::new(&self.path).to_slash_lossy())
+                format!("{}={}", name, std::path::Path::new(&self.path).to_slash_lossy())
             }
             #[cfg(not(target_os = "windows"))]
             {
-                format!("{}={}", self.name, self.path)
+                format!("{}={}", name, self.path)
             }
         });
 
@@ -1161,7 +1163,7 @@ mod tests {
                 path: "a/b/c/d".to_string(),
             }
         );
-        assert_eq!(remapping.to_string(), "context:oz=a/b/c/d/".to_string());
+        assert_eq!(remapping.to_string(), "context:oz/=a/b/c/d/".to_string());
 
         let remapping = "context:foo=C:/bar/src/";
         let remapping = Remapping::from_str(remapping).unwrap();
@@ -1185,7 +1187,7 @@ mod tests {
             remapping,
             Remapping { context: None, name: "oz".to_string(), path: "a/b/c/d/".to_string() }
         );
-        assert_eq!(remapping.to_string(), "oz=a/b/c/d/".to_string());
+        assert_eq!(remapping.to_string(), "oz/=a/b/c/d/".to_string());
     }
 
     #[test]
