@@ -422,9 +422,9 @@ pub struct Parser<'input> {
 impl<'input> Parser<'input> {
     pub fn new(input: &'input str) -> Self {
         Self {
+            done: input.is_empty(),
             stream: TokenStream::new(input),
             last_element: None,
-            done: false,
             #[cfg(test)]
             output: None,
         }
@@ -593,5 +593,11 @@ mod tests {
         parser.output = Some(&mut out);
         let _map = parser.collect::<Result<SourceMap, _>>().unwrap();
         assert_eq!(out, s);
+    }
+
+    #[test]
+    fn can_parse_empty() {
+        let s = Parser::new("").collect::<Result<SourceMap, _>>().unwrap();
+        assert_eq!(s.len(), 0);
     }
 }
