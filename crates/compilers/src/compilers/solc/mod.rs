@@ -232,7 +232,7 @@ impl CompilerSettings for SolcSettings {
     }
 
     fn with_allow_paths(mut self, allowed_paths: &BTreeSet<PathBuf>) -> Self {
-        self.cli_settings.allow_paths = allowed_paths.clone();
+        self.cli_settings.allow_paths.clone_from(allowed_paths);
         self
     }
 
@@ -242,7 +242,7 @@ impl CompilerSettings for SolcSettings {
     }
 
     fn with_include_paths(mut self, include_paths: &BTreeSet<PathBuf>) -> Self {
-        self.cli_settings.include_paths = include_paths.clone();
+        self.cli_settings.include_paths.clone_from(include_paths);
         self
     }
 }
