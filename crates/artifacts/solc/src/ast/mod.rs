@@ -1000,7 +1000,7 @@ ast_node!(
         name_location: Option<SourceLocation>,
         #[serde(default, deserialize_with = "serde_helpers::default_for_null")]
         base_modifiers: Vec<usize>,
-        body: Block,
+        body: Option<Block>,
         documentation: Option<StructuredDocumentation>,
         overrides: Option<OverrideSpecifier>,
         parameters: ParameterList,
