@@ -8,8 +8,6 @@ use semver::Version;
 use serde::Serialize;
 use std::{borrow::Cow, path::Path};
 
-pub const VYPER_SEARCH_PATHS: Version = Version::new(0, 4, 0);
-
 #[derive(Clone, Debug, Serialize)]
 pub struct VyperVersionedInput {
     #[serde(flatten)]

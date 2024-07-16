@@ -1,11 +1,14 @@
 use foundry_compilers_artifacts_solc::{
     output_selection::OutputSelection, serde_helpers, EvmVersion,
 };
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeSet,
     path::{Path, PathBuf},
 };
+
+pub const VYPER_SEARCH_PATHS: Version = Version::new(0, 4, 0);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -67,5 +70,20 @@ impl VyperSettings {
                 }
             })
         });
+    }
+
+    /// Sanitize the settings based on the compiler version.
+    pub fn sanitize(&mut self, version: &Version) {
+        if version < &VYPER_SEARCH_PATHS {
+            self.search_paths = None;
+        }
+
+        self.sanitize_output_selection();
+    }
+
+    /// Sanitize the settings based on the compiler version.
+    pub fn sanitized(mut self, version: &Version) -> Self {
+        self.sanitize(version);
+        self
     }
 }
