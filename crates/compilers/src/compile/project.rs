@@ -109,7 +109,7 @@ use crate::{
     output::{AggregatedCompilerOutput, Builds},
     report,
     resolver::GraphEdges,
-    ArtifactOutput, Graph, Project, ProjectCompileOutput, Sources,
+    ArtifactOutput, CompilerSettings, Graph, Project, ProjectCompileOutput, Sources,
 };
 use foundry_compilers_core::error::Result;
 use rayon::prelude::*;
@@ -447,11 +447,13 @@ impl<L: Language> CompilerSources<L> {
 
                 trace!("calling {} with {} sources {:?}", version, sources.len(), sources.keys());
 
-                let mut input = C::Input::build(sources, opt_settings, language, version.clone())
-                    .with_base_path(project.paths.root.clone())
-                    .with_allow_paths(project.paths.allowed_paths.clone())
-                    .with_include_paths(include_paths.clone())
-                    .with_remappings(project.paths.remappings.clone());
+                let settings = opt_settings
+                    .with_base_path(&project.paths.root)
+                    .with_allow_paths(&project.paths.allowed_paths)
+                    .with_include_paths(&include_paths)
+                    .with_remappings(&project.paths.remappings);
+
+                let mut input = C::Input::build(sources, settings, language, version.clone());
 
                 input.strip_prefix(project.paths.root.as_path());
 

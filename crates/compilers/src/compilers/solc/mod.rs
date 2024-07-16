@@ -9,7 +9,7 @@ use foundry_compilers_artifacts::{
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Error, Settings as SolcSettings, Severity, SolcInput,
+    Error, Settings, Severity, SolcInput,
 };
 use foundry_compilers_core::error::Result;
 use itertools::Itertools;
@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
     collections::BTreeSet,
+    ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
 mod compiler;
@@ -51,9 +52,9 @@ impl Compiler for SolcCompiler {
             #[cfg(feature = "svm-solc")]
             Self::AutoDetect => Solc::find_or_install(&input.version)?,
         };
-        solc.base_path.clone_from(&input.base_path);
-        solc.allow_paths.clone_from(&input.allow_paths);
-        solc.include_paths.clone_from(&input.include_paths);
+        solc.base_path.clone_from(&input.cli_settings.base_path);
+        solc.allow_paths.clone_from(&input.cli_settings.allow_paths);
+        solc.include_paths.clone_from(&input.cli_settings.include_paths);
 
         let solc_output = solc.compile(&input.input)?;
 
@@ -106,9 +107,8 @@ pub struct SolcVersionedInput {
     pub version: Version,
     #[serde(flatten)]
     pub input: SolcInput,
-    pub allow_paths: BTreeSet<PathBuf>,
-    pub base_path: Option<PathBuf>,
-    pub include_paths: BTreeSet<PathBuf>,
+    #[serde(flatten)]
+    cli_settings: CLISettings,
 }
 
 impl CompilerInput for SolcVersionedInput {
@@ -125,15 +125,10 @@ impl CompilerInput for SolcVersionedInput {
         language: Self::Language,
         version: Version,
     ) -> Self {
+        let SolcSettings { settings, cli_settings } = settings;
         let input = SolcInput::new(language, sources, settings).sanitized(&version);
 
-        Self {
-            version,
-            input,
-            base_path: None,
-            include_paths: Default::default(),
-            allow_paths: Default::default(),
-        }
+        Self { version, input, cli_settings }
     }
 
     fn language(&self) -> Self::Language {
@@ -148,12 +143,6 @@ impl CompilerInput for SolcVersionedInput {
         self.input.sources.iter().map(|(path, source)| (path.as_path(), source))
     }
 
-    fn with_remappings(mut self, remappings: Vec<Remapping>) -> Self {
-        self.input = self.input.with_remappings(remappings);
-
-        self
-    }
-
     fn compiler_name(&self) -> Cow<'static, str> {
         "Solc".into()
     }
@@ -161,52 +150,99 @@ impl CompilerInput for SolcVersionedInput {
     fn strip_prefix(&mut self, base: &Path) {
         self.input.strip_prefix(base);
     }
+}
 
-    fn with_allow_paths(mut self, allowed_paths: BTreeSet<PathBuf>) -> Self {
-        self.allow_paths = allowed_paths;
-        self
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CLISettings {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_args: Vec<String>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub allow_paths: BTreeSet<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_path: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub include_paths: BTreeSet<PathBuf>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct SolcSettings {
+    /// JSON settings expected by Solc
+    #[serde(flatten)]
+    pub settings: Settings,
+    /// Additional CLI args configuration
+    #[serde(flatten)]
+    pub cli_settings: CLISettings,
+}
+
+impl Deref for SolcSettings {
+    type Target = Settings;
+
+    fn deref(&self) -> &Self::Target {
+        &self.settings
     }
+}
 
-    fn with_base_path(mut self, base_path: PathBuf) -> Self {
-        self.base_path = Some(base_path);
-        self
-    }
-
-    fn with_include_paths(mut self, include_paths: BTreeSet<PathBuf>) -> Self {
-        self.include_paths = include_paths;
-        self
+impl DerefMut for SolcSettings {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.settings
     }
 }
 
 impl CompilerSettings for SolcSettings {
     fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy) {
-        f(&mut self.output_selection)
+        f(&mut self.settings.output_selection)
     }
 
     fn can_use_cached(&self, other: &Self) -> bool {
         let Self {
-            stop_after,
-            remappings,
-            optimizer,
-            model_checker,
-            metadata,
-            output_selection,
-            evm_version,
-            via_ir,
-            debug,
-            libraries,
+            settings:
+                Settings {
+                    stop_after,
+                    remappings,
+                    optimizer,
+                    model_checker,
+                    metadata,
+                    output_selection,
+                    evm_version,
+                    via_ir,
+                    debug,
+                    libraries,
+                },
+            ..
         } = self;
 
-        *stop_after == other.stop_after
-            && *remappings == other.remappings
-            && *optimizer == other.optimizer
-            && *model_checker == other.model_checker
-            && *metadata == other.metadata
-            && *evm_version == other.evm_version
-            && *via_ir == other.via_ir
-            && *debug == other.debug
-            && *libraries == other.libraries
-            && output_selection.is_subset_of(&other.output_selection)
+        *stop_after == other.settings.stop_after
+            && *remappings == other.settings.remappings
+            && *optimizer == other.settings.optimizer
+            && *model_checker == other.settings.model_checker
+            && *metadata == other.settings.metadata
+            && *evm_version == other.settings.evm_version
+            && *via_ir == other.settings.via_ir
+            && *debug == other.settings.debug
+            && *libraries == other.settings.libraries
+            && output_selection.is_subset_of(&other.settings.output_selection)
+    }
+
+    fn with_remappings(mut self, remappings: &[Remapping]) -> Self {
+        self.settings.remappings = remappings.to_vec();
+
+        self
+    }
+
+    fn with_allow_paths(mut self, allowed_paths: &BTreeSet<PathBuf>) -> Self {
+        self.cli_settings.allow_paths = allowed_paths.clone();
+        self
+    }
+
+    fn with_base_path(mut self, base_path: &Path) -> Self {
+        self.cli_settings.base_path = Some(base_path.to_path_buf());
+        self
+    }
+
+    fn with_include_paths(mut self, include_paths: &BTreeSet<PathBuf>) -> Self {
+        self.cli_settings.include_paths = include_paths.clone();
+        self
     }
 }
 

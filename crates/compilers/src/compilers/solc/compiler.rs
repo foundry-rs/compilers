@@ -80,6 +80,8 @@ pub struct Solc {
     pub allow_paths: BTreeSet<PathBuf>,
     /// Value for --include-paths arg.
     pub include_paths: BTreeSet<PathBuf>,
+    /// Additional arbitrary arguments.
+    pub extra_args: Vec<String>,
 }
 
 impl Solc {
@@ -100,6 +102,7 @@ impl Solc {
             base_path: None,
             allow_paths: Default::default(),
             include_paths: Default::default(),
+            extra_args: Default::default(),
         }
     }
 
@@ -475,6 +478,7 @@ impl Solc {
             cmd.current_dir(base_path);
         }
 
+        cmd.args(&self.extra_args);
         cmd.arg("--standard-json");
 
         cmd

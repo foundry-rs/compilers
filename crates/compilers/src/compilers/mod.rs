@@ -74,6 +74,29 @@ pub trait CompilerSettings:
     /// Ensures that all settings fields are equal except for `output_selection` which is required
     /// to be a subset of `cached.output_selection`.
     fn can_use_cached(&self, other: &Self) -> bool;
+
+    /// Method which might be invoked to add remappings to the input.
+    fn with_remappings(self, _remappings: &[Remapping]) -> Self {
+        self
+    }
+
+    /// Builder method to set the base path for the compiler. Primarily used by solc implementation
+    /// to se --base-path.
+    fn with_base_path(self, _base_path: &Path) -> Self {
+        self
+    }
+
+    /// Builder method to set the allowed paths for the compiler. Primarily used by solc
+    /// implementation to set --allow-paths.
+    fn with_allow_paths(self, _allowed_paths: &BTreeSet<PathBuf>) -> Self {
+        self
+    }
+
+    /// Builder method to set the include paths for the compiler. Primarily used by solc
+    /// implementation to set --include-paths.
+    fn with_include_paths(self, _include_paths: &BTreeSet<PathBuf>) -> Self {
+        self
+    }
 }
 
 /// Input of a compiler, including sources and settings used for their compilation.
@@ -100,29 +123,6 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
 
     /// Returns compiler name used by reporters to display output during compilation.
     fn compiler_name(&self) -> Cow<'static, str>;
-
-    /// Method which might be invoked to add remappings to the input.
-    fn with_remappings(self, _remappings: Vec<Remapping>) -> Self {
-        self
-    }
-
-    /// Builder method to set the base path for the compiler. Primarily used by solc implementation
-    /// to se --base-path.
-    fn with_base_path(self, _base_path: PathBuf) -> Self {
-        self
-    }
-
-    /// Builder method to set the allowed paths for the compiler. Primarily used by solc
-    /// implementation to set --allow-paths.
-    fn with_allow_paths(self, _allowed_paths: BTreeSet<PathBuf>) -> Self {
-        self
-    }
-
-    /// Builder method to set the include paths for the compiler. Primarily used by solc
-    /// implementation to set --include-paths.
-    fn with_include_paths(self, _include_paths: BTreeSet<PathBuf>) -> Self {
-        self
-    }
 
     /// Strips given prefix from all paths.
     fn strip_prefix(&mut self, base: &Path);

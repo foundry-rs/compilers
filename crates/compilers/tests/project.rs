@@ -15,6 +15,7 @@ use foundry_compilers::{
     flatten::Flattener,
     info::ContractInfo,
     project_util::*,
+    solc::SolcSettings,
     take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
     ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, TestFileFilter,
 };
@@ -134,7 +135,7 @@ fn can_compile_dapp_sample() {
     assert!(compiled.find_first("Dapp").is_some());
     assert!(compiled.is_unchanged());
 
-    let cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::<SolcSettings>::read(project.cache_path()).unwrap();
 
     // delete artifacts
     std::fs::remove_dir_all(&project.paths().artifacts).unwrap();
@@ -142,7 +143,7 @@ fn can_compile_dapp_sample() {
     assert!(compiled.find_first("Dapp").is_some());
     assert!(!compiled.is_unchanged());
 
-    let updated_cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
+    let updated_cache = CompilerCache::<SolcSettings>::read(project.cache_path()).unwrap();
     assert_eq!(cache, updated_cache);
 }
 
@@ -163,7 +164,7 @@ fn can_compile_yul_sample() {
     assert!(compiled.find_first("SimpleStore").is_some());
     assert!(compiled.is_unchanged());
 
-    let cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::<SolcSettings>::read(project.cache_path()).unwrap();
 
     // delete artifacts
     std::fs::remove_dir_all(&project.paths().artifacts).unwrap();
@@ -172,7 +173,7 @@ fn can_compile_yul_sample() {
     assert!(compiled.find_first("SimpleStore").is_some());
     assert!(!compiled.is_unchanged());
 
-    let updated_cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
+    let updated_cache = CompilerCache::<SolcSettings>::read(project.cache_path()).unwrap();
     assert_eq!(cache, updated_cache);
 }
 
@@ -250,7 +251,7 @@ fn can_compile_dapp_detect_changes_in_libs() {
     assert!(compiled.find_first("Foo").is_some());
     assert!(compiled.is_unchanged());
 
-    let cache = CompilerCache::<Settings>::read(&project.paths().cache).unwrap();
+    let cache = CompilerCache::<SolcSettings>::read(&project.paths().cache).unwrap();
     assert_eq!(cache.files.len(), 2);
 
     // overwrite lib
@@ -324,7 +325,7 @@ fn can_compile_dapp_detect_changes_in_sources() {
     assert!(compiled.find_first("DssSpellTest").is_some());
     assert!(compiled.find_first("DssSpellTestBase").is_some());
 
-    let cache = CompilerCache::<Settings>::read(&project.paths().cache).unwrap();
+    let cache = CompilerCache::<SolcSettings>::read(&project.paths().cache).unwrap();
     assert_eq!(cache.files.len(), 2);
 
     let artifacts = compiled.into_artifacts().collect::<HashMap<_, _>>();
@@ -2774,7 +2775,7 @@ fn can_compile_model_checker_sample() {
     let paths = ProjectPathsConfig::builder().sources(root);
 
     let mut project = TempProject::<MultiCompiler, ConfigurableArtifacts>::new(paths).unwrap();
-    project.project_mut().settings.solc.model_checker = Some(ModelCheckerSettings {
+    project.project_mut().settings.solc.settings.model_checker = Some(ModelCheckerSettings {
         engine: Some(CHC),
         timeout: Some(10000),
         ..Default::default()
@@ -2970,7 +2971,7 @@ fn can_purge_obsolete_artifacts() {
 fn can_parse_notice() {
     let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
     project.project_mut().artifacts.additional_values.userdoc = true;
-    project.project_mut().settings.solc = project.project_mut().artifacts.solc_settings();
+    project.project_mut().settings.solc.settings = project.project_mut().artifacts.solc_settings();
 
     let contract = r"
     pragma solidity $VERSION;
@@ -3050,7 +3051,7 @@ fn can_parse_doc() {
     let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
     project.project_mut().artifacts.additional_values.userdoc = true;
     project.project_mut().artifacts.additional_values.devdoc = true;
-    project.project_mut().settings.solc = project.project_mut().artifacts.solc_settings();
+    project.project_mut().settings.solc.settings = project.project_mut().artifacts.solc_settings();
 
     let contract = r"
 // SPDX-License-Identifier: GPL-3.0-only
@@ -3272,7 +3273,7 @@ contract D { }
     let compiled = project.compile().unwrap();
     compiled.assert_success();
 
-    let cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::<SolcSettings>::read(project.cache_path()).unwrap();
 
     let entries = vec![
         PathBuf::from("src/A.sol"),
@@ -3282,7 +3283,7 @@ contract D { }
     ];
     assert_eq!(entries, cache.files.keys().cloned().collect::<Vec<_>>());
 
-    let cache = CompilerCache::<Settings>::read_joined(project.paths()).unwrap();
+    let cache = CompilerCache::<SolcSettings>::read_joined(project.paths()).unwrap();
 
     assert_eq!(
         entries.into_iter().map(|p| project.root().join(p)).collect::<Vec<_>>(),
@@ -3371,7 +3372,7 @@ fn can_handle_conflicting_files() {
     let artifacts = compiled.artifacts().count();
     assert_eq!(artifacts, 2);
 
-    let cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::<SolcSettings>::read(project.cache_path()).unwrap();
 
     let mut source_files = cache.files.keys().cloned().collect::<Vec<_>>();
     source_files.sort_unstable();
@@ -3440,7 +3441,7 @@ fn can_handle_conflicting_files_recompile() {
     let artifacts = compiled.artifacts().count();
     assert_eq!(artifacts, 2);
 
-    let cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::<SolcSettings>::read(project.cache_path()).unwrap();
 
     let mut source_files = cache.files.keys().cloned().collect::<Vec<_>>();
     source_files.sort_unstable();
@@ -3537,7 +3538,7 @@ fn can_handle_conflicting_files_case_sensitive_recompile() {
     let artifacts = compiled.artifacts().count();
     assert_eq!(artifacts, 2);
 
-    let cache = CompilerCache::<Settings>::read(project.cache_path()).unwrap();
+    let cache = CompilerCache::<SolcSettings>::read(project.cache_path()).unwrap();
 
     let mut source_files = cache.files.keys().cloned().collect::<Vec<_>>();
     source_files.sort_unstable();
@@ -3643,7 +3644,7 @@ fn can_detect_config_changes() {
     let compiled = project.compile().unwrap();
     assert!(compiled.is_unchanged());
 
-    project.project_mut().settings.solc.optimizer.enabled = Some(true);
+    project.project_mut().settings.solc.settings.optimizer.enabled = Some(true);
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();

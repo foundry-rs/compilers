@@ -10,13 +10,14 @@ use super::{
 use crate::{
     artifacts::vyper::{VyperCompilationError, VyperSettings},
     resolver::parse::SolData,
+    solc::SolcSettings,
 };
 use foundry_compilers_artifacts::{
     error::SourceLocation,
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Error, Settings as SolcSettings, Severity, SolcLanguage,
+    Error, Severity, SolcLanguage,
 };
 use foundry_compilers_core::error::{Result, SolcError};
 use semver::Version;
@@ -137,8 +138,36 @@ impl CompilerSettings for MultiCompilerSettings {
     }
 
     fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy) {
-        f(&mut self.solc.output_selection);
-        f(&mut self.vyper.output_selection);
+        self.solc.update_output_selection(f);
+        self.vyper.update_output_selection(f);
+    }
+
+    fn with_allow_paths(self, allowed_paths: &BTreeSet<PathBuf>) -> Self {
+        Self {
+            solc: self.solc.with_allow_paths(allowed_paths),
+            vyper: self.vyper.with_allow_paths(allowed_paths),
+        }
+    }
+
+    fn with_base_path(self, base_path: &Path) -> Self {
+        Self {
+            solc: self.solc.with_base_path(base_path),
+            vyper: self.vyper.with_base_path(base_path),
+        }
+    }
+
+    fn with_include_paths(self, include_paths: &BTreeSet<PathBuf>) -> Self {
+        Self {
+            solc: self.solc.with_include_paths(include_paths),
+            vyper: self.vyper.with_include_paths(include_paths),
+        }
+    }
+
+    fn with_remappings(self, remappings: &[Remapping]) -> Self {
+        Self {
+            solc: self.solc.with_remappings(remappings),
+            vyper: self.vyper.with_remappings(remappings),
+        }
     }
 }
 
@@ -207,34 +236,6 @@ impl CompilerInput for MultiCompilerInput {
         match self {
             Self::Solc(input) => input.version(),
             Self::Vyper(input) => input.version(),
-        }
-    }
-
-    fn with_allow_paths(self, allowed_paths: BTreeSet<PathBuf>) -> Self {
-        match self {
-            Self::Solc(input) => Self::Solc(input.with_allow_paths(allowed_paths)),
-            Self::Vyper(input) => Self::Vyper(input.with_allow_paths(allowed_paths)),
-        }
-    }
-
-    fn with_base_path(self, base_path: PathBuf) -> Self {
-        match self {
-            Self::Solc(input) => Self::Solc(input.with_base_path(base_path)),
-            Self::Vyper(input) => Self::Vyper(input.with_base_path(base_path)),
-        }
-    }
-
-    fn with_include_paths(self, include_paths: BTreeSet<PathBuf>) -> Self {
-        match self {
-            Self::Solc(input) => Self::Solc(input.with_include_paths(include_paths)),
-            Self::Vyper(input) => Self::Vyper(input.with_include_paths(include_paths)),
-        }
-    }
-
-    fn with_remappings(self, remappings: Vec<Remapping>) -> Self {
-        match self {
-            Self::Solc(input) => Self::Solc(input.with_remappings(remappings)),
-            Self::Vyper(input) => Self::Vyper(input.with_remappings(remappings)),
         }
     }
 

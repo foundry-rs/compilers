@@ -6,11 +6,7 @@ use crate::{
 use foundry_compilers_artifacts::sources::{Source, Sources};
 use semver::Version;
 use serde::Serialize;
-use std::{
-    borrow::Cow,
-    collections::BTreeSet,
-    path::{Path, PathBuf},
-};
+use std::{borrow::Cow, path::Path};
 
 pub const VYPER_SEARCH_PATHS: Version = Version::new(0, 4, 0);
 
@@ -57,12 +53,5 @@ impl CompilerInput for VyperVersionedInput {
             .iter()
             .chain(self.input.interfaces.iter())
             .map(|(path, source)| (path.as_path(), source))
-    }
-
-    fn with_include_paths(mut self, include_paths: BTreeSet<PathBuf>) -> Self {
-        if self.version >= VYPER_SEARCH_PATHS {
-            self.input.settings.search_paths = Some(include_paths);
-        }
-        self
     }
 }

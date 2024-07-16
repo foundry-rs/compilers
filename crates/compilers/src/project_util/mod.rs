@@ -7,6 +7,7 @@ use crate::{
         Compiler,
     },
     config::ProjectPathsConfigBuilder,
+    solc::SolcSettings,
     Artifact, ArtifactOutput, Artifacts, ConfigurableArtifacts, HardhatArtifacts, PathStyle,
     Project, ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig,
 };
@@ -47,7 +48,7 @@ impl<T: ArtifactOutput + Default> TempProject<MultiCompiler, T> {
 
     /// Overwrites the settings to pass to `solc`
     pub fn with_solc_settings(mut self, settings: impl Into<Settings>) -> Self {
-        self.inner.settings.solc = settings.into();
+        self.inner.settings.solc = SolcSettings { settings: settings.into(), ..Default::default() };
         self
     }
 

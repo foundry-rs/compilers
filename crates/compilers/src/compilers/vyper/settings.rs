@@ -1,3 +1,5 @@
+use std::{collections::BTreeSet, path::PathBuf};
+
 pub use crate::artifacts::vyper::VyperSettings;
 use crate::compilers::CompilerSettings;
 use foundry_compilers_artifacts::output_selection::OutputSelection;
@@ -15,5 +17,10 @@ impl CompilerSettings for VyperSettings {
             && bytecode_metadata == &other.bytecode_metadata
             && output_selection.is_subset_of(&other.output_selection)
             && search_paths == &other.search_paths
+    }
+
+    fn with_include_paths(mut self, include_paths: &BTreeSet<PathBuf>) -> Self {
+        self.search_paths = Some(include_paths.clone());
+        self
     }
 }

@@ -52,13 +52,14 @@ use derivative::Derivative;
 use foundry_compilers_artifacts::solc::{
     output_selection::OutputSelection,
     sources::{Source, SourceCompilationKind, Sources},
-    Contract, Settings, Severity, SourceFile, StandardJsonCompilerInput,
+    Contract, Severity, SourceFile, StandardJsonCompilerInput,
 };
 use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
 use output::sources::{VersionedSourceFile, VersionedSourceFiles};
 use project::ProjectCompiler;
 use semver::Version;
 use solang_parser::pt::SourceUnitPart;
+use solc::SolcSettings;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs,
@@ -148,7 +149,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
 
 impl<C: Compiler, T: ArtifactOutput> Project<C, T>
 where
-    C::Settings: Into<Settings>,
+    C::Settings: Into<SolcSettings>,
 {
     /// Returns standard-json-input to compile the target contract
     pub fn standard_json_input(&self, target: &Path) -> Result<StandardJsonCompilerInput> {
@@ -186,7 +187,7 @@ where
             .map(|r| r.into_relative(self.root()).to_relative_remapping())
             .collect::<Vec<_>>();
 
-        let input = StandardJsonCompilerInput::new(sources, settings);
+        let input = StandardJsonCompilerInput::new(sources, settings.settings);
 
         Ok(input)
     }
