@@ -117,7 +117,7 @@ use semver::Version;
 use std::{collections::HashMap, path::PathBuf, time::Instant};
 
 /// A set of different Solc installations with their version and the sources to be compiled
-pub(crate) type VersionedSources<L> = HashMap<L, HashMap<Version, Sources>>;
+pub(crate) type VersionedSources<L, S> = HashMap<L, Vec<(Version, Sources, S)>>;
 
 #[derive(Debug)]
 pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
@@ -125,7 +125,7 @@ pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
     edges: GraphEdges<C::ParsedSource>,
     project: &'a Project<C, T>,
     /// how to compile all the sources
-    sources: CompilerSources<C::Language>,
+    sources: CompilerSources<C::Language, C::Settings>,
 }
 
 impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
@@ -146,11 +146,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
             sources.retain(|f, _| filter.is_match(f))
         }
         let graph = Graph::resolve_sources(&project.paths, sources)?;
-        let (sources, edges) = graph.into_sources_by_version(
-            project.offline,
-            &project.locked_versions,
-            &project.compiler,
-        )?;
+        let (sources, edges) = graph.into_sources_by_version(project)?;
 
         // If there are multiple different versions, and we can use multiple jobs we can compile
         // them in parallel.
@@ -217,7 +213,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
 #[derive(Debug)]
 struct PreprocessedState<'a, T: ArtifactOutput, C: Compiler> {
     /// Contains all the sources to compile.
-    sources: CompilerSources<C::Language>,
+    sources: CompilerSources<C::Language, C::Settings>,
 
     /// Cache that holds `CacheEntry` objects if caching is enabled and the project is recompiled
     cache: ArtifactsCache<'a, T, C>,
@@ -357,14 +353,14 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
 
 /// Determines how the `solc <-> sources` pairs are executed.
 #[derive(Debug, Clone)]
-struct CompilerSources<L> {
+struct CompilerSources<L, S> {
     /// The sources to compile.
-    sources: VersionedSources<L>,
+    sources: VersionedSources<L, S>,
     /// The number of jobs to use for parallel compilation.
     jobs: Option<usize>,
 }
 
-impl<L: Language> CompilerSources<L> {
+impl<L: Language, S: CompilerSettings> CompilerSources<L, S> {
     /// Converts all `\\` separators to `/`.
     ///
     /// This effectively ensures that `solc` can find imported files like `/src/Cheats.sol` in the
@@ -394,7 +390,7 @@ impl<L: Language> CompilerSources<L> {
     ) {
         cache.remove_dirty_sources();
         for versioned_sources in self.sources.values_mut() {
-            for (version, sources) in versioned_sources {
+            for (version, sources, _) in versioned_sources {
                 trace!("Filtering {} sources for {}", sources.len(), version);
                 cache.filter(sources, version);
                 trace!(
@@ -407,7 +403,7 @@ impl<L: Language> CompilerSources<L> {
     }
 
     /// Compiles all the files with `Solc`
-    fn compile<C: Compiler<Language = L>, T: ArtifactOutput>(
+    fn compile<C: Compiler<Language = L, Settings = S>, T: ArtifactOutput>(
         self,
         cache: &mut ArtifactsCache<'_, T, C>,
     ) -> Result<AggregatedCompilerOutput<C>> {
@@ -424,7 +420,7 @@ impl<L: Language> CompilerSources<L> {
 
         let mut jobs = Vec::new();
         for (language, versioned_sources) in self.sources {
-            for (version, sources) in versioned_sources {
+            for (version, sources, mut opt_settings) in versioned_sources {
                 if sources.is_empty() {
                     // nothing to compile
                     trace!("skip {} for empty sources set", version);
@@ -433,7 +429,6 @@ impl<L: Language> CompilerSources<L> {
 
                 // depending on the composition of the filtered sources, the output selection can be
                 // optimized
-                let mut opt_settings = project.settings.clone();
                 let actually_dirty =
                     sparse_output.sparse_sources(&sources, &mut opt_settings, graph);
 
@@ -678,7 +673,7 @@ mod tests {
         // single solc
         assert_eq!(len, 1);
 
-        let filtered = &sources.values().next().unwrap().values().next().unwrap();
+        let filtered = &sources.values().next().unwrap()[0].1;
 
         // 3 contracts total
         assert_eq!(filtered.0.len(), 3);

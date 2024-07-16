@@ -2,14 +2,14 @@ use super::{
     CompilationError, Compiler, CompilerInput, CompilerOutput, CompilerSettings, CompilerVersion,
     Language, ParsedSource,
 };
-use crate::resolver::parse::SolData;
+use crate::{resolver::parse::SolData, CompilerSettingsRestrictions};
 pub use foundry_compilers_artifacts::SolcLanguage;
 use foundry_compilers_artifacts::{
     error::SourceLocation,
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Error, Settings, Severity, SolcInput,
+    Error, EvmVersion, Settings, Severity, SolcInput,
 };
 use foundry_compilers_core::error::Result;
 use itertools::Itertools;
@@ -190,7 +190,58 @@ impl DerefMut for SolcSettings {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct EvmVersionRestriction {
+    pub min_evm_version: Option<EvmVersion>,
+    pub max_evm_version: Option<EvmVersion>,
+}
+
+impl EvmVersionRestriction {
+    /// Returns true if the given version satisfies the restrictions
+    ///
+    /// If given None, only returns true if no restrictions are set
+    pub fn satisfies(&self, version: Option<EvmVersion>) -> bool {
+        self.min_evm_version.map_or(true, |min| version.map_or(false, |v| v >= min))
+            && self.max_evm_version.map_or(true, |max| version.map_or(false, |v| v <= max))
+    }
+
+    pub fn merge(&mut self, other: &Self) {
+        let Self { min_evm_version, max_evm_version } = other;
+
+        if let Some(min_evm_version) = min_evm_version {
+            if self.min_evm_version.map_or(true, |e| e < *min_evm_version) {
+                self.min_evm_version.replace(*min_evm_version);
+            }
+        }
+
+        if let Some(max_evm_version) = max_evm_version {
+            if self.max_evm_version.map_or(true, |e| e > *max_evm_version) {
+                self.max_evm_version.replace(*max_evm_version);
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SolcRestrictions {
+    pub evm_version: EvmVersionRestriction,
+    pub via_ir: Option<bool>,
+}
+
+impl CompilerSettingsRestrictions for SolcRestrictions {
+    fn merge(&mut self, other: &Self) {
+        self.evm_version.merge(&other.evm_version);
+
+        // Preserve true
+        if self.via_ir.map_or(true, |via_ir| !via_ir) {
+            self.via_ir = other.via_ir;
+        }
+    }
+}
+
 impl CompilerSettings for SolcSettings {
+    type Restrictions = SolcRestrictions;
+
     fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy) {
         f(&mut self.settings.output_selection)
     }
@@ -246,6 +297,16 @@ impl CompilerSettings for SolcSettings {
     fn with_include_paths(mut self, include_paths: &BTreeSet<PathBuf>) -> Self {
         self.cli_settings.include_paths.clone_from(include_paths);
         self
+    }
+
+    fn satisfies_restrictions(&self, restrictions: &Self::Restrictions) -> bool {
+        let mut satisfies = true;
+
+        satisfies &= restrictions.evm_version.satisfies(self.evm_version);
+        satisfies &=
+            restrictions.via_ir.map_or(true, |via_ir| via_ir == self.via_ir.unwrap_or_default());
+
+        satisfies
     }
 }
 

@@ -71,12 +71,14 @@ use std::{
 #[derivative(Debug)]
 pub struct Project<C: Compiler = MultiCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
     pub compiler: C,
-    /// Compiler versions locked for specific languages.
-    pub locked_versions: HashMap<C::Language, Version>,
     /// The layout of the project
     pub paths: ProjectPathsConfig<C::Language>,
     /// The compiler settings
     pub settings: C::Settings,
+    /// Additional settings for cases when default compiler settings are not enough to cover all
+    /// possible restrictions.
+    pub additional_settings: Vec<C::Settings>,
+    pub restrictions: BTreeMap<PathBuf, <C::Settings as CompilerSettings>::Restrictions>,
     /// Whether caching is enabled
     pub cached: bool,
     /// Whether to output build information with each solc call.
@@ -141,6 +143,10 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// Returns the handler that takes care of processing all artifacts
     pub fn artifacts_handler(&self) -> &T {
         &self.artifacts
+    }
+
+    pub fn settings_profiles(&self) -> impl Iterator<Item = &C::Settings> {
+        std::iter::once(&self.settings).chain(self.additional_settings.iter())
     }
 }
 
@@ -446,8 +452,6 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
 pub struct ProjectBuilder<C: Compiler = MultiCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
     /// The layout of the
     paths: Option<ProjectPathsConfig<C::Language>>,
-    /// Compiler versions locked for specific languages.
-    locked_versions: HashMap<C::Language, Version>,
     /// How solc invocation should be configured.
     settings: Option<C::Settings>,
     /// Whether caching is enabled, default is true.
@@ -489,7 +493,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             compiler_severity_filter: Severity::Error,
             solc_jobs: None,
             settings: None,
-            locked_versions: Default::default(),
             sparse_output: None,
         }
     }
@@ -607,18 +610,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
     }
 
     #[must_use]
-    pub fn locked_version(mut self, lang: impl Into<C::Language>, version: Version) -> Self {
-        self.locked_versions.insert(lang.into(), version);
-        self
-    }
-
-    #[must_use]
-    pub fn locked_versions(mut self, versions: HashMap<C::Language, Version>) -> Self {
-        self.locked_versions = versions;
-        self
-    }
-
-    #[must_use]
     pub fn sparse_output<F>(mut self, filter: F) -> Self
     where
         F: FileFilter + 'static,
@@ -641,7 +632,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             slash_paths,
             ignored_file_paths,
             settings,
-            locked_versions,
             sparse_output,
             ..
         } = self;
@@ -658,7 +648,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             solc_jobs,
             build_info,
             settings,
-            locked_versions,
             sparse_output,
         }
     }
@@ -677,7 +666,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             build_info,
             slash_paths,
             settings,
-            locked_versions,
             sparse_output,
         } = self;
 
@@ -704,8 +692,9 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             offline,
             slash_paths,
             settings: settings.unwrap_or_default(),
-            locked_versions,
             sparse_output,
+            additional_settings: Default::default(),
+            restrictions: Default::default(),
         })
     }
 }

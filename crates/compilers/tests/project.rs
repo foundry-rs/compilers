@@ -14,15 +14,16 @@ use foundry_compilers::{
     },
     flatten::Flattener,
     info::ContractInfo,
+    multi::MultiCompilerRestrictions,
     project_util::*,
-    solc::SolcSettings,
+    solc::{EvmVersionRestriction, SolcRestrictions},
     take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
     ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, TestFileFilter,
 };
 use foundry_compilers_artifacts::{
     output_selection::OutputSelection, remappings::Remapping, BytecodeHash, DevDoc, Error,
-    ErrorDoc, EventDoc, Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings,
-    Settings, Severity, SolcInput, UserDoc, UserDocNotice,
+    ErrorDoc, EventDoc, EvmVersion, Libraries, MethodDoc, ModelCheckerEngine::CHC,
+    ModelCheckerSettings, Settings, Severity, SolcInput, UserDoc, UserDocNotice,
 };
 use foundry_compilers_core::{
     error::SolcError,
@@ -3845,12 +3846,14 @@ fn test_deterministic_metadata() {
     let orig_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
     copy_dir_all(&orig_root, tmp_dir.path()).unwrap();
 
+    let compiler = MultiCompiler {
+        solc: SolcCompiler::Specific(
+            Solc::find_svm_installed_version(&Version::new(0, 8, 18)).unwrap().unwrap(),
+        ),
+        vyper: None,
+    };
     let paths = ProjectPathsConfig::builder().root(root).build().unwrap();
-    let project = Project::builder()
-        .locked_version(SolcLanguage::Solidity, Version::new(0, 8, 18))
-        .paths(paths)
-        .build(MultiCompiler::default())
-        .unwrap();
+    let project = Project::builder().paths(paths).build(compiler).unwrap();
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();
@@ -3990,7 +3993,6 @@ fn test_can_compile_multi() {
 }
 
 // This is a reproduction of https://github.com/foundry-rs/compilers/issues/47
-#[cfg(feature = "svm-solc")]
 #[test]
 fn remapping_trailing_slash_issue47() {
     use std::sync::Arc;
@@ -4020,4 +4022,49 @@ fn remapping_trailing_slash_issue47() {
     let compiler = Solc::find_or_install(&Version::new(0, 6, 8)).unwrap();
     let output = compiler.compile_exact(&input).unwrap();
     assert!(!output.has_error());
+}
+
+#[test]
+fn test_settings_restrictions() {
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
+    // default EVM version is Paris, Cancun contract won't compile
+    project.project_mut().settings.solc.evm_version = Some(EvmVersion::Paris);
+
+    let cancun_path = project
+        .add_source(
+            "Cancun.sol",
+            r#"
+contract TransientContract {
+    function lock()public {
+        assembly {
+            tstore(0, 1)
+        }
+    }
+}"#,
+        )
+        .unwrap();
+
+    project.add_source("CancunImporter.sol", "import \"./Cancun.sol\";").unwrap();
+    project.add_source("Simple.sol", "contract SimpleContract {}").unwrap();
+
+    // Add config with Cancun enabled
+    let mut cancun_settings = project.project().settings.clone();
+    cancun_settings.solc.evm_version = Some(EvmVersion::Cancun);
+    project.project_mut().additional_settings.push(cancun_settings);
+
+    let cancun_restriction = MultiCompilerRestrictions {
+        solc: SolcRestrictions {
+            evm_version: EvmVersionRestriction {
+                min_evm_version: Some(EvmVersion::Cancun),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    // Restrict compiling Cancun contract to Cancun EVM version
+    project.project_mut().restrictions.insert(cancun_path, cancun_restriction);
+
+    project.compile().unwrap().assert_success();
 }
