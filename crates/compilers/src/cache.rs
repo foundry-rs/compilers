@@ -103,10 +103,10 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// # Examples
     #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
-    /// use foundry_compilers::{artifacts::Settings, cache::CompilerCache, Project};
+    /// use foundry_compilers::{cache::CompilerCache, solc::SolcSettings, Project};
     ///
     /// let project = Project::builder().build(Default::default())?;
-    /// let mut cache = CompilerCache::<Settings>::read(project.cache_path())?;
+    /// let mut cache = CompilerCache::<SolcSettings>::read(project.cache_path())?;
     /// cache.join_artifacts_files(project.artifacts_path());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -129,10 +129,10 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// # Examples
     #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
-    /// use foundry_compilers::{artifacts::Settings, cache::CompilerCache, Project};
+    /// use foundry_compilers::{cache::CompilerCache, solc::SolcSettings, Project};
     ///
     /// let project = Project::builder().build(Default::default())?;
-    /// let cache: CompilerCache<Settings> = CompilerCache::read_joined(&project.paths)?;
+    /// let cache: CompilerCache<SolcSettings> = CompilerCache::read_joined(&project.paths)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     pub fn read_joined<L>(paths: &ProjectPathsConfig<L>) -> Result<Self> {
@@ -210,13 +210,11 @@ impl<S: CompilerSettings> CompilerCache<S> {
     #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{
-    ///     artifacts::{contract::CompactContract, Settings},
-    ///     cache::CompilerCache,
-    ///     Project,
+    ///     artifacts::contract::CompactContract, cache::CompilerCache, solc::SolcSettings, Project,
     /// };
     ///
     /// let project = Project::builder().build(Default::default())?;
-    /// let cache: CompilerCache<Settings> =
+    /// let cache: CompilerCache<SolcSettings> =
     ///     CompilerCache::read(project.cache_path())?.with_stripped_file_prefixes(project.root());
     /// let artifact: CompactContract = cache.read_artifact("src/Greeter.sol".as_ref(), "Greeter")?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -237,10 +235,10 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// # Examples
     #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
-    /// use foundry_compilers::{artifacts::Settings, cache::CompilerCache, Project};
+    /// use foundry_compilers::{cache::CompilerCache, solc::SolcSettings, Project};
     ///
     /// let project = Project::builder().build(Default::default())?;
-    /// let cache: CompilerCache<Settings> = CompilerCache::read_joined(&project.paths)?;
+    /// let cache: CompilerCache<SolcSettings> = CompilerCache::read_joined(&project.paths)?;
     /// cache.find_artifact_path("/Users/git/myproject/src/Greeter.sol".as_ref(), "Greeter");
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -256,13 +254,11 @@ impl<S: CompilerSettings> CompilerCache<S> {
     #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{
-    ///     artifacts::{contract::CompactContract, Settings},
-    ///     cache::CompilerCache,
-    ///     Project,
+    ///     artifacts::contract::CompactContract, cache::CompilerCache, solc::SolcSettings, Project,
     /// };
     ///
     /// let project = Project::builder().build(Default::default())?;
-    /// let cache = CompilerCache::<Settings>::read_joined(&project.paths)?;
+    /// let cache = CompilerCache::<SolcSettings>::read_joined(&project.paths)?;
     /// let artifact: CompactContract =
     ///     cache.read_artifact("/Users/git/myproject/src/Greeter.sol".as_ref(), "Greeter")?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
@@ -288,13 +284,12 @@ impl<S: CompilerSettings> CompilerCache<S> {
     #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{
-    ///     artifacts::{contract::CompactContractBytecode, Settings},
-    ///     cache::CompilerCache,
+    ///     artifacts::contract::CompactContractBytecode, cache::CompilerCache, solc::SolcSettings,
     ///     Project,
     /// };
     ///
     /// let project = Project::builder().build(Default::default())?;
-    /// let cache: CompilerCache<Settings> = CompilerCache::read_joined(&project.paths)?;
+    /// let cache: CompilerCache<SolcSettings> = CompilerCache::read_joined(&project.paths)?;
     /// let artifacts = cache.read_artifacts::<CompactContractBytecode>()?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```

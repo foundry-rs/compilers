@@ -1,6 +1,7 @@
 use super::VyperSettings;
 use foundry_compilers_artifacts_solc::sources::Sources;
 use foundry_compilers_core::utils::strip_prefix_owned;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -46,5 +47,17 @@ impl VyperInput {
             .collect();
 
         self.settings.strip_prefix(base)
+    }
+
+    /// This will remove/adjust values in the [`VyperInput`] that are not compatible with this
+    /// version
+    pub fn sanitize(&mut self, version: &Version) {
+        self.settings.sanitize(version);
+    }
+
+    /// Consumes the type and returns a [VyperInput::sanitized] version
+    pub fn sanitized(mut self, version: &Version) -> Self {
+        self.sanitize(version);
+        self
     }
 }

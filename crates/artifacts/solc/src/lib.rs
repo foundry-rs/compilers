@@ -133,12 +133,12 @@ impl SolcInput {
     /// This will remove/adjust values in the [`SolcInput`] that are not compatible with this
     /// version
     pub fn sanitize(&mut self, version: &Version) {
-        self.settings.sanitize(version)
+        self.settings.sanitize(version, self.language);
     }
 
     /// Consumes the type and returns a [SolcInput::sanitized] version
     pub fn sanitized(mut self, version: &Version) -> Self {
-        self.settings.sanitize(version);
+        self.settings.sanitize(version, self.language);
         self
     }
 
@@ -177,18 +177,6 @@ impl SolcInput {
     /// constructed for the yul sources
     pub fn is_yul(&self) -> bool {
         self.language == SolcLanguage::Yul
-    }
-
-    pub fn with_remappings(mut self, remappings: Vec<Remapping>) -> Self {
-        if self.language == SolcLanguage::Yul {
-            if !remappings.is_empty() {
-                warn!("omitting remappings supplied for the yul sources");
-            }
-        } else {
-            self.settings.remappings = remappings;
-        }
-
-        self
     }
 }
 
@@ -292,13 +280,13 @@ impl Settings {
     }
 
     /// Consumes the type and returns a [Settings::sanitize] version
-    pub fn sanitized(mut self, version: &Version) -> Self {
-        self.sanitize(version);
+    pub fn sanitized(mut self, version: &Version, language: SolcLanguage) -> Self {
+        self.sanitize(version, language);
         self
     }
 
     /// This will remove/adjust values in the settings that are not compatible with this version.
-    pub fn sanitize(&mut self, version: &Version) {
+    pub fn sanitize(&mut self, version: &Version, language: SolcLanguage) {
         const V0_6_0: Version = Version::new(0, 6, 0);
         if *version < V0_6_0 {
             if let Some(meta) = &mut self.metadata {
@@ -363,6 +351,13 @@ impl Settings {
 
         if let Some(ref mut evm_version) = self.evm_version {
             self.evm_version = evm_version.normalize_version_solc(version);
+        }
+
+        if language == SolcLanguage::Yul {
+            if !self.remappings.is_empty() {
+                warn!("omitting remappings supplied for the yul sources");
+            }
+            self.remappings = Vec::new();
         }
     }
 

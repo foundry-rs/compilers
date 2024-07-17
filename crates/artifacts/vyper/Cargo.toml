@@ -21,6 +21,7 @@ foundry-compilers-core.workspace = true
 serde.workspace = true
 alloy-primitives.workspace = true
 alloy-json-abi.workspace = true
+semver.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 path-slash.workspace = true
