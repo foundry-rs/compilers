@@ -30,6 +30,7 @@ tokio = { workspace = true, optional = true }
 tracing.workspace = true
 walkdir.workspace = true
 yansi.workspace = true
+serde_repr = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 path-slash.workspace = true
