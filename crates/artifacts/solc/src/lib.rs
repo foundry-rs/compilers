@@ -271,6 +271,8 @@ pub struct Settings {
     /// If this key is an empty string, that refers to a global level.
     #[serde(default)]
     pub libraries: Libraries,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eof_version: Option<u8>,
 }
 
 impl Settings {
@@ -546,6 +548,7 @@ impl Default for Settings {
             libraries: Default::default(),
             remappings: Default::default(),
             model_checker: None,
+            eof_version: None,
         }
         .with_ast()
     }

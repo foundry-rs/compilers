@@ -209,6 +209,7 @@ impl CompilerSettings for SolcSettings {
                     via_ir,
                     debug,
                     libraries,
+                    eof_version,
                 },
             ..
         } = self;
@@ -222,6 +223,7 @@ impl CompilerSettings for SolcSettings {
             && *via_ir == other.settings.via_ir
             && *debug == other.settings.debug
             && *libraries == other.settings.libraries
+            && *eof_version == other.settings.eof_version
             && output_selection.is_subset_of(&other.settings.output_selection)
     }
 
