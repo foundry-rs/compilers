@@ -109,7 +109,7 @@ pub struct SolcVersionedInput {
     #[serde(flatten)]
     pub input: SolcInput,
     #[serde(flatten)]
-    cli_settings: CLISettings,
+    cli_settings: CliSettings,
 }
 
 impl CompilerInput for SolcVersionedInput {
@@ -155,7 +155,7 @@ impl CompilerInput for SolcVersionedInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct CLISettings {
+pub struct CliSettings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_args: Vec<String>,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
@@ -173,7 +173,7 @@ pub struct SolcSettings {
     pub settings: Settings,
     /// Additional CLI args configuration
     #[serde(flatten)]
-    pub cli_settings: CLISettings,
+    pub cli_settings: CliSettings,
 }
 
 impl Deref for SolcSettings {
