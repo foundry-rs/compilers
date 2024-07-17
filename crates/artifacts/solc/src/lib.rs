@@ -9,6 +9,7 @@ extern crate tracing;
 
 use semver::Version;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashSet},
@@ -273,7 +274,14 @@ pub struct Settings {
     pub libraries: Libraries,
     /// Specify EOF version to produce.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub eof_version: Option<u8>,
+    pub eof_version: Option<EofVersion>,
+}
+
+/// Available EOF versions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
+pub enum EofVersion {
+    V1 = 1,
 }
 
 impl Settings {
