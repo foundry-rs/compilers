@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0](https://github.com/foundry-rs/compilers/releases/tag/v0.10.0) - 2024-07-18
+
+### Bug Fixes
+
+- Allow empty modifier body in AST ([#169](https://github.com/foundry-rs/compilers/issues/169))
+- Avoid errors when parsing empty sourcemap ([#165](https://github.com/foundry-rs/compilers/issues/165))
+- Fix inconsistent trailing slash in remappings ([#49](https://github.com/foundry-rs/compilers/issues/49))
+
+### Features
+
+- Add `eofVersion` config option ([#174](https://github.com/foundry-rs/compilers/issues/174))
+- Allow passing extra cli args to solc + some cleanup ([#171](https://github.com/foundry-rs/compilers/issues/171))
+
 ## [0.9.0](https://github.com/foundry-rs/compilers/releases/tag/v0.9.0) - 2024-06-29
 
 ### Bug Fixes
@@ -22,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.9.0
 - Improve stripping file prefixes ([#164](https://github.com/foundry-rs/compilers/issues/164))
 - Improve some trace-level logs ([#163](https://github.com/foundry-rs/compilers/issues/163))
 - Remove most impl AsRef<str,Path> ([#157](https://github.com/foundry-rs/compilers/issues/157))
