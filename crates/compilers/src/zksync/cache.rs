@@ -6,7 +6,6 @@ use crate::{
     buildinfo::RawBuildInfo,
     cache::{CacheEntry, CompilerCache, GroupedSources},
     error::Result,
-    filter::{FilteredSources, SourceCompilationKind},
     output::Builds,
     resolver::{parse::SolData, GraphEdges},
     solc::SolcCompiler,
@@ -15,10 +14,10 @@ use crate::{
     zksync::{self, artifact_output::zk::ZkContractArtifact},
     CompilerSettings, Graph, Project, ProjectPathsConfig, Source,
 };
-use foundry_compilers_artifacts::SolcLanguage;
+use foundry_compilers_artifacts::{SolcLanguage, SourceCompilationKind};
 use semver::Version;
 use std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet, hash_map, HashMap, HashSet},
+    collections::{hash_map, HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
@@ -111,10 +110,10 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
     /// 2. [SourceCompilationKind::Optimized] - the file is not dirty, but is imported by a dirty
     ///    file and thus will be processed by solc. For such files we don't need full data, so we
     ///    are marking them as clean to optimize output selection later.
-    fn filter(&mut self, sources: Sources, version: &Version) -> FilteredSources {
+    fn filter(&mut self, sources: &mut Sources, version: &Version) {
         // sources that should be passed to compiler.
-        let mut compile_complete = BTreeSet::new();
-        let mut compile_optimized = BTreeSet::new();
+        let mut compile_complete = HashSet::new();
+        let mut compile_optimized = HashSet::new();
 
         for (file, source) in sources.iter() {
             self.sources_in_scope.insert(file.clone(), version.clone());
@@ -140,20 +139,16 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
             }
         }
 
-        let filtered = sources
-            .into_iter()
-            .filter_map(|(file, source)| {
-                if compile_complete.contains(&file) {
-                    Some((file, SourceCompilationKind::Complete(source)))
-                } else if compile_optimized.contains(&file) {
-                    Some((file, SourceCompilationKind::Optimized(source)))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        FilteredSources(filtered)
+        sources.retain(|file, source| {
+            source.kind = if compile_complete.contains(file) {
+                SourceCompilationKind::Complete
+            } else if compile_optimized.contains(file) {
+                SourceCompilationKind::Optimized
+            } else {
+                return false;
+            };
+            true
+        });
     }
 
     /// Returns whether we are missing artifacts for the given file and version.
@@ -209,7 +204,7 @@ impl<'a, T: ArtifactOutput> ArtifactsCacheInner<'a, T> {
         // Iterate over existing cache entries.
         let files = self.cache.files.keys().cloned().collect::<HashSet<_>>();
 
-        let mut sources = BTreeMap::new();
+        let mut sources = Sources::new();
 
         // Read all sources, marking entries as dirty on I/O errors.
         for file in &files {
@@ -422,9 +417,9 @@ impl<'a, T: ArtifactOutput> ArtifactsCache<'a, T> {
     }
 
     /// Filters out those sources that don't need to be compiled
-    pub fn filter(&mut self, sources: Sources, version: &Version) -> FilteredSources {
+    pub fn filter(&mut self, sources: &mut Sources, version: &Version) {
         match self {
-            ArtifactsCache::Ephemeral(_, _) => sources.into(),
+            ArtifactsCache::Ephemeral(_, _) => {}
             ArtifactsCache::Cached(cache) => cache.filter(sources, version),
         }
     }

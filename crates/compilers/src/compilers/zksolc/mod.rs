@@ -122,11 +122,11 @@ impl ZkSolc {
     }
 
     /// Compiles with `--standard-json` and deserializes the output as [`CompilerOutput`].
-    pub fn compile(&self, input: &mut ZkSolcVersionedInput) -> Result<CompilerOutput> {
+    pub fn compile(&self, input: &ZkSolcVersionedInput) -> Result<CompilerOutput> {
         let mut zksolc = self.clone();
         // TODO: maybe we can just override the input
         if input.input.settings.solc.is_some() {
-            zksolc.solc = input.input.settings.solc.clone();
+            zksolc.solc.clone_from(&input.input.settings.solc);
         } else {
             let solc_version_without_metadata = format!(
                 "{}.{}.{}",
@@ -151,16 +151,7 @@ impl ZkSolc {
         zksolc.allow_paths.clone_from(&input.allow_paths);
         zksolc.include_paths.clone_from(&input.include_paths);
 
-        let (output, recompiled_with_dml) = zksolc.compile_output(&input.input)?;
-        // TODO:  We set the input's with the detect missing libraries flag
-        // if recompilation was attempted so cache is stored with the right
-        // input that generated the output.
-        // Maybe we should add this value as part of the output somehow and then
-        // check for that when we evaluate writting the cache
-        if recompiled_with_dml {
-            input.input.settings.detect_missing_libraries = true;
-        }
-
+        let output = zksolc.compile_output(&input.input)?;
         // Only run UTF-8 validation once.
         let output = std::str::from_utf8(&output).map_err(|_| SolcError::InvalidUtf8)?;
 
@@ -169,9 +160,8 @@ impl ZkSolc {
 
     /// Compiles with `--standard-json` and returns the raw `stdout` output.
     #[instrument(name = "compile", level = "debug", skip_all)]
-    pub fn compile_output(&self, input: &ZkSolcInput) -> Result<(Vec<u8>, bool)> {
+    pub fn compile_output(&self, input: &ZkSolcInput) -> Result<Vec<u8>> {
         let mut cmd = Command::new(&self.zksolc);
-        let mut recompiled_with_dml = false;
 
         if !self.allow_paths.is_empty() {
             cmd.arg("--allow-paths");
@@ -211,30 +201,7 @@ impl ZkSolc {
         let output = child.wait_with_output().map_err(self.map_io_err())?;
         debug!(%output.status, output.stderr = ?String::from_utf8_lossy(&output.stderr), "finished");
 
-        let missing_libs_error: &[u8] = b"not found in the project".as_slice();
-
-        let output = if !output.status.success()
-            && output
-                .stderr
-                .windows(missing_libs_error.len())
-                .any(|window| window == missing_libs_error)
-        {
-            trace!("Re-Running compiler with missing libraries detection");
-            recompiled_with_dml = true;
-            cmd.arg("--detect-missing-libraries");
-            let mut child = cmd.spawn().map_err(self.map_io_err())?;
-            debug!("spawned");
-            let stdin = child.stdin.as_mut().unwrap();
-            serde_json::to_writer(stdin, input)?;
-            debug!("wrote JSON input to stdin");
-
-            debug!(%output.status, output.stderr = ?String::from_utf8_lossy(&output.stderr), "finished");
-            child.wait_with_output().map_err(self.map_io_err())?
-        } else {
-            output
-        };
-
-        compile_output(output, recompiled_with_dml)
+        compile_output(output)
     }
 
     /// Invokes `zksolc --version` and parses the output as a SemVer [`Version`], stripping the
@@ -431,9 +398,9 @@ impl ZkSolc {
     }
 }
 
-fn compile_output(output: Output, recompiled_with_dml: bool) -> Result<(Vec<u8>, bool)> {
+fn compile_output(output: Output) -> Result<Vec<u8>> {
     if output.status.success() {
-        Ok((output.stdout, recompiled_with_dml))
+        Ok(output.stdout)
     } else {
         Err(SolcError::solc_output(&output))
     }

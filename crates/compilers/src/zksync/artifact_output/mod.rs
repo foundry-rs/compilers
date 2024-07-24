@@ -80,7 +80,7 @@ pub fn artifacts_into_artifacts(
 ) -> impl Iterator<Item = (ArtifactId, ZkContractArtifact)> {
     artifacts.0.into_iter().flat_map(|(file, contract_artifacts)| {
         contract_artifacts.into_iter().flat_map(move |(_contract_name, artifacts)| {
-            let source = PathBuf::from(file.clone());
+            let source = file.clone();
             artifacts.into_iter().filter_map(move |artifact| {
                 contract_name(&artifact.file).map(|name| {
                     (

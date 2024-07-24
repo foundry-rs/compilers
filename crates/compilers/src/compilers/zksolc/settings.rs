@@ -1,13 +1,18 @@
 use crate::{
     artifacts::{serde_helpers, EvmVersion, Libraries},
     compilers::CompilerSettings,
-    OutputSelection,
+    solc, OutputSelection,
 };
 use foundry_compilers_artifacts::{
     remappings::Remapping, zksolc::output_selection::OutputSelection as ZkOutputSelection,
 };
 use serde::{Deserialize, Serialize};
-use std::{fmt, path::Path, str::FromStr};
+use std::{
+    collections::BTreeSet,
+    fmt,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 /// zksolc standard json input settings. See:
 /// https://docs.zksync.io/zk-stack/components/compiler/toolchain/solidity.html#standard-json for differences
@@ -62,6 +67,9 @@ pub struct ZkSolcSettings {
     pub force_evmla: bool,
     /// The path to the solc compiler to use along zksolc.
     pub solc: Option<std::path::PathBuf>,
+
+    #[serde(flatten)]
+    pub cli_settings: solc::CliSettings,
 }
 
 impl ZkSolcSettings {
@@ -115,6 +123,7 @@ impl Default for ZkSolcSettings {
             llvm_options: Default::default(),
             force_evmla: false,
             solc: None,
+            cli_settings: Default::default(),
         }
     }
 }
@@ -127,6 +136,27 @@ impl CompilerSettings for ZkSolcSettings {
 
     fn can_use_cached(&self, other: &Self) -> bool {
         self == other
+    }
+
+    fn with_remappings(mut self, remappings: &[Remapping]) -> Self {
+        self.remappings = remappings.to_vec();
+
+        self
+    }
+
+    fn with_allow_paths(mut self, allowed_paths: &BTreeSet<PathBuf>) -> Self {
+        self.cli_settings.allow_paths.clone_from(allowed_paths);
+        self
+    }
+
+    fn with_base_path(mut self, base_path: &Path) -> Self {
+        self.cli_settings.base_path = Some(base_path.to_path_buf());
+        self
+    }
+
+    fn with_include_paths(mut self, include_paths: &BTreeSet<PathBuf>) -> Self {
+        self.cli_settings.include_paths.clone_from(include_paths);
+        self
     }
 }
 

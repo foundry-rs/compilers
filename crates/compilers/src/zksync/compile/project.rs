@@ -1,6 +1,6 @@
 use crate::{
     artifact_output::{ArtifactOutput, Artifacts},
-    compilers::{zksolc::ZkSolc, CompilerInput},
+    compilers::{zksolc::ZkSolc, CompilerInput, CompilerSettings},
     error::Result,
     filter::SparseOutputFilter,
     output::Builds,
@@ -14,7 +14,7 @@ use crate::{
         cache::ArtifactsCache,
         compile::output::{AggregatedCompilerOutput, ProjectCompileOutput},
     },
-    FilteredSources, Graph, Project, Sources,
+    Graph, Project, Sources,
 };
 use foundry_compilers_artifacts::{zksolc::CompilerOutput, SolcLanguage};
 use semver::Version;
@@ -22,9 +22,6 @@ use std::{collections::HashMap, path::PathBuf, time::Instant};
 
 /// A set of different Solc installations with their version and the sources to be compiled
 pub(crate) type VersionedSources<L> = HashMap<L, HashMap<Version, Sources>>;
-
-/// A set of different Solc installations with their version and the sources to be compiled
-pub(crate) type VersionedFilteredSources<L> = HashMap<L, HashMap<Version, FilteredSources>>;
 
 /// NOTE: We need the root ArtifactOutput because of the Project type
 /// but we are not using it to compile anything zksync related
@@ -57,17 +54,9 @@ impl<'a, T: ArtifactOutput> ProjectCompiler<'a, T> {
             &project.locked_versions,
             &project.compiler,
         )?;
-        /* TODO: Evaluate parallel support
-        let sources = if project.solc_jobs > 1 && sources_by_version.len() > 1 {
-            // if there are multiple different versions, and we can use multiple jobs we can compile
-            // them in parallel
-            CompilerSources::Parallel(sources_by_version, project.solc_jobs)
-        } else {
-            CompilerSources::Sequential(sources_by_version)
-        };
-        */
-        let sources = CompilerSources::Sequential(sources);
-
+        // If there are multiple different versions, and we can use multiple jobs we can compile
+        // them in parallel.
+        let sources = CompilerSources { sources };
         Ok(Self { edges, project, sources })
     }
 
@@ -98,7 +87,7 @@ impl<'a, T: ArtifactOutput> ProjectCompiler<'a, T> {
 
         let mut cache = ArtifactsCache::new(project, edges)?;
         // retain and compile only dirty sources and all their imports
-        let sources = sources.filtered(&mut cache);
+        sources.filter(&mut cache);
 
         Ok(PreprocessedState { sources, cache })
     }
@@ -110,7 +99,7 @@ impl<'a, T: ArtifactOutput> ProjectCompiler<'a, T> {
 #[derive(Debug)]
 struct PreprocessedState<'a, T: ArtifactOutput> {
     /// Contains all the sources to compile.
-    sources: FilteredCompilerSources,
+    sources: CompilerSources,
 
     /// Cache that holds `CacheEntry` objects if caching is enabled and the project is recompiled
     cache: ArtifactsCache<'a, T>,
@@ -253,9 +242,8 @@ impl<'a, T: ArtifactOutput> ArtifactsState<'a, T> {
 
 /// Determines how the `solc <-> sources` pairs are executed
 #[derive(Debug, Clone)]
-enum CompilerSources {
-    /// Compile all these sequentially
-    Sequential(VersionedSources<SolcLanguage>),
+struct CompilerSources {
+    sources: VersionedSources<SolcLanguage>,
 }
 
 impl CompilerSources {
@@ -268,72 +256,35 @@ impl CompilerSources {
         {
             use path_slash::PathBufExt;
 
-            fn slash_versioned_sources(v: &mut VersionedSources) {
-                for (_, (_, sources)) in v {
+            self.sources.values_mut().for_each(|versioned_sources| {
+                versioned_sources.values_mut().for_each(|sources| {
                     *sources = std::mem::take(sources)
                         .into_iter()
                         .map(|(path, source)| {
                             (PathBuf::from(path.to_slash_lossy().as_ref()), source)
                         })
                         .collect()
-                }
-            }
-
-            match self {
-                CompilerSources::Sequential(v) => slash_versioned_sources(v),
-            };
+                })
+            });
         }
     }
 
     /// Filters out all sources that don't need to be compiled, see [`ArtifactsCache::filter`]
-    fn filtered<T: ArtifactOutput>(
-        self,
-        cache: &mut ArtifactsCache<'_, T>,
-    ) -> FilteredCompilerSources {
-        fn filtered_sources<T: ArtifactOutput>(
-            sources: VersionedSources<SolcLanguage>,
-            cache: &mut ArtifactsCache<'_, T>,
-        ) -> VersionedFilteredSources<SolcLanguage> {
-            cache.remove_dirty_sources();
-
-            sources
-                .into_iter()
-                .map(|(language, versioned_sources)| {
-                    (
-                        language,
-                        versioned_sources
-                            .into_iter()
-                            .map(|(version, sources)| {
-                                trace!("Filtering {} sources for {}", sources.len(), version);
-                                let sources_to_compile = cache.filter(sources, &version);
-                                trace!(
-                                    "Detected {} sources to compile {:?}",
-                                    sources_to_compile.dirty().count(),
-                                    sources_to_compile.dirty_files().collect::<Vec<_>>()
-                                );
-
-                                (version, sources_to_compile)
-                            })
-                            .collect(),
-                    )
-                })
-                .collect()
-        }
-
-        match self {
-            Self::Sequential(s) => FilteredCompilerSources::Sequential(filtered_sources(s, cache)),
+    fn filter<T: ArtifactOutput>(&mut self, cache: &mut ArtifactsCache<'_, T>) {
+        cache.remove_dirty_sources();
+        for versioned_sources in self.sources.values_mut() {
+            for (version, sources) in versioned_sources {
+                trace!("Filtering {} sources for {}", sources.len(), version);
+                cache.filter(sources, version);
+                trace!(
+                    "Detected {} sources to compile {:?}",
+                    sources.dirty().count(),
+                    sources.dirty_files().collect::<Vec<_>>()
+                );
+            }
         }
     }
-}
 
-/// Determines how the `solc <-> sources` pairs are executed
-#[derive(Debug, Clone)]
-enum FilteredCompilerSources {
-    /// Compile all these sequentially
-    Sequential(VersionedFilteredSources<SolcLanguage>),
-}
-
-impl FilteredCompilerSources {
     /// Compiles all the files with `Solc`
     fn compile<T: ArtifactOutput>(
         self,
@@ -344,15 +295,14 @@ impl FilteredCompilerSources {
 
         let sparse_output = SparseOutputFilter::new(project.sparse_output.as_deref());
 
-        let sources = self.into_sources();
         // Include additional paths collected during graph resolution.
         let mut include_paths = project.paths.include_paths.clone();
         include_paths.extend(graph.include_paths().clone());
 
         let mut jobs = Vec::new();
-        for (language, versioned_sources) in sources {
-            for (version, filtered_sources) in versioned_sources {
-                if filtered_sources.is_empty() {
+        for (language, versioned_sources) in self.sources {
+            for (version, sources) in versioned_sources {
+                if sources.is_empty() {
                     // nothing to compile
                     trace!("skip {} for empty sources set", version);
                     continue;
@@ -361,8 +311,8 @@ impl FilteredCompilerSources {
                 // depending on the composition of the filtered sources, the output selection can be
                 // optimized
                 let mut opt_settings = project.settings.clone();
-                let (sources, actually_dirty) =
-                    sparse_output.sparse_sources(filtered_sources, &mut opt_settings, graph);
+                let actually_dirty =
+                    sparse_output.sparse_sources(&sources, &mut opt_settings, graph);
 
                 if actually_dirty.is_empty() {
                     // nothing to compile for this particular language, all dirty files are in the
@@ -372,19 +322,21 @@ impl FilteredCompilerSources {
                 }
 
                 trace!("calling {} with {} sources {:?}", version, sources.len(), sources.keys());
-
-                let zksync_settings = project.zksync_zksolc_config.settings.clone();
+                let zksync_settings = project
+                    .zksync_zksolc_config
+                    .settings
+                    .clone()
+                    .with_base_path(&project.paths.root)
+                    .with_allow_paths(&project.paths.allowed_paths)
+                    .with_include_paths(&include_paths)
+                    .with_remappings(&project.paths.remappings);
 
                 let mut input = ZkSolcVersionedInput::build(
                     sources,
                     zksync_settings,
                     language,
                     version.clone(),
-                )
-                .with_base_path(project.paths.root.clone())
-                .with_allow_paths(project.paths.allowed_paths.clone())
-                .with_include_paths(include_paths.clone())
-                .with_remappings(project.paths.remappings.clone());
+                );
 
                 input.strip_prefix(project.paths.root.as_path());
 
@@ -419,12 +371,6 @@ impl FilteredCompilerSources {
 
         Ok(aggregated)
     }
-
-    fn into_sources(self) -> VersionedFilteredSources<SolcLanguage> {
-        match self {
-            Self::Sequential(v) => v,
-        }
-    }
 }
 
 /// Compiles the input set sequentially and returns an aggregated set of the solc `CompilerOutput`s
@@ -433,17 +379,14 @@ fn compile_sequential(
     jobs: Vec<(ZkSolcVersionedInput, Vec<PathBuf>)>,
 ) -> Result<Vec<(ZkSolcVersionedInput, CompilerOutput, Vec<PathBuf>)>> {
     jobs.into_iter()
-        // NOTE: Input is mutable because we may recompile with missing libraries
-        // and set that flag to true in order to write the correct settings to
-        // cache
-        .map(|(mut input, actually_dirty)| {
+        .map(|(input, actually_dirty)| {
             let start = Instant::now();
             report::compiler_spawn(
                 &input.compiler_name(),
                 input.version(),
                 actually_dirty.as_slice(),
             );
-            let output = zksolc.compile(&mut input)?;
+            let output = zksolc.compile(&input)?;
             report::compiler_success(&input.compiler_name(), input.version(), &start.elapsed());
 
             Ok((input, output, actually_dirty))

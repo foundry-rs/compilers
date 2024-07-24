@@ -1,10 +1,7 @@
 use foundry_compilers_artifacts_solc::error::{Severity, SourceLocation};
 
 use foundry_compilers_artifacts_solc::serde_helpers;
-use serde::{
-    de::{self, Deserializer},
-    Deserialize, Serialize,
-};
+use serde::{Deserialize, Serialize};
 use std::{fmt, ops::Range};
 use yansi::{Color, Style};
 

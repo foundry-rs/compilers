@@ -59,33 +59,12 @@ impl CompilerInput for ZkSolcVersionedInput {
         self.input.sources.iter().map(|(path, source)| (path.as_path(), source))
     }
 
-    fn with_remappings(mut self, remappings: Vec<Remapping>) -> Self {
-        self.input = self.input.with_remappings(remappings);
-
-        self
-    }
-
     fn compiler_name(&self) -> Cow<'static, str> {
         "ZkSolc".into()
     }
 
     fn strip_prefix(&mut self, base: &Path) {
         self.input.strip_prefix(base);
-    }
-
-    fn with_allow_paths(mut self, allowed_paths: BTreeSet<PathBuf>) -> Self {
-        self.allow_paths = allowed_paths;
-        self
-    }
-
-    fn with_base_path(mut self, base_path: PathBuf) -> Self {
-        self.base_path = Some(base_path);
-        self
-    }
-
-    fn with_include_paths(mut self, include_paths: BTreeSet<PathBuf>) -> Self {
-        self.include_paths = include_paths;
-        self
     }
 }
 

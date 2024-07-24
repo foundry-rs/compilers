@@ -122,17 +122,11 @@ impl ProjectCompileOutput {
     }
 
     /// Finds the artifact with matching path and name
-    pub fn find(
-        &self,
-        path: impl AsRef<str>,
-        contract: impl AsRef<str>,
-    ) -> Option<&ZkContractArtifact> {
-        let contract_path = path.as_ref();
-        let contract_name = contract.as_ref();
-        if let artifact @ Some(_) = self.compiled_artifacts.find(contract_path, contract_name) {
+    pub fn find(&self, path: &Path, name: &str) -> Option<&ZkContractArtifact> {
+        if let artifact @ Some(_) = self.compiled_artifacts.find(path, name) {
             return artifact;
         }
-        self.cached_artifacts.find(contract_path, contract_name)
+        self.cached_artifacts.find(path, name)
     }
 
     /// Returns the set of `Artifacts` that were cached and got reused during
@@ -148,17 +142,11 @@ impl ProjectCompileOutput {
     }
 
     /// Removes the artifact with matching path and name
-    pub fn remove(
-        &mut self,
-        path: impl AsRef<str>,
-        contract: impl AsRef<str>,
-    ) -> Option<ZkContractArtifact> {
-        let contract_path = path.as_ref();
-        let contract_name = contract.as_ref();
-        if let artifact @ Some(_) = self.compiled_artifacts.remove(contract_path, contract_name) {
+    pub fn remove(&mut self, path: &Path, name: &str) -> Option<ZkContractArtifact> {
+        if let artifact @ Some(_) = self.compiled_artifacts.remove(path, name) {
             return artifact;
         }
-        self.cached_artifacts.remove(contract_path, contract_name)
+        self.cached_artifacts.remove(path, name)
     }
 
     /// Removes the _first_ contract with the given name from the set
@@ -181,9 +169,9 @@ impl ProjectCompileOutput {
     ) -> Option<ZkContractArtifact> {
         let ContractInfoRef { path, name } = info.into();
         if let Some(path) = path {
-            self.remove(path, name)
+            self.remove(path[..].as_ref(), &name)
         } else {
-            self.remove_first(name)
+            self.remove_first(&name)
         }
     }
 }
