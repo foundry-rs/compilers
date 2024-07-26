@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1](https://github.com/foundry-rs/compilers/releases/tag/v0.10.1) - 2024-07-26
+
+### Bug Fixes
+
+- Better compatibility with older AST ([#175](https://github.com/foundry-rs/compilers/issues/175))
+
+### Features
+
+- Add Prague evm version ([#166](https://github.com/foundry-rs/compilers/issues/166))
+
 ## [0.10.0](https://github.com/foundry-rs/compilers/releases/tag/v0.10.0) - 2024-07-18
 
 ### Bug Fixes
@@ -17,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `eofVersion` config option ([#174](https://github.com/foundry-rs/compilers/issues/174))
 - Allow passing extra cli args to solc + some cleanup ([#171](https://github.com/foundry-rs/compilers/issues/171))
+
+### Miscellaneous Tasks
+
+- Release 0.10.0
 
 ## [0.9.0](https://github.com/foundry-rs/compilers/releases/tag/v0.9.0) - 2024-06-29
 
