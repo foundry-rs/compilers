@@ -2013,6 +2013,7 @@ mod tests {
             ("0.8.26", EvmVersion::Homestead, Some(EvmVersion::Homestead)),
             ("0.8.26", EvmVersion::Shanghai, Some(EvmVersion::Shanghai)),
             ("0.8.26", EvmVersion::Cancun, Some(EvmVersion::Cancun)),
+            ("0.8.26", EvmVersion::Prague, Some(EvmVersion::Cancun)),
             ("0.8.27", EvmVersion::Prague, Some(EvmVersion::Prague)),
         ] {
             let version = Version::from_str(solc_version).unwrap();
