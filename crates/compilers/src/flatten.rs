@@ -493,6 +493,9 @@ impl Flattener {
                 });
 
             docs.for_each(|doc| {
+                let Documentation::Structured(doc) = doc else {
+                    return
+                };
                 let src_start = doc.src.start.unwrap();
                 let src_end = src_start + doc.src.length.unwrap();
 

@@ -15,7 +15,7 @@
 mod macros;
 mod misc;
 pub use misc::*;
-pub mod util;
+pub mod utils;
 pub mod visitor;
 
 /// A low fidelity representation of the AST.
@@ -173,7 +173,7 @@ ast_node!(
         contract_dependencies: Vec<usize>,
         #[serde(rename = "contractKind")]
         kind: ContractKind,
-        documentation: Option<StructuredDocumentation>,
+        documentation: Option<Documentation>,
         fully_implemented: bool,
         linearized_base_contracts: Vec<usize>,
         nodes: Vec<ContractDefinitionPart>,
@@ -526,7 +526,7 @@ ast_node!(
         /// [`VariableDeclaration::mutability()`].
         #[serde(default)]
         state_variable: bool,
-        documentation: Option<StructuredDocumentation>,
+        documentation: Option<Documentation>,
         function_selector: Option<String>, // TODO
         #[serde(default)]
         indexed: bool,
@@ -567,6 +567,13 @@ ast_node!(
         text: String,
     }
 );
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Documentation {
+    Structured(StructuredDocumentation),
+    Raw(String),
+}
 
 ast_node!(
     /// An override specifier.
@@ -670,7 +677,7 @@ ast_node!(
         name: String,
         #[serde(default, with = "serde_helpers::display_from_str_opt")]
         name_location: Option<SourceLocation>,
-        documentation: Option<StructuredDocumentation>,
+        documentation: Option<Documentation>,
         error_selector: Option<String>, // TODO
         parameters: ParameterList,
     }
@@ -684,7 +691,7 @@ ast_node!(
         name_location: Option<SourceLocation>,
         anonymous: bool,
         event_selector: Option<String>, // TODO
-        documentation: Option<StructuredDocumentation>,
+        documentation: Option<Documentation>,
         parameters: ParameterList,
     }
 );
@@ -698,7 +705,7 @@ ast_node!(
         #[serde(default, deserialize_with = "serde_helpers::default_for_null")]
         base_functions: Vec<usize>,
         body: Option<Block>,
-        documentation: Option<StructuredDocumentation>,
+        documentation: Option<Documentation>,
         function_selector: Option<String>, // TODO
         implemented: bool,
         modifiers: Vec<ModifierInvocation>,
@@ -865,9 +872,11 @@ ast_node!(
     struct InlineAssembly {
         documentation: Option<String>,
         #[serde(rename = "AST")]
-        ast: YulBlock,
+        ast: Option<YulBlock>,
+        operations: Option<String>,
         // TODO: We need this camel case for the AST, but pascal case other places in ethers-solc
         //evm_version: EvmVersion,
+        #[serde(deserialize_with = "utils::deserialize_external_assembly_references")]
         external_references: Vec<ExternalInlineAssemblyReference>,
         #[serde(default, deserialize_with = "serde_helpers::default_for_null")]
         flags: Vec<InlineAssemblyFlag>,
@@ -1001,7 +1010,7 @@ ast_node!(
         #[serde(default, deserialize_with = "serde_helpers::default_for_null")]
         base_modifiers: Vec<usize>,
         body: Option<Block>,
-        documentation: Option<StructuredDocumentation>,
+        documentation: Option<Documentation>,
         overrides: Option<OverrideSpecifier>,
         parameters: ParameterList,
         #[serde(default, rename = "virtual")]
