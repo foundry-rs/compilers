@@ -1,7 +1,7 @@
 use foundry_compilers_core::utils;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
+    collections::{btree_map::Entry, BTreeMap, HashSet},
     fmt,
     path::{Path, PathBuf},
     str::FromStr,
@@ -209,7 +209,11 @@ impl Remapping {
         /// prioritize
         ///   - ("a", "1/2") over ("a", "1/2/3")
         ///   - if a path ends with `src`
-        fn insert_prioritized(mappings: &mut HashMap<String, PathBuf>, key: String, path: PathBuf) {
+        fn insert_prioritized(
+            mappings: &mut BTreeMap<String, PathBuf>,
+            key: String,
+            path: PathBuf,
+        ) {
             match mappings.entry(key) {
                 Entry::Occupied(mut e) => {
                     if e.get().components().count() > path.components().count()
@@ -226,13 +230,14 @@ impl Remapping {
         }
 
         // all combined remappings from all subdirs
-        let mut all_remappings = HashMap::new();
+        let mut all_remappings = BTreeMap::new();
 
         let is_inside_node_modules = dir.ends_with("node_modules");
 
         let mut visited_symlink_dirs = HashSet::new();
         // iterate over all dirs that are children of the root
         for dir in walkdir::WalkDir::new(dir)
+            .sort_by_file_name()
             .follow_links(true)
             .min_depth(1)
             .max_depth(1)
@@ -641,6 +646,7 @@ fn find_remapping_candidates(
 
     // scan all entries in the current dir
     for entry in walkdir::WalkDir::new(current_dir)
+        .sort_by_file_name()
         .follow_links(true)
         .min_depth(1)
         .max_depth(1)
