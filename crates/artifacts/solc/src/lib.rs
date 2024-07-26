@@ -39,7 +39,8 @@ use crate::output_selection::{ContractOutputSelection, OutputSelection};
 use foundry_compilers_core::{
     error::SolcError,
     utils::{
-        strip_prefix_owned, BERLIN_SOLC, BYZANTIUM_SOLC, CANCUN_SOLC, CONSTANTINOPLE_SOLC, ISTANBUL_SOLC, LONDON_SOLC, PARIS_SOLC, PETERSBURG_SOLC, PRAGUE_SOLC, SHANGHAI_SOLC
+        strip_prefix_owned, BERLIN_SOLC, BYZANTIUM_SOLC, CANCUN_SOLC, CONSTANTINOPLE_SOLC,
+        ISTANBUL_SOLC, LONDON_SOLC, PARIS_SOLC, PETERSBURG_SOLC, PRAGUE_SOLC, SHANGHAI_SOLC,
     },
 };
 pub use serde_helpers::{deserialize_bytes, deserialize_opt_bytes};
