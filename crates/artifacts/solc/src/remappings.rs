@@ -209,7 +209,11 @@ impl Remapping {
         /// prioritize
         ///   - ("a", "1/2") over ("a", "1/2/3")
         ///   - if a path ends with `src`
-        fn insert_prioritized(mappings: &mut BTreeMap<String, PathBuf>, key: String, path: PathBuf) {
+        fn insert_prioritized(
+            mappings: &mut BTreeMap<String, PathBuf>,
+            key: String,
+            path: PathBuf,
+        ) {
             match mappings.entry(key) {
                 Entry::Occupied(mut e) => {
                     if e.get().components().count() > path.components().count()
