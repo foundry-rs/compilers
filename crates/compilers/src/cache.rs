@@ -150,6 +150,27 @@ impl<S: CompilerSettings> CompilerCache<S> {
         Ok(())
     }
 
+    /// Removes build infos which don't have any artifacts linked to them.
+    pub fn remove_outdated_builds(&mut self) {
+        let mut outdated = Vec::new();
+        for build_id in &self.builds {
+            if !self
+                .entries()
+                .flat_map(|e| e.artifacts.values())
+                .flat_map(|a| a.values())
+                .any(|a| a.build_id == *build_id)
+            {
+                outdated.push(build_id.to_owned());
+            }
+        }
+
+        for build_id in outdated {
+            self.builds.remove(&build_id);
+            let path = self.paths.build_infos.join(build_id).with_extension("json");
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
     /// Sets the `CacheEntry`'s file paths to `root` adjoined to `self.file`.
     pub fn join_entries(&mut self, root: &Path) -> &mut Self {
         self.files = std::mem::take(&mut self.files)
@@ -1035,6 +1056,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
 
         // write to disk
         if write_to_disk {
+            cache.remove_outdated_builds();
             // make all `CacheEntry` paths relative to the project root and all artifact
             // paths relative to the artifact's directory
             cache
