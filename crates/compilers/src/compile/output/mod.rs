@@ -845,11 +845,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
 
     /// Checks if there are any compiler warnings that are not ignored by the specified error codes
     /// and file paths.
-    pub fn has_warning<'a>(
-        &self,
-        ignored_error_codes: &[u64],
-        ignored_file_paths: &[PathBuf],
-    ) -> bool {
+    pub fn has_warning(&self, ignored_error_codes: &[u64], ignored_file_paths: &[PathBuf]) -> bool {
         self.errors
             .iter()
             .any(|error| !self.should_ignore(ignored_error_codes, ignored_file_paths, error))
@@ -877,7 +873,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
                 // we ignore spdx and contract size warnings in test
                 // files. if we are looking at one of these warnings
                 // from a test file we skip
-                ignore |= self.is_test(&path) && (code == 1878 || code == 5574);
+                ignore |= self.is_test(path) && (code == 1878 || code == 5574);
             }
         }
 
@@ -941,7 +937,7 @@ impl<'a, C: Compiler> fmt::Display for OutputDiagnostics<'a, C> {
 
         for err in &self.compiler_output.errors {
             if !self.compiler_output.should_ignore(
-                &self.ignored_error_codes,
+                self.ignored_error_codes,
                 self.ignored_file_paths,
                 err,
             ) {
