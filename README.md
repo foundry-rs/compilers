@@ -1,4 +1,5 @@
 # Foundry Compilers
+| [Docs](https://docs.rs/foundry-compilers/latest/foundry_compilers/) |
 
 Originally part of [`ethers-rs`] as `ethers-solc`, Foundry Compilers is the compilation backend for [Foundry](https://github.com/foundry-rs/foundry).
 
@@ -45,7 +46,7 @@ To install, simply add `foundry-compilers` to your cargo dependencies.
 
 ```toml
 [dependencies]
-foundry-compilers = { git = "https://github.com/foundry-rs/compilers" }
+foundry-compilers = "0.10.1"
 ```
 
 Example usage:
