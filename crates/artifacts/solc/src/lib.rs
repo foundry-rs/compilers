@@ -11,7 +11,6 @@ use semver::Version;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::{
-    borrow::Cow,
     collections::{BTreeMap, HashSet},
     fmt,
     path::{Path, PathBuf},
@@ -1437,46 +1436,6 @@ pub struct DocLibraries {
     pub libs: BTreeMap<String, serde_json::Value>,
 }
 
-/// How to filter errors/warnings
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ErrorFilter<'a> {
-    /// Ignore errors/warnings with these codes
-    pub error_codes: Cow<'a, [u64]>,
-    /// Ignore errors/warnings from these file paths
-    pub ignored_file_paths: Cow<'a, [PathBuf]>,
-}
-
-impl<'a> ErrorFilter<'a> {
-    /// Creates a new `ErrorFilter` with the given error codes and ignored file paths
-    pub fn new(error_codes: &'a [u64], ignored_file_paths: &'a [PathBuf]) -> Self {
-        ErrorFilter {
-            error_codes: Cow::Borrowed(error_codes),
-            ignored_file_paths: Cow::Borrowed(ignored_file_paths),
-        }
-    }
-    /// Helper function to check if an error code is ignored
-    pub fn is_code_ignored(&self, code: Option<u64>) -> bool {
-        match code {
-            Some(code) => self.error_codes.contains(&code),
-            None => false,
-        }
-    }
-
-    /// Helper function to check if an error's file path is ignored
-    pub fn is_file_ignored(&self, file_path: &Path) -> bool {
-        self.ignored_file_paths.iter().any(|ignored_path| file_path.starts_with(ignored_path))
-    }
-}
-
-impl<'a> From<&'a [u64]> for ErrorFilter<'a> {
-    fn from(error_codes: &'a [u64]) -> Self {
-        ErrorFilter {
-            error_codes: Cow::Borrowed(error_codes),
-            ignored_file_paths: Cow::Borrowed(&[]),
-        }
-    }
-}
-
 /// Output type `solc` produces
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompilerOutput {
@@ -1492,29 +1451,6 @@ impl CompilerOutput {
     /// Whether the output contains a compiler error
     pub fn has_error(&self) -> bool {
         self.errors.iter().any(|err| err.severity.is_error())
-    }
-
-    /// Checks if there are any compiler warnings that are not ignored by the specified error codes
-    /// and file paths.
-    pub fn has_warning<'a>(&self, filter: impl Into<ErrorFilter<'a>>) -> bool {
-        let filter: ErrorFilter<'_> = filter.into();
-        self.errors.iter().any(|error| {
-            if !error.severity.is_warning() {
-                return false;
-            }
-
-            let is_code_ignored = filter.is_code_ignored(error.error_code);
-
-            let is_file_ignored = error
-                .source_location
-                .as_ref()
-                .map_or(false, |location| filter.is_file_ignored(Path::new(&location.file)));
-
-            // Only consider warnings that are not ignored by either code or file path.
-            // Hence, return `true` for warnings that are not ignored, making the function
-            // return `true` if any such warnings exist.
-            !(is_code_ignored || is_file_ignored)
-        })
     }
 
     /// Finds the _first_ contract with the given name

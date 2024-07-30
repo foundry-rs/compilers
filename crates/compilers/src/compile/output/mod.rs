@@ -1,7 +1,7 @@
 //! The output of a compiled project
 use contracts::{VersionedContract, VersionedContracts};
 use foundry_compilers_artifacts::{
-    CompactContractBytecode, CompactContractRef, Contract, ErrorFilter, Severity,
+    CompactContractBytecode, CompactContractRef, Contract, Severity,
 };
 use foundry_compilers_core::error::{SolcError, SolcIoError};
 use info::ContractInfoRef;
@@ -483,8 +483,7 @@ impl<C: Compiler, T: ArtifactOutput> ProjectCompileOutput<C, T> {
 
     /// Returns whether any warnings were emitted by the compiler.
     pub fn has_compiler_warnings(&self) -> bool {
-        let filter = ErrorFilter::new(&self.ignored_error_codes, &self.ignored_file_paths);
-        self.compiler_output.has_warning(filter)
+        self.compiler_output.has_warning(&self.ignored_error_codes, &self.ignored_file_paths)
     }
 
     /// Panics if any errors were emitted by the compiler.
@@ -836,8 +835,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
             if compiler_severity_filter.ge(&err.severity()) {
                 if compiler_severity_filter.is_warning() {
                     // skip ignored error codes and file path from warnings
-                    let filter = ErrorFilter::new(ignored_error_codes, ignored_file_paths);
-                    return self.has_warning(filter);
+                    return self.has_warning(ignored_error_codes, ignored_file_paths);
                 }
                 return true;
             }
@@ -847,25 +845,52 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
 
     /// Checks if there are any compiler warnings that are not ignored by the specified error codes
     /// and file paths.
-    pub fn has_warning<'a>(&self, filter: impl Into<ErrorFilter<'a>>) -> bool {
-        let filter: ErrorFilter<'_> = filter.into();
-        self.errors.iter().any(|error| {
-            if !error.is_warning() {
-                return false;
+    pub fn has_warning(&self, ignored_error_codes: &[u64], ignored_file_paths: &[PathBuf]) -> bool {
+        self.errors
+            .iter()
+            .any(|error| !self.should_ignore(ignored_error_codes, ignored_file_paths, error))
+    }
+
+    pub fn should_ignore(
+        &self,
+        ignored_error_codes: &[u64],
+        ignored_file_paths: &[PathBuf],
+        error: &C::CompilationError,
+    ) -> bool {
+        if !error.is_warning() {
+            return false;
+        }
+
+        let mut ignore = false;
+
+        if let Some(code) = error.error_code() {
+            ignore |= ignored_error_codes.contains(&code);
+            if let Some(loc) = error.source_location() {
+                let path = Path::new(&loc.file);
+                ignore |=
+                    ignored_file_paths.iter().any(|ignored_path| path.starts_with(ignored_path));
+
+                // we ignore spdx and contract size warnings in test
+                // files. if we are looking at one of these warnings
+                // from a test file we skip
+                ignore |= self.is_test(path) && (code == 1878 || code == 5574);
             }
+        }
 
-            let is_code_ignored = filter.is_code_ignored(error.error_code());
+        ignore
+    }
 
-            let is_file_ignored = error
-                .source_location()
-                .as_ref()
-                .map_or(false, |location| filter.is_file_ignored(Path::new(&location.file)));
+    /// Returns true if the contract is a expected to be a test
+    fn is_test(&self, contract_path: &Path) -> bool {
+        if contract_path.to_string_lossy().ends_with(".t.sol") {
+            return true;
+        }
 
-            // Only consider warnings that are not ignored by either code or file path.
-            // Hence, return `true` for warnings that are not ignored, making the function
-            // return `true` if any such warnings exist.
-            !(is_code_ignored || is_file_ignored)
-        })
+        self.contracts.contracts_with_files().filter(|(path, _, _)| *path == contract_path).any(
+            |(_, _, contract)| {
+                contract.abi.as_ref().map_or(false, |abi| abi.functions.contains_key("IS_TEST"))
+            },
+        )
     }
 }
 
@@ -894,19 +919,7 @@ impl<'a, C: Compiler> OutputDiagnostics<'a, C> {
 
     /// Returns true if there is at least one warning
     pub fn has_warning(&self) -> bool {
-        let filter = ErrorFilter::new(self.ignored_error_codes, self.ignored_file_paths);
-        self.compiler_output.has_warning(filter)
-    }
-
-    /// Returns true if the contract is a expected to be a test
-    fn is_test(&self, contract_path: &str) -> bool {
-        if contract_path.ends_with(".t.sol") {
-            return true;
-        }
-
-        self.compiler_output.find_first(contract_path).map_or(false, |contract| {
-            contract.abi.map_or(false, |abi| abi.functions.contains_key("IS_TEST"))
-        })
+        self.compiler_output.has_warning(self.ignored_error_codes, self.ignored_file_paths)
     }
 }
 
@@ -923,29 +936,11 @@ impl<'a, C: Compiler> fmt::Display for OutputDiagnostics<'a, C> {
         .fmt(f)?;
 
         for err in &self.compiler_output.errors {
-            let mut ignored = false;
-            if err.is_warning() {
-                if let Some(code) = err.error_code() {
-                    if let Some(source_location) = &err.source_location() {
-                        // we ignore spdx and contract size warnings in test
-                        // files. if we are looking at one of these warnings
-                        // from a test file we skip
-                        ignored =
-                            self.is_test(&source_location.file) && (code == 1878 || code == 5574);
-
-                        // we ignore warnings coming from ignored files
-                        let source_path = Path::new(&source_location.file);
-                        ignored |= self
-                            .ignored_file_paths
-                            .iter()
-                            .any(|ignored_path| source_path.starts_with(ignored_path));
-                    }
-
-                    ignored |= self.ignored_error_codes.contains(&code);
-                }
-            }
-
-            if !ignored {
+            if !self.compiler_output.should_ignore(
+                self.ignored_error_codes,
+                self.ignored_file_paths,
+                err,
+            ) {
                 f.write_str("\n")?;
                 fmt::Display::fmt(&err, f)?;
             }
