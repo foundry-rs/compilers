@@ -9,6 +9,10 @@ use std::{
 };
 
 pub const VYPER_SEARCH_PATHS: Version = Version::new(0, 4, 0);
+pub const VYPER_BERLIN: Version = Version::new(0, 3, 0);
+pub const VYPER_PARIS: Version = Version::new(0, 3, 7);
+pub const VYPER_SHANGHAI: Version = Version::new(0, 3, 8);
+pub const VYPER_CANCUN: Version = Version::new(0, 3, 8);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -79,11 +83,29 @@ impl VyperSettings {
         }
 
         self.sanitize_output_selection();
+        self.normalize_evm_version(version);
     }
 
     /// Sanitize the settings based on the compiler version.
     pub fn sanitized(mut self, version: &Version) -> Self {
         self.sanitize(version);
         self
+    }
+
+    /// Adjusts the EVM version based on the compiler version.
+    pub fn normalize_evm_version(&mut self, version: &Version) {
+        if let Some(evm_version) = &mut self.evm_version {
+            *evm_version = if *evm_version >= EvmVersion::Cancun && *version >= VYPER_CANCUN {
+                EvmVersion::Cancun
+            } else if *evm_version >= EvmVersion::Shanghai && *version >= VYPER_SHANGHAI {
+                EvmVersion::Shanghai
+            } else if *evm_version >= EvmVersion::Paris && *version >= VYPER_PARIS {
+                EvmVersion::Paris
+            } else if *evm_version >= EvmVersion::Berlin && *version >= VYPER_BERLIN {
+                EvmVersion::Berlin
+            } else {
+                *evm_version
+            };
+        }
     }
 }
