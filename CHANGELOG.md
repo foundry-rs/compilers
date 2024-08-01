@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.2](https://github.com/foundry-rs/compilers/releases/tag/v0.10.2) - 2024-08-01
+
+### Bug Fixes
+
+- Unify logic for ignored warnings ([#179](https://github.com/foundry-rs/compilers/issues/179))
+- Remove outdated build infos ([#177](https://github.com/foundry-rs/compilers/issues/177))
+- Make remappings resolution more deterministic ([#176](https://github.com/foundry-rs/compilers/issues/176))
+
+### Features
+
+- Sanitize EVM version for vyper ([#181](https://github.com/foundry-rs/compilers/issues/181))
+
+### Other
+
+- Update README to link docs and update install instructions ([#180](https://github.com/foundry-rs/compilers/issues/180))
+
 ## [0.10.1](https://github.com/foundry-rs/compilers/releases/tag/v0.10.1) - 2024-07-26
 
 ### Bug Fixes
@@ -14,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 - Add Prague evm version ([#166](https://github.com/foundry-rs/compilers/issues/166))
+
+### Miscellaneous Tasks
+
+- Release 0.10.1
 
 ## [0.10.0](https://github.com/foundry-rs/compilers/releases/tag/v0.10.0) - 2024-07-18
 
