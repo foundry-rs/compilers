@@ -161,7 +161,7 @@ impl<'a> FlatteningResult<'a> {
         let mut result = String::new();
 
         if let Some(license) = &self.license {
-            result.push_str(&format!("{license}\n"));
+            result.push_str(&format!("// {license}\n"));
         }
         for pragma in &self.pragmas {
             result.push_str(&format!("{pragma}\n"));
@@ -757,7 +757,9 @@ impl Flattener {
 
         for loc in &self.collect_licenses() {
             if loc.path == self.target {
-                target_license = Some(self.read_location(loc));
+                let license_line = self.read_location(loc);
+                let license_start = license_line.find("SPDX-License-Identifier:").unwrap();
+                target_license = Some(license_line[license_start..].trim());
             }
             updates.entry(loc.path.clone()).or_default().insert((
                 loc.start,
