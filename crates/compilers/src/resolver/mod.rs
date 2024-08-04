@@ -635,8 +635,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
 
             if all_versions.is_empty() && !nodes.is_empty() {
                 return Err(SolcError::msg(format!(
-                    "Found {} sources, but no compiler versions are available for it",
-                    language
+                    "Found {language} sources, but no compiler versions are available for it"
                 )));
             }
 
