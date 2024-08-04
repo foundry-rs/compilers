@@ -633,6 +633,12 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                 compiler.available_versions(&language)
             };
 
+            if all_versions.is_empty() && !nodes.is_empty() {
+                return Err(SolcError::msg(format!(
+                    "Found {language} sources, but no compiler versions are available for it"
+                )));
+            }
+
             // stores all versions and their nodes that can be compiled
             let mut versioned_nodes = HashMap::new();
 
@@ -656,7 +662,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                     } else {
                         let mut msg = String::new();
                         self.format_imports_list(idx, &mut msg).unwrap();
-                        errors.push(format!("Found incompatible Solidity versions:\n{msg}"));
+                        errors.push(format!("Found incompatible versions:\n{msg}"));
                     }
 
                     erroneous_nodes.insert(idx);
