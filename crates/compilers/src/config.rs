@@ -33,6 +33,8 @@ pub struct ProjectPathsConfig<L = MultiCompilerLanguage> {
     pub cache: PathBuf,
     /// Where to store build artifacts
     pub artifacts: PathBuf,
+    /// Where to store snapshots
+    pub snapshots: PathBuf,
     /// Where to store the build info files
     pub build_infos: PathBuf,
     /// Where to find sources
@@ -529,6 +531,7 @@ impl<L> ProjectPathsConfig<L> {
             cache,
             artifacts,
             build_infos,
+            snapshots,
             sources,
             tests,
             scripts,
@@ -544,6 +547,7 @@ impl<L> ProjectPathsConfig<L> {
             cache,
             artifacts,
             build_infos,
+            snapshots,
             sources,
             tests,
             scripts,
@@ -734,6 +738,7 @@ pub struct ProjectPathsConfigBuilder {
     cache: Option<PathBuf>,
     artifacts: Option<PathBuf>,
     build_infos: Option<PathBuf>,
+    snapshots: Option<PathBuf>,
     sources: Option<PathBuf>,
     tests: Option<PathBuf>,
     scripts: Option<PathBuf>,
@@ -776,6 +781,11 @@ impl ProjectPathsConfigBuilder {
 
     pub fn scripts(mut self, scripts: impl Into<PathBuf>) -> Self {
         self.scripts = Some(utils::canonicalized(scripts));
+        self
+    }
+
+    pub fn snapshots(mut self, snapshots: impl Into<PathBuf>) -> Self {
+        self.snapshots = Some(utils::canonicalized(snapshots));
         self
     }
 
@@ -864,6 +874,7 @@ impl ProjectPathsConfigBuilder {
                 .unwrap_or_else(|| root.join("cache").join(SOLIDITY_FILES_CACHE_FILENAME)),
             build_infos: self.build_infos.unwrap_or_else(|| artifacts.join("build-info")),
             artifacts,
+            snapshots: self.snapshots.unwrap_or_else(|| root.join("snapshots")),
             sources: self.sources.unwrap_or_else(|| ProjectPathsConfig::find_source_dir(&root)),
             tests: self.tests.unwrap_or_else(|| root.join("test")),
             scripts: self.scripts.unwrap_or_else(|| root.join("script")),
