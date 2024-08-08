@@ -12,17 +12,19 @@ use std::{
     str::FromStr,
 };
 
+#[cfg(feature = "async")]
+use std::{
+    fs::{self, create_dir_all, set_permissions, File},
+    io::Write,
+};
+
+#[cfg(target_family = "unix")]
+#[cfg(feature = "async")]
+use std::os::unix::fs::PermissionsExt;
+
 pub mod input;
 pub mod settings;
 pub use settings::ZkSolcSettings;
-
-#[cfg(feature = "async")]
-use std::os::unix::prelude::PermissionsExt;
-#[cfg(feature = "async")]
-use tokio::{
-    fs::{create_dir_all, set_permissions, File},
-    io::copy,
-};
 
 pub const ZKSOLC: &str = "zksolc";
 pub const ZKSYNC_SOLC_RELEASE: Version = Version::new(1, 0, 1);
@@ -251,63 +253,24 @@ impl ZkSolc {
     }
 
     /// Install zksolc version and block the thread
-    // TODO: Maybe this (and the whole module) goes behind a zksync feature installed
     #[cfg(feature = "async")]
     pub fn blocking_install(version: &Version) -> Result<Self> {
-        use crate::utils::RuntimeOrHandle;
+        let os = get_operating_system()?;
+        let os_namespace = os.get_download_uri();
+        let download_url = format!(
+            "https://github.com/matter-labs/zksolc-bin/releases/download/v{version}/zksolc-{os_namespace}-v{version}",
+        );
 
-        trace!("blocking installing solc version \"{}\"", version);
-        // TODO: Evaluate report support
-        //crate::report::solc_installation_start(version);
-        // An async block is used because the underlying `reqwest::blocking::Client` does not behave
-        // well inside of a Tokio runtime. See: https://github.com/seanmonstar/reqwest/issues/1017
-        let install = RuntimeOrHandle::new().block_on(async {
-            let os = get_operating_system()?;
-            let download_uri = os.get_download_uri();
-            let full_download_url = format!(
-                "https://github.com/matter-labs/zksolc-bin/releases/download/v{version}/zksolc-{download_uri}-v{version}",
-            );
+        let compilers_dir = Self::compilers_dir()?;
+        if !compilers_dir.exists() {
+            create_dir_all(compilers_dir)
+                .map_err(|e| SolcError::msg(format!("Could not create compilers path: {e}")))?;
+        }
+        let compiler_path = Self::compiler_path(version)?;
+        let lock_path = lock_file_path("zksolc", &version.to_string());
 
-            let compiler_path = Self::compiler_path(version)?;
-
-            let client = reqwest::Client::new();
-            let response = client
-                .get(full_download_url)
-                .send()
-                .await
-                .map_err(|e| SolcError::msg(format!("Failed to download file: {e}")))?;
-
-            if response.status().is_success() {
-                let compilers_dir = Self::compilers_dir()?;
-                if !compilers_dir.exists() {
-                    create_dir_all(compilers_dir).await.map_err(|e| {
-                        SolcError::msg(format!("Could not create compilers path: {e}"))
-                    })?;
-                }
-                let mut output_file = File::create(&compiler_path)
-                    .await
-                    .map_err(|e| SolcError::msg(format!("Failed to create output file: {e}")))?;
-
-                let content = response
-                    .bytes()
-                    .await
-                    .map_err(|e| SolcError::msg(format!("failed to download file: {e}")))?;
-
-                copy(&mut content.as_ref(), &mut output_file).await.map_err(|e| {
-                    SolcError::msg(format!("Failed to write the downloaded file: {e}"))
-                })?;
-
-                set_permissions(&compiler_path, PermissionsExt::from_mode(0o755)).await.map_err(
-                    |e| SolcError::msg(format!("Failed to set zksync compiler permissions: {e}")),
-                )?;
-            } else {
-                return Err(SolcError::msg(format!(
-                    "Failed to download file: status code {}",
-                    response.status()
-                )));
-            }
-            Ok(compiler_path)
-        });
+        let label = format!("zksolc-{version}");
+        let install = compiler_blocking_install(compiler_path, lock_path, &download_url, &label);
 
         match install {
             Ok(path) => {
@@ -321,62 +284,25 @@ impl ZkSolc {
         }
     }
 
+    /// Install zksync solc version and block the thread
     #[cfg(feature = "async")]
     pub fn solc_blocking_install(version_str: &str) -> Result<PathBuf> {
-        use crate::utils::RuntimeOrHandle;
+        let os = get_operating_system()?;
+        let solc_os_namespace = os.get_solc_prefix();
+        let download_url = format!(
+            "https://github.com/matter-labs/era-solidity/releases/download/{version_str}-{ZKSYNC_SOLC_RELEASE}/{solc_os_namespace}{version_str}-{ZKSYNC_SOLC_RELEASE}",
+        );
 
-        trace!("blocking installing solc version \"{}\"", version_str);
-        // TODO: Evaluate report support
-        //crate::report::solc_installation_start(version);
-        // An async block is used because the underlying `reqwest::blocking::Client` does not behave
-        // well inside of a Tokio runtime. See: https://github.com/seanmonstar/reqwest/issues/1017
-        RuntimeOrHandle::new().block_on(async {
-            let os = get_operating_system()?;
-            let solc_prefix = os.get_solc_prefix();
-            let full_download_url = format!(
-                "https://github.com/matter-labs/era-solidity/releases/download/{version_str}-{ZKSYNC_SOLC_RELEASE}/{solc_prefix}{version_str}-{ZKSYNC_SOLC_RELEASE}",
-            );
+        let compilers_dir = Self::compilers_dir()?;
+        if !compilers_dir.exists() {
+            create_dir_all(compilers_dir)
+                .map_err(|e| SolcError::msg(format!("Could not create compilers path: {e}")))?;
+        }
+        let solc_path = Self::solc_path(version_str)?;
+        let lock_path = lock_file_path("solc", version_str);
 
-            let solc_path = Self::solc_path(version_str)?;
-
-            let client = reqwest::Client::new();
-            let response = client
-                .get(full_download_url)
-                .send()
-                .await
-                .map_err(|e| SolcError::msg(format!("Failed to download file: {e}")))?;
-
-            if response.status().is_success() {
-                let compilers_dir = Self::compilers_dir()?;
-                if !compilers_dir.exists() {
-                    create_dir_all(compilers_dir).await.map_err(|e| {
-                        SolcError::msg(format!("Could not create compilers path: {e}"))
-                    })?;
-                }
-                let mut output_file = File::create(&solc_path)
-                    .await
-                    .map_err(|e| SolcError::msg(format!("Failed to create output file: {e}")))?;
-
-                let content = response
-                    .bytes()
-                    .await
-                    .map_err(|e| SolcError::msg(format!("failed to download file: {e}")))?;
-
-                copy(&mut content.as_ref(), &mut output_file).await.map_err(|e| {
-                    SolcError::msg(format!("Failed to write the downloaded file: {e}"))
-                })?;
-
-                set_permissions(&solc_path, PermissionsExt::from_mode(0o755)).await.map_err(
-                    |e| SolcError::msg(format!("Failed to set zksync compiler permissions: {e}")),
-                )?;
-            } else {
-                return Err(SolcError::msg(format!(
-                    "Failed to download file: status code {}",
-                    response.status()
-                )));
-            }
-            Ok(solc_path)
-        })
+        let label = format!("solc-{version_str}");
+        compiler_blocking_install(solc_path, lock_path, &download_url, &label)
     }
 
     pub fn find_installed_version(version: &Version) -> Result<Option<Self>> {
@@ -437,6 +363,108 @@ impl<T: Into<PathBuf>> From<T> for ZkSolc {
     fn from(zksolc: T) -> Self {
         Self::new(zksolc.into())
     }
+}
+
+#[cfg(feature = "async")]
+fn compiler_blocking_install(
+    compiler_path: PathBuf,
+    lock_path: PathBuf,
+    download_url: &str,
+    label: &str,
+) -> Result<PathBuf> {
+    use foundry_compilers_core::utils::RuntimeOrHandle;
+    trace!("blocking installing {label}");
+    //trace!("blocking installing {label}");
+    // An async block is used because the underlying `reqwest::blocking::Client` does not behave
+    // well inside of a Tokio runtime. See: https://github.com/seanmonstar/reqwest/issues/1017
+    RuntimeOrHandle::new().block_on(async {
+        let client = reqwest::Client::new();
+        let response = client
+            .get(download_url)
+            .send()
+            .await
+            .map_err(|e| SolcError::msg(format!("Failed to download {label} file: {e}")))?;
+
+        if response.status().is_success() {
+            let content = response
+                .bytes()
+                .await
+                .map_err(|e| SolcError::msg(format!("failed to download {label} file: {e}")))?;
+            trace!("downloaded {label}");
+
+            // lock file to indicate that installation of this compiler version will be in progress.
+            // wait until lock file is released, possibly by another parallel thread trying to install the
+            // same compiler version.
+            trace!("try to get lock for {label}");
+            let _lock = try_lock_file(lock_path)?;
+            trace!("got lock for {label}");
+
+            // Only write to file if it is not there. The check is doneafter adquiring the lock
+            // to ensure the thread remains blocked until the required compiler is
+            // fully installed
+            if !compiler_path.exists() {
+                trace!("creating binary for {label}");
+                //trace!("creating binary for {label}");
+                let mut output_file = File::create(&compiler_path).map_err(|e| {
+                    SolcError::msg(format!("Failed to create output {label} file: {e}"))
+                })?;
+
+                output_file.write_all(&content).map_err(|e| {
+                    SolcError::msg(format!("Failed to write the downloaded {label} file: {e}"))
+                })?;
+
+                set_permissions(&compiler_path, PermissionsExt::from_mode(0o755)).map_err(|e| {
+                    SolcError::msg(format!("Failed to set {label} permissions: {e}"))
+                })?;
+            } else {
+                trace!("found binary for {label}");
+            }
+        } else {
+            return Err(SolcError::msg(format!(
+                "Failed to download {label} file: status code {}",
+                response.status()
+            )));
+        }
+        trace!("{label} instalation completed");
+        Ok(compiler_path)
+    })
+}
+
+/// Creates the file and locks it exclusively, this will block if the file is currently locked
+#[cfg(feature = "async")]
+fn try_lock_file(lock_path: PathBuf) -> Result<LockFile> {
+    use fs4::FileExt;
+    let _lock_file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .read(true)
+        .write(true)
+        .open(&lock_path)
+        .map_err(|_| SolcError::msg("Error creating lock file"))?;
+    _lock_file.lock_exclusive().map_err(|_| SolcError::msg("Error taking the lock"))?;
+    Ok(LockFile { lock_path, _lock_file })
+}
+
+/// Represents a lockfile that's removed once dropped
+#[cfg(feature = "async")]
+struct LockFile {
+    _lock_file: File,
+    lock_path: PathBuf,
+}
+
+#[cfg(feature = "async")]
+impl Drop for LockFile {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.lock_path);
+    }
+}
+
+/// Returns the lockfile to use for a specific file
+#[cfg(feature = "async")]
+fn lock_file_path(compiler: &str, version: &str) -> PathBuf {
+    ZkSolc::compilers_dir()
+        .expect("could not detect zksolc compilers directory")
+        .join(format!(".lock-{compiler}-{version}"))
 }
 
 #[cfg(test)]
