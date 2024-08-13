@@ -564,6 +564,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
         &mut self,
         version: Version,
         build_info: RawBuildInfo<C::Language>,
+        profile: &str,
         output: CompilerOutput<C::CompilationError>,
     ) {
         let build_id = build_info.id.clone();
@@ -578,17 +579,19 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
                 source_file,
                 version: version.clone(),
                 build_id: build_id.clone(),
+                profile: profile.to_string(),
             });
         }
 
         for (file_name, new_contracts) in contracts {
-            let contracts = self.contracts.as_mut().entry(file_name).or_default();
+            let contracts = self.contracts.0.entry(file_name).or_default();
             for (contract_name, contract) in new_contracts {
                 let versioned = contracts.entry(contract_name).or_default();
                 versioned.push(VersionedContract {
                     contract,
                     version: version.clone(),
                     build_id: build_id.clone(),
+                    profile: profile.to_string(),
                 });
             }
         }

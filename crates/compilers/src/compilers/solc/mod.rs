@@ -422,7 +422,7 @@ mod tests {
         );
         let build_info = RawBuildInfo::new(&input, &out_converted, true).unwrap();
         let mut aggregated = AggregatedCompilerOutput::<SolcCompiler>::default();
-        aggregated.extend(v, build_info, out_converted);
+        aggregated.extend(v, build_info, "default", out_converted);
         assert!(!aggregated.is_unchanged());
     }
 }

@@ -4030,10 +4030,14 @@ fn test_settings_restrictions() {
     // default EVM version is Paris, Cancun contract won't compile
     project.project_mut().settings.solc.evm_version = Some(EvmVersion::Paris);
 
+    let common_path = project.add_source("Common.sol", "");
+
     let cancun_path = project
         .add_source(
             "Cancun.sol",
             r#"
+import "./Common.sol";
+
 contract TransientContract {
     function lock()public {
         assembly {
@@ -4045,12 +4049,21 @@ contract TransientContract {
         .unwrap();
 
     project.add_source("CancunImporter.sol", "import \"./Cancun.sol\";").unwrap();
-    project.add_source("Simple.sol", "contract SimpleContract {}").unwrap();
+    project
+        .add_source(
+            "Simple.sol",
+            r#"
+import "./Common.sol";
+
+contract SimpleContract {}
+"#,
+        )
+        .unwrap();
 
     // Add config with Cancun enabled
     let mut cancun_settings = project.project().settings.clone();
     cancun_settings.solc.evm_version = Some(EvmVersion::Cancun);
-    project.project_mut().additional_settings.push(cancun_settings);
+    project.project_mut().additional_settings.insert("cancun".to_string(), cancun_settings);
 
     let cancun_restriction = MultiCompilerRestrictions {
         solc: SolcRestrictions {
@@ -4066,5 +4079,7 @@ contract TransientContract {
     // Restrict compiling Cancun contract to Cancun EVM version
     project.project_mut().restrictions.insert(cancun_path, cancun_restriction);
 
-    project.compile().unwrap().assert_success();
+    let output = project.compile().unwrap();
+
+    panic!("{:?}", output);
 }

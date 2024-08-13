@@ -77,7 +77,7 @@ pub struct Project<C: Compiler = MultiCompiler, T: ArtifactOutput = Configurable
     pub settings: C::Settings,
     /// Additional settings for cases when default compiler settings are not enough to cover all
     /// possible restrictions.
-    pub additional_settings: Vec<C::Settings>,
+    pub additional_settings: BTreeMap<String, C::Settings>,
     pub restrictions: BTreeMap<PathBuf, <C::Settings as CompilerSettings>::Restrictions>,
     /// Whether caching is enabled
     pub cached: bool,
@@ -145,8 +145,9 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
         &self.artifacts
     }
 
-    pub fn settings_profiles(&self) -> impl Iterator<Item = &C::Settings> {
-        std::iter::once(&self.settings).chain(self.additional_settings.iter())
+    pub fn settings_profiles(&self) -> impl Iterator<Item = (&str, &C::Settings)> {
+        std::iter::once(("default", &self.settings))
+            .chain(self.additional_settings.iter().map(|(p, s)| (p.as_str(), s)))
     }
 }
 
@@ -726,28 +727,29 @@ impl<T: ArtifactOutput, C: Compiler> ArtifactOutput for Project<C, T> {
         self.artifacts_handler().handle_artifacts(contracts, artifacts)
     }
 
-    fn output_file_name(name: &str) -> PathBuf {
-        T::output_file_name(name)
+    fn output_file_name(
+        name: &str,
+        version: &Version,
+        profile: &str,
+        with_version: bool,
+        with_profile: bool,
+    ) -> PathBuf {
+        T::output_file_name(name, version, profile, with_version, with_profile)
     }
 
-    fn output_file_name_versioned(name: &str, version: &Version) -> PathBuf {
-        T::output_file_name_versioned(name, version)
-    }
-
-    fn output_file(contract_file: &Path, name: &str) -> PathBuf {
-        T::output_file(contract_file, name)
-    }
-
-    fn output_file_versioned(contract_file: &Path, name: &str, version: &Version) -> PathBuf {
-        T::output_file_versioned(contract_file, name, version)
+    fn output_file(
+        contract_file: &Path,
+        name: &str,
+        version: &Version,
+        profile: &str,
+        with_version: bool,
+        with_profile: bool,
+    ) -> PathBuf {
+        T::output_file(contract_file, name, version, profile, with_version, with_profile)
     }
 
     fn contract_name(file: &Path) -> Option<String> {
         T::contract_name(file)
-    }
-
-    fn output_exists(contract_file: &Path, name: &str, root: &Path) -> bool {
-        T::output_exists(contract_file, name, root)
     }
 
     fn read_cached_artifact(path: &Path) -> Result<Self::Artifact> {

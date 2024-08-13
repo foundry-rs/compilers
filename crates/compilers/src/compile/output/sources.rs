@@ -224,4 +224,5 @@ pub struct VersionedSourceFile {
     pub source_file: SourceFile,
     pub version: Version,
     pub build_id: String,
+    pub profile: String,
 }

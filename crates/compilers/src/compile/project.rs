@@ -117,7 +117,7 @@ use semver::Version;
 use std::{collections::HashMap, path::PathBuf, time::Instant};
 
 /// A set of different Solc installations with their version and the sources to be compiled
-pub(crate) type VersionedSources<L, S> = HashMap<L, Vec<(Version, Sources, S)>>;
+pub(crate) type VersionedSources<'a, L, S> = HashMap<L, Vec<(Version, Sources, (&'a str, &'a S))>>;
 
 #[derive(Debug)]
 pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
@@ -125,7 +125,7 @@ pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
     edges: GraphEdges<C::ParsedSource>,
     project: &'a Project<C, T>,
     /// how to compile all the sources
-    sources: CompilerSources<C::Language, C::Settings>,
+    sources: CompilerSources<'a, C::Language, C::Settings>,
 }
 
 impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
@@ -213,7 +213,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
 #[derive(Debug)]
 struct PreprocessedState<'a, T: ArtifactOutput, C: Compiler> {
     /// Contains all the sources to compile.
-    sources: CompilerSources<C::Language, C::Settings>,
+    sources: CompilerSources<'a, C::Language, C::Settings>,
 
     /// Cache that holds `CacheEntry` objects if caching is enabled and the project is recompiled
     cache: ArtifactsCache<'a, T, C>,
@@ -353,14 +353,14 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
 
 /// Determines how the `solc <-> sources` pairs are executed.
 #[derive(Debug, Clone)]
-struct CompilerSources<L, S> {
+struct CompilerSources<'a, L, S> {
     /// The sources to compile.
-    sources: VersionedSources<L, S>,
+    sources: VersionedSources<'a, L, S>,
     /// The number of jobs to use for parallel compilation.
     jobs: Option<usize>,
 }
 
-impl<L: Language, S: CompilerSettings> CompilerSources<L, S> {
+impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
     /// Converts all `\\` separators to `/`.
     ///
     /// This effectively ensures that `solc` can find imported files like `/src/Cheats.sol` in the
@@ -370,16 +370,18 @@ impl<L: Language, S: CompilerSettings> CompilerSources<L, S> {
         {
             use path_slash::PathBufExt;
 
-            self.sources.values_mut().for_each(|versioned_sources| {
-                versioned_sources.values_mut().for_each(|sources| {
-                    *sources = std::mem::take(sources)
-                        .into_iter()
-                        .map(|(path, source)| {
-                            (PathBuf::from(path.to_slash_lossy().as_ref()), source)
-                        })
-                        .collect()
-                })
-            });
+            self.sources.values_mut().for_each(
+                versioned_sources | {
+                    versioned_sources.iter_mut().for_each(|(_, sources, _)| {
+                        *sources = std::mem::take(sources)
+                            .into_iter()
+                            .map(|(path, source)| {
+                                (PathBuf::from(path.to_slash_lossy().as_ref()), source)
+                            })
+                            .collect()
+                    })
+                },
+            );
         }
     }
 
@@ -420,7 +422,8 @@ impl<L: Language, S: CompilerSettings> CompilerSources<L, S> {
 
         let mut jobs = Vec::new();
         for (language, versioned_sources) in self.sources {
-            for (version, sources, mut opt_settings) in versioned_sources {
+            for (version, sources, (profile, opt_settings)) in versioned_sources {
+                let mut opt_settings = opt_settings.clone();
                 if sources.is_empty() {
                     // nothing to compile
                     trace!("skip {} for empty sources set", version);
@@ -451,7 +454,7 @@ impl<L: Language, S: CompilerSettings> CompilerSources<L, S> {
 
                 input.strip_prefix(project.paths.root.as_path());
 
-                jobs.push((input, actually_dirty));
+                jobs.push((input, profile, actually_dirty));
             }
         }
 
@@ -463,7 +466,7 @@ impl<L: Language, S: CompilerSettings> CompilerSources<L, S> {
 
         let mut aggregated = AggregatedCompilerOutput::default();
 
-        for (input, mut output, actually_dirty) in results {
+        for (input, mut output, profile, actually_dirty) in results {
             let version = input.version();
 
             // Mark all files as seen by the compiler
@@ -480,22 +483,22 @@ impl<L: Language, S: CompilerSettings> CompilerSources<L, S> {
             );
             output.join_all(project.paths.root.as_path());
 
-            aggregated.extend(version.clone(), build_info, output);
+            aggregated.extend(version.clone(), build_info, profile, output);
         }
 
         Ok(aggregated)
     }
 }
 
-type CompilationResult<I, E> = Result<Vec<(I, CompilerOutput<E>, Vec<PathBuf>)>>;
+type CompilationResult<'a, I, E> = Result<Vec<(I, CompilerOutput<E>, &'a str, Vec<PathBuf>)>>;
 
 /// Compiles the input set sequentially and returns a [Vec] of outputs.
-fn compile_sequential<C: Compiler>(
+fn compile_sequential<'a, C: Compiler>(
     compiler: &C,
-    jobs: Vec<(C::Input, Vec<PathBuf>)>,
-) -> CompilationResult<C::Input, C::CompilationError> {
+    jobs: Vec<(C::Input, &'a str, Vec<PathBuf>)>,
+) -> CompilationResult<'a, C::Input, C::CompilationError> {
     jobs.into_iter()
-        .map(|(input, actually_dirty)| {
+        .map(|(input, profile, actually_dirty)| {
             let start = Instant::now();
             report::compiler_spawn(
                 &input.compiler_name(),
@@ -505,17 +508,17 @@ fn compile_sequential<C: Compiler>(
             let output = compiler.compile(&input)?;
             report::compiler_success(&input.compiler_name(), input.version(), &start.elapsed());
 
-            Ok((input, output, actually_dirty))
+            Ok((input, output, profile, actually_dirty))
         })
         .collect()
 }
 
 /// compiles the input set using `num_jobs` threads
-fn compile_parallel<C: Compiler>(
+fn compile_parallel<'a, C: Compiler>(
     compiler: &C,
-    jobs: Vec<(C::Input, Vec<PathBuf>)>,
+    jobs: Vec<(C::Input, &'a str, Vec<PathBuf>)>,
     num_jobs: usize,
-) -> CompilationResult<C::Input, C::CompilationError> {
+) -> CompilationResult<'a, C::Input, C::CompilationError> {
     // need to get the currently installed reporter before installing the pool, otherwise each new
     // thread in the pool will get initialized with the default value of the `thread_local!`'s
     // localkey. This way we keep access to the reporter in the rayon pool
@@ -526,7 +529,7 @@ fn compile_parallel<C: Compiler>(
 
     pool.install(move || {
         jobs.into_par_iter()
-            .map(move |(input, actually_dirty)| {
+            .map(move |(input, profile, actually_dirty)| {
                 // set the reporter on this thread
                 let _guard = report::set_scoped(&scoped_report);
 
@@ -542,7 +545,7 @@ fn compile_parallel<C: Compiler>(
                         input.version(),
                         &start.elapsed(),
                     );
-                    (input, output, actually_dirty)
+                    (input, output, profile, actually_dirty)
                 })
             })
             .collect()
