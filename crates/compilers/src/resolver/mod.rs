@@ -460,10 +460,10 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     ///
     /// First we determine the compatible version for each input file (from sources and test folder,
     /// see `Self::resolve`) and then we add all resolved library imports.
-    pub fn into_sources_by_version<'a, C, T, S>(
+    pub fn into_sources_by_version<C, T, S>(
         self,
-        project: &'a Project<C, T>,
-    ) -> Result<(VersionedSources<'a, L, S>, GraphEdges<D>)>
+        project: &Project<C, T>,
+    ) -> Result<(VersionedSources<'_, L, S>, GraphEdges<D>)>
     where
         T: ArtifactOutput,
         S: CompilerSettings,
@@ -535,11 +535,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                             &mut processed_sources,
                         );
                     }
-                    versioned_sources.push((
-                        version.clone(),
-                        sources,
-                        profiles[profile_idx].clone(),
-                    ));
+                    versioned_sources.push((version.clone(), sources, profiles[profile_idx]));
                 }
             }
 
@@ -618,7 +614,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             let node = self.node(node);
             if let Some(requirement) = project.restrictions.get(&node.path) {
                 candidates
-                    .retain(|(_, (_, settings))| settings.satisfies_restrictions(&*requirement));
+                    .retain(|(_, (_, settings))| settings.satisfies_restrictions(&**requirement));
             }
             if candidates.is_empty() {
                 // nothing to filter anymore

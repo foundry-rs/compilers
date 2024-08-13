@@ -9,7 +9,7 @@ pub trait CompilerSettingsRestrictions: Debug + Sync + Send + Clone + Default {
     fn merge(&mut self, other: Self);
 }
 
-/// Combines [CompilerVersionRestriction] with a restrictions on compiler versions for a given
+/// Combines [CompilerSettingsRestrictions] with a restrictions on compiler versions for a given
 /// source file.
 #[derive(Debug, Clone, Default)]
 pub struct RestrictionsWithVersion<T> {

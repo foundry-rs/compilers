@@ -658,7 +658,7 @@ pub trait ArtifactOutput {
             name.push_str(&format!(".{}.{}.{}", version.major, version.minor, version.patch));
         }
         if with_profile {
-            name.push_str(&format!(".{}", profile));
+            name.push_str(&format!(".{profile}"));
         }
         name.push_str(".json");
         name.into()
@@ -806,6 +806,7 @@ pub trait ArtifactOutput {
 
     /// Generates a path for an artifact based on already taken paths by either cached or compiled
     /// artifacts.
+    #[allow(clippy::too_many_arguments)]
     fn get_artifact_path(
         ctx: &OutputContext<'_>,
         already_taken: &HashSet<String>,
