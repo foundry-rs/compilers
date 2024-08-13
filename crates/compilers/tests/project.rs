@@ -4088,8 +4088,12 @@ contract SimpleContract {}
 
     output.assert_success();
 
-    let artifacts =
-        output.artifact_ids().map(|(id, _)| (id.profile, id.source)).collect::<Vec<_>>();
+    let artifacts = output
+        .artifact_ids()
+        .map(|(id, _)| (id.profile, id.source))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
 
     assert_eq!(
         artifacts,
@@ -4098,7 +4102,7 @@ contract SimpleContract {}
             ("cancun".to_string(), cancun_importer_path),
             ("cancun".to_string(), common_path.clone()),
             ("default".to_string(), common_path),
-            ("default".to_string(), simple_path)
+            ("default".to_string(), simple_path),
         ]
     );
 }
