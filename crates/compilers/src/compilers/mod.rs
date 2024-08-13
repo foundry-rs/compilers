@@ -24,6 +24,9 @@ pub mod solc;
 pub mod vyper;
 pub use vyper::*;
 
+mod restrictions;
+pub use restrictions::{CompilerSettingsRestrictions, RestrictionsWithVersion};
+
 /// A compiler version is either installed (available locally) or can be downloaded, from the remote
 /// endpoint
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -59,10 +62,6 @@ impl fmt::Display for CompilerVersion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_ref())
     }
-}
-
-pub trait CompilerSettingsRestrictions: Debug + Sync + Send + Clone + Default {
-    fn merge(&mut self, other: &Self);
 }
 
 /// Compilation settings including evm_version, output_selection, etc.

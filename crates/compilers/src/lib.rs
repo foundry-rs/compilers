@@ -78,7 +78,8 @@ pub struct Project<C: Compiler = MultiCompiler, T: ArtifactOutput = Configurable
     /// Additional settings for cases when default compiler settings are not enough to cover all
     /// possible restrictions.
     pub additional_settings: BTreeMap<String, C::Settings>,
-    pub restrictions: BTreeMap<PathBuf, <C::Settings as CompilerSettings>::Restrictions>,
+    pub restrictions:
+        BTreeMap<PathBuf, RestrictionsWithVersion<<C::Settings as CompilerSettings>::Restrictions>>,
     /// Whether caching is enabled
     pub cached: bool,
     /// Whether to output build information with each solc call.
@@ -455,6 +456,9 @@ pub struct ProjectBuilder<C: Compiler = MultiCompiler, T: ArtifactOutput = Confi
     paths: Option<ProjectPathsConfig<C::Language>>,
     /// How solc invocation should be configured.
     settings: Option<C::Settings>,
+    additional_settings: BTreeMap<String, C::Settings>,
+    restrictions:
+        BTreeMap<PathBuf, RestrictionsWithVersion<<C::Settings as CompilerSettings>::Restrictions>>,
     /// Whether caching is enabled, default is true.
     cached: bool,
     /// Whether to output build information with each solc call.
@@ -495,6 +499,8 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             solc_jobs: None,
             settings: None,
             sparse_output: None,
+            additional_settings: BTreeMap::new(),
+            restrictions: BTreeMap::new(),
         }
     }
 
@@ -619,6 +625,24 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
         self
     }
 
+    #[must_use]
+    pub fn additional_settings(mut self, additional: BTreeMap<String, C::Settings>) -> Self {
+        self.additional_settings = additional;
+        self
+    }
+
+    #[must_use]
+    pub fn restrictions(
+        mut self,
+        restrictions: BTreeMap<
+            PathBuf,
+            RestrictionsWithVersion<<C::Settings as CompilerSettings>::Restrictions>,
+        >,
+    ) -> Self {
+        self.restrictions = restrictions;
+        self
+    }
+
     /// Set arbitrary `ArtifactOutputHandler`
     pub fn artifacts<A: ArtifactOutput>(self, artifacts: A) -> ProjectBuilder<C, A> {
         let Self {
@@ -634,12 +658,16 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             ignored_file_paths,
             settings,
             sparse_output,
+            additional_settings,
+            restrictions,
             ..
         } = self;
         ProjectBuilder {
             paths,
             cached,
             no_artifacts,
+            additional_settings,
+            restrictions,
             offline,
             slash_paths,
             artifacts,
@@ -668,6 +696,8 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             slash_paths,
             settings,
             sparse_output,
+            additional_settings,
+            restrictions,
         } = self;
 
         let mut paths = paths.map(Ok).unwrap_or_else(ProjectPathsConfig::current_hardhat)?;
@@ -694,8 +724,8 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             slash_paths,
             settings: settings.unwrap_or_default(),
             sparse_output,
-            additional_settings: Default::default(),
-            restrictions: Default::default(),
+            additional_settings,
+            restrictions,
         })
     }
 }

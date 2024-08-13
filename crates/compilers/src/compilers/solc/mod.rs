@@ -1,13 +1,14 @@
 use super::{
-    CompilationError, Compiler, CompilerInput, CompilerOutput, CompilerSettings, CompilerVersion,
-    Language, ParsedSource,
+    restrictions::CompilerSettingsRestrictions, CompilationError, Compiler, CompilerInput,
+    CompilerOutput, CompilerSettings, CompilerVersion, Language, ParsedSource,
 };
-use crate::{resolver::parse::SolData, CompilerSettingsRestrictions};
+use crate::resolver::parse::SolData;
 pub use foundry_compilers_artifacts::SolcLanguage;
 use foundry_compilers_artifacts::{
     error::SourceLocation,
     output_selection::OutputSelection,
     remappings::Remapping,
+    serde_helpers::display_from_str_opt,
     sources::{Source, Sources},
     Error, EvmVersion, Settings, Severity, SolcInput,
 };
@@ -190,9 +191,11 @@ impl DerefMut for SolcSettings {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub struct EvmVersionRestriction {
+    #[serde(default, with = "display_from_str_opt", skip_serializing_if = "Option::is_none")]
     pub min_evm_version: Option<EvmVersion>,
+    #[serde(default, with = "display_from_str_opt", skip_serializing_if = "Option::is_none")]
     pub max_evm_version: Option<EvmVersion>,
 }
 
@@ -226,6 +229,8 @@ impl EvmVersionRestriction {
 pub struct SolcRestrictions {
     pub evm_version: EvmVersionRestriction,
     pub via_ir: Option<bool>,
+    pub min_optimizer_runs: Option<usize>,
+    pub max_optimizer_runs: Option<usize>,
 }
 
 impl CompilerSettingsRestrictions for SolcRestrictions {
@@ -305,6 +310,12 @@ impl CompilerSettings for SolcSettings {
         satisfies &= restrictions.evm_version.satisfies(self.evm_version);
         satisfies &=
             restrictions.via_ir.map_or(true, |via_ir| via_ir == self.via_ir.unwrap_or_default());
+        satisfies &= restrictions
+            .min_optimizer_runs
+            .map_or(true, |min| self.optimizer.runs.map_or(false, |runs| runs >= min));
+        satisfies &= restrictions
+            .max_optimizer_runs
+            .map_or(true, |max| self.optimizer.runs.map_or(false, |runs| runs <= max));
 
         satisfies
     }

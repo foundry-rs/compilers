@@ -580,10 +580,20 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     }
 
     /// Filters incompatible versions from the `candidates`.
-    fn retain_compatible_versions(&self, idx: usize, candidates: &mut Vec<&CompilerVersion>) {
+    fn retain_compatible_versions<C: Compiler, T: ArtifactOutput>(
+        &self,
+        idx: usize,
+        project: &Project<C, T>,
+        candidates: &mut Vec<&CompilerVersion>,
+    ) {
         let nodes: HashSet<_> = self.node_ids(idx).collect();
         for node in nodes {
-            if let Some(req) = &self.node(node).data.version_req() {
+            let node = self.node(node);
+            if let Some(req) = node.data.version_req() {
+                candidates.retain(|v| req.matches(v.as_ref()));
+            }
+            if let Some(req) = project.restrictions.get(&node.path).and_then(|r| r.version.as_ref())
+            {
                 candidates.retain(|v| req.matches(v.as_ref()));
             }
             if candidates.is_empty() {
@@ -604,7 +614,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             let node = self.node(node);
             if let Some(requirement) = project.restrictions.get(&node.path) {
                 candidates
-                    .retain(|(_, (_, settings))| settings.satisfies_restrictions(requirement));
+                    .retain(|(_, (_, settings))| settings.satisfies_restrictions(&*requirement));
             }
             if candidates.is_empty() {
                 // nothing to filter anymore
@@ -677,7 +687,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                 let mut candidates = all_versions.iter().collect::<Vec<_>>();
                 // remove all incompatible versions from the candidates list by checking the node
                 // and all its imports
-                self.retain_compatible_versions(idx, &mut candidates);
+                self.retain_compatible_versions(idx, project, &mut candidates);
 
                 if candidates.is_empty() && !erroneous_nodes.contains(&idx) {
                     // check if the version is even valid
@@ -759,14 +769,20 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             for (version, nodes) in versions {
                 let mut profile_to_nodes = HashMap::new();
                 for idx in nodes {
+                    println!("resolving {:?}", self.node(idx).path.display());
                     let mut profile_candidates =
                         project.settings_profiles().enumerate().collect::<Vec<_>>();
                     self.retain_compatible_profiles(idx, project, &mut profile_candidates);
 
-                    profile_to_nodes
-                        .entry(profile_candidates[0].0)
-                        .or_insert_with(Vec::new)
-                        .push(idx);
+                    if let Some((profile_idx, _)) = profile_candidates.first() {
+                        profile_to_nodes.entry(*profile_idx).or_insert_with(Vec::new).push(idx);
+                    } else {
+                        panic!(
+                            "failed to resolve settings for node {}",
+                            self.node(idx).path.display()
+                        );
+                    }
+                    println!("resolved");
                 }
                 versioned_sources.insert(version, profile_to_nodes);
             }

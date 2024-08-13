@@ -2,7 +2,8 @@ use std::{collections::BTreeSet, path::PathBuf};
 
 pub use crate::artifacts::vyper::VyperSettings;
 use crate::{
-    compilers::CompilerSettings, solc::EvmVersionRestriction, CompilerSettingsRestrictions,
+    compilers::{restrictions::CompilerSettingsRestrictions, CompilerSettings},
+    solc::EvmVersionRestriction,
 };
 use foundry_compilers_artifacts::output_selection::OutputSelection;
 

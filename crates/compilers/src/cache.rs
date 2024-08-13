@@ -163,6 +163,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
                 .entries()
                 .flat_map(|e| e.artifacts.values())
                 .flat_map(|a| a.values())
+                .flat_map(|a| a.values())
                 .any(|a| a.build_id == *build_id)
             {
                 outdated.push(build_id.to_owned());

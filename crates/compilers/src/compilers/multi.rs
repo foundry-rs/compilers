@@ -1,4 +1,5 @@
 use super::{
+    restrictions::CompilerSettingsRestrictions,
     solc::{SolcCompiler, SolcSettings, SolcVersionedInput, SOLC_EXTENSIONS},
     vyper::{
         input::VyperVersionedInput, parser::VyperParsedSource, Vyper, VyperLanguage,
@@ -12,7 +13,6 @@ use crate::{
     resolver::parse::SolData,
     settings::VyperRestrictions,
     solc::SolcRestrictions,
-    CompilerSettingsRestrictions,
 };
 use foundry_compilers_artifacts::{
     error::SourceLocation,
