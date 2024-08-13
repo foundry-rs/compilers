@@ -758,6 +758,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         Ok(resulted_nodes)
     }
 
+    #[allow(clippy::complexity)]
     fn resolve_settings<C: Compiler<Language = L>, T: ArtifactOutput>(
         &self,
         project: &Project<C, T>,

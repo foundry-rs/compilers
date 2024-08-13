@@ -32,7 +32,7 @@ mod hh;
 pub use hh::*;
 
 use crate::{
-    cache::{CachedArtifact, CompilerCache},
+    cache::{CachedArtifacts, CompilerCache},
     output::{
         contracts::VersionedContracts,
         sources::{VersionedSourceFile, VersionedSourceFiles},
@@ -1029,10 +1029,7 @@ pub struct OutputContext<'a> {
     /// └── inner
     ///     └── a.sol
     /// ```
-    pub existing_artifacts: BTreeMap<
-        &'a Path,
-        &'a BTreeMap<String, BTreeMap<Version, BTreeMap<String, CachedArtifact>>>,
-    >,
+    pub existing_artifacts: BTreeMap<&'a Path, &'a CachedArtifacts>,
 }
 
 // === impl OutputContext

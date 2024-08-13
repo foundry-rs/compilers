@@ -397,6 +397,8 @@ pub struct CachedArtifact {
     pub build_id: String,
 }
 
+pub type CachedArtifacts = BTreeMap<String, BTreeMap<Version, BTreeMap<String, CachedArtifact>>>;
+
 /// A `CacheEntry` in the cache file represents a solidity file
 ///
 /// A solidity file can contain several contracts, for every contract a separate `Artifact` is
@@ -426,7 +428,7 @@ pub struct CacheEntry {
     ///
     /// This map tracks the artifacts by `name -> (Version -> profile -> PathBuf)`.
     /// This mimics the default artifacts directory structure
-    pub artifacts: BTreeMap<String, BTreeMap<Version, BTreeMap<String, CachedArtifact>>>,
+    pub artifacts: CachedArtifacts,
     /// Whether this file was compiled at least once.
     ///
     /// If this is true and `artifacts` are empty, it means that given version of the file does
