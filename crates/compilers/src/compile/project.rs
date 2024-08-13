@@ -370,18 +370,16 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
         {
             use path_slash::PathBufExt;
 
-            self.sources.values_mut().for_each(
-                versioned_sources | {
-                    versioned_sources.iter_mut().for_each(|(_, sources, _)| {
-                        *sources = std::mem::take(sources)
-                            .into_iter()
-                            .map(|(path, source)| {
-                                (PathBuf::from(path.to_slash_lossy().as_ref()), source)
-                            })
-                            .collect()
-                    })
-                },
-            );
+            self.sources.values_mut().for_each(|versioned_sources| {
+                versioned_sources.iter_mut().for_each(|(_, sources, _)| {
+                    *sources = std::mem::take(sources)
+                        .into_iter()
+                        .map(|(path, source)| {
+                            (PathBuf::from(path.to_slash_lossy().as_ref()), source)
+                        })
+                        .collect()
+                })
+            });
         }
     }
 
