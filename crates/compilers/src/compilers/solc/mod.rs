@@ -234,12 +234,26 @@ pub struct SolcRestrictions {
 }
 
 impl CompilerSettingsRestrictions for SolcRestrictions {
-    fn merge(&mut self, other: &Self) {
+    fn merge(&mut self, other: Self) {
         self.evm_version.merge(&other.evm_version);
 
         // Preserve true
         if self.via_ir.map_or(true, |via_ir| !via_ir) {
             self.via_ir = other.via_ir;
+        }
+
+        if self
+            .min_optimizer_runs
+            .map_or(true, |min| min < other.min_optimizer_runs.unwrap_or(usize::MAX))
+        {
+            self.min_optimizer_runs = other.min_optimizer_runs;
+        }
+
+        if self
+            .max_optimizer_runs
+            .map_or(true, |max| max > other.max_optimizer_runs.unwrap_or(usize::MIN))
+        {
+            self.max_optimizer_runs = other.max_optimizer_runs;
         }
     }
 }

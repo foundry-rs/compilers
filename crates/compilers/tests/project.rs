@@ -16,9 +16,10 @@ use foundry_compilers::{
     info::ContractInfo,
     multi::MultiCompilerRestrictions,
     project_util::*,
-    solc::{EvmVersionRestriction, SolcRestrictions},
+    solc::{EvmVersionRestriction, SolcRestrictions, SolcSettings},
     take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, TestFileFilter,
+    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, RestrictionsWithVersion,
+    TestFileFilter,
 };
 use foundry_compilers_artifacts::{
     output_selection::OutputSelection, remappings::Remapping, BytecodeHash, DevDoc, Error,
@@ -4030,7 +4031,7 @@ fn test_settings_restrictions() {
     // default EVM version is Paris, Cancun contract won't compile
     project.project_mut().settings.solc.evm_version = Some(EvmVersion::Paris);
 
-    let common_path = project.add_source("Common.sol", "");
+    let common_path = project.add_source("Common.sol", "").unwrap();
 
     let cancun_path = project
         .add_source(
@@ -4048,8 +4049,9 @@ contract TransientContract {
         )
         .unwrap();
 
-    project.add_source("CancunImporter.sol", "import \"./Cancun.sol\";").unwrap();
-    project
+    let cancun_importer_path =
+        project.add_source("CancunImporter.sol", "import \"./Cancun.sol\";").unwrap();
+    let simple_path = project
         .add_source(
             "Simple.sol",
             r#"
@@ -4065,21 +4067,38 @@ contract SimpleContract {}
     cancun_settings.solc.evm_version = Some(EvmVersion::Cancun);
     project.project_mut().additional_settings.insert("cancun".to_string(), cancun_settings);
 
-    let cancun_restriction = MultiCompilerRestrictions {
-        solc: SolcRestrictions {
-            evm_version: EvmVersionRestriction {
-                min_evm_version: Some(EvmVersion::Cancun),
+    let cancun_restriction = RestrictionsWithVersion {
+        restrictions: MultiCompilerRestrictions {
+            solc: SolcRestrictions {
+                evm_version: EvmVersionRestriction {
+                    min_evm_version: Some(EvmVersion::Cancun),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             ..Default::default()
         },
-        ..Default::default()
+        version: None,
     };
 
     // Restrict compiling Cancun contract to Cancun EVM version
-    project.project_mut().restrictions.insert(cancun_path, cancun_restriction);
+    project.project_mut().restrictions.insert(cancun_path.clone(), cancun_restriction);
 
     let output = project.compile().unwrap();
 
-    panic!("{:?}", output);
+    output.assert_success();
+
+    let artifacts =
+        output.artifact_ids().map(|(id, _)| (id.profile, id.source)).collect::<Vec<_>>();
+
+    assert_eq!(
+        artifacts,
+        vec![
+            ("cancun".to_string(), cancun_path),
+            ("cancun".to_string(), cancun_importer_path),
+            ("cancun".to_string(), common_path.clone()),
+            ("default".to_string(), common_path),
+            ("default".to_string(), simple_path)
+        ]
+    );
 }

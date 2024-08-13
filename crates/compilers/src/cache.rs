@@ -64,11 +64,6 @@ impl<S: CompilerSettings> CompilerCache<S> {
         self.files.is_empty()
     }
 
-    /// Returns `true` if the cache contains any artifacts for the given file and version.
-    pub fn contains(&self, file: &Path, version: &Version) -> bool {
-        self.files.get(file).map_or(true, |entry| !entry.contains_version(version))
-    }
-
     /// Removes entry for the given file
     pub fn remove(&mut self, file: &Path) -> Option<CacheEntry> {
         self.files.remove(file)
@@ -533,8 +528,10 @@ impl CacheEntry {
     }
 
     /// Returns `true` if the artifacts set contains the given version
-    pub fn contains_version(&self, version: &Version) -> bool {
-        self.artifacts_versions().any(|(v, _, _)| v == version)
+    pub fn contains(&self, version: &Version, profile: &str) -> bool {
+        self.artifacts.values().any(|artifacts| {
+            artifacts.get(version).and_then(|artifacts| artifacts.get(profile)).is_some()
+        })
     }
 
     /// Iterator that yields all artifact files and their version
@@ -688,7 +685,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
     /// 2. [SourceCompilationKind::Optimized] - the file is not dirty, but is imported by a dirty
     ///    file and thus will be processed by solc. For such files we don't need full data, so we
     ///    are marking them as clean to optimize output selection later.
-    fn filter(&mut self, sources: &mut Sources, version: &Version) {
+    fn filter(&mut self, sources: &mut Sources, version: &Version, profile: &str) {
         // sources that should be passed to compiler.
         let mut compile_complete = HashSet::new();
         let mut compile_optimized = HashSet::new();
@@ -697,7 +694,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             self.sources_in_scope.insert(file.clone(), version.clone());
 
             // If we are missing artifact for file, compile it.
-            if self.is_missing_artifacts(file, version) {
+            if self.is_missing_artifacts(file, version, profile) {
                 compile_complete.insert(file.clone());
             }
 
@@ -731,7 +728,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
 
     /// Returns whether we are missing artifacts for the given file and version.
     #[instrument(level = "trace", skip(self))]
-    fn is_missing_artifacts(&self, file: &Path, version: &Version) -> bool {
+    fn is_missing_artifacts(&self, file: &Path, version: &Version, profile: &str) -> bool {
         let Some(entry) = self.cache.entry(file) else {
             trace!("missing cache entry");
             return true;
@@ -745,7 +742,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             return false;
         }
 
-        if !entry.contains_version(version) {
+        if !entry.contains(version, profile) {
             trace!("missing linked artifacts");
             return true;
         }
@@ -788,6 +785,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
                 .get(profile.as_str())
                 .map_or(false, |p| p.can_use_cached(settings))
             {
+                trace!("dirty profile: {}", profile);
                 dirty_profiles.insert(profile.clone());
             }
         }
@@ -796,7 +794,11 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             self.cache.profiles.remove(profile);
         }
 
-        for (_, entry) in &mut self.cache.files {
+        self.cache.files.retain(|_, entry| {
+            // keep entries which already had no artifacts
+            if entry.artifacts.is_empty() {
+                return true;
+            }
             entry.artifacts.retain(|_, artifacts| {
                 artifacts.retain(|_, artifacts| {
                     artifacts.retain(|profile, _| !dirty_profiles.contains(profile));
@@ -804,7 +806,8 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
                 });
                 !artifacts.is_empty()
             });
-        }
+            !entry.artifacts.is_empty()
+        });
 
         for (profile, settings) in existing_profiles {
             if !self.cache.profiles.contains_key(profile) {
@@ -1031,10 +1034,10 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
     }
 
     /// Filters out those sources that don't need to be compiled
-    pub fn filter(&mut self, sources: &mut Sources, version: &Version) {
+    pub fn filter(&mut self, sources: &mut Sources, version: &Version, profile: &str) {
         match self {
             ArtifactsCache::Ephemeral(..) => {}
-            ArtifactsCache::Cached(cache) => cache.filter(sources, version),
+            ArtifactsCache::Cached(cache) => cache.filter(sources, version, profile),
         }
     }
 

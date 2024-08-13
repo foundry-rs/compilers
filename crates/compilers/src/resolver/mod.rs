@@ -500,7 +500,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         }
 
         let versioned_nodes = self.get_input_node_versions(project)?;
-        let versioned_nodes = self.resolve_settings(project, versioned_nodes);
+        let versioned_nodes = self.resolve_settings(project, versioned_nodes)?;
         let (nodes, edges) = self.split();
 
         let mut all_nodes = nodes.into_iter().enumerate().collect::<HashMap<_, _>>();
@@ -557,14 +557,18 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     ///     path/to/c.sol (<version>)
     ///     ...
     /// ```
-    fn format_imports_list<W: std::fmt::Write>(
+    fn format_imports_list<W: std::fmt::Write, C: Compiler<Language = L>, T: ArtifactOutput>(
         &self,
         idx: usize,
+        project: &Project<C, T>,
         f: &mut W,
     ) -> std::result::Result<(), std::fmt::Error> {
         let node = self.node(idx);
         write!(f, "{} ", utils::source_name(&node.path, &self.root).display())?;
         if let Some(req) = node.data.version_req() {
+            write!(f, "{req}")?;
+        }
+        if let Some(req) = project.restrictions.get(&node.path).and_then(|r| r.version.as_ref()) {
             write!(f, "{req}")?;
         }
         write!(f, " imports:")?;
@@ -701,7 +705,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                         ));
                     } else {
                         let mut msg = String::new();
-                        self.format_imports_list(idx, &mut msg).unwrap();
+                        self.format_imports_list(idx, project, &mut msg).unwrap();
                         errors.push(format!("Found incompatible versions:\n{msg}"));
                     }
 
@@ -762,14 +766,14 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         &self,
         project: &Project<C, T>,
         input_nodes_versions: HashMap<L, HashMap<Version, Vec<usize>>>,
-    ) -> HashMap<L, HashMap<Version, HashMap<usize, Vec<usize>>>> {
+    ) -> Result<HashMap<L, HashMap<Version, HashMap<usize, Vec<usize>>>>> {
         let mut resulted_sources = HashMap::new();
+        let mut errors = Vec::new();
         for (language, versions) in input_nodes_versions {
             let mut versioned_sources = HashMap::new();
             for (version, nodes) in versions {
                 let mut profile_to_nodes = HashMap::new();
                 for idx in nodes {
-                    println!("resolving {:?}", self.node(idx).path.display());
                     let mut profile_candidates =
                         project.settings_profiles().enumerate().collect::<Vec<_>>();
                     self.retain_compatible_profiles(idx, project, &mut profile_candidates);
@@ -777,19 +781,22 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                     if let Some((profile_idx, _)) = profile_candidates.first() {
                         profile_to_nodes.entry(*profile_idx).or_insert_with(Vec::new).push(idx);
                     } else {
-                        panic!(
-                            "failed to resolve settings for node {}",
-                            self.node(idx).path.display()
-                        );
+                        let mut msg = String::new();
+                        self.format_imports_list(idx, project, &mut msg).unwrap();
+                        errors.push(format!("Found incompatible settings restrictions:\n{msg}"));
                     }
-                    println!("resolved");
                 }
                 versioned_sources.insert(version, profile_to_nodes);
             }
             resulted_sources.insert(language, versioned_sources);
         }
 
-        resulted_sources
+        if errors.is_empty() {
+            Ok(resulted_sources)
+        } else {
+            error!("failed to resolve settings");
+            Err(SolcError::msg(errors.join("\n")))
+        }
     }
 
     /// Tries to find the "best" set of versions to nodes, See [Solc version

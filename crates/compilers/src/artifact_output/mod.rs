@@ -52,6 +52,7 @@ pub struct ArtifactId {
     pub version: Version,
     /// `solc` build id
     pub build_id: String,
+    pub profile: String,
 }
 
 impl ArtifactId {
@@ -299,6 +300,7 @@ impl<T> Artifacts<T> {
                                 source: source.clone(),
                                 version: artifact.version.clone(),
                                 build_id: artifact.build_id.clone(),
+                                profile: artifact.profile.clone(),
                             }
                             .with_slashed_paths(),
                             &artifact.artifact,
@@ -325,6 +327,7 @@ impl<T> Artifacts<T> {
                                 source: source.clone(),
                                 version: artifact.version,
                                 build_id: artifact.build_id.clone(),
+                                profile: artifact.profile.clone(),
                             }
                             .with_slashed_paths(),
                             artifact.artifact,
@@ -873,12 +876,10 @@ pub trait ArtifactOutput {
                 let unique_profiles =
                     versioned_contracts.iter().map(|c| &c.profile).collect::<HashSet<_>>();
                 for contract in versioned_contracts {
+                    non_standalone_sources.insert(file);
+
                     // track `SourceFile`s that can be mapped to contracts
                     let source_file = sources.find_file_and_version(file, &contract.version);
-
-                    if let Some(source) = source_file {
-                        non_standalone_sources.insert((source.id, &contract.version));
-                    }
 
                     let artifact_path = Self::get_artifact_path(
                         &ctx,
@@ -934,7 +935,7 @@ pub trait ArtifactOutput {
             let unique_versions = sources.iter().map(|s| &s.version).collect::<HashSet<_>>();
             let unique_profiles = sources.iter().map(|s| &s.profile).collect::<HashSet<_>>();
             for source in sources {
-                if !non_standalone_sources.contains(&(source.source_file.id, &source.version)) {
+                if !non_standalone_sources.contains(file) {
                     // scan the ast as a safe measure to ensure this file does not include any
                     // source units
                     // there's also no need to create a standalone artifact for source files that
@@ -962,24 +963,21 @@ pub trait ArtifactOutput {
                                 unique_profiles.len() > 1,
                             );
 
-                            let entries = artifacts
+                            taken_paths_lowercase
+                                .insert(artifact_path.to_slash_lossy().to_lowercase());
+
+                            artifacts
                                 .entry(file.clone())
                                 .or_default()
                                 .entry(name.to_string())
-                                .or_default();
-
-                            if entries.iter().all(|entry| entry.version != source.version) {
-                                taken_paths_lowercase
-                                    .insert(artifact_path.to_slash_lossy().to_lowercase());
-
-                                entries.push(ArtifactFile {
+                                .or_default()
+                                .push(ArtifactFile {
                                     artifact,
                                     file: artifact_path,
                                     version: source.version.clone(),
                                     build_id: source.build_id.clone(),
                                     profile: source.profile.clone(),
                                 });
-                            }
                         }
                     }
                 }

@@ -392,9 +392,9 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
     ) {
         cache.remove_dirty_sources();
         for versioned_sources in self.sources.values_mut() {
-            for (version, sources, _) in versioned_sources {
+            for (version, sources, (profile, _)) in versioned_sources {
                 trace!("Filtering {} sources for {}", sources.len(), version);
-                cache.filter(sources, version);
+                cache.filter(sources, version, profile);
                 trace!(
                     "Detected {} sources to compile {:?}",
                     sources.dirty().count(),

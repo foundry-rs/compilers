@@ -13,7 +13,7 @@ pub struct VyperRestrictions {
 }
 
 impl CompilerSettingsRestrictions for VyperRestrictions {
-    fn merge(&mut self, other: &Self) {
+    fn merge(&mut self, other: Self) {
         self.evm_version.merge(&other.evm_version);
     }
 }
