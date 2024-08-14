@@ -331,6 +331,11 @@ impl CompilerSettings for SolcSettings {
             .max_optimizer_runs
             .map_or(true, |max| self.optimizer.runs.map_or(false, |runs| runs <= max));
 
+        // Ensure that we either don't have min optimizer runs set or that the optimizer is enabled
+        satisfies &= restrictions
+            .min_optimizer_runs
+            .map_or(true, |min| min == 0 || self.optimizer.enabled.unwrap_or_default());
+
         satisfies
     }
 }
