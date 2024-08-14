@@ -40,6 +40,8 @@ pub struct VyperSettings {
     pub output_selection: OutputSelection,
     #[serde(rename = "search_paths", skip_serializing_if = "Option::is_none")]
     pub search_paths: Option<BTreeSet<PathBuf>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub experimental_codegen: Option<bool>,
 }
 
 impl VyperSettings {
