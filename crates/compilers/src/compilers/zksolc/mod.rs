@@ -388,10 +388,20 @@ impl ZkSolc {
     pub fn blocking_install(version: &Version) -> Result<Self> {
         let os = get_operating_system()?;
         let os_namespace = os.get_download_uri();
-        let download_url = format!(
-            "https://github.com/matter-labs/zksolc-bin/releases/download/v{version}/zksolc-{os_namespace}-v{version}",
-        );
-
+        let download_url = if version.pre.is_empty() {
+            format!(
+                "https://github.com/matter-labs/zksolc-bin/releases/download/v{version}/zksolc-{os_namespace}-v{version}",
+            )
+        } else {
+            let pre = version.pre.as_str();
+            // Use version as string without pre-release and build metadata
+            let version_str = version.to_string();
+            let version_str = version_str.split('-').next().unwrap();
+            // Matter Labs uses a different repositiry for pre-releases
+            format!(
+                "https://github.com/matter-labs/era-compiler-solidity/releases/download/{pre}/zksolc-{os_namespace}-v{version_str}",
+            )
+        };
         let compilers_dir = Self::compilers_dir()?;
         if !compilers_dir.exists() {
             create_dir_all(compilers_dir)
@@ -545,8 +555,8 @@ fn compiler_blocking_install(
             trace!("downloaded {label}");
 
             // lock file to indicate that installation of this compiler version will be in progress.
-            // wait until lock file is released, possibly by another parallel thread trying to install the
-            // same compiler version.
+            // wait until lock file is released, possibly by another parallel thread trying to
+            // install the same compiler version.
             trace!("try to get lock for {label}");
             let _lock = try_lock_file(lock_path)?;
             trace!("got lock for {label}");
