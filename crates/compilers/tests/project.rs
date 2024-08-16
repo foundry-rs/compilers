@@ -3973,7 +3973,8 @@ fn test_can_compile_multi() {
         solc: Default::default(),
     };
 
-    let compiler = MultiCompiler { solc: SolcCompiler::default(), vyper: Some(VYPER.clone()) };
+    let compiler =
+        MultiCompiler { solc: Some(SolcCompiler::default()), vyper: Some(VYPER.clone()) };
 
     let project = ProjectBuilder::<MultiCompiler>::new(Default::default())
         .settings(settings)
