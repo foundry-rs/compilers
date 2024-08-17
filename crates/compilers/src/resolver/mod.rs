@@ -559,21 +559,30 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         project: &Project<C, T>,
         f: &mut W,
     ) -> std::result::Result<(), std::fmt::Error> {
-        let node = self.node(idx);
-        write!(f, "{} ", utils::source_name(&node.path, &self.root).display())?;
-        if let Some(req) = node.data.version_req() {
-            write!(f, "{req}")?;
-        }
-        if let Some(req) = project.restrictions.get(&node.path).and_then(|r| r.version.as_ref()) {
-            write!(f, "{req}")?;
-        }
+        self.format_node(idx, project, f)?;
         write!(f, " imports:")?;
         for dep in self.node_ids(idx).skip(1) {
-            let dep = self.node(dep);
-            write!(f, "\n    {} ", utils::source_name(&dep.path, &self.root).display())?;
-            if let Some(req) = dep.data.version_req() {
-                write!(f, "{req}")?;
-            }
+            write!(f, "\n    ")?;
+            self.format_node(dep, project, f)?;
+        }
+
+        Ok(())
+    }
+
+    /// Formats a single node along with its version requirements.
+    fn format_node<W: std::fmt::Write, C: Compiler<Language = L>, T: ArtifactOutput>(
+        &self,
+        idx: usize,
+        project: &Project<C, T>,
+        f: &mut W,
+    ) -> std::result::Result<(), std::fmt::Error> {
+        let node = self.node(idx);
+        write!(f, "{}", utils::source_name(&node.path, &self.root).display())?;
+        if let Some(req) = node.data.version_req() {
+            write!(f, " {req}")?;
+        }
+        if let Some(req) = project.restrictions.get(&node.path).and_then(|r| r.version.as_ref()) {
+            write!(f, " {req}")?;
         }
 
         Ok(())
