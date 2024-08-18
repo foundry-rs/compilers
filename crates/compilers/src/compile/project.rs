@@ -171,7 +171,6 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     /// `Contract`s
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::Project;
     ///

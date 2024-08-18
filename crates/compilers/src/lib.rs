@@ -110,7 +110,6 @@ impl Project {
     /// # Examples
     ///
     /// Configure with [ConfigurableArtifacts] artifacts output and [MultiCompiler] compiler:
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
@@ -119,7 +118,6 @@ impl Project {
     /// ```
     ///
     /// To configure any a project with any `ArtifactOutput` use either:
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
@@ -128,7 +126,6 @@ impl Project {
     /// ```
     ///
     /// or use the builder directly:
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{multi::MultiCompiler, ConfigurableArtifacts, ProjectBuilder};
     ///
@@ -249,7 +246,6 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// Use this if you compile a project in a `build.rs` file.
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{Project, ProjectPathsConfig};
     ///
@@ -274,7 +270,6 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// Convenience function to compile a single solidity file with the project's settings.
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
@@ -292,7 +287,6 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// Same as [`Self::compile()`] but with the given `files` as input.
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
@@ -315,7 +309,6 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// If the cache file was the only file in the folder, this also removes the empty folder.
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```
     /// use foundry_compilers::Project;
     ///

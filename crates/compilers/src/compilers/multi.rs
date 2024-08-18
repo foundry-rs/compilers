@@ -32,21 +32,25 @@ use std::{
 /// Compiler capable of compiling both Solidity and Vyper sources.
 #[derive(Clone, Debug)]
 pub struct MultiCompiler {
-    pub solc: SolcCompiler,
+    pub solc: Option<SolcCompiler>,
     pub vyper: Option<Vyper>,
 }
 
-#[cfg(feature = "svm-solc")]
 impl Default for MultiCompiler {
     fn default() -> Self {
         let vyper = Vyper::new("vyper").ok();
 
-        Self { solc: SolcCompiler::default(), vyper }
+        #[cfg(feature = "svm-solc")]
+        let solc = Some(SolcCompiler::AutoDetect);
+        #[cfg(not(feature = "svm-solc"))]
+        let solc = crate::solc::Solc::new("solc").map(SolcCompiler::Specific).ok();
+
+        Self { solc, vyper }
     }
 }
 
 impl MultiCompiler {
-    pub fn new(solc: SolcCompiler, vyper_path: Option<PathBuf>) -> Result<Self> {
+    pub fn new(solc: Option<SolcCompiler>, vyper_path: Option<PathBuf>) -> Result<Self> {
         let vyper = vyper_path.map(Vyper::new).transpose()?;
         Ok(Self { solc, vyper })
     }
@@ -259,7 +263,11 @@ impl Compiler for MultiCompiler {
     fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>> {
         match input {
             MultiCompilerInput::Solc(input) => {
-                self.solc.compile(input).map(|res| res.map_err(MultiCompilerError::Solc))
+                if let Some(solc) = &self.solc {
+                    Compiler::compile(solc, input).map(|res| res.map_err(MultiCompilerError::Solc))
+                } else {
+                    Err(SolcError::msg("solc compiler is not available"))
+                }
             }
             MultiCompilerInput::Vyper(input) => {
                 if let Some(vyper) = &self.vyper {
@@ -274,7 +282,9 @@ impl Compiler for MultiCompiler {
 
     fn available_versions(&self, language: &Self::Language) -> Vec<CompilerVersion> {
         match language {
-            MultiCompilerLanguage::Solc(language) => self.solc.available_versions(language),
+            MultiCompilerLanguage::Solc(language) => {
+                self.solc.as_ref().map(|s| s.available_versions(language)).unwrap_or_default()
+            }
             MultiCompilerLanguage::Vyper(language) => {
                 self.vyper.as_ref().map(|v| v.available_versions(language)).unwrap_or_default()
             }
