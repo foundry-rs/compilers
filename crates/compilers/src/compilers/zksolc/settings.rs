@@ -6,6 +6,7 @@ use crate::{
 use foundry_compilers_artifacts::{
     remappings::Remapping, zksolc::output_selection::OutputSelection as ZkOutputSelection,
 };
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeSet,
@@ -76,6 +77,19 @@ impl ZkSolcSettings {
     /// Creates a new `Settings` instance with the given `output_selection`
     pub fn new(output_selection: impl Into<ZkOutputSelection>) -> Self {
         Self { output_selection: output_selection.into(), ..Default::default() }
+    }
+
+    /// Consumes the type and returns a [Settings::sanitize] version
+    pub fn sanitized(mut self, version: &Version) -> Self {
+        self.sanitize(version);
+        self
+    }
+
+    /// This will remove/adjust values in the settings that are not compatible with this version.
+    pub fn sanitize(&mut self, version: &Version) {
+        if let Some(ref mut evm_version) = self.evm_version {
+            self.evm_version = evm_version.normalize_version_solc(version);
+        }
     }
 
     pub fn strip_prefix(&mut self, base: impl AsRef<Path>) {

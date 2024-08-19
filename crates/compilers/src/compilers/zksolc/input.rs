@@ -32,7 +32,7 @@ impl CompilerInput for ZkSolcVersionedInput {
         language: Self::Language,
         version: Version,
     ) -> Self {
-        let input = ZkSolcInput { language, sources, settings };
+        let input = ZkSolcInput { language, sources, settings }.sanitized(&version);
 
         Self {
             solc_version: version,
@@ -102,6 +102,11 @@ impl ZkSolcInput {
     /// constructed for the yul sources
     pub fn is_yul(&self) -> bool {
         self.language == SolcLanguage::Yul
+    }
+    /// Consumes the type and returns a [SolcInput::sanitized] version
+    pub fn sanitized(mut self, version: &Version) -> Self {
+        self.settings.sanitize(version);
+        self
     }
 
     pub fn with_remappings(mut self, remappings: Vec<Remapping>) -> Self {
