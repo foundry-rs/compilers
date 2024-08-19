@@ -1,5 +1,5 @@
 use crate::{
-    artifact_output::{ArtifactFile, Artifacts, ArtifactsMap, OutputContext},
+    artifact_output::{ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, OutputContext},
     artifacts::{DevDoc, SourceFile, StorageLayout, UserDoc},
     compile::output::sources::VersionedSourceFiles,
     config::ProjectPathsConfig,
@@ -8,22 +8,20 @@ use crate::{
 };
 use alloy_json_abi::JsonAbi;
 use foundry_compilers_artifacts::{
-    zksolc::{
-        bytecode::Bytecode,
-        contract::{CompactContractBytecodeCow, Contract},
-        Evm,
+    solc::{
+        CompactBytecode, CompactContract, CompactContractBytecode, CompactContractBytecodeCow,
+        CompactDeployedBytecode,
     },
+    zksolc::{bytecode::Bytecode, contract::Contract, Evm},
     SolcLanguage,
 };
 use path_slash::PathBufExt;
-use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashSet},
-    ffi::OsString,
     fs,
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -59,11 +57,44 @@ pub struct ZkContractArtifact {
     pub id: Option<u32>,
 }
 
+// CompactContract variants
+// TODO: for zkEvm, the distinction between bytecode and deployed_bytecode makes little sense,
+// and there some fields that the ouptut doesn't provide (e.g: source_map)
+// However, we implement these because we get the Artifact trait and can reuse lots of
+// the crate's helpers without needing to duplicate everything. Maybe there's a way
+// we can get all these without having to add the same bytecode twice on each struct.
+// Ideally the Artifacts trait would not be coupled to a specific Contract type
 impl<'a> From<&'a ZkContractArtifact> for CompactContractBytecodeCow<'a> {
     fn from(artifact: &'a ZkContractArtifact) -> Self {
+        // TODO: artifact.abi might have None, we need to get this field from solc_metadata
         CompactContractBytecodeCow {
             abi: artifact.abi.as_ref().map(Cow::Borrowed),
-            bytecode: artifact.bytecode.as_ref().map(Cow::Borrowed),
+            bytecode: artifact.bytecode.clone().map(|b| Cow::Owned(CompactBytecode::from(b))),
+            deployed_bytecode: artifact
+                .bytecode
+                .clone()
+                .map(|b| Cow::Owned(CompactDeployedBytecode::from(b))),
+        }
+    }
+}
+
+impl From<ZkContractArtifact> for CompactContractBytecode {
+    fn from(c: ZkContractArtifact) -> Self {
+        Self {
+            abi: c.abi.map(Into::into),
+            deployed_bytecode: c.bytecode.clone().map(|b| b.into()),
+            bytecode: c.bytecode.clone().map(|b| b.into()),
+        }
+    }
+}
+
+impl From<ZkContractArtifact> for CompactContract {
+    fn from(c: ZkContractArtifact) -> Self {
+        // TODO: c.abi might have None, we need to get this field from solc_metadata
+        Self {
+            bin: c.bytecode.clone().map(|b| b.object),
+            bin_runtime: c.bytecode.clone().map(|b| b.object),
+            abi: c.abi,
         }
     }
 }
@@ -71,8 +102,30 @@ impl<'a> From<&'a ZkContractArtifact> for CompactContractBytecodeCow<'a> {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
 pub struct ZkArtifactOutput();
 
-impl ZkArtifactOutput {
+impl ArtifactOutput for ZkArtifactOutput {
+    type Artifact = ZkContractArtifact;
+
     fn contract_to_artifact(
+        &self,
+        _file: &Path,
+        _name: &str,
+        _contract: foundry_compilers_artifacts::Contract,
+        _source_file: Option<&SourceFile>,
+    ) -> Self::Artifact {
+        panic!("Unsupported use zksync_contract_to_artifact instead");
+    }
+
+    fn standalone_source_file_to_artifact(
+        &self,
+        _path: &Path,
+        _file: &crate::VersionedSourceFile,
+    ) -> Option<Self::Artifact> {
+        None
+    }
+}
+
+impl ZkArtifactOutput {
+    fn zksync_contract_to_artifact(
         &self,
         _file: &Path,
         _name: &str,
@@ -127,181 +180,30 @@ impl ZkArtifactOutput {
         }
     }
 
-    pub fn on_output(
+    pub fn zksync_on_output(
         &self,
         contracts: &VersionedContracts,
         sources: &VersionedSourceFiles,
         layout: &ProjectPathsConfig<SolcLanguage>,
         ctx: OutputContext<'_>,
     ) -> Result<Artifacts<ZkContractArtifact>> {
-        let mut artifacts = self.output_to_artifacts(contracts, sources, ctx, layout);
-        fs::create_dir_all(&layout.zksync_artifacts).map_err(|err| {
-            error!(dir=?layout.zksync_artifacts, "Failed to create artifacts folder");
-            SolcIoError::new(err, &layout.zksync_artifacts)
+        let mut artifacts = self.zksync_output_to_artifacts(contracts, sources, ctx, layout);
+        fs::create_dir_all(&layout.artifacts).map_err(|err| {
+            error!(dir=?layout.artifacts, "Failed to create artifacts folder");
+            SolcIoError::new(err, &layout.artifacts)
         })?;
 
-        artifacts.join_all(&layout.zksync_artifacts);
+        artifacts.join_all(&layout.artifacts);
         artifacts.write_all()?;
 
         Ok(artifacts)
-    }
-
-    /// Returns the file name for the contract's artifact
-    /// `Greeter.json`
-    fn output_file_name(name: impl AsRef<str>) -> PathBuf {
-        format!("{}.json", name.as_ref()).into()
-    }
-
-    /// Returns the file name for the contract's artifact and the given version
-    /// `Greeter.0.8.11.json`
-    fn output_file_name_versioned(name: impl AsRef<str>, version: &Version) -> PathBuf {
-        format!("{}.{}.{}.{}.json", name.as_ref(), version.major, version.minor, version.patch)
-            .into()
-    }
-
-    /// Returns the appropriate file name for the conflicting file.
-    ///
-    /// This should ensure that the resulting `PathBuf` is conflict free, which could be possible if
-    /// there are two separate contract files (in different folders) that contain the same contract:
-    ///
-    /// `src/A.sol::A`
-    /// `src/nested/A.sol::A`
-    ///
-    /// Which would result in the same `PathBuf` if only the file and contract name is taken into
-    /// account, [`Self::output_file`].
-    ///
-    /// This return a unique output file
-    fn conflict_free_output_file(
-        already_taken: &HashSet<String>,
-        conflict: PathBuf,
-        contract_file: impl AsRef<Path>,
-        artifacts_folder: impl AsRef<Path>,
-    ) -> PathBuf {
-        let artifacts_folder = artifacts_folder.as_ref();
-        let mut rel_candidate = conflict;
-        if let Ok(stripped) = rel_candidate.strip_prefix(artifacts_folder) {
-            rel_candidate = stripped.to_path_buf();
-        }
-        #[allow(clippy::redundant_clone)] // false positive
-        let mut candidate = rel_candidate.clone();
-        let contract_file = contract_file.as_ref();
-        let mut current_parent = contract_file.parent();
-
-        while let Some(parent_name) = current_parent.and_then(|f| f.file_name()) {
-            // this is problematic if both files are absolute
-            candidate = Path::new(parent_name).join(&candidate);
-            let out_path = artifacts_folder.join(&candidate);
-            if !already_taken.contains(&out_path.to_slash_lossy().to_lowercase()) {
-                trace!("found alternative output file={:?} for {:?}", out_path, contract_file);
-                return out_path;
-            }
-            current_parent = current_parent.and_then(|f| f.parent());
-        }
-
-        // this means we haven't found an alternative yet, which shouldn't actually happen since
-        // `contract_file` are unique, but just to be safe, handle this case in which case
-        // we simply numerate the parent folder
-
-        trace!("no conflict free output file found after traversing the file");
-
-        let mut num = 1;
-
-        loop {
-            // this will attempt to find an alternate path by numerating the first component in the
-            // path: `<root>+_<num>/....sol`
-            let mut components = rel_candidate.components();
-            let first = components.next().expect("path not empty");
-            let name = first.as_os_str();
-            let mut numerated = OsString::with_capacity(name.len() + 2);
-            numerated.push(name);
-            numerated.push("_");
-            numerated.push(num.to_string());
-
-            let candidate: PathBuf = Some(numerated.as_os_str())
-                .into_iter()
-                .chain(components.map(|c| c.as_os_str()))
-                .collect();
-            if !already_taken.contains(&candidate.to_slash_lossy().to_lowercase()) {
-                trace!("found alternative output file={:?} for {:?}", candidate, contract_file);
-                return candidate;
-            }
-
-            num += 1;
-        }
-    }
-
-    /// Returns the path to the contract's artifact location based on the contract's file and name
-    ///
-    /// This returns `contract.sol/contract.json` by default
-    fn output_file(contract_file: impl AsRef<Path>, name: impl AsRef<str>) -> PathBuf {
-        let name = name.as_ref();
-        contract_file
-            .as_ref()
-            .file_name()
-            .map(Path::new)
-            .map(|p| p.join(Self::output_file_name(name)))
-            .unwrap_or_else(|| Self::output_file_name(name))
-    }
-
-    /// Returns the path to the contract's artifact location based on the contract's file, name and
-    /// version
-    ///
-    /// This returns `contract.sol/contract.0.8.11.json` by default
-    fn output_file_versioned(
-        contract_file: impl AsRef<Path>,
-        name: impl AsRef<str>,
-        version: &Version,
-    ) -> PathBuf {
-        let name = name.as_ref();
-        contract_file
-            .as_ref()
-            .file_name()
-            .map(Path::new)
-            .map(|p| p.join(Self::output_file_name_versioned(name, version)))
-            .unwrap_or_else(|| Self::output_file_name_versioned(name, version))
-    }
-
-    /// Generates a path for an artifact based on already taken paths by either cached or compiled
-    /// artifacts.
-    fn get_artifact_path(
-        ctx: &OutputContext<'_>,
-        already_taken: &HashSet<String>,
-        file: &Path,
-        name: &str,
-        artifacts_folder: &Path,
-        version: &Version,
-        versioned: bool,
-    ) -> PathBuf {
-        // if an artifact for the contract already exists (from a previous compile job)
-        // we reuse the path, this will make sure that even if there are conflicting
-        // files (files for witch `T::output_file()` would return the same path) we use
-        // consistent output paths
-        if let Some(existing_artifact) = ctx.existing_artifact(file, name, version) {
-            trace!("use existing artifact file {:?}", existing_artifact,);
-            existing_artifact.to_path_buf()
-        } else {
-            let path = if versioned {
-                Self::output_file_versioned(file, name, version)
-            } else {
-                Self::output_file(file, name)
-            };
-
-            let path = artifacts_folder.join(path);
-
-            if already_taken.contains(&path.to_slash_lossy().to_lowercase()) {
-                // preventing conflict
-                Self::conflict_free_output_file(already_taken, path, file, artifacts_folder)
-            } else {
-                path
-            }
-        }
     }
 
     /// Convert the compiler output into a set of artifacts
     ///
     /// **Note:** This does only convert, but _NOT_ write the artifacts to disk, See
     /// [`Self::on_output()`]
-    pub fn output_to_artifacts(
+    pub fn zksync_output_to_artifacts(
         &self,
         contracts: &VersionedContracts,
         sources: &VersionedSourceFiles,
@@ -341,7 +243,7 @@ impl ZkArtifactOutput {
                         &taken_paths_lowercase,
                         file,
                         name,
-                        layout.zksync_artifacts.as_path(),
+                        layout.artifacts.as_path(),
                         &contract.version,
                         versioned_contracts.len() > 1,
                     );
@@ -355,7 +257,7 @@ impl ZkArtifactOutput {
                         contract.version
                     );
 
-                    let artifact = self.contract_to_artifact(
+                    let artifact = self.zksync_contract_to_artifact(
                         file,
                         name,
                         contract.contract.clone(),

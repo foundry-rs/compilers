@@ -1,5 +1,5 @@
 use crate::artifacts::FileToContractsMap;
-use foundry_compilers_artifacts::zksolc::contract::{CompactContractRef, Contract};
+use foundry_compilers_artifacts::{solc::CompactContractRef, zksolc::contract::Contract};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{

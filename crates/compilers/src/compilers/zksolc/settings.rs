@@ -65,8 +65,6 @@ pub struct ZkSolcSettings {
     /// Whether to compile via EVM assembly.
     #[serde(default, rename = "forceEVMLA")]
     pub force_evmla: bool,
-    /// The path to the solc compiler to use along zksolc.
-    pub solc: Option<std::path::PathBuf>,
 
     #[serde(flatten)]
     pub cli_settings: solc::CliSettings,
@@ -122,7 +120,6 @@ impl Default for ZkSolcSettings {
             enable_eravm_extensions: false,
             llvm_options: Default::default(),
             force_evmla: false,
-            solc: None,
             cli_settings: Default::default(),
         }
     }
