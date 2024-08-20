@@ -78,7 +78,7 @@ impl ZkSolcSettings {
     }
 
     /// Consumes the type and returns a [Settings::sanitize] version
-    pub fn sanitized(mut self, version: &Version) -> Self {
+    pub fn sanitized(mut self, solc_version: &Version) -> Self {
         self.sanitize(version);
         self
     }
