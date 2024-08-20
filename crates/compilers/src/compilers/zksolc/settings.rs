@@ -84,7 +84,7 @@ impl ZkSolcSettings {
     }
 
     /// This will remove/adjust values in the settings that are not compatible with this version.
-    pub fn sanitize(&mut self, version: &Version) {
+    pub fn sanitize(&mut self, solc_version: &Version) {
         if let Some(ref mut evm_version) = self.evm_version {
             self.evm_version = evm_version.normalize_version_solc(version);
         }
