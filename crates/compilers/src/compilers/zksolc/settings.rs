@@ -79,14 +79,14 @@ impl ZkSolcSettings {
 
     /// Consumes the type and returns a [ZkSolcSettings::sanitize] version
     pub fn sanitized(mut self, solc_version: &Version) -> Self {
-        self.sanitize(version);
+        self.sanitize(solc_version);
         self
     }
 
     /// This will remove/adjust values in the settings that are not compatible with this version.
     pub fn sanitize(&mut self, solc_version: &Version) {
         if let Some(ref mut evm_version) = self.evm_version {
-            self.evm_version = evm_version.normalize_version_solc(version);
+            self.evm_version = evm_version.normalize_version_solc(solc_version);
         }
     }
 
