@@ -8,20 +8,17 @@ use crate::{
     },
     output::Builds,
     zksync::{
-        artifact_output::{
-            artifacts_artifacts, artifacts_into_artifacts, contract_name, zk::ZkContractArtifact,
-        },
+        artifact_output::zk::{ZkArtifactOutput, ZkContractArtifact},
         compile::output::contracts::{VersionedContract, VersionedContracts},
     },
+    ArtifactOutput,
 };
 use foundry_compilers_artifacts::{
-    zksolc::{
-        contract::{CompactContractRef, Contract},
-        error::Error,
-        CompilerOutput,
-    },
+    solc::CompactContractRef,
+    zksolc::{contract::Contract, error::Error, CompilerOutput},
     ErrorFilter, SolcLanguage,
 };
+use foundry_compilers_core::error::{SolcError, SolcIoError};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -32,7 +29,7 @@ use yansi::Paint;
 
 pub mod contracts;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProjectCompileOutput {
     /// contains the aggregated `CompilerOutput`
     pub compiler_output: AggregatedCompilerOutput,
@@ -63,7 +60,9 @@ impl ProjectCompileOutput {
     /// This returns a chained iterator of both cached and recompiled contract artifacts.
     pub fn artifact_ids(&self) -> impl Iterator<Item = (ArtifactId, &ZkContractArtifact)> {
         let Self { cached_artifacts, compiled_artifacts, .. } = self;
-        artifacts_artifacts(cached_artifacts).chain(artifacts_artifacts(compiled_artifacts))
+        cached_artifacts
+            .artifacts::<ZkArtifactOutput>()
+            .chain(compiled_artifacts.artifacts::<ZkArtifactOutput>())
     }
 
     /// All artifacts together with their contract file name and name `<file name>:<name>`
@@ -71,8 +70,9 @@ impl ProjectCompileOutput {
     /// This returns a chained iterator of both cached and recompiled contract artifacts
     pub fn into_artifacts(self) -> impl Iterator<Item = (ArtifactId, ZkContractArtifact)> {
         let Self { cached_artifacts, compiled_artifacts, .. } = self;
-        artifacts_into_artifacts(cached_artifacts)
-            .chain(artifacts_into_artifacts(compiled_artifacts))
+        cached_artifacts
+            .into_artifacts::<ZkArtifactOutput>()
+            .chain(compiled_artifacts.into_artifacts::<ZkArtifactOutput>())
     }
 
     pub fn with_stripped_file_prefixes(mut self, base: impl AsRef<Path>) -> Self {
@@ -97,6 +97,12 @@ impl ProjectCompileOutput {
         )
     }
 
+    /// Panics if any errors were emitted by the compiler.
+    #[track_caller]
+    pub fn assert_success(&self) {
+        assert!(!self.has_compiler_errors(), "\n{self}\n");
+    }
+
     pub fn versioned_artifacts(
         &self,
     ) -> impl Iterator<Item = (String, (&ZkContractArtifact, &Version))> {
@@ -104,7 +110,7 @@ impl ProjectCompileOutput {
             .artifact_files()
             .chain(self.compiled_artifacts.artifact_files())
             .filter_map(|artifact| {
-                contract_name(&artifact.file)
+                ZkArtifactOutput::contract_name(&artifact.file)
                     .map(|name| (name, (&artifact.artifact, &artifact.version)))
             })
     }
@@ -127,6 +133,14 @@ impl ProjectCompileOutput {
             return artifact;
         }
         self.cached_artifacts.find(path, name)
+    }
+
+    /// Finds the first contract with the given name
+    pub fn find_first(&self, name: &str) -> Option<&ZkContractArtifact> {
+        if let artifact @ Some(_) = self.compiled_artifacts.find_first(name) {
+            return artifact;
+        }
+        self.cached_artifacts.find_first(name)
     }
 
     /// Returns the set of `Artifacts` that were cached and got reused during
@@ -321,6 +335,28 @@ impl AggregatedCompilerOutput {
                 });
             }
         }
+    }
+
+    /// Creates all `BuildInfo` files in the given `build_info_dir`
+    ///
+    /// There can be multiple `BuildInfo`, since we support multiple versions.
+    ///
+    /// The created files have the md5 hash `{_format,solcVersion,solcLongVersion,input}` as their
+    /// file name
+    pub fn write_build_infos(&self, build_info_dir: &Path) -> Result<(), SolcError> {
+        if self.build_infos.is_empty() {
+            return Ok(());
+        }
+        std::fs::create_dir_all(build_info_dir)
+            .map_err(|err| SolcIoError::new(err, build_info_dir))?;
+        for build_info in &self.build_infos {
+            trace!("writing build info file {}", build_info.id);
+            let file_name = format!("{}.json", build_info.id);
+            let file = build_info_dir.join(file_name);
+            std::fs::write(&file, &serde_json::to_string(build_info)?)
+                .map_err(|err| SolcIoError::new(err, file))?;
+        }
+        Ok(())
     }
 
     /// Finds the _first_ contract with the given name

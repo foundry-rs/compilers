@@ -1,6 +1,6 @@
 use super::settings::ZkSolcSettings;
 use crate::compilers::{solc::SolcLanguage, CompilerInput};
-use foundry_compilers_artifacts::{remappings::Remapping, Source, Sources};
+use foundry_compilers_artifacts::{remappings::Remapping, solc::serde_helpers, Source, Sources};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -60,7 +60,7 @@ impl CompilerInput for ZkSolcVersionedInput {
     }
 
     fn compiler_name(&self) -> Cow<'static, str> {
-        "ZkSolc".into()
+        "zksolc and solc".into()
     }
 
     fn strip_prefix(&mut self, base: &Path) {
@@ -119,5 +119,25 @@ impl ZkSolcInput {
         }
 
         self
+    }
+}
+
+/// A `CompilerInput` representation used for verify
+///
+/// This type is an alternative `CompilerInput` but uses non-alphabetic ordering of the `sources`
+/// and instead emits the (Path -> Source) path in the same order as the pairs in the `sources`
+/// `Vec`. This is used over a map, so we can determine the order in which etherscan will display
+/// the verified contracts
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StandardJsonCompilerInput {
+    pub language: SolcLanguage,
+    #[serde(with = "serde_helpers::tuple_vec_map")]
+    pub sources: Vec<(PathBuf, Source)>,
+    pub settings: ZkSolcSettings,
+}
+
+impl StandardJsonCompilerInput {
+    pub fn new(sources: Vec<(PathBuf, Source)>, settings: ZkSolcSettings) -> Self {
+        Self { language: SolcLanguage::Solidity, sources, settings }
     }
 }

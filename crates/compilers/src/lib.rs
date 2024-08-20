@@ -38,9 +38,6 @@ pub use filter::{FileFilter, SparseOutputFilter, TestFileFilter};
 
 pub mod zksync;
 
-use crate::compilers::zksolc::ZkSolc;
-use zksync::{artifact_output::zk::ZkArtifactOutput, config::ZkSolcConfig};
-
 pub mod report;
 
 /// Utilities for creating, mocking and testing of (temporary) projects
@@ -107,11 +104,6 @@ pub struct Project<C: Compiler = MultiCompiler, T: ArtifactOutput = Configurable
     /// Optional sparse output filter used to optimize compilation.
     #[derivative(Debug = "ignore")]
     pub sparse_output: Option<Box<dyn FileFilter>>,
-
-    /// Where to find zksolc
-    pub zksync_zksolc: ZkSolc,
-    pub zksync_zksolc_config: ZkSolcConfig,
-    pub zksync_artifacts: ZkArtifactOutput,
 }
 
 impl Project {
@@ -488,10 +480,6 @@ pub struct ProjectBuilder<C: Compiler = MultiCompiler, T: ArtifactOutput = Confi
     solc_jobs: Option<usize>,
     /// Optional sparse output filter used to optimize compilation.
     sparse_output: Option<Box<dyn FileFilter>>,
-
-    /// Where to find zksolc
-    zksync_zksolc: Option<ZkSolc>,
-    zksync_zksolc_config: Option<ZkSolcConfig>,
 }
 
 impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
@@ -512,9 +500,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             settings: None,
             locked_versions: Default::default(),
             sparse_output: None,
-
-            zksync_zksolc: None,
-            zksync_zksolc_config: None,
         }
     }
 
@@ -667,9 +652,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             settings,
             locked_versions,
             sparse_output,
-
-            zksync_zksolc,
-            zksync_zksolc_config,
             ..
         } = self;
         ProjectBuilder {
@@ -687,9 +669,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             settings,
             locked_versions,
             sparse_output,
-
-            zksync_zksolc,
-            zksync_zksolc_config,
         }
     }
 
@@ -709,9 +688,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             settings,
             locked_versions,
             sparse_output,
-
-            zksync_zksolc,
-            zksync_zksolc_config,
         } = self;
 
         let mut paths = paths.map(Ok).unwrap_or_else(ProjectPathsConfig::current_hardhat)?;
@@ -721,9 +697,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             paths.slash_paths();
         }
 
-        let zksync_zksolc = zksync_zksolc.unwrap_or_default();
-        let zksync_zksolc_config = zksync_zksolc_config.unwrap_or_default();
-        let zksync_artifacts = ZkArtifactOutput();
         Ok(Project {
             compiler,
             paths,
@@ -742,10 +715,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             settings: settings.unwrap_or_default(),
             locked_versions,
             sparse_output,
-
-            zksync_zksolc,
-            zksync_zksolc_config,
-            zksync_artifacts,
         })
     }
 }

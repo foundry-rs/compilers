@@ -6,7 +6,7 @@ use std::{fmt, ops::Range};
 use yansi::{Color, Style};
 
 /// The `solc --standard-json` output error.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Error {
     /// The component type.

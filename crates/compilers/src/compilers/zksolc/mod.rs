@@ -1,6 +1,15 @@
 use self::input::{ZkSolcInput, ZkSolcVersionedInput};
-use crate::error::{Result, SolcError};
-use foundry_compilers_artifacts::zksolc::CompilerOutput;
+use crate::{
+    error::{Result, SolcError},
+    resolver::parse::SolData,
+    solc::SolcCompiler,
+    CompilationError, Compiler, CompilerVersion,
+};
+use foundry_compilers_artifacts::{
+    solc::error::SourceLocation,
+    zksolc::{error::Error, CompilerOutput},
+    Severity, SolcLanguage,
+};
 
 use itertools::Itertools;
 use semver::Version;
@@ -28,6 +37,7 @@ pub use settings::ZkSolcSettings;
 
 pub const ZKSOLC: &str = "zksolc";
 pub const ZKSYNC_SOLC_RELEASE: Version = Version::new(1, 0, 1);
+pub const ZKSOLC_VERSION: Version = Version::new(1, 5, 1);
 
 #[derive(Debug, Clone, Serialize)]
 enum ZkSolcOS {
@@ -64,13 +74,115 @@ impl ZkSolcOS {
         }
     }
 
-    #[cfg(feature = "async")]
     fn get_download_uri(&self) -> &str {
         match self {
             Self::Linux => "linux-amd64-musl",
             Self::MacAMD => "macosx-amd64",
             Self::MacARM => "macosx-arm64",
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ZkSolcCompiler {
+    pub zksolc: PathBuf,
+    pub solc: SolcCompiler,
+}
+
+#[cfg(feature = "project-util")]
+impl Default for ZkSolcCompiler {
+    fn default() -> Self {
+        let zksolc = ZkSolc::new_from_version(&ZKSOLC_VERSION).expect("Could not install zksolc");
+        Self { zksolc: zksolc.zksolc, solc: Default::default() }
+    }
+}
+
+impl Compiler for ZkSolcCompiler {
+    type Input = ZkSolcVersionedInput;
+    type CompilationError = Error;
+    type ParsedSource = SolData;
+    type Settings = ZkSolcSettings;
+    type Language = SolcLanguage;
+
+    fn compile(
+        &self,
+        _input: &Self::Input,
+    ) -> Result<crate::compilers::CompilerOutput<Self::CompilationError>> {
+        // This method cannot be implemented until CompilerOutput is decoupled from
+        // evm Contract
+        panic!(
+            "`Compiler::create` not supported for `ZkSolcCompiler`, should call `zksync_compile`."
+        );
+    }
+
+    // NOTE: This is used in the context of matching source files to compiler version so
+    // the solc versions are returned
+    fn available_versions(&self, _language: &Self::Language) -> Vec<CompilerVersion> {
+        match &self.solc {
+            SolcCompiler::Specific(solc) => vec![CompilerVersion::Installed(Version::new(
+                solc.version.major,
+                solc.version.minor,
+                solc.version.patch,
+            ))],
+            SolcCompiler::AutoDetect => {
+                let mut all_versions = ZkSolc::solc_installed_versions()
+                    .into_iter()
+                    .map(CompilerVersion::Installed)
+                    .collect::<Vec<_>>();
+                let mut uniques = all_versions
+                    .iter()
+                    .map(|v| {
+                        let v = v.as_ref();
+                        (v.major, v.minor, v.patch)
+                    })
+                    .collect::<std::collections::HashSet<_>>();
+                all_versions.extend(
+                    ZkSolc::solc_available_versions()
+                        .into_iter()
+                        .filter(|v| uniques.insert((v.major, v.minor, v.patch)))
+                        .map(CompilerVersion::Remote),
+                );
+                all_versions.sort_unstable();
+                all_versions
+            }
+        }
+    }
+}
+
+impl ZkSolcCompiler {
+    pub fn zksync_compile(&self, input: &ZkSolcVersionedInput) -> Result<CompilerOutput> {
+        let mut zksolc = ZkSolc::new(self.zksolc.clone());
+
+        match &self.solc {
+            SolcCompiler::Specific(solc) => zksolc.solc = Some(solc.solc.clone()),
+            SolcCompiler::AutoDetect => {
+                #[cfg(test)]
+                crate::take_solc_installer_lock!(_lock);
+
+                let solc_version_without_metadata = format!(
+                    "{}.{}.{}",
+                    input.solc_version.major, input.solc_version.minor, input.solc_version.patch
+                );
+                let maybe_solc =
+                    ZkSolc::find_solc_installed_version(&solc_version_without_metadata)?;
+                if let Some(solc) = maybe_solc {
+                    zksolc.solc = Some(solc);
+                } else {
+                    #[cfg(feature = "async")]
+                    {
+                        let installed_solc_path =
+                            ZkSolc::solc_blocking_install(&solc_version_without_metadata)?;
+                        zksolc.solc = Some(installed_solc_path);
+                    }
+                }
+            }
+        }
+
+        zksolc.base_path.clone_from(&input.base_path);
+        zksolc.allow_paths.clone_from(&input.allow_paths);
+        zksolc.include_paths.clone_from(&input.include_paths);
+
+        zksolc.compile(&input.input)
     }
 }
 
@@ -117,6 +229,16 @@ impl ZkSolc {
         }
     }
 
+    pub fn new_from_version(version: &Version) -> Result<Self> {
+        let maybe_zksolc = Self::find_installed_version(version)?;
+
+        if let Some(zksolc) = maybe_zksolc {
+            Ok(zksolc)
+        } else {
+            Self::blocking_install(version)
+        }
+    }
+
     /// Sets zksolc's base path
     pub fn with_base_path(mut self, base_path: impl Into<PathBuf>) -> Self {
         self.base_path = Some(base_path.into());
@@ -124,40 +246,49 @@ impl ZkSolc {
     }
 
     /// Compiles with `--standard-json` and deserializes the output as [`CompilerOutput`].
-    pub fn compile(&self, input: &ZkSolcVersionedInput) -> Result<CompilerOutput> {
-        let mut zksolc = self.clone();
-        // TODO: maybe we can just override the input
-        if input.input.settings.solc.is_some() {
-            zksolc.solc.clone_from(&input.input.settings.solc);
-        } else {
-            let solc_version_without_metadata = format!(
-                "{}.{}.{}",
-                input.solc_version.major, input.solc_version.minor, input.solc_version.patch
-            );
-            let maybe_solc = Self::find_solc_installed_version(&solc_version_without_metadata)?;
-            if let Some(solc) = maybe_solc {
-                zksolc.solc = Some(solc);
-            } else {
-                // TODO: respect offline settings although it requires moving where we
-                // check and get zksolc solc pathj
-                #[cfg(feature = "async")]
-                {
-                    let installed_solc_path =
-                        Self::solc_blocking_install(&solc_version_without_metadata)?;
-                    zksolc.solc = Some(installed_solc_path);
-                }
-            }
-        }
-
-        zksolc.base_path.clone_from(&input.base_path);
-        zksolc.allow_paths.clone_from(&input.allow_paths);
-        zksolc.include_paths.clone_from(&input.include_paths);
-
-        let output = zksolc.compile_output(&input.input)?;
+    pub fn compile(&self, input: &ZkSolcInput) -> Result<CompilerOutput> {
+        let output = self.compile_output(input)?;
         // Only run UTF-8 validation once.
         let output = std::str::from_utf8(&output).map_err(|_| SolcError::InvalidUtf8)?;
 
         Ok(serde_json::from_str(output)?)
+    }
+
+    pub fn solc_installed_versions() -> Vec<Version> {
+        if let Ok(dir) = Self::compilers_dir() {
+            let os = get_operating_system().unwrap();
+            let solc_prefix = os.get_solc_prefix();
+            let mut versions: Vec<Version> = walkdir::WalkDir::new(dir)
+                .max_depth(1)
+                .into_iter()
+                .filter_map(std::result::Result::ok)
+                .filter(|e| e.file_type().is_file())
+                .filter_map(|e| e.file_name().to_str().map(|s| s.to_string()))
+                .filter(|e| e.ends_with(&ZKSYNC_SOLC_RELEASE.to_string()))
+                .filter_map(|e| {
+                    e.strip_prefix(solc_prefix)
+                        .and_then(|s| s.split('-').next())
+                        .and_then(|s| Version::parse(s).ok())
+                })
+                .collect();
+            versions.sort();
+            versions
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn solc_available_versions() -> Vec<Version> {
+        let mut ret = vec![];
+        let min_max_patch_by_minor_versions =
+            vec![(4, 12, 26), (5, 0, 17), (6, 0, 12), (7, 0, 6), (8, 0, 26)];
+        for (minor, min_patch, max_patch) in min_max_patch_by_minor_versions {
+            for i in min_patch..=max_patch {
+                ret.push(Version::new(0, minor, i));
+            }
+        }
+
+        ret
     }
 
     /// Compiles with `--standard-json` and returns the raw `stdout` output.
@@ -257,10 +388,20 @@ impl ZkSolc {
     pub fn blocking_install(version: &Version) -> Result<Self> {
         let os = get_operating_system()?;
         let os_namespace = os.get_download_uri();
-        let download_url = format!(
-            "https://github.com/matter-labs/zksolc-bin/releases/download/v{version}/zksolc-{os_namespace}-v{version}",
-        );
-
+        let download_url = if version.pre.is_empty() {
+            format!(
+                "https://github.com/matter-labs/zksolc-bin/releases/download/v{version}/zksolc-{os_namespace}-v{version}",
+            )
+        } else {
+            let pre = version.pre.as_str();
+            // Use version as string without pre-release and build metadata
+            let version_str = version.to_string();
+            let version_str = version_str.split('-').next().unwrap();
+            // Matter Labs uses a different repositiry for pre-releases
+            format!(
+                "https://github.com/matter-labs/era-compiler-solidity/releases/download/{pre}/zksolc-{os_namespace}-v{version_str}",
+            )
+        };
         let compilers_dir = Self::compilers_dir()?;
         if !compilers_dir.exists() {
             create_dir_all(compilers_dir)
@@ -365,6 +506,27 @@ impl<T: Into<PathBuf>> From<T> for ZkSolc {
     }
 }
 
+impl CompilationError for Error {
+    fn is_warning(&self) -> bool {
+        self.severity.is_warning()
+    }
+    fn is_error(&self) -> bool {
+        self.severity.is_error()
+    }
+
+    fn source_location(&self) -> Option<SourceLocation> {
+        self.source_location.clone()
+    }
+
+    fn severity(&self) -> Severity {
+        self.severity
+    }
+
+    fn error_code(&self) -> Option<u64> {
+        self.error_code
+    }
+}
+
 #[cfg(feature = "async")]
 fn compiler_blocking_install(
     compiler_path: PathBuf,
@@ -393,8 +555,8 @@ fn compiler_blocking_install(
             trace!("downloaded {label}");
 
             // lock file to indicate that installation of this compiler version will be in progress.
-            // wait until lock file is released, possibly by another parallel thread trying to install the
-            // same compiler version.
+            // wait until lock file is released, possibly by another parallel thread trying to
+            // install the same compiler version.
             trace!("try to get lock for {label}");
             let _lock = try_lock_file(lock_path)?;
             trace!("got lock for {label}");
@@ -472,7 +634,20 @@ mod tests {
     use super::*;
 
     fn zksolc() -> ZkSolc {
-        ZkSolc::default()
+        let mut zksolc = ZkSolc::new_from_version(&ZKSOLC_VERSION).unwrap();
+        let solc_version = "0.8.26";
+
+        crate::take_solc_installer_lock!(_lock);
+        let maybe_solc = ZkSolc::find_solc_installed_version(solc_version).unwrap();
+        if let Some(solc) = maybe_solc {
+            zksolc.solc = Some(solc);
+        } else {
+            {
+                let installed_solc_path = ZkSolc::solc_blocking_install(solc_version).unwrap();
+                zksolc.solc = Some(installed_solc_path);
+            }
+        }
+        zksolc
     }
 
     #[test]
@@ -480,39 +655,37 @@ mod tests {
         zksolc().version().unwrap();
     }
 
-    /*
     #[test]
     fn zksolc_compile_works() {
         let input = include_str!("../../../../../test-data/zksync/in/compiler-in-1.json");
-        let mut input: ZkSolcInput = serde_json::from_str(input).unwrap();
-        let out = zksolc().compile(&mut input).unwrap();
+        let input: ZkSolcInput = serde_json::from_str(input).unwrap();
+        let out = zksolc().compile(&input).unwrap();
         assert!(!out.has_error());
     }
 
     #[test]
     fn zksolc_can_compile_with_remapped_links() {
-        let mut input: ZkSolcInput = serde_json::from_str(include_str!(
+        let input: ZkSolcInput = serde_json::from_str(include_str!(
             "../../../../../test-data/zksync/library-remapping-in.json"
         ))
         .unwrap();
-        let out = zksolc().compile(&mut input).unwrap();
+        let out = zksolc().compile(&input).unwrap();
         let (_, mut contracts) = out.split();
         let contract = contracts.remove("LinkTest").unwrap();
-        let bytecode = &contract.get_bytecode().unwrap().object;
+        let bytecode = &contract.evm.unwrap().bytecode.unwrap().object;
         assert!(!bytecode.is_unlinked());
     }
 
     #[test]
     fn zksolc_can_compile_with_remapped_links_temp_dir() {
-        let mut input: ZkSolcInput = serde_json::from_str(include_str!(
+        let input: ZkSolcInput = serde_json::from_str(include_str!(
             "../../../../../test-data/zksync/library-remapping-in-2.json"
         ))
         .unwrap();
-        let out = zksolc().compile(&mut input).unwrap();
+        let out = zksolc().compile(&input).unwrap();
         let (_, mut contracts) = out.split();
         let contract = contracts.remove("LinkTest").unwrap();
-        let bytecode = &contract.get_bytecode().unwrap().object;
+        let bytecode = &contract.evm.unwrap().bytecode.unwrap().object;
         assert!(!bytecode.is_unlinked());
     }
-    */
 }
