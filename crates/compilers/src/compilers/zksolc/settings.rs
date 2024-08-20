@@ -77,7 +77,7 @@ impl ZkSolcSettings {
         Self { output_selection: output_selection.into(), ..Default::default() }
     }
 
-    /// Consumes the type and returns a [Settings::sanitize] version
+    /// Consumes the type and returns a [ZkSolcSettings::sanitize] version
     pub fn sanitized(mut self, solc_version: &Version) -> Self {
         self.sanitize(version);
         self
