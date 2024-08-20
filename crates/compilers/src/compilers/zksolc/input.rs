@@ -103,7 +103,7 @@ impl ZkSolcInput {
     pub fn is_yul(&self) -> bool {
         self.language == SolcLanguage::Yul
     }
-    /// Consumes the type and returns a [SolcInput::sanitized] version
+    /// Consumes the type and returns a [ZkSolcInput::sanitized] version
     pub fn sanitized(mut self, version: &Version) -> Self {
         self.settings.sanitize(version);
         self
