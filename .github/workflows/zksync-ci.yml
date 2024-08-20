@@ -3,11 +3,9 @@ name: zksync-ci
 on:
     push:
         branches:
-            - main
             - 'zksync-v**'
     pull_request:
         branches:
-            - main
             - 'zksync-v**'
 concurrency:
     cancel-in-progress: true
