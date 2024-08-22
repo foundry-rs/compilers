@@ -297,7 +297,6 @@ impl ZkSolc {
     pub fn compile_output(&self, input: &ZkSolcInput) -> Result<Vec<u8>> {
         let mut cmd = Command::new(&self.zksolc);
 
-        println!("ALLOW PATHS: {:?}", self.allow_paths);
         if !self.allow_paths.is_empty() {
             cmd.arg("--allow-paths");
             cmd.arg(self.allow_paths.iter().map(|p| p.display()).join(","));
