@@ -13,7 +13,8 @@ use crate::{
     resolver::parse::SolData,
     zksolc::{
         input::{StandardJsonCompilerInput, ZkSolcVersionedInput},
-        ZkSolcCompiler, ZkSolcSettings,
+        settings::ZkSolcSettings,
+        ZkSolcCompiler,
     },
     CompilerInput, Graph, Project, Source,
 };
@@ -72,9 +73,9 @@ pub fn project_standard_json_input(
         .map(|(path, source)| (rebase_path(root, path), source.clone()))
         .collect();
 
-    let mut settings: ZkSolcSettings = project.settings.clone();
+    let mut zk_solc_settings: ZkSolcSettings = project.settings.clone();
     // strip the path to the project root from all remappings
-    settings.remappings = project
+    zk_solc_settings.settings.remappings = project
         .paths
         .remappings
         .clone()
@@ -82,14 +83,15 @@ pub fn project_standard_json_input(
         .map(|r| r.into_relative(project.root()).to_relative_remapping())
         .collect::<Vec<_>>();
 
-    settings.libraries.libs = settings
+    zk_solc_settings.settings.libraries.libs = zk_solc_settings
+        .settings
         .libraries
         .libs
         .into_iter()
         .map(|(f, libs)| (f.strip_prefix(project.root()).unwrap_or(&f).to_path_buf(), libs))
         .collect();
 
-    let input = StandardJsonCompilerInput::new(sources, settings);
+    let input = StandardJsonCompilerInput::new(sources, zk_solc_settings.settings);
 
     Ok(input)
 }

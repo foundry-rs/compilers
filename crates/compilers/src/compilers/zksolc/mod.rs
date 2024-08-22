@@ -33,6 +33,7 @@ use std::os::unix::fs::PermissionsExt;
 
 pub mod input;
 pub mod settings;
+pub use settings::ZkSettings;
 pub use settings::ZkSolcSettings;
 
 pub const ZKSOLC: &str = "zksolc";
@@ -178,9 +179,9 @@ impl ZkSolcCompiler {
             }
         }
 
-        zksolc.base_path.clone_from(&input.base_path);
-        zksolc.allow_paths.clone_from(&input.allow_paths);
-        zksolc.include_paths.clone_from(&input.include_paths);
+        zksolc.base_path.clone_from(&input.cli_settings.base_path);
+        zksolc.allow_paths.clone_from(&input.cli_settings.allow_paths);
+        zksolc.include_paths.clone_from(&input.cli_settings.include_paths);
 
         zksolc.compile(&input.input)
     }
@@ -296,6 +297,7 @@ impl ZkSolc {
     pub fn compile_output(&self, input: &ZkSolcInput) -> Result<Vec<u8>> {
         let mut cmd = Command::new(&self.zksolc);
 
+        println!("ALLOW PATHS: {:?}", self.allow_paths);
         if !self.allow_paths.is_empty() {
             cmd.arg("--allow-paths");
             cmd.arg(self.allow_paths.iter().map(|p| p.display()).join(","));
