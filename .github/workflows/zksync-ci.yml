@@ -8,8 +8,8 @@ on:
         branches:
             - 'zksync-v**'
 concurrency:
-    cancel-in-progress: true
-    group: ${{github.workflow}}-${{github.ref}}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 env:
     CARGO_TERM_COLOR: always
@@ -17,13 +17,11 @@ env:
 jobs:
     doctests:
         name: doc tests
-        runs-on: ubuntu-22.04-github-hosted-16core
+        runs-on: ubuntu-latest
         timeout-minutes: 60
         steps:
             - uses: actions/checkout@v4
             - uses: dtolnay/rust-toolchain@nightly
-              with:
-                toolchain: nightly-2024-04-28
             - uses: Swatinem/rust-cache@v2
               with:
                 cache-on-failure: true
@@ -48,33 +46,33 @@ jobs:
 
     fmt:
         name: fmt
-        runs-on: ubuntu-22.04-github-hosted-16core
-        timeout-minutes: 60
+        runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
-            - uses: dtolnay/rust-toolchain@nightly
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: dtolnay/rust-toolchain@stable
               with:
-                  toolchain: nightly-2024-04-28
-                  components: rustfmt
-            - run: cargo fmt --all --check
+                components: rustfmt
+
+            - name: Run rustfmt
+              run: cargo fmt -- --check
     
     cargo-test:
         name: cargo-test
-        runs-on: ubuntu-22.04-github-hosted-16core
-  
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
         steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
-          with:
-            submodules: recursive
-            ref: ${{ github.event.pull_request.head.sha }}
-  
-        - name: Install Rust
-          uses: actions-rust-lang/setup-rust-toolchain@v1
-          with:
-            toolchain: nightly-2024-04-28
-
-        - name: Run tests
-          env:
-            RUST_BACKTRACE: full
-          run: cargo test
+          - uses: actions/checkout@v4
+            with:
+              submodules: recursive
+              ref: ${{ github.event.pull_request.head.sha }}
+          - uses: actions-rust-lang/setup-rust-toolchain@v1
+          - uses: Swatinem/rust-cache@v2
+            with:
+              cache-on-failure: true
+          - name: Run tests
+            run: cargo test zk
+            env:
+              RUST_BACKTRACE: full

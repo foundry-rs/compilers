@@ -19,7 +19,7 @@ use std::{
 /// https://docs.zksync.io/zk-stack/components/compiler/toolchain/solidity.html#standard-json for differences
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ZkSolcSettings {
+pub struct ZkSettings {
     // same
     /// Change compilation pipeline to go through the Yul intermediate representation. This is
     /// false by default.
@@ -66,18 +66,27 @@ pub struct ZkSolcSettings {
     /// Whether to compile via EVM assembly.
     #[serde(default, rename = "forceEVMLA")]
     pub force_evmla: bool,
+}
 
+// Analogous to SolcSettings for Zk compiler
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ZkSolcSettings {
+    /// JSON settings expected by Solc
+    #[serde(flatten)]
+    pub settings: ZkSettings,
+    /// Additional CLI args configuration
     #[serde(flatten)]
     pub cli_settings: solc::CliSettings,
 }
 
-impl ZkSolcSettings {
+impl ZkSettings {
     /// Creates a new `Settings` instance with the given `output_selection`
     pub fn new(output_selection: impl Into<ZkOutputSelection>) -> Self {
         Self { output_selection: output_selection.into(), ..Default::default() }
     }
 
-    /// Consumes the type and returns a [ZkSolcSettings::sanitize] version
+    /// Consumes the type and returns a [ZkSettings::sanitize] version
     pub fn sanitized(mut self, solc_version: &Version) -> Self {
         self.sanitize(solc_version);
         self
@@ -120,7 +129,7 @@ impl ZkSolcSettings {
     }
 }
 
-impl Default for ZkSolcSettings {
+impl Default for ZkSettings {
     fn default() -> Self {
         Self {
             optimizer: Default::default(),
@@ -134,7 +143,6 @@ impl Default for ZkSolcSettings {
             enable_eravm_extensions: false,
             llvm_options: Default::default(),
             force_evmla: false,
-            cli_settings: Default::default(),
         }
     }
 }
@@ -146,11 +154,39 @@ impl CompilerSettings for ZkSolcSettings {
     }
 
     fn can_use_cached(&self, other: &Self) -> bool {
-        self == other
+        let Self {
+            settings:
+                ZkSettings {
+                    via_ir,
+                    remappings,
+                    evm_version,
+                    output_selection,
+                    optimizer,
+                    metadata,
+                    libraries,
+                    detect_missing_libraries,
+                    enable_eravm_extensions,
+                    llvm_options,
+                    force_evmla,
+                },
+            ..
+        } = self;
+
+        *via_ir == other.settings.via_ir
+            && *remappings == other.settings.remappings
+            && *evm_version == other.settings.evm_version
+            && *output_selection == other.settings.output_selection
+            && *optimizer == other.settings.optimizer
+            && *metadata == other.settings.metadata
+            && *libraries == other.settings.libraries
+            && *detect_missing_libraries == other.settings.detect_missing_libraries
+            && *enable_eravm_extensions == other.settings.enable_eravm_extensions
+            && *llvm_options == other.settings.llvm_options
+            && *force_evmla == other.settings.force_evmla
     }
 
     fn with_remappings(mut self, remappings: &[Remapping]) -> Self {
-        self.remappings = remappings.to_vec();
+        self.settings.remappings = remappings.to_vec();
 
         self
     }

@@ -1,11 +1,13 @@
-use super::settings::ZkSolcSettings;
-use crate::compilers::{solc::SolcLanguage, CompilerInput};
+use super::{settings::ZkSolcSettings, ZkSettings};
+use crate::{
+    compilers::{solc::SolcLanguage, CompilerInput},
+    solc,
+};
 use foundry_compilers_artifacts::{remappings::Remapping, solc::serde_helpers, Source, Sources};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
-    collections::BTreeSet,
     path::{Path, PathBuf},
 };
 
@@ -13,10 +15,8 @@ use std::{
 pub struct ZkSolcVersionedInput {
     #[serde(flatten)]
     pub input: ZkSolcInput,
-    pub allow_paths: BTreeSet<PathBuf>,
-    pub base_path: Option<PathBuf>,
-    pub include_paths: BTreeSet<PathBuf>,
     pub solc_version: Version,
+    pub cli_settings: solc::CliSettings,
 }
 
 impl CompilerInput for ZkSolcVersionedInput {
@@ -32,15 +32,10 @@ impl CompilerInput for ZkSolcVersionedInput {
         language: Self::Language,
         version: Version,
     ) -> Self {
+        let ZkSolcSettings { settings, cli_settings } = settings;
         let input = ZkSolcInput { language, sources, settings }.sanitized(&version);
 
-        Self {
-            solc_version: version,
-            input,
-            base_path: None,
-            include_paths: Default::default(),
-            allow_paths: Default::default(),
-        }
+        Self { solc_version: version, input, cli_settings }
     }
 
     fn language(&self) -> Self::Language {
@@ -73,7 +68,7 @@ impl CompilerInput for ZkSolcVersionedInput {
 pub struct ZkSolcInput {
     pub language: SolcLanguage,
     pub sources: Sources,
-    pub settings: ZkSolcSettings,
+    pub settings: ZkSettings,
 }
 
 /// Default `language` field is set to `"Solidity"`.
@@ -82,7 +77,7 @@ impl Default for ZkSolcInput {
         Self {
             language: SolcLanguage::Solidity,
             sources: Sources::default(),
-            settings: ZkSolcSettings::default(),
+            settings: ZkSettings::default(),
         }
     }
 }
@@ -133,11 +128,11 @@ pub struct StandardJsonCompilerInput {
     pub language: SolcLanguage,
     #[serde(with = "serde_helpers::tuple_vec_map")]
     pub sources: Vec<(PathBuf, Source)>,
-    pub settings: ZkSolcSettings,
+    pub settings: ZkSettings,
 }
 
 impl StandardJsonCompilerInput {
-    pub fn new(sources: Vec<(PathBuf, Source)>, settings: ZkSolcSettings) -> Self {
+    pub fn new(sources: Vec<(PathBuf, Source)>, settings: ZkSettings) -> Self {
         Self { language: SolcLanguage::Solidity, sources, settings }
     }
 }
