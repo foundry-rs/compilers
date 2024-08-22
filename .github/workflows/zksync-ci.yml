@@ -22,8 +22,6 @@ jobs:
         steps:
             - uses: actions/checkout@v4
             - uses: dtolnay/rust-toolchain@nightly
-              with:
-                toolchain: nightly-2024-04-28
             - uses: Swatinem/rust-cache@v2
               with:
                 cache-on-failure: true
@@ -52,10 +50,7 @@ jobs:
         timeout-minutes: 60
         steps:
             - uses: actions/checkout@v4
-            - uses: dtolnay/rust-toolchain@nightly
-              with:
-                  toolchain: nightly-2024-04-28
-                  components: rustfmt
+            - uses: dtolnay/rust-toolchain@clippy
             - run: cargo fmt --all --check
     
     cargo-test:
@@ -71,8 +66,6 @@ jobs:
   
         - name: Install Rust
           uses: actions-rust-lang/setup-rust-toolchain@v1
-          with:
-            toolchain: nightly-2024-04-28
 
         - name: Run tests
           env:
