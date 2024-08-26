@@ -3,7 +3,7 @@
 
 Originally part of [`ethers-rs`] as `ethers-solc`, Foundry Compilers is the compilation backend for [Foundry](https://github.com/foundry-rs/foundry).
 
-[`ethers-rs`]'s `ethers-solc` is considered to be in maintenance mode, and any fixes to it will also be reflect on Foundry Compilers. No action is currently needed from devs, although we heavily recommend using Foundry Compilers instead of `ethers-solc`.
+[`ethers-rs`]'s `ethers-solc` is considered to be in maintenance mode, and any fixes to it will also be reflected on Foundry Compilers. No action is currently needed from devs, although we heavily recommend using Foundry Compilers instead of `ethers-solc`.
 
 [`ethers-rs`]: https://github.com/gakonst/ethers-rs
 
@@ -33,7 +33,7 @@ release.
 
 ## Contributing
 
-Thanks for your help improving the project! We are so happy to have you! We have
+Thanks for your help in improving the project! We are so happy to have you! We have
 [a contributing guide](./CONTRIBUTING.md) to help you get involved in the
 Foundry Compilers project.
 

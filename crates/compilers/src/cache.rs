@@ -101,7 +101,6 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// If the cache file does not exist
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{cache::CompilerCache, solc::SolcSettings, Project};
     ///
@@ -127,7 +126,6 @@ impl<S: CompilerSettings> CompilerCache<S> {
     ///
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{cache::CompilerCache, solc::SolcSettings, Project};
     ///
@@ -228,7 +226,6 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// `src/Greeter.sol` if `base` is `/Users/me/project`
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{
     ///     artifacts::contract::CompactContract, cache::CompilerCache, solc::SolcSettings, Project,
@@ -254,7 +251,6 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// Returns the path to the artifact of the given `(file, contract)` pair
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{cache::CompilerCache, solc::SolcSettings, Project};
     ///
@@ -272,7 +268,6 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// [`Self::find_artifact_path()`]) and deserializes the artifact file as JSON.
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{
     ///     artifacts::contract::CompactContract, cache::CompilerCache, solc::SolcSettings, Project,
@@ -302,7 +297,6 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// Reads all cached artifacts from disk using the given ArtifactOutput handler
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{
     ///     artifacts::contract::CompactContractBytecode, cache::CompilerCache, solc::SolcSettings,

@@ -112,7 +112,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// This returns a chained iterator of both cached and recompiled contract artifacts
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::ConfigurableContractArtifact, ArtifactId, Project};
     /// use std::collections::btree_map::BTreeMap;
@@ -131,7 +130,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// the contract name and the corresponding artifact
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::ConfigurableContractArtifact, Project};
     /// use std::collections::btree_map::BTreeMap;
@@ -149,7 +147,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// the contract name and the corresponding artifact with its version
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::ConfigurableContractArtifact, Project};
     /// use semver::Version;
@@ -192,7 +189,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// This returns a chained iterator of both cached and recompiled contract artifacts
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::ConfigurableContractArtifact, Project};
     /// use std::{collections::btree_map::BTreeMap, path::PathBuf};
@@ -237,7 +233,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// # Examples
     ///
     /// Make all artifact files relative to the project's root directory
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
@@ -254,7 +249,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// Returns a reference to the (merged) solc compiler output.
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::contract::Contract, Project};
     /// use std::collections::btree_map::BTreeMap;
@@ -329,7 +323,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// [`Self::remove_first`].
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, info::ContractInfo, Project};
     ///
@@ -351,7 +344,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// Finds the artifact with matching path and name
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
@@ -378,7 +370,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// Finds the artifact with matching path and name
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
@@ -397,7 +388,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// Removes the _first_ contract with the given name from the set
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
@@ -421,7 +411,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     ///
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, info::ContractInfo, Project};
     ///
@@ -447,7 +436,6 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// [`foundry_compilers_artifacts::ConfigurableContractArtifact`]
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{
     ///     artifacts::contract::CompactContractBytecode, contracts::ArtifactContracts, ArtifactId,
@@ -631,7 +619,6 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// Finds the _first_ contract with the given name
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
@@ -647,7 +634,6 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// Removes the _first_ contract with the given name from the set
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
@@ -663,7 +649,6 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// Removes the contract with matching path and name
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
@@ -683,7 +668,6 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// [Self::remove_first]
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, info::ContractInfo, Project};
     ///
@@ -747,7 +731,6 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// bytecode, runtime bytecode, and ABI.
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
@@ -764,7 +747,6 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// provide several helper methods
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::Project;
     ///
@@ -792,7 +774,6 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// # Examples
     ///
     /// Make all sources and contracts relative to the project's root directory
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::Project;
     ///

@@ -56,7 +56,6 @@ impl VersionedSourceFiles {
     /// Finds the _first_ source file with the given path.
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
@@ -85,7 +84,6 @@ impl VersionedSourceFiles {
     /// Finds the _first_ source file with the given id
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
@@ -109,7 +107,6 @@ impl VersionedSourceFiles {
     /// Removes the _first_ source_file with the given path from the set
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///
@@ -131,7 +128,6 @@ impl VersionedSourceFiles {
     /// Removes the _first_ source_file with the given id from the set
     ///
     /// # Examples
-    #[cfg_attr(not(feature = "svm-solc"), doc = "```ignore")]
     /// ```no_run
     /// use foundry_compilers::{artifacts::*, Project};
     ///

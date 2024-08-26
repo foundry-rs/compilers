@@ -12,7 +12,7 @@ where
     #[serde(untagged)]
     enum ExternalReferencesHelper {
         Plain(Vec<ExternalInlineAssemblyReference>),
-        /// Older solc versions produce external referrences as arrays of mappings {"variable" =>
+        /// Older solc versions produce external references as arrays of mappings {"variable" =>
         /// external reference object}, so we have to handle this.
         Map(Vec<BTreeMap<String, ExternalInlineAssemblyReference>>),
     }
