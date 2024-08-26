@@ -816,6 +816,30 @@ pub enum EvmVersion {
 }
 
 impl EvmVersion {
+    /// Find the default EVM version for the given compiler version.
+    pub fn default_version_solc(version: &Version) -> Option<Self> {
+        // In most cases, Solc compilers use the highest EVM version available at the time.
+        let default = Self::default().normalize_version_solc(version)?;
+
+        // However, there are some exceptions where the default is lower than the highest available.
+        match default {
+            Self::Constantinople => {
+                // Actually, Constantinople is never used as the default EVM version by Solidity
+                // compilers.
+                Some(Self::Byzantium)
+            }
+            Self::Cancun if *version == Version::new(0, 8, 24) => {
+                // While Cancun is introduced at the time of releasing 0.8.24, it has not been
+                // supported by the mainnet. So, the default EVM version of Solc 0.8.24 remains as
+                // Shanghai.
+                //
+                // <https://soliditylang.org/blog/2024/01/26/solidity-0.8.24-release-announcement/>
+                Some(Self::Shanghai)
+            }
+            _ => Some(default),
+        }
+    }
+
     /// Normalizes this EVM version by checking against the given Solc [`Version`].
     pub fn normalize_version_solc(self, version: &Version) -> Option<Self> {
         // The EVM version flag was only added in 0.4.21; we work our way backwards
@@ -1900,6 +1924,40 @@ mod tests {
             serde_json::from_str::<SolcInput>(&pretty).unwrap_or_else(|err| {
                 panic!("Failed to read converted compiler input of {} {}", path.display(), err)
             });
+        }
+    }
+
+    #[test]
+    fn test_evm_version_default() {
+        for &(solc_version, expected) in &[
+            // Everything before 0.4.21 should always return None
+            ("0.4.20", None),
+            // Byzantium clipping
+            ("0.4.21", Some(EvmVersion::Byzantium)),
+            // Constantinople bug fix
+            ("0.4.22", Some(EvmVersion::Byzantium)),
+            // Petersburg
+            ("0.5.5", Some(EvmVersion::Petersburg)),
+            // Istanbul
+            ("0.5.14", Some(EvmVersion::Istanbul)),
+            // Berlin
+            ("0.8.5", Some(EvmVersion::Berlin)),
+            // London
+            ("0.8.7", Some(EvmVersion::London)),
+            // Paris
+            ("0.8.18", Some(EvmVersion::Paris)),
+            // Shanghai
+            ("0.8.20", Some(EvmVersion::Shanghai)),
+            // Cancun
+            ("0.8.24", Some(EvmVersion::Shanghai)),
+            ("0.8.25", Some(EvmVersion::Cancun)),
+        ] {
+            let version = Version::from_str(solc_version).unwrap();
+            assert_eq!(
+                EvmVersion::default_version_solc(&version),
+                expected,
+                "({version}, {expected:?})"
+            )
         }
     }
 
