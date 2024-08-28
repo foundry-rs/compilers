@@ -5,20 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.10.2](https://github.com/foundry-rs/compilers/releases/tag/v0.10.2) - 2024-08-01
+## [0.10.3](https://github.com/foundry-rs/compilers/releases/tag/v0.10.3) - 2024-08-26
 
 ### Bug Fixes
 
+- [flatten] Update license handling logic ([#184](https://github.com/foundry-rs/compilers/issues/184))
 - Unify logic for ignored warnings ([#179](https://github.com/foundry-rs/compilers/issues/179))
 - Remove outdated build infos ([#177](https://github.com/foundry-rs/compilers/issues/177))
 - Make remappings resolution more deterministic ([#176](https://github.com/foundry-rs/compilers/issues/176))
 
+### Documentation
+
+- Docs fix spelling issues ([#190](https://github.com/foundry-rs/compilers/issues/190))
+
 ### Features
 
+- Always provide `Default` for `MultiCompiler` ([#188](https://github.com/foundry-rs/compilers/issues/188))
+- [vyper] Add experimental codegen to settings ([#186](https://github.com/foundry-rs/compilers/issues/186))
+- More user-friendly error when no compiler is available ([#185](https://github.com/foundry-rs/compilers/issues/185))
 - Sanitize EVM version for vyper ([#181](https://github.com/foundry-rs/compilers/issues/181))
+
+### Miscellaneous Tasks
+
+- Release 0.10.2
 
 ### Other
 
+- Incorrect Default EVM Version for Solidity Compiler 0.4.21-0.5.4 ([#189](https://github.com/foundry-rs/compilers/issues/189))
 - Update README to link docs and update install instructions ([#180](https://github.com/foundry-rs/compilers/issues/180))
 
 ## [0.10.1](https://github.com/foundry-rs/compilers/releases/tag/v0.10.1) - 2024-07-26
