@@ -449,6 +449,15 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
 
         Ok(paths.remove(0))
     }
+
+    /// Invokes [CompilerSettings::update_output_selection] on the project's settings and all
+    /// additional settings profiles.
+    pub fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy) {
+        self.settings.update_output_selection(f);
+        self.additional_settings.iter_mut().for_each(|(_, s)| {
+            s.update_output_selection(f);
+        });
+    }
 }
 
 pub struct ProjectBuilder<C: Compiler = MultiCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
