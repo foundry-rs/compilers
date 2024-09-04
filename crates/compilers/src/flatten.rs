@@ -294,7 +294,7 @@ impl Flattener {
         updates: Updates,
         target_pragmas: Vec<String>,
         target_license: Option<&'a str>,
-    ) -> FlatteningResult<'_> {
+    ) -> FlatteningResult<'a> {
         FlatteningResult::new(self, updates, target_pragmas, target_license)
     }
 
