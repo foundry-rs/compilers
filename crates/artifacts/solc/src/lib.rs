@@ -836,6 +836,10 @@ impl EvmVersion {
                 // <https://soliditylang.org/blog/2024/01/26/solidity-0.8.24-release-announcement/>
                 Some(Self::Shanghai)
             }
+            Self::Prague if *version == Version::new(0, 8, 27) => {
+                // Prague was not set as default EVM version in 0.8.27.
+                Some(Self::Cancun)
+            }
             _ => Some(default),
         }
     }

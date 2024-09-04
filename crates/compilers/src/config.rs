@@ -925,6 +925,9 @@ pub struct SolcConfigBuilder {
 
     /// additionally selected outputs that should be included in the `Contract` that solc creates.
     output_selection: Vec<ContractOutputSelection>,
+
+    /// whether to include the AST in the output
+    ast: bool,
 }
 
 impl SolcConfigBuilder {
@@ -953,14 +956,20 @@ impl SolcConfigBuilder {
         self
     }
 
-    /// Creates the solc config
-    ///
-    /// If no solc version is configured then it will be determined by calling `solc --version`.
-    pub fn build(self) -> SolcConfig {
-        let Self { settings, output_selection } = self;
+    pub fn ast(mut self, yes: bool) -> Self {
+        self.ast = yes;
+        self
+    }
+
+    /// Creates the solc settings
+    pub fn build(self) -> Settings {
+        let Self { settings, output_selection, ast } = self;
         let mut settings = settings.unwrap_or_default();
         settings.push_all(output_selection);
-        SolcConfig { settings }
+        if ast {
+            settings = settings.with_ast();
+        }
+        settings
     }
 }
 

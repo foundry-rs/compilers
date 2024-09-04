@@ -32,6 +32,8 @@ pub struct Contract {
     pub ir: Option<String>,
     #[serde(default, skip_serializing_if = "StorageLayout::is_empty")]
     pub storage_layout: StorageLayout,
+    #[serde(default, skip_serializing_if = "StorageLayout::is_empty")]
+    pub transient_storage_layout: StorageLayout,
     /// EVM-related outputs
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evm: Option<Evm>,
@@ -40,6 +42,8 @@ pub struct Contract {
     pub ewasm: Option<Ewasm>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ir_optimized: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ir_optimized_ast: Option<serde_json::Value>,
 }
 
 impl<'a> From<&'a Contract> for CompactContractBytecodeCow<'a> {
