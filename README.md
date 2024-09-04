@@ -57,7 +57,7 @@ use std::path::Path;
 
 // configure the project with all its paths, solc, cache etc.
 let project = Project::builder()
-    .paths(ProjectPathsConfig::hardhat(&Path::new(env!("CARGO_MANIFEST_DIR"))).unwrap())
+    .paths(ProjectPathsConfig::hardhat(Path::new(env!("CARGO_MANIFEST_DIR"))).unwrap())
     .build(Default::default())
     .unwrap();
 let output = project.compile().unwrap();
