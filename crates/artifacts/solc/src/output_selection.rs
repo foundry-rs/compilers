@@ -219,7 +219,9 @@ pub enum ContractOutputSelection {
     Metadata,
     Ir,
     IrOptimized,
+    IrOptimizedAst,
     StorageLayout,
+    TransientStorageLayout,
     Evm(EvmOutputSelection),
     Ewasm(EwasmOutputSelection),
 }
@@ -268,7 +270,9 @@ impl fmt::Display for ContractOutputSelection {
             Self::Metadata => f.write_str("metadata"),
             Self::Ir => f.write_str("ir"),
             Self::IrOptimized => f.write_str("irOptimized"),
+            Self::IrOptimizedAst => f.write_str("irOptimizedAst"),
             Self::StorageLayout => f.write_str("storageLayout"),
+            Self::TransientStorageLayout => f.write_str("transientStorageLayout"),
             Self::Evm(e) => e.fmt(f),
             Self::Ewasm(e) => e.fmt(f),
         }
@@ -286,7 +290,11 @@ impl FromStr for ContractOutputSelection {
             "metadata" => Ok(Self::Metadata),
             "ir" => Ok(Self::Ir),
             "ir-optimized" | "irOptimized" | "iroptimized" => Ok(Self::IrOptimized),
+            "irOptimizedAst" | "ir-optimized-ast" | "iroptimizedast" => Ok(Self::IrOptimizedAst),
             "storage-layout" | "storagelayout" | "storageLayout" => Ok(Self::StorageLayout),
+            "transient-storage-layout" | "transientstoragelayout" | "transientStorageLayout" => {
+                Ok(Self::TransientStorageLayout)
+            }
             s => EvmOutputSelection::from_str(s)
                 .map(ContractOutputSelection::Evm)
                 .or_else(|_| EwasmOutputSelection::from_str(s).map(ContractOutputSelection::Ewasm))

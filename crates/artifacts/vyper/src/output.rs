@@ -80,8 +80,10 @@ impl From<VyperContract> for solc_artifacts::Contract {
             devdoc: Default::default(),
             ir: None,
             storage_layout: Default::default(),
+            transient_storage_layout: Default::default(),
             ewasm: None,
             ir_optimized: None,
+            ir_optimized_ast: None,
         }
     }
 }

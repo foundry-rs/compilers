@@ -86,8 +86,7 @@ pub const SHANGHAI_SOLC: Version = Version::new(0, 8, 20);
 pub const CANCUN_SOLC: Version = Version::new(0, 8, 24);
 
 /// Prague support
-/// <https://github.com/ethereum/solidity/pull/15152>
-/// Was merged between 0.8.26 and 0.8.27, so we are expecting it to be available in 0.8.27
+/// <https://soliditylang.org/blog/2024/09/04/solidity-0.8.27-release-announcement>
 pub const PRAGUE_SOLC: Version = Version::new(0, 8, 27);
 
 // `--base-path` was introduced in 0.6.9 <https://github.com/ethereum/solidity/releases/tag/v0.6.9>

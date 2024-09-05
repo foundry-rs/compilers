@@ -39,6 +39,8 @@ pub struct ConfigurableContractArtifact {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub storage_layout: Option<StorageLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transient_storage_layout: Option<StorageLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub userdoc: Option<UserDoc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub devdoc: Option<DevDoc>,
@@ -46,6 +48,8 @@ pub struct ConfigurableContractArtifact {
     pub ir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ir_optimized: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ir_optimized_ast: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ewasm: Option<Ewasm>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
