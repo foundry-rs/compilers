@@ -138,9 +138,8 @@ pub struct MultiCompilerRestrictions {
 }
 
 impl CompilerSettingsRestrictions for MultiCompilerRestrictions {
-    fn merge(&mut self, other: Self) {
-        self.solc.merge(other.solc);
-        self.vyper.merge(other.vyper);
+    fn merge(self, other: Self) -> Result<Self> {
+        Ok(Self { solc: self.solc.merge(other.solc)?, vyper: self.vyper.merge(other.vyper)? })
     }
 }
 
@@ -194,6 +193,13 @@ impl CompilerSettings for MultiCompilerSettings {
     fn satisfies_restrictions(&self, restrictions: &Self::Restrictions) -> bool {
         self.solc.satisfies_restrictions(&restrictions.solc)
             && self.vyper.satisfies_restrictions(&restrictions.vyper)
+    }
+
+    fn apply_restrictions(&self, restrictions: &Self::Restrictions) -> Self {
+        Self {
+            solc: self.solc.apply_restrictions(&restrictions.solc),
+            vyper: self.vyper.apply_restrictions(&restrictions.vyper),
+        }
     }
 }
 

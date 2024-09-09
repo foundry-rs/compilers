@@ -16,7 +16,7 @@ use foundry_compilers::{
     info::ContractInfo,
     multi::MultiCompilerRestrictions,
     project_util::*,
-    solc::{EvmVersionRestriction, SolcRestrictions, SolcSettings},
+    solc::{Restriction, SolcRestrictions, SolcSettings},
     take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
     ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, RestrictionsWithVersion,
     TestFileFilter,
@@ -3848,9 +3848,9 @@ fn test_deterministic_metadata() {
     copy_dir_all(&orig_root, tmp_dir.path()).unwrap();
 
     let compiler = MultiCompiler {
-        solc: SolcCompiler::Specific(
+        solc: Some(SolcCompiler::Specific(
             Solc::find_svm_installed_version(&Version::new(0, 8, 18)).unwrap().unwrap(),
-        ),
+        )),
         vyper: None,
     };
     let paths = ProjectPathsConfig::builder().root(root).build().unwrap();
@@ -4062,18 +4062,10 @@ contract SimpleContract {}
         )
         .unwrap();
 
-    // Add config with Cancun enabled
-    let mut cancun_settings = project.project().settings.clone();
-    cancun_settings.solc.evm_version = Some(EvmVersion::Cancun);
-    project.project_mut().additional_settings.insert("cancun".to_string(), cancun_settings);
-
     let cancun_restriction = RestrictionsWithVersion {
         restrictions: MultiCompilerRestrictions {
             solc: SolcRestrictions {
-                evm_version: EvmVersionRestriction {
-                    min_evm_version: Some(EvmVersion::Cancun),
-                    ..Default::default()
-                },
+                evm_version: Restriction { min: Some(EvmVersion::Cancun), ..Default::default() },
                 ..Default::default()
             },
             ..Default::default()
@@ -4086,6 +4078,23 @@ contract SimpleContract {}
 
     let output = project.compile().unwrap();
 
+    let cache = project.project_mut().read_cache_file().unwrap();
+
+    assert_eq!(cache.profiles.len(), 2);
+
+    let mut cancun_profile = None;
+    let mut default_profile = None;
+    for (profile, settings) in cache.profiles.iter() {
+        if settings.solc.evm_version == Some(EvmVersion::Cancun) {
+            cancun_profile = Some(profile.clone());
+        } else {
+            default_profile = Some(profile.clone());
+        }
+    };
+
+    let cancun_profile = cancun_profile.unwrap();
+    let default_profile = default_profile.unwrap();
+
     output.assert_success();
 
     let artifacts = output
@@ -4093,16 +4102,16 @@ contract SimpleContract {}
         .map(|(id, _)| (id.profile, id.source))
         .collect::<BTreeSet<_>>()
         .into_iter()
-        .collect::<Vec<_>>();
+        .collect::<BTreeSet<_>>();
 
     assert_eq!(
         artifacts,
-        vec![
-            ("cancun".to_string(), cancun_path),
-            ("cancun".to_string(), cancun_importer_path),
-            ("cancun".to_string(), common_path.clone()),
-            ("default".to_string(), common_path),
-            ("default".to_string(), simple_path),
-        ]
+        BTreeSet::from([
+            (cancun_profile.clone(), cancun_path),
+            (cancun_profile.clone(), cancun_importer_path),
+            (cancun_profile, common_path.clone()),
+            (default_profile.clone(), common_path),
+            (default_profile, simple_path),
+        ])
     );
 }

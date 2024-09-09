@@ -1,3 +1,4 @@
+use crate::Result;
 use std::{
     fmt::Debug,
     ops::{Deref, DerefMut},
@@ -5,8 +6,8 @@ use std::{
 
 use semver::VersionReq;
 
-pub trait CompilerSettingsRestrictions: Debug + Sync + Send + Clone + Default {
-    fn merge(&mut self, other: Self);
+pub trait CompilerSettingsRestrictions: Debug + Sync + Send + Clone + Copy + Default {
+    fn merge(self, other: Self) -> Result<Self>;
 }
 
 /// Combines [CompilerSettingsRestrictions] with a restrictions on compiler versions for a given
@@ -18,7 +19,7 @@ pub struct RestrictionsWithVersion<T> {
 }
 
 impl<T: CompilerSettingsRestrictions> RestrictionsWithVersion<T> {
-    pub fn merge(&mut self, other: Self) {
+    pub fn merge(mut self, other: Self) -> Result<Self> {
         if let Some(version) = other.version {
             if let Some(self_version) = self.version.as_mut() {
                 self_version.comparators.extend(version.comparators);
@@ -26,7 +27,8 @@ impl<T: CompilerSettingsRestrictions> RestrictionsWithVersion<T> {
                 self.version = Some(version.clone());
             }
         }
-        self.restrictions.merge(other.restrictions);
+        self.restrictions = self.restrictions.merge(other.restrictions)?;
+        Ok(self)
     }
 }
 

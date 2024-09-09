@@ -47,8 +47,8 @@
 
 use crate::{
     compilers::{Compiler, CompilerVersion, Language, ParsedSource},
-    project::VersionedSources,
-    ArtifactOutput, CompilerSettings, Project, ProjectPathsConfig,
+    project::CompilerJob,
+    ArtifactOutput, CompilerSettings, CompilerSettingsRestrictions, Project, ProjectPathsConfig,
 };
 use core::fmt;
 use foundry_compilers_artifacts::sources::{Source, Sources};
@@ -57,6 +57,7 @@ use foundry_compilers_core::{
     utils::{self, find_case_sensitive_existing_file},
 };
 use parse::SolData;
+use profiles::CompilationProfiles;
 use rayon::prelude::*;
 use semver::{Version, VersionReq};
 use std::{
@@ -70,6 +71,9 @@ mod tree;
 
 pub use parse::SolImportAlias;
 pub use tree::{print, Charset, TreeOptions};
+
+mod profiles;
+pub use profiles::CompilationProfile;
 
 /// The underlying edges of the graph which only contains the raw relationship data.
 ///
@@ -196,8 +200,9 @@ impl<D> GraphEdges<D> {
     }
 }
 
-/// Represents a fully-resolved solidity dependency graph. Each node in the graph
-/// is a file and edges represent dependencies between them.
+/// Represents a fully-resolved solidity dependency graph.
+///
+/// Each node in the graph is a file and edges represent dependencies between them.
 /// See also <https://docs.soliditylang.org/en/latest/layout-of-source-files.html?highlight=import#importing-other-source-files>
 #[derive(Debug)]
 pub struct Graph<D = SolData> {
@@ -463,7 +468,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     pub fn into_sources_by_version<C, T, S>(
         self,
         project: &Project<C, T>,
-    ) -> Result<(VersionedSources<'_, L, S>, GraphEdges<D>)>
+    ) -> Result<(Vec<CompilerJob<C>>, GraphEdges<D>)>
     where
         T: ArtifactOutput,
         S: CompilerSettings,
@@ -500,22 +505,23 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         }
 
         let versioned_nodes = self.get_input_node_versions(project)?;
-        let versioned_nodes = self.resolve_settings(project, versioned_nodes)?;
+        let (versioned_nodes, profiles) = self.resolve_profiles(project, versioned_nodes)?;
         let (nodes, edges) = self.split();
 
         let mut all_nodes = nodes.into_iter().enumerate().collect::<HashMap<_, _>>();
 
-        let mut resulted_sources = HashMap::new();
-
-        let profiles = project.settings_profiles().collect::<Vec<_>>();
+        let mut jobs = Vec::new();
 
         // determine the `Sources` set for each solc version
         for (language, versioned_nodes) in versioned_nodes {
-            let mut versioned_sources = Vec::with_capacity(versioned_nodes.len());
-
             for (version, profile_to_nodes) in versioned_nodes {
-                for (profile_idx, input_node_indixies) in profile_to_nodes {
-                    let mut sources = Sources::new();
+                for (profile, input_node_indixies) in profile_to_nodes {
+                    let mut job = CompilerJob {
+                        language,
+                        version: version.clone(),
+                        profile: profiles.get(profile).clone(),
+                        sources: Sources::new(),
+                    };
 
                     // all input nodes will be processed
                     let mut processed_sources = input_node_indixies.iter().copied().collect();
@@ -526,23 +532,21 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                         // set
                         let (path, source) =
                             all_nodes.get(&idx).cloned().expect("node is preset. qed");
-                        sources.insert(path, source);
+                        job.sources.insert(path, source);
                         insert_imports(
                             idx,
                             &mut all_nodes,
-                            &mut sources,
+                            &mut job.sources,
                             &edges.edges,
                             &mut processed_sources,
                         );
                     }
-                    versioned_sources.push((version.clone(), sources, profiles[profile_idx]));
+                    jobs.push(job);
                 }
             }
-
-            resulted_sources.insert(language, versioned_sources);
         }
 
-        Ok((resulted_sources, edges))
+        Ok((jobs, edges))
     }
 
     /// Writes the list of imported files into the given formatter:
@@ -612,24 +616,49 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         }
     }
 
-    fn retain_compatible_profiles<C: Compiler, T: ArtifactOutput>(
+    fn merge_restrictions<C: Compiler, T: ArtifactOutput>(
         &self,
         idx: usize,
         project: &Project<C, T>,
-        candidates: &mut Vec<(usize, (&str, &C::Settings))>,
-    ) {
-        let nodes: HashSet<_> = self.node_ids(idx).collect();
-        for node in nodes {
-            let node = self.node(node);
+    ) -> Result<Option<<C::Settings as CompilerSettings>::Restrictions>> {
+        let nodes: BTreeSet<_> = self.node_ids(idx).collect();
+        let mut restriction: Option<<C::Settings as CompilerSettings>::Restrictions> = None;
+        for (i, node) in nodes.iter().enumerate() {
+            let node = self.node(*node);
             if let Some(requirement) = project.restrictions.get(&node.path) {
-                candidates
-                    .retain(|(_, (_, settings))| settings.satisfies_restrictions(&**requirement));
-            }
-            if candidates.is_empty() {
-                // nothing to filter anymore
-                return;
+                let current_restrictions = requirement.restrictions;
+                let restriction = restriction.get_or_insert_with(Default::default);
+
+                *restriction = match restriction.merge(current_restrictions) {
+                    Ok(merged) => merged,
+                    Err(_) => {
+                        let root_node = &self.node(idx).path;
+                        let conflicting1 = &node.path;
+
+                        // Iterate over nodes merged before this one to find the conflicting node
+                        for node in nodes.iter().take(i) {
+                            let maybe_conflict = self.node(*node);
+                            if let Some(requirement) =
+                                project.restrictions.get(&maybe_conflict.path)
+                            {
+                                if requirement.restrictions.merge(current_restrictions).is_err() {
+                                    let conflicting2 = &self.node(*node).path;
+                                    let err = format!("Failed to merge restrictions for node {:?}:\n    {:?} requires {:?}\n    {:?} requires {:?}", root_node, conflicting1, current_restrictions, conflicting2, requirement.restrictions);
+
+                                    return Err(SolcError::msg(err));
+                                }
+                            }
+                        }
+
+                        return Err(SolcError::msg(format!(
+                            "Failed to merge restrictions for node {root_node:?}",
+                        )));
+                    }
+                }
             }
         }
+
+        Ok(restriction)
     }
 
     fn input_nodes_by_language(&self) -> HashMap<D::Language, Vec<usize>> {
@@ -768,41 +797,38 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     }
 
     #[allow(clippy::complexity)]
-    fn resolve_settings<C: Compiler<Language = L>, T: ArtifactOutput>(
+    fn resolve_profiles<'a, C: Compiler<Language = L>, T: ArtifactOutput>(
         &self,
-        project: &Project<C, T>,
+        project: &'a Project<C, T>,
         input_nodes_versions: HashMap<L, HashMap<Version, Vec<usize>>>,
-    ) -> Result<HashMap<L, HashMap<Version, HashMap<usize, Vec<usize>>>>> {
+    ) -> Result<(
+        HashMap<L, HashMap<Version, HashMap<usize, Vec<usize>>>>,
+        CompilationProfiles<C::Settings>,
+    )> {
+        let mut profiles = CompilationProfiles::new(project);
         let mut resulted_sources = HashMap::new();
-        let mut errors = Vec::new();
         for (language, versions) in input_nodes_versions {
             let mut versioned_sources = HashMap::new();
             for (version, nodes) in versions {
                 let mut profile_to_nodes = HashMap::new();
                 for idx in nodes {
-                    let mut profile_candidates =
-                        project.settings_profiles().enumerate().collect::<Vec<_>>();
-                    self.retain_compatible_profiles(idx, project, &mut profile_candidates);
+                    let Some(restrictions) = self.merge_restrictions(idx, project)? else {
+                        // If there are no restrictions on this node, use the first (default)
+                        // profile
+                        profile_to_nodes.entry(0).or_insert_with(Vec::new).push(idx);
+                        continue;
+                    };
 
-                    if let Some((profile_idx, _)) = profile_candidates.first() {
-                        profile_to_nodes.entry(*profile_idx).or_insert_with(Vec::new).push(idx);
-                    } else {
-                        let mut msg = String::new();
-                        self.format_imports_list(idx, project, &mut msg).unwrap();
-                        errors.push(format!("Found incompatible settings restrictions:\n{msg}"));
-                    }
+                    // Try to find or create new profile for given restrictions
+                    let resolved = profiles.find_or_create(&restrictions);
+                    profile_to_nodes.entry(resolved).or_insert_with(Vec::new).push(idx);
                 }
                 versioned_sources.insert(version, profile_to_nodes);
             }
             resulted_sources.insert(language, versioned_sources);
         }
 
-        if errors.is_empty() {
-            Ok(resulted_sources)
-        } else {
-            error!("failed to resolve settings");
-            Err(SolcError::msg(errors.join("\n")))
-        }
+        Ok((resulted_sources, profiles))
     }
 
     /// Tries to find the "best" set of versions to nodes, See [Solc version

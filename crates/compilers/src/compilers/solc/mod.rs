@@ -8,11 +8,10 @@ use foundry_compilers_artifacts::{
     error::SourceLocation,
     output_selection::OutputSelection,
     remappings::Remapping,
-    serde_helpers::display_from_str_opt,
     sources::{Source, Sources},
     Error, EvmVersion, Settings, Severity, SolcInput,
 };
-use foundry_compilers_core::error::Result;
+use foundry_compilers_core::error::{Result, SolcError};
 use itertools::Itertools;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -191,70 +190,79 @@ impl DerefMut for SolcSettings {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, Eq, PartialEq)]
-pub struct EvmVersionRestriction {
-    #[serde(default, with = "display_from_str_opt", skip_serializing_if = "Option::is_none")]
-    pub min_evm_version: Option<EvmVersion>,
-    #[serde(default, with = "display_from_str_opt", skip_serializing_if = "Option::is_none")]
-    pub max_evm_version: Option<EvmVersion>,
+#[derive(Debug, Clone, Copy, Eq, Default, PartialEq)]
+pub struct Restriction<V> {
+    pub min: Option<V>,
+    pub max: Option<V>,
 }
 
-impl EvmVersionRestriction {
+impl<V: Ord + Copy> Restriction<V> {
     /// Returns true if the given version satisfies the restrictions
     ///
     /// If given None, only returns true if no restrictions are set
-    pub fn satisfies(&self, version: Option<EvmVersion>) -> bool {
-        self.min_evm_version.map_or(true, |min| version.map_or(false, |v| v >= min))
-            && self.max_evm_version.map_or(true, |max| version.map_or(false, |v| v <= max))
+    pub fn satisfies(&self, value: Option<V>) -> bool {
+        self.min.map_or(true, |min| value.map_or(false, |v| v >= min))
+            && self.max.map_or(true, |max| value.map_or(false, |v| v <= max))
     }
 
-    pub fn merge(&mut self, other: &Self) {
-        let Self { min_evm_version, max_evm_version } = other;
+    pub fn merge(self, other: Self) -> Result<Self> {
+        let Self { mut min, mut max } = self;
+        let Self { min: other_min, max: other_max } = other;
 
-        if let Some(min_evm_version) = min_evm_version {
-            if self.min_evm_version.map_or(true, |e| e < *min_evm_version) {
-                self.min_evm_version.replace(*min_evm_version);
+        min = min.map_or(other_min, |this_min| {
+            Some(other_min.map_or(this_min, |other_min| this_min.max(other_min)))
+        });
+        max = max.map_or(other_max, |this_max| {
+            Some(other_max.map_or(this_max, |other_max| this_max.min(other_max)))
+        });
+
+        if let (Some(min), Some(max)) = (min, max) {
+            if min > max {
+                return Err(SolcError::msg("Min value is greater than max value"));
             }
         }
 
-        if let Some(max_evm_version) = max_evm_version {
-            if self.max_evm_version.map_or(true, |e| e > *max_evm_version) {
-                self.max_evm_version.replace(*max_evm_version);
-            }
+        Ok(Self { min, max })
+    }
+
+    pub fn apply(&self, value: Option<V>) -> Option<V> {
+        match (value, self.min, self.max) {
+            (None, Some(min), _) => Some(min),
+            (None, None, Some(max)) => Some(max),
+            (Some(cur), Some(min), _) if cur < min => Some(min),
+            (Some(cur), _, Some(max)) if cur > max => Some(max),
+            _ => value,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SolcRestrictions {
-    pub evm_version: EvmVersionRestriction,
+    pub evm_version: Restriction<EvmVersion>,
+    pub optimizer_runs: Restriction<usize>,
     pub via_ir: Option<bool>,
-    pub min_optimizer_runs: Option<usize>,
-    pub max_optimizer_runs: Option<usize>,
 }
 
 impl CompilerSettingsRestrictions for SolcRestrictions {
-    fn merge(&mut self, other: Self) {
-        self.evm_version.merge(&other.evm_version);
+    fn merge(self, other: Self) -> Result<Self> {
+        let Self { evm_version, via_ir, optimizer_runs } = other;
 
-        // Preserve true
-        if self.via_ir.map_or(true, |via_ir| !via_ir) {
-            self.via_ir = other.via_ir;
-        }
+        let evm_version = self.evm_version.merge(evm_version)?;
+        let optimizer_runs = self.optimizer_runs.merge(optimizer_runs)?;
 
-        if self
-            .min_optimizer_runs
-            .map_or(true, |min| min < other.min_optimizer_runs.unwrap_or(usize::MAX))
-        {
-            self.min_optimizer_runs = other.min_optimizer_runs;
-        }
+        let via_ir = match (self.via_ir, via_ir) {
+            (Some(this), Some(other)) => {
+                if this != other {
+                    return Err(SolcError::msg("Conflicting via_ir restrictions"));
+                } else {
+                    Some(this)
+                }
+            }
+            (None, Some(via_ir)) => Some(via_ir),
+            _ => self.via_ir,
+        };
 
-        if self
-            .max_optimizer_runs
-            .map_or(true, |max| max > other.max_optimizer_runs.unwrap_or(usize::MIN))
-        {
-            self.max_optimizer_runs = other.max_optimizer_runs;
-        }
+        Ok(Self { evm_version, optimizer_runs, via_ir })
     }
 }
 
@@ -322,21 +330,28 @@ impl CompilerSettings for SolcSettings {
         let mut satisfies = true;
 
         satisfies &= restrictions.evm_version.satisfies(self.evm_version);
+        satisfies &= restrictions.optimizer_runs.satisfies(self.optimizer.runs);
         satisfies &=
             restrictions.via_ir.map_or(true, |via_ir| via_ir == self.via_ir.unwrap_or_default());
-        satisfies &= restrictions
-            .min_optimizer_runs
-            .map_or(true, |min| self.optimizer.runs.map_or(false, |runs| runs >= min));
-        satisfies &= restrictions
-            .max_optimizer_runs
-            .map_or(true, |max| self.optimizer.runs.map_or(false, |runs| runs <= max));
 
         // Ensure that we either don't have min optimizer runs set or that the optimizer is enabled
         satisfies &= restrictions
-            .min_optimizer_runs
+            .optimizer_runs
+            .min
             .map_or(true, |min| min == 0 || self.optimizer.enabled.unwrap_or_default());
 
         satisfies
+    }
+
+    fn apply_restrictions(&self, restrictions: &Self::Restrictions) -> Self {
+        let SolcRestrictions { evm_version, optimizer_runs, via_ir } = restrictions;
+
+        let mut settings = self.clone();
+        settings.settings.optimizer.runs = optimizer_runs.apply(settings.settings.optimizer.runs);
+        settings.settings.evm_version = evm_version.apply(settings.settings.evm_version);
+        settings.settings.via_ir = via_ir.or(settings.settings.via_ir);
+
+        settings
     }
 }
 
