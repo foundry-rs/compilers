@@ -61,7 +61,7 @@ use profiles::CompilationProfiles;
 use rayon::prelude::*;
 use semver::{Version, VersionReq};
 use std::{
-    collections::{BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     io,
     path::{Path, PathBuf},
 };
@@ -684,7 +684,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     fn get_input_node_versions<C: Compiler<Language = L>>(
         &self,
         project: &Project<C, impl ArtifactOutput>,
-    ) -> Result<HashMap<L, HashMap<Version, Vec<usize>>>> {
+    ) -> Result<HashMap<L, BTreeMap<Version, Vec<usize>>>> {
         trace!("resolving input node versions");
 
         let mut resulted_nodes = HashMap::new();
@@ -716,7 +716,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             }
 
             // stores all versions and their nodes that can be compiled
-            let mut versioned_nodes = HashMap::new();
+            let mut versioned_nodes = BTreeMap::new();
 
             // stores all files and the versions they're compatible with
             let mut all_candidates = Vec::with_capacity(self.edges.num_input_files);
@@ -800,17 +800,17 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     fn resolve_profiles<'a, C: Compiler<Language = L>, T: ArtifactOutput>(
         &self,
         project: &'a Project<C, T>,
-        input_nodes_versions: HashMap<L, HashMap<Version, Vec<usize>>>,
+        input_nodes_versions: HashMap<L, BTreeMap<Version, Vec<usize>>>,
     ) -> Result<(
-        HashMap<L, HashMap<Version, HashMap<usize, Vec<usize>>>>,
+        HashMap<L, BTreeMap<Version, BTreeMap<usize, Vec<usize>>>>,
         CompilationProfiles<C::Settings>,
     )> {
         let mut profiles = CompilationProfiles::new(project);
         let mut resulted_sources = HashMap::new();
         for (language, versions) in input_nodes_versions {
-            let mut versioned_sources = HashMap::new();
+            let mut versioned_sources = BTreeMap::new();
             for (version, nodes) in versions {
-                let mut profile_to_nodes = HashMap::new();
+                let mut profile_to_nodes = BTreeMap::new();
                 for idx in nodes {
                     let Some(restrictions) = self.merge_restrictions(idx, project)? else {
                         // If there are no restrictions on this node, use the first (default)
@@ -838,7 +838,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     /// a high chance that the number of source files is <50, even for larger projects.
     fn resolve_multiple_versions(
         all_candidates: Vec<(usize, HashSet<&CompilerVersion>)>,
-    ) -> HashMap<CompilerVersion, Vec<usize>> {
+    ) -> BTreeMap<CompilerVersion, Vec<usize>> {
         // returns the intersection as sorted set of nodes
         fn intersection<'a>(
             mut sets: Vec<&HashSet<&'a CompilerVersion>>,
@@ -879,11 +879,11 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             let exact_version = remove_candidate(&mut intersection);
             let all_nodes = all_candidates.into_iter().map(|(node, _)| node).collect();
             trace!("resolved solc version compatible with all sources  \"{}\"", exact_version);
-            return HashMap::from([(exact_version, all_nodes)]);
+            return BTreeMap::from([(exact_version, all_nodes)]);
         }
 
         // no version satisfies all nodes
-        let mut versioned_nodes: HashMap<_, _> = HashMap::new();
+        let mut versioned_nodes = BTreeMap::new();
 
         // try to minimize the set of versions, this is guaranteed to lead to `versioned_nodes.len()
         // > 1` as no solc version exists that can satisfy all sources
