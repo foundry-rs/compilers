@@ -107,6 +107,10 @@ pub trait CompilerSettings:
 
     /// Returns whether current settings satisfy given restrictions.
     fn satisfies_restrictions(&self, restrictions: &Self::Restrictions) -> bool;
+
+    /// Applies provided restrictions to the settings and returns new settings insteance satisfying
+    /// them.
+    fn apply_restrictions(&self, restrictions: &Self::Restrictions) -> Self;
 }
 
 /// Input of a compiler, including sources and settings used for their compilation.
@@ -139,7 +143,9 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
 }
 
 /// Parser of the source files which is used to identify imports and version requirements of the
-/// given source. Used by path resolver to resolve imports or determine compiler versions needed to
+/// given source.
+///
+/// Used by path resolver to resolve imports or determine compiler versions needed to
 /// compiler given sources.
 pub trait ParsedSource: Debug + Sized + Send + Clone {
     type Language: Language;
@@ -257,9 +263,10 @@ pub trait Language:
     const FILE_EXTENSIONS: &'static [&'static str];
 }
 
-/// The main compiler abstraction trait. Currently mostly represents a wrapper around compiler
-/// binary aware of the version and able to compile given input into [CompilerOutput] including
-/// artifacts and errors.'
+/// The main compiler abstraction trait.
+///
+/// Currently mostly represents a wrapper around compiler binary aware of the version and able to
+/// compile given input into [CompilerOutput] including artifacts and errors.'
 #[auto_impl::auto_impl(&, Box, Arc)]
 pub trait Compiler: Send + Sync + Clone {
     /// Input type for the compiler. Contains settings and sources to be compiled.

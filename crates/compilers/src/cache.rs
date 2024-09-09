@@ -4,9 +4,10 @@ use crate::{
     buildinfo::RawBuildInfo,
     compilers::{Compiler, CompilerSettings, Language},
     output::Builds,
+    project::CompilerJob,
     resolver::GraphEdges,
-    ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
-    ProjectPaths, ProjectPathsConfig, SourceCompilationKind,
+    ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, OutputContext, Project, ProjectPaths,
+    ProjectPathsConfig, SourceCompilationKind,
 };
 use foundry_compilers_artifacts::{
     sources::{Source, Sources},
@@ -176,7 +177,10 @@ impl<S: CompilerSettings> CompilerCache<S> {
     pub fn join_entries(&mut self, root: &Path) -> &mut Self {
         self.files = std::mem::take(&mut self.files)
             .into_iter()
-            .map(|(path, entry)| (root.join(path), entry))
+            .map(|(path, mut entry)| {
+                entry.join_imports(root);
+                (root.join(path), entry)
+            })
             .collect();
         self
     }
@@ -185,7 +189,10 @@ impl<S: CompilerSettings> CompilerCache<S> {
     pub fn strip_entries_prefix(&mut self, base: &Path) -> &mut Self {
         self.files = std::mem::take(&mut self.files)
             .into_iter()
-            .map(|(path, entry)| (path.strip_prefix(base).map(Into::into).unwrap_or(path), entry))
+            .map(|(path, mut entry)| {
+                entry.strip_imports_prefix(base);
+                (path.strip_prefix(base).map(Into::into).unwrap_or(path), entry)
+            })
             .collect();
         self
     }
@@ -580,6 +587,18 @@ impl CacheEntry {
         self.artifacts().all(|a| a.path.exists())
     }
 
+    fn join_imports(&mut self, base: &Path) {
+        self.imports =
+            std::mem::take(&mut self.imports).into_iter().map(|import| base.join(import)).collect();
+    }
+
+    fn strip_imports_prefix(&mut self, base: &Path) {
+        self.imports = std::mem::take(&mut self.imports)
+            .into_iter()
+            .map(|import| import.strip_prefix(base).map(Into::into).unwrap_or(import))
+            .collect();
+    }
+
     /// Sets the artifact's paths to `base` adjoined to the artifact's `path`.
     pub fn join_artifacts_files(&mut self, base: &Path) {
         self.artifacts_mut().for_each(|a| a.path = base.join(&a.path))
@@ -655,19 +674,12 @@ pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput, C: Compiler> {
 impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
     /// Creates a new cache entry for the file
     fn create_cache_entry(&mut self, file: PathBuf, source: &Source) {
-        let imports = self
-            .edges
-            .imports(&file)
-            .into_iter()
-            .map(|import| strip_prefix(import, self.project.root()).into())
-            .collect();
-
         let entry = CacheEntry {
             last_modification_date: CacheEntry::read_last_modification_date(&file)
                 .unwrap_or_default(),
             content_hash: source.content_hash(),
             source_name: strip_prefix(&file, self.project.root()).into(),
-            imports,
+            imports: self.edges.imports(&file).into_iter().cloned().collect(),
             version_requirement: self.edges.version_requirement(&file).map(|v| v.to_string()),
             // artifacts remain empty until we received the compiler output
             artifacts: Default::default(),
@@ -687,16 +699,16 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
     /// 2. [SourceCompilationKind::Optimized] - the file is not dirty, but is imported by a dirty
     ///    file and thus will be processed by solc. For such files we don't need full data, so we
     ///    are marking them as clean to optimize output selection later.
-    fn filter(&mut self, sources: &mut Sources, version: &Version, profile: &str) {
+    fn filter(&mut self, job: &mut CompilerJob<C>) {
         // sources that should be passed to compiler.
         let mut compile_complete = HashSet::new();
         let mut compile_optimized = HashSet::new();
 
-        for (file, source) in sources.iter() {
-            self.sources_in_scope.insert(file.clone(), version.clone());
+        for (file, source) in &job.sources {
+            self.sources_in_scope.insert(file.clone(), job.version.clone());
 
             // If we are missing artifact for file, compile it.
-            if self.is_missing_artifacts(file, version, profile) {
+            if self.is_missing_artifacts(file, &job.version, &job.profile.settings) {
                 compile_complete.insert(file.clone());
             }
 
@@ -716,7 +728,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             }
         }
 
-        sources.retain(|file, source| {
+        job.sources.retain(|file, source| {
             source.kind = if compile_complete.contains(file) {
                 SourceCompilationKind::Complete
             } else if compile_optimized.contains(file) {
@@ -730,7 +742,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
 
     /// Returns whether we are missing artifacts for the given file and version.
     #[instrument(level = "trace", skip(self))]
-    fn is_missing_artifacts(&self, file: &Path, version: &Version, profile: &str) -> bool {
+    fn is_missing_artifacts(&self, file: &Path, version: &Version, settings: &C::Settings) -> bool {
         let Some(entry) = self.cache.entry(file) else {
             trace!("missing cache entry");
             return true;
@@ -744,7 +756,24 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             return false;
         }
 
-        if !entry.contains(version, profile) {
+        let mut found = false;
+        for (v, artifacts) in entry.artifacts.values().flatten() {
+            if v != version {
+                continue;
+            }
+
+            // try to find profile we have artifact for and which is equivalent to the requested
+            for profile in artifacts.keys() {
+                if let Some(cached_settings) = self.cache.profiles.get(profile) {
+                    if settings.can_use_cached(cached_settings) {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if !found {
             trace!("missing linked artifacts");
             return true;
         }
@@ -763,96 +792,32 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
     }
 
     // Walks over all cache entires, detects dirty files and removes them from cache.
-    fn find_and_remove_dirty(&mut self) {
-        fn populate_dirty_files<D>(
-            file: &Path,
-            dirty_files: &mut HashSet<PathBuf>,
-            edges: &GraphEdges<D>,
-        ) {
-            for file in edges.importers(file) {
-                // If file is marked as dirty we either have already visited it or it was marked as
-                // dirty initially and will be visited at some point later.
-                if !dirty_files.contains(file) {
-                    dirty_files.insert(file.to_path_buf());
-                    populate_dirty_files(file, dirty_files, edges);
+    fn find_and_remove_dirty(&mut self, jobs: &[CompilerJob<C>]) {
+        // Pre-add all sources that are guaranteed to be dirty
+        for job in jobs {
+            self.fill_hashes(&job.sources);
+
+            for source in job.sources.keys() {
+                if self.is_dirty_impl(source) {
+                    self.dirty_sources.insert(source.clone());
                 }
             }
+
+            // Add all profiles to cache
+            self.cache.profiles.insert(job.profile.id.clone(), job.profile.settings.clone());
         }
 
-        let existing_profiles = self.project.settings_profiles().collect::<BTreeMap<_, _>>();
-
-        let mut dirty_profiles = HashSet::new();
-        for (profile, settings) in &self.cache.profiles {
-            if !existing_profiles
-                .get(profile.as_str())
-                .map_or(false, |p| p.can_use_cached(settings))
-            {
-                trace!("dirty profile: {}", profile);
-                dirty_profiles.insert(profile.clone());
-            }
-        }
-
-        for profile in &dirty_profiles {
-            self.cache.profiles.remove(profile);
-        }
-
-        self.cache.files.retain(|_, entry| {
-            // keep entries which already had no artifacts
-            if entry.artifacts.is_empty() {
-                return true;
-            }
-            entry.artifacts.retain(|_, artifacts| {
-                artifacts.retain(|_, artifacts| {
-                    artifacts.retain(|profile, _| !dirty_profiles.contains(profile));
-                    !artifacts.is_empty()
-                });
-                !artifacts.is_empty()
-            });
-            !entry.artifacts.is_empty()
-        });
-
-        for (profile, settings) in existing_profiles {
-            if !self.cache.profiles.contains_key(profile) {
-                self.cache.profiles.insert(profile.to_string(), settings.clone());
-            }
-        }
-
-        // Iterate over existing cache entries.
-        let files = self.cache.files.keys().cloned().collect::<HashSet<_>>();
-
-        let mut sources = Sources::new();
-
-        // Read all sources, marking entries as dirty on I/O errors.
-        for file in &files {
-            let Ok(source) = Source::read(file) else {
-                self.dirty_sources.insert(file.clone());
+        // Mark entires as dirty if they import dirty files.
+        for (file, entry) in &self.cache.files {
+            if self.dirty_sources.contains(file) {
                 continue;
-            };
-            sources.insert(file.clone(), source);
-        }
-
-        // Build a temporary graph for walking imports. We need this because `self.edges`
-        // only contains graph data for in-scope sources but we are operating on cache entries.
-        if let Ok(graph) = Graph::<C::ParsedSource>::resolve_sources(&self.project.paths, sources) {
-            let (sources, edges) = graph.into_sources();
-
-            // Calculate content hashes for later comparison.
-            self.fill_hashes(&sources);
-
-            // Pre-add all sources that are guaranteed to be dirty
-            for file in sources.keys() {
-                if self.is_dirty_impl(file) {
+            }
+            for import in &entry.imports {
+                if self.dirty_sources.contains(import) {
                     self.dirty_sources.insert(file.clone());
+                    break;
                 }
             }
-
-            // Perform DFS to find direct/indirect importers of dirty files.
-            for file in self.dirty_sources.clone().iter() {
-                populate_dirty_files(file, &mut self.dirty_sources, &edges);
-            }
-        } else {
-            // Purge all sources on graph resolution error.
-            self.dirty_sources.extend(files);
         }
 
         // Remove all dirty files from cache.
@@ -1028,18 +993,18 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
     }
 
     /// Adds the file's hashes to the set if not set yet
-    pub fn remove_dirty_sources(&mut self) {
+    pub fn remove_dirty_sources(&mut self, jobs: &[CompilerJob<C>]) {
         match self {
             ArtifactsCache::Ephemeral(..) => {}
-            ArtifactsCache::Cached(cache) => cache.find_and_remove_dirty(),
+            ArtifactsCache::Cached(cache) => cache.find_and_remove_dirty(jobs),
         }
     }
 
     /// Filters out those sources that don't need to be compiled
-    pub fn filter(&mut self, sources: &mut Sources, version: &Version, profile: &str) {
+    pub fn filter(&mut self, job: &mut CompilerJob<C>) {
         match self {
             ArtifactsCache::Ephemeral(..) => {}
-            ArtifactsCache::Cached(cache) => cache.filter(sources, version, profile),
+            ArtifactsCache::Cached(cache) => cache.filter(job),
         }
     }
 

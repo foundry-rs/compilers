@@ -75,9 +75,6 @@ pub struct Project<C: Compiler = MultiCompiler, T: ArtifactOutput = Configurable
     pub paths: ProjectPathsConfig<C::Language>,
     /// The compiler settings
     pub settings: C::Settings,
-    /// Additional settings for cases when default compiler settings are not enough to cover all
-    /// possible restrictions.
-    pub additional_settings: BTreeMap<String, C::Settings>,
     pub restrictions:
         BTreeMap<PathBuf, RestrictionsWithVersion<<C::Settings as CompilerSettings>::Restrictions>>,
     /// Whether caching is enabled
@@ -144,11 +141,6 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     /// Returns the handler that takes care of processing all artifacts
     pub fn artifacts_handler(&self) -> &T {
         &self.artifacts
-    }
-
-    pub fn settings_profiles(&self) -> impl Iterator<Item = (&str, &C::Settings)> {
-        std::iter::once(("default", &self.settings))
-            .chain(self.additional_settings.iter().map(|(p, s)| (p.as_str(), s)))
     }
 }
 
@@ -449,15 +441,6 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
 
         Ok(paths.remove(0))
     }
-
-    /// Invokes [CompilerSettings::update_output_selection] on the project's settings and all
-    /// additional settings profiles.
-    pub fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy) {
-        self.settings.update_output_selection(f);
-        self.additional_settings.iter_mut().for_each(|(_, s)| {
-            s.update_output_selection(f);
-        });
-    }
 }
 
 pub struct ProjectBuilder<C: Compiler = MultiCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
@@ -465,7 +448,6 @@ pub struct ProjectBuilder<C: Compiler = MultiCompiler, T: ArtifactOutput = Confi
     paths: Option<ProjectPathsConfig<C::Language>>,
     /// How solc invocation should be configured.
     settings: Option<C::Settings>,
-    additional_settings: BTreeMap<String, C::Settings>,
     restrictions:
         BTreeMap<PathBuf, RestrictionsWithVersion<<C::Settings as CompilerSettings>::Restrictions>>,
     /// Whether caching is enabled, default is true.
@@ -508,7 +490,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             solc_jobs: None,
             settings: None,
             sparse_output: None,
-            additional_settings: BTreeMap::new(),
             restrictions: BTreeMap::new(),
         }
     }
@@ -635,12 +616,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
     }
 
     #[must_use]
-    pub fn additional_settings(mut self, additional: BTreeMap<String, C::Settings>) -> Self {
-        self.additional_settings = additional;
-        self
-    }
-
-    #[must_use]
     pub fn restrictions(
         mut self,
         restrictions: BTreeMap<
@@ -667,7 +642,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             ignored_file_paths,
             settings,
             sparse_output,
-            additional_settings,
             restrictions,
             ..
         } = self;
@@ -675,7 +649,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             paths,
             cached,
             no_artifacts,
-            additional_settings,
             restrictions,
             offline,
             slash_paths,
@@ -705,7 +678,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             slash_paths,
             settings,
             sparse_output,
-            additional_settings,
             restrictions,
         } = self;
 
@@ -733,7 +705,6 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
             slash_paths,
             settings: settings.unwrap_or_default(),
             sparse_output,
-            additional_settings,
             restrictions,
         })
     }

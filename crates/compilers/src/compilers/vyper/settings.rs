@@ -3,18 +3,21 @@ use std::{collections::BTreeSet, path::PathBuf};
 pub use crate::artifacts::vyper::VyperSettings;
 use crate::{
     compilers::{restrictions::CompilerSettingsRestrictions, CompilerSettings},
-    solc::EvmVersionRestriction,
+    solc::Restriction,
+    Result,
 };
-use foundry_compilers_artifacts::output_selection::OutputSelection;
+use foundry_compilers_artifacts::{output_selection::OutputSelection, EvmVersion};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct VyperRestrictions {
-    pub evm_version: EvmVersionRestriction,
+    pub evm_version: Restriction<EvmVersion>,
 }
 
 impl CompilerSettingsRestrictions for VyperRestrictions {
-    fn merge(&mut self, other: Self) {
-        self.evm_version.merge(&other.evm_version);
+    fn merge(self, other: Self) -> Result<Self> {
+        let Self { evm_version } = self;
+        let evm_version = evm_version.merge(other.evm_version)?;
+        Ok(Self { evm_version })
     }
 }
 
@@ -49,5 +52,13 @@ impl CompilerSettings for VyperSettings {
 
     fn satisfies_restrictions(&self, restrictions: &Self::Restrictions) -> bool {
         restrictions.evm_version.satisfies(self.evm_version)
+    }
+
+    fn apply_restrictions(&self, restrictions: &Self::Restrictions) -> Self {
+        let VyperRestrictions { evm_version } = restrictions;
+
+        let mut settings = self.clone();
+        settings.evm_version = evm_version.apply(settings.evm_version);
+        settings
     }
 }
