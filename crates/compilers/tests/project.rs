@@ -4090,7 +4090,7 @@ contract SimpleContract {}
         } else {
             default_profile = Some(profile.clone());
         }
-    };
+    }
 
     let cancun_profile = cancun_profile.unwrap();
     let default_profile = default_profile.unwrap();
