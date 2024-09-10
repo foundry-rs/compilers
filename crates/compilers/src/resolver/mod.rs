@@ -47,8 +47,8 @@
 
 use crate::{
     compilers::{Compiler, CompilerVersion, Language, ParsedSource},
-    project::VersionedSources,
-    ProjectPathsConfig,
+    project::CompilerJob,
+    ArtifactOutput, CompilerSettings, CompilerSettingsRestrictions, Project, ProjectPathsConfig,
 };
 use core::fmt;
 use foundry_compilers_artifacts::sources::{Source, Sources};
@@ -57,10 +57,11 @@ use foundry_compilers_core::{
     utils::{self, find_case_sensitive_existing_file},
 };
 use parse::SolData;
+use profiles::CompilationProfiles;
 use rayon::prelude::*;
 use semver::{Version, VersionReq};
 use std::{
-    collections::{BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     io,
     path::{Path, PathBuf},
 };
@@ -70,6 +71,9 @@ mod tree;
 
 pub use parse::SolImportAlias;
 pub use tree::{print, Charset, TreeOptions};
+
+mod profiles;
+pub use profiles::CompilationProfile;
 
 /// The underlying edges of the graph which only contains the raw relationship data.
 ///
@@ -196,8 +200,9 @@ impl<D> GraphEdges<D> {
     }
 }
 
-/// Represents a fully-resolved solidity dependency graph. Each node in the graph
-/// is a file and edges represent dependencies between them.
+/// Represents a fully-resolved solidity dependency graph.
+///
+/// Each node in the graph is a file and edges represent dependencies between them.
 /// See also <https://docs.soliditylang.org/en/latest/layout-of-source-files.html?highlight=import#importing-other-source-files>
 #[derive(Debug)]
 pub struct Graph<D = SolData> {
@@ -460,12 +465,15 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     ///
     /// First we determine the compatible version for each input file (from sources and test folder,
     /// see `Self::resolve`) and then we add all resolved library imports.
-    pub fn into_sources_by_version<C: Compiler<ParsedSource = D, Language = L>>(
+    pub fn into_sources_by_version<C, T, S>(
         self,
-        offline: bool,
-        locked_versions: &HashMap<L, Version>,
-        compiler: &C,
-    ) -> Result<(VersionedSources<C::Language>, GraphEdges<D>)> {
+        project: &Project<C, T>,
+    ) -> Result<(Vec<CompilerJob<C>>, GraphEdges<D>)>
+    where
+        T: ArtifactOutput,
+        S: CompilerSettings,
+        C: Compiler<ParsedSource = D, Language = L, Settings = S>,
+    {
         /// insert the imports of the given node into the sources map
         /// There can be following graph:
         /// `A(<=0.8.10) imports C(>0.4.0)` and `B(0.8.11) imports C(>0.4.0)`
@@ -496,44 +504,49 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             }
         }
 
-        let versioned_nodes_by_lang =
-            self.get_input_node_versions(offline, locked_versions, compiler)?;
+        let versioned_nodes = self.get_input_node_versions(project)?;
+        let (versioned_nodes, profiles) = self.resolve_profiles(project, versioned_nodes)?;
         let (nodes, edges) = self.split();
 
         let mut all_nodes = nodes.into_iter().enumerate().collect::<HashMap<_, _>>();
 
-        let mut resulted_sources = HashMap::new();
+        let mut jobs = Vec::new();
 
         // determine the `Sources` set for each solc version
-        for (language, versioned_nodes) in versioned_nodes_by_lang {
-            let mut versioned_sources = HashMap::with_capacity(versioned_nodes.len());
+        for (language, versioned_nodes) in versioned_nodes {
+            for (version, profile_to_nodes) in versioned_nodes {
+                for (profile, input_node_indixies) in profile_to_nodes {
+                    let mut job = CompilerJob {
+                        language,
+                        version: version.clone(),
+                        profile: profiles.get(profile).clone(),
+                        sources: Sources::new(),
+                    };
 
-            for (version, input_node_indices) in versioned_nodes {
-                let mut sources = Sources::new();
+                    // all input nodes will be processed
+                    let mut processed_sources = input_node_indixies.iter().copied().collect();
 
-                // all input nodes will be processed
-                let mut processed_sources = input_node_indices.iter().copied().collect();
-
-                // we only process input nodes (from sources, tests for example)
-                for idx in input_node_indices {
-                    // insert the input node in the sources set and remove it from the available set
-                    let (path, source) = all_nodes.get(&idx).cloned().expect("node is preset. qed");
-                    sources.insert(path, source);
-                    insert_imports(
-                        idx,
-                        &mut all_nodes,
-                        &mut sources,
-                        &edges.edges,
-                        &mut processed_sources,
-                    );
+                    // we only process input nodes (from sources, tests for example)
+                    for idx in input_node_indixies {
+                        // insert the input node in the sources set and remove it from the available
+                        // set
+                        let (path, source) =
+                            all_nodes.get(&idx).cloned().expect("node is preset. qed");
+                        job.sources.insert(path, source);
+                        insert_imports(
+                            idx,
+                            &mut all_nodes,
+                            &mut job.sources,
+                            &edges.edges,
+                            &mut processed_sources,
+                        );
+                    }
+                    jobs.push(job);
                 }
-                versioned_sources.insert(version, sources);
             }
-
-            resulted_sources.insert(language, versioned_sources);
         }
 
-        Ok((resulted_sources, edges))
+        Ok((jobs, edges))
     }
 
     /// Writes the list of imported files into the given formatter:
@@ -544,33 +557,56 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     ///     path/to/c.sol (<version>)
     ///     ...
     /// ```
-    fn format_imports_list<W: std::fmt::Write>(
+    fn format_imports_list<W: std::fmt::Write, C: Compiler<Language = L>, T: ArtifactOutput>(
         &self,
         idx: usize,
+        project: &Project<C, T>,
+        f: &mut W,
+    ) -> std::result::Result<(), std::fmt::Error> {
+        self.format_node(idx, project, f)?;
+        write!(f, " imports:")?;
+        for dep in self.node_ids(idx).skip(1) {
+            write!(f, "\n    ")?;
+            self.format_node(dep, project, f)?;
+        }
+
+        Ok(())
+    }
+
+    /// Formats a single node along with its version requirements.
+    fn format_node<W: std::fmt::Write, C: Compiler<Language = L>, T: ArtifactOutput>(
+        &self,
+        idx: usize,
+        project: &Project<C, T>,
         f: &mut W,
     ) -> std::result::Result<(), std::fmt::Error> {
         let node = self.node(idx);
-        write!(f, "{} ", utils::source_name(&node.path, &self.root).display())?;
+        write!(f, "{}", utils::source_name(&node.path, &self.root).display())?;
         if let Some(req) = node.data.version_req() {
-            write!(f, "{req}")?;
+            write!(f, " {req}")?;
         }
-        write!(f, " imports:")?;
-        for dep in self.node_ids(idx).skip(1) {
-            let dep = self.node(dep);
-            write!(f, "\n    {} ", utils::source_name(&dep.path, &self.root).display())?;
-            if let Some(req) = dep.data.version_req() {
-                write!(f, "{req}")?;
-            }
+        if let Some(req) = project.restrictions.get(&node.path).and_then(|r| r.version.as_ref()) {
+            write!(f, " {req}")?;
         }
 
         Ok(())
     }
 
     /// Filters incompatible versions from the `candidates`.
-    fn retain_compatible_versions(&self, idx: usize, candidates: &mut Vec<&CompilerVersion>) {
+    fn retain_compatible_versions<C: Compiler, T: ArtifactOutput>(
+        &self,
+        idx: usize,
+        project: &Project<C, T>,
+        candidates: &mut Vec<&CompilerVersion>,
+    ) {
         let nodes: HashSet<_> = self.node_ids(idx).collect();
         for node in nodes {
-            if let Some(req) = &self.node(node).data.version_req() {
+            let node = self.node(node);
+            if let Some(req) = node.data.version_req() {
+                candidates.retain(|v| req.matches(v.as_ref()));
+            }
+            if let Some(req) = project.restrictions.get(&node.path).and_then(|r| r.version.as_ref())
+            {
                 candidates.retain(|v| req.matches(v.as_ref()));
             }
             if candidates.is_empty() {
@@ -578,6 +614,51 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                 return;
             }
         }
+    }
+
+    fn merge_restrictions<C: Compiler, T: ArtifactOutput>(
+        &self,
+        idx: usize,
+        project: &Project<C, T>,
+    ) -> Result<Option<<C::Settings as CompilerSettings>::Restrictions>> {
+        let nodes: BTreeSet<_> = self.node_ids(idx).collect();
+        let mut restriction: Option<<C::Settings as CompilerSettings>::Restrictions> = None;
+        for (i, node) in nodes.iter().enumerate() {
+            let node = self.node(*node);
+            if let Some(requirement) = project.restrictions.get(&node.path) {
+                let current_restrictions = requirement.restrictions;
+                let restriction = restriction.get_or_insert_with(Default::default);
+
+                *restriction = match restriction.merge(current_restrictions) {
+                    Ok(merged) => merged,
+                    Err(_) => {
+                        let root_node = &self.node(idx).path;
+                        let conflicting1 = &node.path;
+
+                        // Iterate over nodes merged before this one to find the conflicting node
+                        for node in nodes.iter().take(i) {
+                            let maybe_conflict = self.node(*node);
+                            if let Some(requirement) =
+                                project.restrictions.get(&maybe_conflict.path)
+                            {
+                                if requirement.restrictions.merge(current_restrictions).is_err() {
+                                    let conflicting2 = &self.node(*node).path;
+                                    let err = format!("Failed to merge restrictions for node {:?}:\n    {:?} requires {:?}\n    {:?} requires {:?}", root_node, conflicting1, current_restrictions, conflicting2, requirement.restrictions);
+
+                                    return Err(SolcError::msg(err));
+                                }
+                            }
+                        }
+
+                        return Err(SolcError::msg(format!(
+                            "Failed to merge restrictions for node {root_node:?}",
+                        )));
+                    }
+                }
+            }
+        }
+
+        Ok(restriction)
     }
 
     fn input_nodes_by_language(&self) -> HashMap<D::Language, Vec<usize>> {
@@ -602,19 +683,13 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     /// If `offline` is set to `true` then only already installed.
     fn get_input_node_versions<C: Compiler<Language = L>>(
         &self,
-        offline: bool,
-        locked_versions: &HashMap<L, Version>,
-        compiler: &C,
-    ) -> Result<HashMap<L, HashMap<Version, Vec<usize>>>> {
+        project: &Project<C, impl ArtifactOutput>,
+    ) -> Result<HashMap<L, BTreeMap<Version, Vec<usize>>>> {
         trace!("resolving input node versions");
 
         let mut resulted_nodes = HashMap::new();
 
         for (language, nodes) in self.input_nodes_by_language() {
-            if let Some(version) = locked_versions.get(&language) {
-                resulted_nodes.insert(language, HashMap::from([(version.clone(), nodes)]));
-                continue;
-            }
             // this is likely called by an application and will be eventually printed so we don't
             // exit on first error, instead gather all the errors and return a bundled
             // error message instead
@@ -623,14 +698,15 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             let mut erroneous_nodes = HashSet::with_capacity(self.edges.num_input_files);
 
             // the sorted list of all versions
-            let all_versions = if offline {
-                compiler
+            let all_versions = if project.offline {
+                project
+                    .compiler
                     .available_versions(&language)
                     .into_iter()
                     .filter(|v| v.is_installed())
                     .collect()
             } else {
-                compiler.available_versions(&language)
+                project.compiler.available_versions(&language)
             };
 
             if all_versions.is_empty() && !nodes.is_empty() {
@@ -640,7 +716,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             }
 
             // stores all versions and their nodes that can be compiled
-            let mut versioned_nodes = HashMap::new();
+            let mut versioned_nodes = BTreeMap::new();
 
             // stores all files and the versions they're compatible with
             let mut all_candidates = Vec::with_capacity(self.edges.num_input_files);
@@ -649,19 +725,21 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                 let mut candidates = all_versions.iter().collect::<Vec<_>>();
                 // remove all incompatible versions from the candidates list by checking the node
                 // and all its imports
-                self.retain_compatible_versions(idx, &mut candidates);
+                self.retain_compatible_versions(idx, project, &mut candidates);
 
                 if candidates.is_empty() && !erroneous_nodes.contains(&idx) {
                     // check if the version is even valid
                     let node = self.node(idx);
-                    if let Err(version_err) = node.check_available_version(&all_versions, offline) {
+                    if let Err(version_err) =
+                        node.check_available_version(&all_versions, project.offline)
+                    {
                         let f = utils::source_name(&node.path, &self.root).display();
                         errors.push(format!(
                             "Encountered invalid solc version in {f}: {version_err}"
                         ));
                     } else {
                         let mut msg = String::new();
-                        self.format_imports_list(idx, &mut msg).unwrap();
+                        self.format_imports_list(idx, project, &mut msg).unwrap();
                         errors.push(format!("Found incompatible versions:\n{msg}"));
                     }
 
@@ -718,6 +796,41 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         Ok(resulted_nodes)
     }
 
+    #[allow(clippy::complexity)]
+    fn resolve_profiles<'a, C: Compiler<Language = L>, T: ArtifactOutput>(
+        &self,
+        project: &'a Project<C, T>,
+        input_nodes_versions: HashMap<L, BTreeMap<Version, Vec<usize>>>,
+    ) -> Result<(
+        HashMap<L, BTreeMap<Version, BTreeMap<usize, Vec<usize>>>>,
+        CompilationProfiles<C::Settings>,
+    )> {
+        let mut profiles = CompilationProfiles::new(project);
+        let mut resulted_sources = HashMap::new();
+        for (language, versions) in input_nodes_versions {
+            let mut versioned_sources = BTreeMap::new();
+            for (version, nodes) in versions {
+                let mut profile_to_nodes = BTreeMap::new();
+                for idx in nodes {
+                    let Some(restrictions) = self.merge_restrictions(idx, project)? else {
+                        // If there are no restrictions on this node, use the first (default)
+                        // profile
+                        profile_to_nodes.entry(0).or_insert_with(Vec::new).push(idx);
+                        continue;
+                    };
+
+                    // Try to find or create new profile for given restrictions
+                    let resolved = profiles.find_or_create(&restrictions);
+                    profile_to_nodes.entry(resolved).or_insert_with(Vec::new).push(idx);
+                }
+                versioned_sources.insert(version, profile_to_nodes);
+            }
+            resulted_sources.insert(language, versioned_sources);
+        }
+
+        Ok((resulted_sources, profiles))
+    }
+
     /// Tries to find the "best" set of versions to nodes, See [Solc version
     /// auto-detection](#solc-version-auto-detection)
     ///
@@ -725,7 +838,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     /// a high chance that the number of source files is <50, even for larger projects.
     fn resolve_multiple_versions(
         all_candidates: Vec<(usize, HashSet<&CompilerVersion>)>,
-    ) -> HashMap<CompilerVersion, Vec<usize>> {
+    ) -> BTreeMap<CompilerVersion, Vec<usize>> {
         // returns the intersection as sorted set of nodes
         fn intersection<'a>(
             mut sets: Vec<&HashSet<&'a CompilerVersion>>,
@@ -766,11 +879,11 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             let exact_version = remove_candidate(&mut intersection);
             let all_nodes = all_candidates.into_iter().map(|(node, _)| node).collect();
             trace!("resolved solc version compatible with all sources  \"{}\"", exact_version);
-            return HashMap::from([(exact_version, all_nodes)]);
+            return BTreeMap::from([(exact_version, all_nodes)]);
         }
 
         // no version satisfies all nodes
-        let mut versioned_nodes: HashMap<_, _> = HashMap::new();
+        let mut versioned_nodes = BTreeMap::new();
 
         // try to minimize the set of versions, this is guaranteed to lead to `versioned_nodes.len()
         // > 1` as no solc version exists that can satisfy all sources

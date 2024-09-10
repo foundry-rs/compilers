@@ -1,6 +1,6 @@
 use super::{
-    CompilationError, Compiler, CompilerInput, CompilerOutput, CompilerSettings, CompilerVersion,
-    Language, ParsedSource,
+    restrictions::CompilerSettingsRestrictions, CompilationError, Compiler, CompilerInput,
+    CompilerOutput, CompilerSettings, CompilerVersion, Language, ParsedSource,
 };
 use crate::resolver::parse::SolData;
 pub use foundry_compilers_artifacts::SolcLanguage;
@@ -9,9 +9,9 @@ use foundry_compilers_artifacts::{
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Error, Settings, Severity, SolcInput,
+    Error, EvmVersion, Settings, Severity, SolcInput,
 };
-use foundry_compilers_core::error::Result;
+use foundry_compilers_core::error::{Result, SolcError};
 use itertools::Itertools;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -190,7 +190,85 @@ impl DerefMut for SolcSettings {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, Default, PartialEq)]
+pub struct Restriction<V> {
+    pub min: Option<V>,
+    pub max: Option<V>,
+}
+
+impl<V: Ord + Copy> Restriction<V> {
+    /// Returns true if the given version satisfies the restrictions
+    ///
+    /// If given None, only returns true if no restrictions are set
+    pub fn satisfies(&self, value: Option<V>) -> bool {
+        self.min.map_or(true, |min| value.map_or(false, |v| v >= min))
+            && self.max.map_or(true, |max| value.map_or(false, |v| v <= max))
+    }
+
+    pub fn merge(self, other: Self) -> Result<Self> {
+        let Self { mut min, mut max } = self;
+        let Self { min: other_min, max: other_max } = other;
+
+        min = min.map_or(other_min, |this_min| {
+            Some(other_min.map_or(this_min, |other_min| this_min.max(other_min)))
+        });
+        max = max.map_or(other_max, |this_max| {
+            Some(other_max.map_or(this_max, |other_max| this_max.min(other_max)))
+        });
+
+        if let (Some(min), Some(max)) = (min, max) {
+            if min > max {
+                return Err(SolcError::msg("Min value is greater than max value"));
+            }
+        }
+
+        Ok(Self { min, max })
+    }
+
+    pub fn apply(&self, value: Option<V>) -> Option<V> {
+        match (value, self.min, self.max) {
+            (None, Some(min), _) => Some(min),
+            (None, None, Some(max)) => Some(max),
+            (Some(cur), Some(min), _) if cur < min => Some(min),
+            (Some(cur), _, Some(max)) if cur > max => Some(max),
+            _ => value,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SolcRestrictions {
+    pub evm_version: Restriction<EvmVersion>,
+    pub optimizer_runs: Restriction<usize>,
+    pub via_ir: Option<bool>,
+}
+
+impl CompilerSettingsRestrictions for SolcRestrictions {
+    fn merge(self, other: Self) -> Result<Self> {
+        let Self { evm_version, via_ir, optimizer_runs } = other;
+
+        let evm_version = self.evm_version.merge(evm_version)?;
+        let optimizer_runs = self.optimizer_runs.merge(optimizer_runs)?;
+
+        let via_ir = match (self.via_ir, via_ir) {
+            (Some(this), Some(other)) => {
+                if this != other {
+                    return Err(SolcError::msg("Conflicting via_ir restrictions"));
+                } else {
+                    Some(this)
+                }
+            }
+            (None, Some(via_ir)) => Some(via_ir),
+            _ => self.via_ir,
+        };
+
+        Ok(Self { evm_version, optimizer_runs, via_ir })
+    }
+}
+
 impl CompilerSettings for SolcSettings {
+    type Restrictions = SolcRestrictions;
+
     fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy) {
         f(&mut self.settings.output_selection)
     }
@@ -246,6 +324,34 @@ impl CompilerSettings for SolcSettings {
     fn with_include_paths(mut self, include_paths: &BTreeSet<PathBuf>) -> Self {
         self.cli_settings.include_paths.clone_from(include_paths);
         self
+    }
+
+    fn satisfies_restrictions(&self, restrictions: &Self::Restrictions) -> bool {
+        let mut satisfies = true;
+
+        satisfies &= restrictions.evm_version.satisfies(self.evm_version);
+        satisfies &= restrictions.optimizer_runs.satisfies(self.optimizer.runs);
+        satisfies &=
+            restrictions.via_ir.map_or(true, |via_ir| via_ir == self.via_ir.unwrap_or_default());
+
+        // Ensure that we either don't have min optimizer runs set or that the optimizer is enabled
+        satisfies &= restrictions
+            .optimizer_runs
+            .min
+            .map_or(true, |min| min == 0 || self.optimizer.enabled.unwrap_or_default());
+
+        satisfies
+    }
+
+    fn apply_restrictions(&self, restrictions: &Self::Restrictions) -> Self {
+        let SolcRestrictions { evm_version, optimizer_runs, via_ir } = restrictions;
+
+        let mut settings = self.clone();
+        settings.settings.optimizer.runs = optimizer_runs.apply(settings.settings.optimizer.runs);
+        settings.settings.evm_version = evm_version.apply(settings.settings.evm_version);
+        settings.settings.via_ir = via_ir.or(settings.settings.via_ir);
+
+        settings
     }
 }
 
@@ -361,7 +467,7 @@ mod tests {
         );
         let build_info = RawBuildInfo::new(&input, &out_converted, true).unwrap();
         let mut aggregated = AggregatedCompilerOutput::<SolcCompiler>::default();
-        aggregated.extend(v, build_info, out_converted);
+        aggregated.extend(v, build_info, "default", out_converted);
         assert!(!aggregated.is_unchanged());
     }
 }
