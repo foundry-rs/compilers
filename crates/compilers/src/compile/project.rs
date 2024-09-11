@@ -114,10 +114,14 @@ use crate::{
 use foundry_compilers_core::error::Result;
 use rayon::prelude::*;
 use semver::Version;
-use std::{collections::HashMap, path::PathBuf, time::Instant};
+use std::{collections::HashMap, fmt::Debug, path::PathBuf, time::Instant};
 
 /// A set of different Solc installations with their version and the sources to be compiled
 pub(crate) type VersionedSources<L> = HashMap<L, HashMap<Version, Sources>>;
+
+pub trait Preprocessor<C: Compiler>: Debug {
+    fn preprocess(&self, compiler: &C, input: C::Input, dirty: &Vec<PathBuf>) -> Result<C::Input>;
+}
 
 #[derive(Debug)]
 pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
@@ -126,6 +130,8 @@ pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
     project: &'a Project<C, T>,
     /// how to compile all the sources
     sources: CompilerSources<C::Language>,
+    /// Optional preprocessor
+    preprocessor: Option<Box<dyn Preprocessor<C>>>,
 }
 
 impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
@@ -160,7 +166,14 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
             sources,
         };
 
-        Ok(Self { edges, project, sources })
+        Ok(Self { edges, project, sources, preprocessor: None })
+    }
+
+    pub fn with_preprocessor(
+        self,
+        preprocessor: impl Preprocessor<C> + 'static,
+    ) -> ProjectCompiler<'a, T, C> {
+        ProjectCompiler { preprocessor: Some(Box::new(preprocessor)), ..self }
     }
 
     /// Compiles all the sources of the `Project` in the appropriate mode
@@ -197,7 +210,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     ///   - check cache
     fn preprocess(self) -> Result<PreprocessedState<'a, T, C>> {
         trace!("preprocessing");
-        let Self { edges, project, mut sources } = self;
+        let Self { edges, project, mut sources, preprocessor } = self;
 
         // convert paths on windows to ensure consistency with the `CompilerOutput` `solc` emits,
         // which is unix style `/`
@@ -207,7 +220,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
         // retain and compile only dirty sources and all their imports
         sources.filter(&mut cache);
 
-        Ok(PreprocessedState { sources, cache })
+        Ok(PreprocessedState { sources, cache, preprocessor })
     }
 }
 
@@ -221,15 +234,18 @@ struct PreprocessedState<'a, T: ArtifactOutput, C: Compiler> {
 
     /// Cache that holds `CacheEntry` objects if caching is enabled and the project is recompiled
     cache: ArtifactsCache<'a, T, C>,
+
+    /// Optional preprocessor
+    preprocessor: Option<Box<dyn Preprocessor<C>>>,
 }
 
 impl<'a, T: ArtifactOutput, C: Compiler> PreprocessedState<'a, T, C> {
     /// advance to the next state by compiling all sources
     fn compile(self) -> Result<CompiledState<'a, T, C>> {
         trace!("compiling");
-        let PreprocessedState { sources, mut cache } = self;
+        let PreprocessedState { sources, mut cache, preprocessor } = self;
 
-        let mut output = sources.compile(&mut cache)?;
+        let mut output = sources.compile(&mut cache, preprocessor)?;
 
         // source paths get stripped before handing them over to solc, so solc never uses absolute
         // paths, instead `--base-path <root dir>` is set. this way any metadata that's derived from
@@ -410,6 +426,7 @@ impl<L: Language> CompilerSources<L> {
     fn compile<C: Compiler<Language = L>, T: ArtifactOutput>(
         self,
         cache: &mut ArtifactsCache<'_, T, C>,
+        preprocessor: Option<Box<dyn Preprocessor<C>>>,
     ) -> Result<AggregatedCompilerOutput<C>> {
         let project = cache.project();
         let graph = cache.graph();
@@ -455,6 +472,18 @@ impl<L: Language> CompilerSources<L> {
                 let mut input = C::Input::build(sources, settings, language, version.clone());
 
                 input.strip_prefix(project.paths.root.as_path());
+                let actually_dirty = actually_dirty
+                    .into_iter()
+                    .map(|path| {
+                        path.strip_prefix(project.paths.root.as_path())
+                            .unwrap_or(&path)
+                            .to_path_buf()
+                    })
+                    .collect();
+
+                if let Some(preprocessor) = preprocessor.as_ref() {
+                    input = preprocessor.preprocess(&project.compiler, input, &actually_dirty)?;
+                }
 
                 jobs.push((input, actually_dirty));
             }
@@ -478,11 +507,7 @@ impl<L: Language> CompilerSources<L> {
 
             let build_info = RawBuildInfo::new(&input, &output, project.build_info)?;
 
-            output.retain_files(
-                actually_dirty
-                    .iter()
-                    .map(|f| f.strip_prefix(project.paths.root.as_path()).unwrap_or(f)),
-            );
+            output.retain_files(actually_dirty);
             output.join_all(project.paths.root.as_path());
 
             aggregated.extend(version.clone(), build_info, output);

@@ -4,7 +4,7 @@ use crate::{
     buildinfo::RawBuildInfo,
     compilers::{Compiler, CompilerSettings, Language},
     output::Builds,
-    preprocessor::{interface_representation_hash},
+    preprocessor::interface_representation_hash,
     resolver::GraphEdges,
     ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
     ProjectPaths, ProjectPathsConfig, SourceCompilationKind,
