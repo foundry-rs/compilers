@@ -1,4 +1,7 @@
+use alloy_primitives::hex;
+use foundry_compilers_artifacts::Source;
 use foundry_compilers_core::utils;
+use md5::Digest;
 use solang_parser::{
     diagnostics::Diagnostic,
     helpers::CodeLocation,
@@ -55,6 +58,14 @@ pub(crate) fn interface_representation(content: &str) -> Result<String, Vec<Diag
 
     let content = content.replace("\n", "");
     Ok(utils::RE_TWO_OR_MORE_SPACES.replace_all(&content, "").to_string())
+}
+
+pub(crate) fn interface_representation_hash(source: &Source) -> String {
+    let Ok(repr) = interface_representation(&source.content) else { return source.content_hash() };
+    let mut hasher = md5::Md5::new();
+    hasher.update(&repr);
+    let result = hasher.finalize();
+    hex::encode(result)
 }
 
 #[cfg(test)]
