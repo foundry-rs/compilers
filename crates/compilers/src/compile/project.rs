@@ -109,7 +109,8 @@ use crate::{
     output::{AggregatedCompilerOutput, Builds},
     report,
     resolver::GraphEdges,
-    ArtifactOutput, CompilerSettings, Graph, Project, ProjectCompileOutput, Sources,
+    ArtifactOutput, CompilerSettings, Graph, Project, ProjectCompileOutput, ProjectPathsConfig,
+    Sources,
 };
 use foundry_compilers_core::error::Result;
 use rayon::prelude::*;
@@ -119,8 +120,14 @@ use std::{collections::HashMap, fmt::Debug, path::PathBuf, time::Instant};
 /// A set of different Solc installations with their version and the sources to be compiled
 pub(crate) type VersionedSources<L> = HashMap<L, HashMap<Version, Sources>>;
 
+/// Invoked before the actual compiler invocation and can override the input.
 pub trait Preprocessor<C: Compiler>: Debug {
-    fn preprocess(&self, compiler: &C, input: C::Input, dirty: &Vec<PathBuf>) -> Result<C::Input>;
+    fn preprocess(
+        &self,
+        compiler: &C,
+        input: C::Input,
+        paths: &ProjectPathsConfig<C::Language>,
+    ) -> Result<C::Input>;
 }
 
 #[derive(Debug)]
@@ -169,11 +176,8 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
         Ok(Self { edges, project, sources, preprocessor: None })
     }
 
-    pub fn with_preprocessor(
-        self,
-        preprocessor: impl Preprocessor<C> + 'static,
-    ) -> ProjectCompiler<'a, T, C> {
-        ProjectCompiler { preprocessor: Some(Box::new(preprocessor)), ..self }
+    pub fn with_preprocessor(self, preprocessor: impl Preprocessor<C> + 'static) -> Self {
+        Self { preprocessor: Some(Box::new(preprocessor)), ..self }
     }
 
     /// Compiles all the sources of the `Project` in the appropriate mode
@@ -482,7 +486,7 @@ impl<L: Language> CompilerSources<L> {
                     .collect();
 
                 if let Some(preprocessor) = preprocessor.as_ref() {
-                    input = preprocessor.preprocess(&project.compiler, input, &actually_dirty)?;
+                    input = preprocessor.preprocess(&project.compiler, input, &project.paths)?;
                 }
 
                 jobs.push((input, actually_dirty));

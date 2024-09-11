@@ -1,53 +1,53 @@
 use super::project::Preprocessor;
 use crate::{
     flatten::{apply_updates, Updates},
-    multi::{MultiCompiler, MultiCompilerInput},
+    multi::{MultiCompiler, MultiCompilerInput, MultiCompilerLanguage},
     solc::{SolcCompiler, SolcVersionedInput},
-    Compiler, Result, SolcError,
+    Compiler, ProjectPathsConfig, Result, SolcError,
 };
-use alloy_primitives::hex;
+use alloy_primitives::{hex};
 use foundry_compilers_artifacts::{
     ast::SourceLocation,
     output_selection::OutputSelection,
     visitor::{Visitor, Walk},
-    ContractDefinition, ContractKind, Expression, FunctionCall, MemberAccess, NewExpression,
-    Source, SourceUnit, SourceUnitPart, Sources, TypeName,
+     ContractDefinitionPart, Expression, FunctionCall,
+    FunctionKind, MemberAccess, SolcLanguage, Source, SourceUnit, SourceUnitPart,
+    Sources, TypeName,
 };
 use foundry_compilers_core::utils;
-use md5::{digest::typenum::Exp, Digest};
-use solang_parser::{
-    diagnostics::Diagnostic,
-    helpers::CodeLocation,
-    pt::{ContractPart, ContractTy, FunctionAttribute, FunctionTy, SourceUnitPart, Visibility},
-};
+use md5::{ Digest};
+use solang_parser::{diagnostics::Diagnostic, helpers::CodeLocation, pt};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, },
+    fmt::Write,
     path::{Path, PathBuf},
 };
 
 pub(crate) fn interface_representation(content: &str) -> Result<String, Vec<Diagnostic>> {
-    let (source_unit, _) = solang_parser::parse(&content, 0)?;
+    let (source_unit, _) = solang_parser::parse(content, 0)?;
     let mut locs_to_remove = Vec::new();
 
     for part in source_unit.0 {
-        if let SourceUnitPart::ContractDefinition(contract) = part {
-            if matches!(contract.ty, ContractTy::Interface(_) | ContractTy::Library(_)) {
+        if let pt::SourceUnitPart::ContractDefinition(contract) = part {
+            if matches!(contract.ty, pt::ContractTy::Interface(_) | pt::ContractTy::Library(_)) {
                 continue;
             }
             for part in contract.parts {
-                if let ContractPart::FunctionDefinition(func) = part {
-                    let is_exposed = func.ty == FunctionTy::Function
+                if let pt::ContractPart::FunctionDefinition(func) = part {
+                    let is_exposed = func.ty == pt::FunctionTy::Function
                         && func.attributes.iter().any(|attr| {
                             matches!(
                                 attr,
-                                FunctionAttribute::Visibility(
-                                    Visibility::External(_) | Visibility::Public(_)
+                                pt::FunctionAttribute::Visibility(
+                                    pt::Visibility::External(_) | pt::Visibility::Public(_)
                                 )
                             )
                         })
                         || matches!(
                             func.ty,
-                            FunctionTy::Constructor | FunctionTy::Fallback | FunctionTy::Receive
+                            pt::FunctionTy::Constructor
+                                | pt::FunctionTy::Fallback
+                                | pt::FunctionTy::Receive
                         );
 
                     if !is_exposed {
@@ -92,9 +92,15 @@ pub struct ItemLocation {
 }
 
 impl ItemLocation {
-    fn try_from_loc(loc: SourceLocation) -> Option<ItemLocation> {
-        Some(ItemLocation { start: loc.start?, end: loc.start? + loc.length? })
+    fn try_from_loc(loc: SourceLocation) -> Option<Self> {
+        Some(Self { start: loc.start?, end: loc.start? + loc.length? })
     }
+}
+
+fn is_test_or_script<L>(path: &Path, paths: &ProjectPathsConfig<L>) -> bool {
+    let test_dir = paths.tests.strip_prefix(&paths.root).unwrap_or(&paths.root);
+    let script_dir = paths.scripts.strip_prefix(&paths.root).unwrap_or(&paths.root);
+    path.starts_with(test_dir) || path.starts_with(script_dir)
 }
 
 #[derive(Debug)]
@@ -177,113 +183,161 @@ impl Visitor for BytecodeDependencyCollector<'_> {
     }
 }
 
-struct TestOptimizer<'a> {
+/// Keeps data about a single contract definition.
+struct ContractData {
+    /// Artifact ID to use in `getCode`/`deployCode` calls.
+    artifact: String,
+    /// Whether contract has a non-empty constructor.
+    has_constructor: bool,
+}
+
+/// Receives a set of source files along with their ASTs and removes bytecode dependencies from
+/// contracts by replacing them with cheatcode invocations.
+struct BytecodeDependencyOptimizer<'a> {
     asts: BTreeMap<PathBuf, SourceUnit>,
-    dirty: &'a Vec<PathBuf>,
+    paths: &'a ProjectPathsConfig<SolcLanguage>,
     sources: &'a mut Sources,
 }
 
-impl TestOptimizer<'_> {
+impl BytecodeDependencyOptimizer<'_> {
     fn new<'a>(
         asts: BTreeMap<PathBuf, SourceUnit>,
-        dirty: &'a Vec<PathBuf>,
+        paths: &'a ProjectPathsConfig<SolcLanguage>,
         sources: &'a mut Sources,
-    ) -> TestOptimizer<'a> {
-        TestOptimizer { asts, dirty, sources }
+    ) -> BytecodeDependencyOptimizer<'a> {
+        BytecodeDependencyOptimizer { asts, paths, sources }
     }
 
-    fn optimize(self) {
+    fn process(self) {
         let mut updates = Updates::default();
-        let ignored_contracts = self.collect_ignored_contracts();
-        self.rename_contracts_to_abstract(&ignored_contracts, &mut updates);
-        self.remove_bytecode_dependencies(&ignored_contracts, &mut updates);
+
+        let contracts = self.collect_contracts(&mut updates);
+        self.remove_bytecode_dependencies(&contracts, &mut updates);
 
         apply_updates(self.sources, updates);
     }
 
-    fn collect_ignored_contracts(&self) -> BTreeSet<usize> {
-        let mut ignored_sources = BTreeSet::new();
+    /// Collects a mapping from contract AST id to [ContractData].
+    fn collect_contracts(&self, updates: &mut Updates) -> BTreeMap<usize, ContractData> {
+        let mut contracts = BTreeMap::new();
 
-        for (path, ast) in &self.asts {
-            if path.to_str().unwrap().contains("test") || path.to_str().unwrap().contains("script")
-            {
-                ignored_sources.insert(ast.id);
-            } else if self.dirty.contains(path) {
-                ignored_sources.insert(ast.id);
-
-                for node in &ast.nodes {
-                    if let SourceUnitPart::ImportDirective(import) = node {
-                        ignored_sources.insert(import.source_unit);
-                    }
-                }
-            }
-        }
-
-        let mut ignored_contracts = BTreeSet::new();
-
-        for ast in self.asts.values() {
-            if ignored_sources.contains(&ast.id) {
-                for node in &ast.nodes {
-                    if let SourceUnitPart::ContractDefinition(contract) = node {
-                        ignored_contracts.insert(contract.id);
-                    }
-                }
-            }
-        }
-
-        ignored_contracts
-    }
-
-    fn rename_contracts_to_abstract(
-        &self,
-        ignored_contracts: &BTreeSet<usize>,
-        updates: &mut Updates,
-    ) {
-        for (path, ast) in &self.asts {
-            for node in &ast.nodes {
-                if let SourceUnitPart::ContractDefinition(contract) = node {
-                    if ignored_contracts.contains(&contract.id) {
-                        continue;
-                    }
-                    if matches!(contract.kind, ContractKind::Contract) && !contract.is_abstract {
-                        if let Some(start) = contract.src.start {
-                            updates.entry(path.clone()).or_default().insert((
-                                start,
-                                start,
-                                "abstract ".to_string(),
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fn remove_bytecode_dependencies(
-        &self,
-        ignored_contracts: &BTreeSet<usize>,
-        updates: &mut Updates,
-    ) {
         for (path, ast) in &self.asts {
             let src = self.sources.get(path).unwrap().content.as_str();
+
+            for node in &ast.nodes {
+                if let SourceUnitPart::ContractDefinition(contract) = node {
+                    let artifact = format!("{}:{}", path.display(), contract.name);
+                    let constructor = contract.nodes.iter().find_map(|node| {
+                        let ContractDefinitionPart::FunctionDefinition(func) = node else {
+                            return None;
+                        };
+                        if *func.kind() != FunctionKind::Constructor {
+                            return None;
+                        }
+
+                        Some(func)
+                    });
+
+                    if constructor.map_or(true, |func| func.parameters.parameters.is_empty()) {
+                        contracts
+                            .insert(contract.id, ContractData { artifact, has_constructor: false });
+                        continue;
+                    }
+                    contracts.insert(contract.id, ContractData { artifact, has_constructor: true });
+
+                    let constructor = constructor.unwrap();
+                    let updates = updates.entry(path.clone()).or_default();
+
+                    let mut constructor_helper =
+                        format!("struct ConstructorHelper{} {{", contract.id);
+
+                    for param in &constructor.parameters.parameters {
+                        if let Some(loc) = ItemLocation::try_from_loc(param.src) {
+                            let param = &src[loc.start..loc.end]
+                                .replace(" memory ", " ")
+                                .replace(" calldata ", " ");
+                            write!(constructor_helper, "{param};").unwrap();
+                        }
+                    }
+
+                    constructor_helper.push('}');
+
+                    if let Some(loc) = ItemLocation::try_from_loc(constructor.src) {
+                        updates.insert((loc.start, loc.start, constructor_helper));
+                    }
+                }
+            }
+        }
+
+        contracts
+    }
+
+    /// Goes over all source files and replaces bytecode dependencies with cheatcode invocations.
+    fn remove_bytecode_dependencies(
+        &self,
+        contracts: &BTreeMap<usize, ContractData>,
+        updates: &mut Updates,
+    ) {
+        let test_dir = &self.paths.tests.strip_prefix(&self.paths.root).unwrap_or(&self.paths.root);
+        let script_dir =
+            &self.paths.scripts.strip_prefix(&self.paths.root).unwrap_or(&self.paths.root);
+        for (path, ast) in &self.asts {
+            if !path.starts_with(test_dir) && !path.starts_with(script_dir) {
+                continue;
+            }
+            let src = self.sources.get(path).unwrap().content.as_str();
+
+            if src.is_empty() {
+                continue;
+            }
             let mut collector = BytecodeDependencyCollector::new(src);
             ast.walk(&mut collector);
+
             let updates = updates.entry(path.clone()).or_default();
+            let vm_interface_name = format!("VmContractHelper{}", ast.id);
+            let vm = format!("{vm_interface_name}(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D)");
+
             for dep in collector.dependencies {
+                let ContractData { artifact, has_constructor } =
+                    contracts.get(&dep.referenced_contract).unwrap();
                 match dep.kind {
                     BytecodeDependencyKind::CreationCode => {
-                        updates.insert((dep.loc.start, dep.loc.end, "bytes(\"\")".to_string()));
+                        updates.insert((
+                            dep.loc.start,
+                            dep.loc.end,
+                            format!("{vm}.getCode(\"{artifact}\")"),
+                        ));
                     }
                     BytecodeDependencyKind::New(new_loc, name) => {
-                        updates.insert((
-                            new_loc.start,
-                            new_loc.end,
-                            format!("{name}(payable(address(uint160(uint256(keccak256(abi.encode"),
-                        ));
-                        updates.insert((dep.loc.end, dep.loc.end, format!("))))))")));
+                        if !*has_constructor {
+                            updates.insert((
+                                dep.loc.start,
+                                dep.loc.end,
+                                format!("{name}(payable({vm}.deployCode(\"{artifact}\")))"),
+                            ));
+                        } else {
+                            updates.insert((
+                                new_loc.start,
+                                new_loc.end,
+                                format!("{name}(payable({vm}.deployCode(\"{artifact}\", abi.encode({name}.ConstructorHelper{}", dep.referenced_contract),
+                            ));
+                            updates.insert((dep.loc.end, dep.loc.end, "))))".to_string()));
+                        }
                     }
                 };
             }
+            updates.insert((
+                src.len() - 1,
+                src.len() - 1,
+                format!(
+                    r#"
+interface {vm_interface_name} {{
+    function deployCode(string memory _artifact, bytes memory _data) external returns (address);
+    function deployCode(string memory _artifact) external returns (address);
+    function getCode(string memory _artifact) external returns (bytes memory);
+}}"#
+                ),
+            ));
         }
     }
 }
@@ -296,8 +350,14 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
         &self,
         solc: &SolcCompiler,
         mut input: SolcVersionedInput,
-        dirty: &Vec<PathBuf>,
+        paths: &ProjectPathsConfig<SolcLanguage>,
     ) -> Result<SolcVersionedInput> {
+        // Skip if we are not compiling any tests or scripts. Avoids unnecessary solc invocation and
+        // AST parsing.
+        if input.input.sources.iter().all(|(path, _)| !is_test_or_script(path, paths)) {
+            return Ok(input);
+        }
+
         let prev_output_selection = std::mem::replace(
             &mut input.input.settings.output_selection,
             OutputSelection::ast_output_selection(),
@@ -326,7 +386,7 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
             })
             .collect::<Result<BTreeMap<_, _>>>()?;
 
-        TestOptimizer::new(asts, dirty, &mut input.input.sources).optimize();
+        BytecodeDependencyOptimizer::new(asts, paths, &mut input.input.sources).process();
 
         Ok(input)
     }
@@ -337,12 +397,13 @@ impl Preprocessor<MultiCompiler> for TestOptimizerPreprocessor {
         &self,
         compiler: &MultiCompiler,
         input: <MultiCompiler as Compiler>::Input,
-        dirty: &Vec<PathBuf>,
+        paths: &ProjectPathsConfig<MultiCompilerLanguage>,
     ) -> Result<<MultiCompiler as Compiler>::Input> {
         match input {
             MultiCompilerInput::Solc(input) => {
                 if let Some(solc) = &compiler.solc {
-                    let input = self.preprocess(solc, input, dirty)?;
+                    let paths = paths.clone().with_language::<SolcLanguage>();
+                    let input = self.preprocess(solc, input, &paths)?;
                     Ok(MultiCompilerInput::Solc(input))
                 } else {
                     Ok(MultiCompilerInput::Solc(input))

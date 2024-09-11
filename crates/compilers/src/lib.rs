@@ -24,7 +24,7 @@ pub use resolver::Graph;
 pub mod compilers;
 pub use compilers::*;
 
-mod preprocessor;
+pub mod preprocessor;
 
 mod compile;
 pub use compile::{

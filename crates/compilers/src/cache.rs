@@ -658,7 +658,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
         let content_hash = source.content_hash();
         let interface_repr_hash = file
             .starts_with(&self.project.paths.sources)
-            .then(|| interface_representation_hash(&source));
+            .then(|| interface_representation_hash(source));
         let entry = CacheEntry {
             last_modification_date: CacheEntry::<C::Settings>::read_last_modification_date(&file)
                 .unwrap_or_default(),
@@ -788,7 +788,10 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
 
         let src_files = sources
             .keys()
-            .filter(|f| f.starts_with(&self.project.paths.sources))
+            .filter(|f| {
+                !f.starts_with(&self.project.paths.tests)
+                    && !f.starts_with(&self.project.paths.scripts)
+            })
             .collect::<HashSet<_>>();
 
         // Calculate content hashes for later comparison.
