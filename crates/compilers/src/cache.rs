@@ -4,6 +4,7 @@ use crate::{
     buildinfo::RawBuildInfo,
     compilers::{Compiler, CompilerSettings, Language},
     output::Builds,
+    preprocessor::interface_representation,
     resolver::GraphEdges,
     ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
     ProjectPaths, ProjectPathsConfig, SourceCompilationKind,
@@ -173,7 +174,10 @@ impl<S: CompilerSettings> CompilerCache<S> {
     pub fn join_entries(&mut self, root: &Path) -> &mut Self {
         self.files = std::mem::take(&mut self.files)
             .into_iter()
-            .map(|(path, entry)| (root.join(path), entry))
+            .map(|(path, mut entry)| {
+                entry.join_imports(root);
+                (root.join(path), entry)
+            })
             .collect();
         self
     }
@@ -182,7 +186,11 @@ impl<S: CompilerSettings> CompilerCache<S> {
     pub fn strip_entries_prefix(&mut self, base: &Path) -> &mut Self {
         self.files = std::mem::take(&mut self.files)
             .into_iter()
-            .map(|(path, entry)| (path.strip_prefix(base).map(Into::into).unwrap_or(path), entry))
+            .map(|(path, mut entry)| {
+                let path = path.strip_prefix(base).map(Into::into).unwrap_or(path);
+                entry.strip_imports_prefixes(base);
+                (path, entry)
+            })
             .collect();
         self
     }
@@ -405,6 +413,8 @@ pub struct CacheEntry<S = Settings> {
     pub last_modification_date: u64,
     /// hash to identify whether the content of the file changed
     pub content_hash: String,
+    /// hash of the interface representation of the file, if it's a source file
+    pub interface_repr_hash: Option<String>,
     /// identifier name see [`foundry_compilers_core::utils::source_name()`]
     pub source_name: PathBuf,
     /// what config was set when compiling this file
@@ -550,6 +560,17 @@ impl<S> CacheEntry<S> {
         self.artifacts().all(|a| a.path.exists())
     }
 
+    /// Joins all import paths with `base`
+    pub fn join_imports(&mut self, base: &Path) {
+        self.imports = self.imports.iter().map(|i| base.join(i)).collect();
+    }
+
+    /// Strips `base` from all import paths
+    pub fn strip_imports_prefixes(&mut self, base: &Path) {
+        self.imports =
+            self.imports.iter().map(|i| i.strip_prefix(base).unwrap_or(i).to_path_buf()).collect();
+    }
+
     /// Sets the artifact's paths to `base` adjoined to the artifact's `path`.
     pub fn join_artifacts_files(&mut self, base: &Path) {
         self.artifacts_mut().for_each(|a| a.path = base.join(&a.path))
@@ -625,20 +646,18 @@ pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput, C: Compiler> {
 impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
     /// Creates a new cache entry for the file
     fn create_cache_entry(&mut self, file: PathBuf, source: &Source) {
-        let imports = self
-            .edges
-            .imports(&file)
-            .into_iter()
-            .map(|import| strip_prefix(import, self.project.root()).into())
-            .collect();
-
+        let content_hash = source.content_hash();
+        let interface_repr_hash = file.starts_with(&self.project.paths.sources).then(|| {
+            interface_representation(&source.content).unwrap_or_else(|_| content_hash.clone())
+        });
         let entry = CacheEntry {
             last_modification_date: CacheEntry::<C::Settings>::read_last_modification_date(&file)
                 .unwrap_or_default(),
-            content_hash: source.content_hash(),
+            content_hash,
+            interface_repr_hash,
             source_name: strip_prefix(&file, self.project.root()).into(),
             compiler_settings: self.project.settings.clone(),
-            imports,
+            imports: self.edges.imports(&file).into_iter().map(|i| i.into()).collect(),
             version_requirement: self.edges.version_requirement(&file).map(|v| v.to_string()),
             // artifacts remain empty until we received the compiler output
             artifacts: Default::default(),
