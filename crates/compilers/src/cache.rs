@@ -786,14 +786,6 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             sources.insert(file.clone(), source);
         }
 
-        let src_files = sources
-            .keys()
-            .filter(|f| {
-                !f.starts_with(&self.project.paths.tests)
-                    && !f.starts_with(&self.project.paths.scripts)
-            })
-            .collect::<HashSet<_>>();
-
         // Calculate content hashes for later comparison.
         self.fill_hashes(&sources);
 
@@ -803,6 +795,14 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
                 self.dirty_sources.insert(file.clone());
             }
         }
+
+        let src_files = sources
+            .keys()
+            .filter(|f| {
+                !f.starts_with(&self.project.paths.tests)
+                    && !f.starts_with(&self.project.paths.scripts)
+            })
+            .collect::<HashSet<_>>();
 
         // Mark sources as dirty based on their imports
         for (file, entry) in &self.cache.files {

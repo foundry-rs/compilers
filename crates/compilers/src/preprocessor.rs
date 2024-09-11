@@ -10,15 +10,14 @@ use foundry_compilers_artifacts::{
     ast::SourceLocation,
     output_selection::OutputSelection,
     visitor::{Visitor, Walk},
-     ContractDefinitionPart, Expression, FunctionCall,
-    FunctionKind, MemberAccess, SolcLanguage, Source, SourceUnit, SourceUnitPart,
-    Sources, TypeName,
+    ContractDefinitionPart, Expression, FunctionCall, FunctionKind, MemberAccess, NewExpression,
+    SolcLanguage, Source, SourceUnit, SourceUnitPart, Sources, TypeName,
 };
 use foundry_compilers_core::utils;
-use md5::{ Digest};
+use md5::Digest;
 use solang_parser::{diagnostics::Diagnostic, helpers::CodeLocation, pt};
 use std::{
-    collections::{BTreeMap, },
+    collections::BTreeMap,
     fmt::Write,
     path::{Path, PathBuf},
 };
@@ -120,15 +119,22 @@ struct BytecodeDependency {
 struct BytecodeDependencyCollector<'a> {
     source: &'a str,
     dependencies: Vec<BytecodeDependency>,
+    total_count: usize,
 }
 
 impl BytecodeDependencyCollector<'_> {
     fn new(source: &str) -> BytecodeDependencyCollector<'_> {
-        BytecodeDependencyCollector { source, dependencies: Vec::new() }
+        BytecodeDependencyCollector { source, dependencies: Vec::new(), total_count: 0 }
     }
 }
 
 impl Visitor for BytecodeDependencyCollector<'_> {
+    fn visit_new_expression(&mut self, expr: &NewExpression) {
+        if let TypeName::UserDefinedTypeName(_) = &expr.type_name {
+            self.total_count += 1;
+        }
+    }
+
     fn visit_function_call(&mut self, call: &FunctionCall) {
         let (new_loc, expr) = match &call.expression {
             Expression::NewExpression(expr) => (expr.src, expr),
@@ -160,6 +166,7 @@ impl Visitor for BytecodeDependencyCollector<'_> {
         if access.member_name != "creationCode" {
             return;
         }
+        self.total_count += 1;
 
         let Expression::FunctionCall(call) = &access.expression else { return };
 
@@ -208,13 +215,15 @@ impl BytecodeDependencyOptimizer<'_> {
         BytecodeDependencyOptimizer { asts, paths, sources }
     }
 
-    fn process(self) {
+    fn process(self) -> Result<()> {
         let mut updates = Updates::default();
 
         let contracts = self.collect_contracts(&mut updates);
-        self.remove_bytecode_dependencies(&contracts, &mut updates);
+        self.remove_bytecode_dependencies(&contracts, &mut updates)?;
 
         apply_updates(self.sources, updates);
+
+        Ok(())
     }
 
     /// Collects a mapping from contract AST id to [ContractData].
@@ -277,7 +286,7 @@ impl BytecodeDependencyOptimizer<'_> {
         &self,
         contracts: &BTreeMap<usize, ContractData>,
         updates: &mut Updates,
-    ) {
+    ) -> Result<()> {
         let test_dir = &self.paths.tests.strip_prefix(&self.paths.root).unwrap_or(&self.paths.root);
         let script_dir =
             &self.paths.scripts.strip_prefix(&self.paths.root).unwrap_or(&self.paths.root);
@@ -292,6 +301,18 @@ impl BytecodeDependencyOptimizer<'_> {
             }
             let mut collector = BytecodeDependencyCollector::new(src);
             ast.walk(&mut collector);
+
+
+            // It is possible to write weird expressions which we won't catch.
+            // e.g. (((new Contract)))() is valid syntax
+            //
+            // We need to ensure that we've collected all dependencies that are in the contract.
+            if collector.dependencies.len() != collector.total_count {
+                return Err(SolcError::msg(format!(
+                    "failed to collect all bytecode dependencies for {}",
+                    path.display()
+                )));
+            }
 
             let updates = updates.entry(path.clone()).or_default();
             let vm_interface_name = format!("VmContractHelper{}", ast.id);
@@ -339,6 +360,8 @@ interface {vm_interface_name} {{
                 ),
             ));
         }
+
+        Ok(())
     }
 }
 
@@ -386,7 +409,7 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
             })
             .collect::<Result<BTreeMap<_, _>>>()?;
 
-        BytecodeDependencyOptimizer::new(asts, paths, &mut input.input.sources).process();
+        BytecodeDependencyOptimizer::new(asts, paths, &mut input.input.sources).process()?;
 
         Ok(input)
     }
