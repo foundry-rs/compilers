@@ -476,14 +476,6 @@ impl<L: Language> CompilerSources<L> {
                 let mut input = C::Input::build(sources, settings, language, version.clone());
 
                 input.strip_prefix(project.paths.root.as_path());
-                let actually_dirty = actually_dirty
-                    .into_iter()
-                    .map(|path| {
-                        path.strip_prefix(project.paths.root.as_path())
-                            .unwrap_or(&path)
-                            .to_path_buf()
-                    })
-                    .collect();
 
                 if let Some(preprocessor) = preprocessor.as_ref() {
                     input = preprocessor.preprocess(&project.compiler, input, &project.paths)?;
@@ -511,7 +503,11 @@ impl<L: Language> CompilerSources<L> {
 
             let build_info = RawBuildInfo::new(&input, &output, project.build_info)?;
 
-            output.retain_files(actually_dirty);
+            output.retain_files(
+                actually_dirty
+                    .iter()
+                    .map(|f| f.strip_prefix(project.paths.root.as_path()).unwrap_or(f)),
+            );
             output.join_all(project.paths.root.as_path());
 
             aggregated.extend(version.clone(), build_info, output);

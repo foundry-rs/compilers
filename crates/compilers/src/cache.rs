@@ -174,10 +174,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     pub fn join_entries(&mut self, root: &Path) -> &mut Self {
         self.files = std::mem::take(&mut self.files)
             .into_iter()
-            .map(|(path, mut entry)| {
-                entry.join_imports(root);
-                (root.join(path), entry)
-            })
+            .map(|(path, entry)| (root.join(path), entry))
             .collect();
         self
     }
@@ -186,11 +183,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     pub fn strip_entries_prefix(&mut self, base: &Path) -> &mut Self {
         self.files = std::mem::take(&mut self.files)
             .into_iter()
-            .map(|(path, mut entry)| {
-                let path = path.strip_prefix(base).map(Into::into).unwrap_or(path);
-                entry.strip_imports_prefixes(base);
-                (path, entry)
-            })
+            .map(|(path, entry)| (path.strip_prefix(base).map(Into::into).unwrap_or(path), entry))
             .collect();
         self
     }
@@ -560,17 +553,6 @@ impl<S> CacheEntry<S> {
         self.artifacts().all(|a| a.path.exists())
     }
 
-    /// Joins all import paths with `base`
-    pub fn join_imports(&mut self, base: &Path) {
-        self.imports = self.imports.iter().map(|i| base.join(i)).collect();
-    }
-
-    /// Strips `base` from all import paths
-    pub fn strip_imports_prefixes(&mut self, base: &Path) {
-        self.imports =
-            self.imports.iter().map(|i| i.strip_prefix(base).unwrap_or(i).to_path_buf()).collect();
-    }
-
     /// Sets the artifact's paths to `base` adjoined to the artifact's `path`.
     pub fn join_artifacts_files(&mut self, base: &Path) {
         self.artifacts_mut().for_each(|a| a.path = base.join(&a.path))
@@ -647,27 +629,33 @@ pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput, C: Compiler> {
 }
 
 impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
+    /// Whther given file is a source file or a test/script file.
+    fn is_source_file(&self, file: &Path) -> bool {
+        !file.starts_with(&self.project.paths.tests)
+            && !file.starts_with(&self.project.paths.scripts)
+    }
+
     /// Creates a new cache entry for the file
-    fn create_cache_entry(
-        &mut self,
-        file: PathBuf,
-        source: &Source,
-        edges: Option<&GraphEdges<C::ParsedSource>>,
-    ) {
-        let edges = edges.unwrap_or(&self.edges);
-        let content_hash = source.content_hash();
-        let interface_repr_hash = file
-            .starts_with(&self.project.paths.sources)
-            .then(|| interface_representation_hash(source));
+    fn create_cache_entry(&mut self, file: PathBuf, source: &Source) {
+        let imports = self
+            .edges
+            .imports(&file)
+            .into_iter()
+            .map(|import| strip_prefix(import, self.project.root()).into())
+            .collect();
+
+        let interface_repr_hash =
+            self.is_source_file(&file).then(|| interface_representation_hash(source));
+
         let entry = CacheEntry {
             last_modification_date: CacheEntry::<C::Settings>::read_last_modification_date(&file)
                 .unwrap_or_default(),
-            content_hash,
+            content_hash: source.content_hash(),
             interface_repr_hash,
             source_name: strip_prefix(&file, self.project.root()).into(),
             compiler_settings: self.project.settings.clone(),
-            imports: edges.imports(&file).into_iter().map(|i| i.into()).collect(),
-            version_requirement: edges.version_requirement(&file).map(|v| v.to_string()),
+            imports,
+            version_requirement: self.edges.version_requirement(&file).map(|v| v.to_string()),
             // artifacts remain empty until we received the compiler output
             artifacts: Default::default(),
             seen_by_compiler: false,
@@ -701,7 +689,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
 
             // Ensure that we have a cache entry for all sources.
             if !self.cache.files.contains_key(file) {
-                self.create_cache_entry(file.clone(), source, None);
+                self.create_cache_entry(file.clone(), source);
             }
         }
 
@@ -796,39 +784,6 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             }
         }
 
-        let src_files = sources
-            .keys()
-            .filter(|f| {
-                !f.starts_with(&self.project.paths.tests)
-                    && !f.starts_with(&self.project.paths.scripts)
-            })
-            .collect::<HashSet<_>>();
-
-        // Mark sources as dirty based on their imports
-        for (file, entry) in &self.cache.files {
-            if self.dirty_sources.contains(file) {
-                continue;
-            }
-            let is_src = src_files.contains(file);
-            for import in &entry.imports {
-                if is_src && self.dirty_sources.contains(import) {
-                    self.dirty_sources.insert(file.clone());
-                    break;
-                } else if !is_src
-                    && self.dirty_sources.contains(import)
-                    && (!src_files.contains(import) || self.is_dirty_impl(import, true))
-                {
-                    self.dirty_sources.insert(file.clone());
-                }
-            }
-        }
-
-        // Remove all dirty files from cache.
-        for file in &self.dirty_sources {
-            debug!("removing dirty file from cache: {}", file.display());
-            self.cache.remove(file);
-        }
-
         // Build a temporary graph for populating cache. We want to ensure that we preserve all just
         // removed entries with updated data. We need separate graph for this because
         // `self.edges` only contains graph data for in-scope sources but we are operating on cache
@@ -842,12 +797,41 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
 
         let (sources, edges) = graph.into_sources();
 
+        // Mark sources as dirty based on their imports
+        for file in sources.keys() {
+            if self.dirty_sources.contains(file) {
+                continue;
+            }
+            let is_src = self.is_source_file(file);
+            for import in edges.imports(file) {
+                // Any source file importing dirty source file is dirty.
+                if is_src && self.dirty_sources.contains(import) {
+                    self.dirty_sources.insert(file.clone());
+                    break;
+                // For non-src files we mark them as dirty only if they import dirty non-src file
+                // or src file for which interface representation changed.
+                } else if !is_src
+                    && self.dirty_sources.contains(import)
+                    && (!self.is_source_file(import) || self.is_dirty_impl(import, true))
+                {
+                    self.dirty_sources.insert(file.clone());
+                }
+            }
+        }
+
+        // Remove all dirty files from cache.
+        for file in &self.dirty_sources {
+            debug!("removing dirty file from cache: {}", file.display());
+            self.cache.remove(file);
+        }
+
+        // Create new entries for all source files
         for (file, source) in sources {
             if self.cache.files.contains_key(&file) {
                 continue;
             }
 
-            self.create_cache_entry(file.clone(), &source, Some(&edges));
+            self.create_cache_entry(file.clone(), &source);
         }
     }
 
@@ -894,7 +878,8 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             if let hash_map::Entry::Vacant(entry) = self.content_hashes.entry(file.clone()) {
                 entry.insert(source.content_hash());
             }
-            if file.starts_with(&self.project.paths.sources) {
+            // Fill interface representation hashes for source files
+            if self.is_source_file(&file) {
                 if let hash_map::Entry::Vacant(entry) =
                     self.interface_repr_hashes.entry(file.clone())
                 {

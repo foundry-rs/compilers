@@ -5,7 +5,7 @@ use crate::{
     solc::{SolcCompiler, SolcVersionedInput},
     Compiler, ProjectPathsConfig, Result, SolcError,
 };
-use alloy_primitives::{hex};
+use alloy_primitives::hex;
 use foundry_compilers_artifacts::{
     ast::SourceLocation,
     output_selection::OutputSelection,
@@ -301,7 +301,6 @@ impl BytecodeDependencyOptimizer<'_> {
             }
             let mut collector = BytecodeDependencyCollector::new(src);
             ast.walk(&mut collector);
-
 
             // It is possible to write weird expressions which we won't catch.
             // e.g. (((new Contract)))() is valid syntax
