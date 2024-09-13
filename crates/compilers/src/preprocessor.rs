@@ -18,8 +18,7 @@ use itertools::Itertools;
 use md5::Digest;
 use solang_parser::{diagnostics::Diagnostic, helpers::CodeLocation, pt};
 use std::{
-    collections::BTreeMap,
-    fmt::Write,
+    collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
 };
 
@@ -126,6 +125,7 @@ struct BytecodeDependency {
     referenced_contract: usize,
 }
 
+/// Walks over AST and collects [`BytecodeDependency`]s.
 #[derive(Debug)]
 struct BytecodeDependencyCollector<'a> {
     source: &'a str,
@@ -201,27 +201,6 @@ impl Visitor for BytecodeDependencyCollector<'_> {
     }
 }
 
-fn build_constructor_struct<'a>(
-    parameters: &'a ParameterList,
-    src: &'a str,
-) -> Result<(String, Vec<&'a str>)> {
-    let mut s = "struct ConstructorArgs {".to_string();
-    let mut param_names = Vec::new();
-
-    for param in &parameters.parameters {
-        param_names.push(param.name.as_str());
-        if let Some(loc) = ItemLocation::try_from_loc(param.src) {
-            let param_def =
-                &src[loc.start..loc.end].replace(" memory ", " ").replace(" calldata ", " ");
-            write!(s, "{param_def};")?;
-        }
-    }
-
-    s.push('}');
-
-    Ok((s, param_names))
-}
-
 /// Keeps data about a single contract definition.
 struct ContractData<'a> {
     /// AST id of the contract.
@@ -239,15 +218,65 @@ struct ContractData<'a> {
 }
 
 impl ContractData<'_> {
+    /// If contract has a non-empty constructor, generates a helper source file for it containing a
+    /// helper to encode constructor arguments.
+    ///
+    /// This is needed because current preprocessing wraps the arguments, leaving them unchanged.
+    /// This allows us to handle nested new expressions correctly. However, this requires us to have
+    /// a way to wrap both named and unnamed arguments. i.e you can't do abi.encode({arg: val}).
+    ///
+    /// This function produces a helper struct + a helper function to encode the arguments. The
+    /// struct is defined in scope of an abstract contract inheriting the contract containing the
+    /// constructor. This is done as a hack to allow us to inherit the same scope of definitions.
+    ///
+    /// The resulted helper looks like this:
+    /// ```solidity
+    /// import "lib/openzeppelin-contracts/contracts/token/ERC20.sol";
+    ///
+    /// abstract contract DeployHelper335 is ERC20 {
+    ///     struct ConstructorArgs {
+    ///         string name;
+    ///         string symbol;
+    ///     }
+    /// }
+    ///
+    /// function encodeArgs335(DeployHelper335.ConstructorArgs memory args) pure returns (bytes memory) {
+    ///     return abi.encode(args.name, args.symbol);
+    /// }
+    /// ```
+    ///
+    /// Example usage:
+    /// ```solidity
+    /// new ERC20(name, symbol)
+    /// ```
+    /// becomes
+    /// ```solidity
+    /// vm.deployCode("artifact path", encodeArgs335(DeployHelper335.ConstructorArgs(name, symbol)))
+    /// ```
+    /// With named arguments:
+    /// ```solidity
+    /// new ERC20({name: name, symbol: symbol})
+    /// ```
+    /// becomes
+    /// ```solidity
+    /// vm.deployCode("artifact path", encodeArgs335(DeployHelper335.ConstructorArgs({name: name, symbol: symbol})))
+    /// ```
     pub fn build_helper(&self) -> Result<Option<String>> {
         let Self { ast_id, path, name, constructor_params, src, .. } = self;
 
         let Some(params) = constructor_params else { return Ok(None) };
-        let (constructor_struct, param_names) = build_constructor_struct(params, src)?;
-        let abi_encode = format!(
-            "abi.encode({})",
-            param_names.iter().map(|name| format!("args.{name}")).join(", ")
-        );
+
+        let struct_fields = params
+            .parameters
+            .iter()
+            .filter_map(|param| {
+                let loc = ItemLocation::try_from_loc(param.src)?;
+                Some(src[loc.start..loc.end].replace(" memory ", " ").replace(" calldata ", " "))
+            })
+            .join("; ");
+
+        let abi_encode_args =
+            params.parameters.iter().map(|param| format!("args.{}", param.name)).join(", ");
 
         let helper = format!(
             r#"
@@ -256,11 +285,13 @@ pragma solidity >=0.4.0;
 import "{path}";
 
 abstract contract DeployHelper{ast_id} is {name} {{
-    {constructor_struct}
+    struct ConstructorArgs {{
+        {struct_fields};
+    }}
 }}
 
 function encodeArgs{ast_id}(DeployHelper{ast_id}.ConstructorArgs memory args) pure returns (bytes memory) {{
-    return {abi_encode};
+    return abi.encode({abi_encode_args});
 }}
         "#,
             path = path.display(),
@@ -287,6 +318,7 @@ impl BytecodeDependencyOptimizer<'_> {
         BytecodeDependencyOptimizer { asts, paths, sources }
     }
 
+    /// Returns true if the file is not a test or script file.
     fn is_src_file(&self, file: &Path) -> bool {
         let tests = self.paths.tests.strip_prefix(&self.paths.root).unwrap_or(&self.paths.root);
         let scripts = self.paths.scripts.strip_prefix(&self.paths.root).unwrap_or(&self.paths.root);
@@ -308,7 +340,8 @@ impl BytecodeDependencyOptimizer<'_> {
         Ok(())
     }
 
-    /// Collects a mapping from contract AST id to [ContractData].
+    /// Collects a mapping from contract AST id to [ContractData] for all contracts defined in src/
+    /// files.
     fn collect_contracts(&self) -> BTreeMap<usize, ContractData<'_>> {
         let mut contracts = BTreeMap::new();
 
@@ -353,7 +386,9 @@ impl BytecodeDependencyOptimizer<'_> {
         contracts
     }
 
-    /// Creates a helper library used to generate helpers for contract deployment.
+    /// Creates helper libraries for contracts with a non-empty constructor.
+    ///
+    /// See [`ContractData::build_helper`] for more details.
     fn create_deploy_helpers(
         &self,
         contracts: &BTreeMap<usize, ContractData<'_>>,
@@ -369,7 +404,8 @@ impl BytecodeDependencyOptimizer<'_> {
         Ok(new_sources)
     }
 
-    /// Goes over all source files and replaces bytecode dependencies with cheatcode invocations.
+    /// Goes over all test/script files and replaces bytecode dependencies with cheatcode
+    /// invocations.
     fn remove_bytecode_dependencies(
         &self,
         contracts: &BTreeMap<usize, ContractData<'_>>,
@@ -386,7 +422,7 @@ impl BytecodeDependencyOptimizer<'_> {
             }
 
             let updates = updates.entry(path.clone()).or_default();
-            let mut used_helpers = Vec::new();
+            let mut used_helpers = BTreeSet::new();
 
             let mut collector = BytecodeDependencyCollector::new(src);
             ast.walk(&mut collector);
@@ -422,13 +458,16 @@ impl BytecodeDependencyOptimizer<'_> {
                     }
                     BytecodeDependencyKind::New(new_loc, name) => {
                         if constructor_params.is_none() {
+                            // if there's no constructor, we can just call deployCode with one
+                            // argument
                             updates.insert((
                                 dep.loc.start,
                                 dep.loc.end,
                                 format!("{name}(payable({vm}.deployCode(\"{artifact}\")))"),
                             ));
                         } else {
-                            used_helpers.push(dep.referenced_contract);
+                            // if there's a constructor, we use our helper
+                            used_helpers.insert(dep.referenced_contract);
                             updates.insert((
                                 new_loc.start,
                                 new_loc.end,
