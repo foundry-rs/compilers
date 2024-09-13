@@ -102,6 +102,7 @@ impl ItemLocation {
     }
 }
 
+/// Checks if the given path is a test/script file.
 fn is_test_or_script<L>(path: &Path, paths: &ProjectPathsConfig<L>) -> bool {
     let test_dir = paths.tests.strip_prefix(&paths.root).unwrap_or(&paths.root);
     let script_dir = paths.scripts.strip_prefix(&paths.root).unwrap_or(&paths.root);
@@ -318,14 +319,6 @@ impl BytecodeDependencyOptimizer<'_> {
         BytecodeDependencyOptimizer { asts, paths, sources }
     }
 
-    /// Returns true if the file is not a test or script file.
-    fn is_src_file(&self, file: &Path) -> bool {
-        let tests = self.paths.tests.strip_prefix(&self.paths.root).unwrap_or(&self.paths.root);
-        let scripts = self.paths.scripts.strip_prefix(&self.paths.root).unwrap_or(&self.paths.root);
-
-        !file.starts_with(tests) && !file.starts_with(scripts)
-    }
-
     fn process(self) -> Result<()> {
         let mut updates = Updates::default();
 
@@ -348,7 +341,7 @@ impl BytecodeDependencyOptimizer<'_> {
         for (path, ast) in &self.asts {
             let src = self.sources.get(path).unwrap().content.as_str();
 
-            if !self.is_src_file(path) {
+            if is_test_or_script(path, &self.paths) {
                 continue;
             }
 
@@ -412,7 +405,7 @@ impl BytecodeDependencyOptimizer<'_> {
         updates: &mut Updates,
     ) -> Result<()> {
         for (path, ast) in &self.asts {
-            if self.is_src_file(path) {
+            if !is_test_or_script(path, &self.paths) {
                 continue;
             }
             let src = self.sources.get(path).unwrap().content.as_str();
