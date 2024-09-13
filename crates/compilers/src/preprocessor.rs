@@ -11,9 +11,10 @@ use foundry_compilers_artifacts::{
     output_selection::OutputSelection,
     visitor::{Visitor, Walk},
     ContractDefinitionPart, Expression, FunctionCall, FunctionKind, MemberAccess, NewExpression,
-    SolcLanguage, Source, SourceUnit, SourceUnitPart, Sources, TypeName,
+    ParameterList, SolcLanguage, Source, SourceUnit, SourceUnitPart, Sources, TypeName,
 };
 use foundry_compilers_core::utils;
+use itertools::Itertools;
 use md5::Digest;
 use solang_parser::{diagnostics::Diagnostic, helpers::CodeLocation, pt};
 use std::{
@@ -22,6 +23,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Removes parts of the contract which do not alter its interface:
+///   - Internal functions
+///   - External functions bodies
+///
+/// Preserves all libraries and interfaces.
 pub(crate) fn interface_representation(content: &str) -> Result<String, Vec<Diagnostic>> {
     let (source_unit, _) = solang_parser::parse(content, 0)?;
     let mut locs_to_remove = Vec::new();
@@ -76,6 +82,7 @@ pub(crate) fn interface_representation(content: &str) -> Result<String, Vec<Diag
     Ok(utils::RE_TWO_OR_MORE_SPACES.replace_all(&content, "").to_string())
 }
 
+/// Computes hash of [`interface_representation`] of the source.
 pub(crate) fn interface_representation_hash(source: &Source) -> String {
     let Ok(repr) = interface_representation(&source.content) else { return source.content_hash() };
     let mut hasher = md5::Md5::new();
@@ -102,12 +109,16 @@ fn is_test_or_script<L>(path: &Path, paths: &ProjectPathsConfig<L>) -> bool {
     path.starts_with(test_dir) || path.starts_with(script_dir)
 }
 
+/// Kind of the bytecode dependency.
 #[derive(Debug)]
 enum BytecodeDependencyKind {
+    /// `type(Contract).creationCode`
     CreationCode,
+    /// `new Contract`
     New(ItemLocation, String),
 }
 
+/// Represents a single bytecode dependency.
 #[derive(Debug)]
 struct BytecodeDependency {
     kind: BytecodeDependencyKind,
@@ -190,12 +201,73 @@ impl Visitor for BytecodeDependencyCollector<'_> {
     }
 }
 
+fn build_constructor_struct<'a>(
+    parameters: &'a ParameterList,
+    src: &'a str,
+) -> Result<(String, Vec<&'a str>)> {
+    let mut s = "struct ConstructorArgs {".to_string();
+    let mut param_names = Vec::new();
+
+    for param in &parameters.parameters {
+        param_names.push(param.name.as_str());
+        if let Some(loc) = ItemLocation::try_from_loc(param.src) {
+            let param_def =
+                &src[loc.start..loc.end].replace(" memory ", " ").replace(" calldata ", " ");
+            write!(s, "{param_def};")?;
+        }
+    }
+
+    s.push('}');
+
+    Ok((s, param_names))
+}
+
 /// Keeps data about a single contract definition.
-struct ContractData {
-    /// Artifact ID to use in `getCode`/`deployCode` calls.
+struct ContractData<'a> {
+    /// AST id of the contract.
+    ast_id: usize,
+    /// Path of the source file.
+    path: &'a Path,
+    /// Name of the contract
+    name: &'a str,
+    /// Constructor parameters.
+    constructor_params: Option<&'a ParameterList>,
+    /// Reference to source code.
+    src: &'a str,
+    /// Artifact string to pass into cheatcodes.
     artifact: String,
-    /// Whether contract has a non-empty constructor.
-    has_constructor: bool,
+}
+
+impl ContractData<'_> {
+    pub fn build_helper(&self) -> Result<Option<String>> {
+        let Self { ast_id, path, name, constructor_params, src, .. } = self;
+
+        let Some(params) = constructor_params else { return Ok(None) };
+        let (constructor_struct, param_names) = build_constructor_struct(params, src)?;
+        let abi_encode = format!(
+            "abi.encode({})",
+            param_names.iter().map(|name| format!("args.{name}")).join(", ")
+        );
+
+        let helper = format!(
+            r#"
+pragma solidity >=0.4.0;
+
+import "{path}";
+
+abstract contract DeployHelper{ast_id} is {name} {{
+    {constructor_struct}
+}}
+
+function encodeArgs{ast_id}(DeployHelper{ast_id}.ConstructorArgs memory args) pure returns (bytes memory) {{
+    return {abi_encode};
+}}
+        "#,
+            path = path.display(),
+        );
+
+        Ok(Some(helper))
+    }
 }
 
 /// Receives a set of source files along with their ASTs and removes bytecode dependencies from
@@ -215,11 +287,21 @@ impl BytecodeDependencyOptimizer<'_> {
         BytecodeDependencyOptimizer { asts, paths, sources }
     }
 
+    fn is_src_file(&self, file: &Path) -> bool {
+        let tests = self.paths.tests.strip_prefix(&self.paths.root).unwrap_or(&self.paths.root);
+        let scripts = self.paths.scripts.strip_prefix(&self.paths.root).unwrap_or(&self.paths.root);
+
+        !file.starts_with(tests) && !file.starts_with(scripts)
+    }
+
     fn process(self) -> Result<()> {
         let mut updates = Updates::default();
 
-        let contracts = self.collect_contracts(&mut updates);
+        let contracts = self.collect_contracts();
+        let additional_sources = self.create_deploy_helpers(&contracts)?;
         self.remove_bytecode_dependencies(&contracts, &mut updates)?;
+
+        self.sources.extend(additional_sources);
 
         apply_updates(self.sources, updates);
 
@@ -227,11 +309,15 @@ impl BytecodeDependencyOptimizer<'_> {
     }
 
     /// Collects a mapping from contract AST id to [ContractData].
-    fn collect_contracts(&self, updates: &mut Updates) -> BTreeMap<usize, ContractData> {
+    fn collect_contracts(&self) -> BTreeMap<usize, ContractData<'_>> {
         let mut contracts = BTreeMap::new();
 
         for (path, ast) in &self.asts {
             let src = self.sources.get(path).unwrap().content.as_str();
+
+            if !self.is_src_file(path) {
+                continue;
+            }
 
             for node in &ast.nodes {
                 if let SourceUnitPart::ContractDefinition(contract) = node {
@@ -247,33 +333,19 @@ impl BytecodeDependencyOptimizer<'_> {
                         Some(func)
                     });
 
-                    if constructor.map_or(true, |func| func.parameters.parameters.is_empty()) {
-                        contracts
-                            .insert(contract.id, ContractData { artifact, has_constructor: false });
-                        continue;
-                    }
-                    contracts.insert(contract.id, ContractData { artifact, has_constructor: true });
-
-                    let constructor = constructor.unwrap();
-                    let updates = updates.entry(path.clone()).or_default();
-
-                    let mut constructor_helper =
-                        format!("struct ConstructorHelper{} {{", contract.id);
-
-                    for param in &constructor.parameters.parameters {
-                        if let Some(loc) = ItemLocation::try_from_loc(param.src) {
-                            let param = &src[loc.start..loc.end]
-                                .replace(" memory ", " ")
-                                .replace(" calldata ", " ");
-                            write!(constructor_helper, "{param};").unwrap();
-                        }
-                    }
-
-                    constructor_helper.push('}');
-
-                    if let Some(loc) = ItemLocation::try_from_loc(constructor.src) {
-                        updates.insert((loc.start, loc.start, constructor_helper));
-                    }
+                    contracts.insert(
+                        contract.id,
+                        ContractData {
+                            artifact,
+                            constructor_params: constructor
+                                .map(|constructor| &constructor.parameters)
+                                .filter(|params| !params.parameters.is_empty()),
+                            src,
+                            ast_id: contract.id,
+                            path,
+                            name: &contract.name,
+                        },
+                    );
                 }
             }
         }
@@ -281,17 +353,30 @@ impl BytecodeDependencyOptimizer<'_> {
         contracts
     }
 
+    /// Creates a helper library used to generate helpers for contract deployment.
+    fn create_deploy_helpers(
+        &self,
+        contracts: &BTreeMap<usize, ContractData<'_>>,
+    ) -> Result<Sources> {
+        let mut new_sources = Sources::new();
+        for (id, contract) in contracts {
+            if let Some(code) = contract.build_helper()? {
+                let path = format!("foundry-pp/DeployHelper{}.sol", id);
+                new_sources.insert(path.into(), Source::new(code));
+            }
+        }
+
+        Ok(new_sources)
+    }
+
     /// Goes over all source files and replaces bytecode dependencies with cheatcode invocations.
     fn remove_bytecode_dependencies(
         &self,
-        contracts: &BTreeMap<usize, ContractData>,
+        contracts: &BTreeMap<usize, ContractData<'_>>,
         updates: &mut Updates,
     ) -> Result<()> {
-        let test_dir = &self.paths.tests.strip_prefix(&self.paths.root).unwrap_or(&self.paths.root);
-        let script_dir =
-            &self.paths.scripts.strip_prefix(&self.paths.root).unwrap_or(&self.paths.root);
         for (path, ast) in &self.asts {
-            if !path.starts_with(test_dir) && !path.starts_with(script_dir) {
+            if self.is_src_file(path) {
                 continue;
             }
             let src = self.sources.get(path).unwrap().content.as_str();
@@ -299,6 +384,10 @@ impl BytecodeDependencyOptimizer<'_> {
             if src.is_empty() {
                 continue;
             }
+
+            let updates = updates.entry(path.clone()).or_default();
+            let mut used_helpers = Vec::new();
+
             let mut collector = BytecodeDependencyCollector::new(src);
             ast.walk(&mut collector);
 
@@ -313,15 +402,18 @@ impl BytecodeDependencyOptimizer<'_> {
                 )));
             }
 
-            let updates = updates.entry(path.clone()).or_default();
             let vm_interface_name = format!("VmContractHelper{}", ast.id);
             let vm = format!("{vm_interface_name}(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D)");
 
             for dep in collector.dependencies {
-                let ContractData { artifact, has_constructor } =
-                    contracts.get(&dep.referenced_contract).unwrap();
+                let Some(ContractData { artifact, constructor_params, .. }) =
+                    contracts.get(&dep.referenced_contract)
+                else {
+                    continue;
+                };
                 match dep.kind {
                     BytecodeDependencyKind::CreationCode => {
+                        // for creation code we need to just call getCode
                         updates.insert((
                             dep.loc.start,
                             dep.loc.end,
@@ -329,28 +421,36 @@ impl BytecodeDependencyOptimizer<'_> {
                         ));
                     }
                     BytecodeDependencyKind::New(new_loc, name) => {
-                        if !*has_constructor {
+                        if constructor_params.is_none() {
                             updates.insert((
                                 dep.loc.start,
                                 dep.loc.end,
                                 format!("{name}(payable({vm}.deployCode(\"{artifact}\")))"),
                             ));
                         } else {
+                            used_helpers.push(dep.referenced_contract);
                             updates.insert((
                                 new_loc.start,
                                 new_loc.end,
-                                format!("{name}(payable({vm}.deployCode(\"{artifact}\", abi.encode({name}.ConstructorHelper{}", dep.referenced_contract),
+                                format!("{name}(payable({vm}.deployCode(\"{artifact}\", encodeArgs{id}(DeployHelper{id}.ConstructorArgs", id = dep.referenced_contract),
                             ));
                             updates.insert((dep.loc.end, dep.loc.end, "))))".to_string()));
                         }
                     }
                 };
             }
+            let helper_imports = used_helpers.into_iter().map(|id| {
+                format!(
+                    "import {{DeployHelper{id}, encodeArgs{id}}} from \"foundry-pp/DeployHelper{id}.sol\";",
+                )
+            }).join("\n");
             updates.insert((
-                src.len() - 1,
-                src.len() - 1,
+                src.len(),
+                src.len(),
                 format!(
                     r#"
+{helper_imports}
+
 interface {vm_interface_name} {{
     function deployCode(string memory _artifact, bytes memory _data) external returns (address);
     function deployCode(string memory _artifact) external returns (address);
