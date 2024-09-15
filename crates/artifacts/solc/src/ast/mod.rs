@@ -257,7 +257,7 @@ pub enum AssignmentOperator {
     ShlAssign,
 }
 
-ast_node!(
+expr_node!(
     /// A binary operation.
     struct BinaryOperation {
         common_type: TypeDescriptions,
@@ -938,7 +938,7 @@ stmt_node!(
     /// A return statement.
     struct Return {
         expression: Option<Expression>,
-        function_return_parameters: usize,
+        function_return_parameters: Option<usize>,
     }
 );
 
