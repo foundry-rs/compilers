@@ -634,7 +634,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
 
         let mut msg = String::new();
         self.format_imports_list(idx, nodes[1..].to_vec(), &mut msg).unwrap();
-        Err(format!("Found incompatible versions:\n{msg}"));
+        Err(format!("Found incompatible versions:\n{msg}"))
     }
 
     fn input_nodes_by_language(&self) -> HashMap<D::Language, Vec<usize>> {
