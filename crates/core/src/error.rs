@@ -5,7 +5,7 @@ use std::{
 };
 use thiserror::Error;
 
-pub type Result<T> = std::result::Result<T, SolcError>;
+pub type Result<T, E = SolcError> = std::result::Result<T, E>;
 
 #[allow(unused_macros)]
 #[macro_export]
