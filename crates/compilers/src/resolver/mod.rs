@@ -64,6 +64,7 @@ use std::{
     io,
     path::{Path, PathBuf},
 };
+use yansi::{Color, Paint};
 
 pub mod parse;
 mod tree;
@@ -547,21 +548,25 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     fn format_imports_list<W: std::fmt::Write>(
         &self,
         idx: usize,
-        imports: impl IntoIterator<Item = usize>,
+        incompatible: HashSet<usize>,
         f: &mut W,
     ) -> std::result::Result<(), std::fmt::Error> {
-        let node = self.node(idx);
-        write!(f, "{} ", utils::source_name(&node.path, &self.root).display())?;
-        if let Some(req) = node.data.version_req() {
-            write!(f, "{req}")?;
-        }
-        write!(f, " imports:")?;
-        for dep in imports {
-            let dep = self.node(dep);
-            write!(f, "\n    {} ", utils::source_name(&dep.path, &self.root).display())?;
-            if let Some(req) = dep.data.version_req() {
-                write!(f, "{req}")?;
+        let format_node = |idx, f: &mut W| {
+            let node = self.node(idx);
+            let color = if incompatible.contains(&idx) { Color::Red } else { Color::White };
+
+            let mut line = utils::source_name(&node.path, &self.root).display().to_string();
+            if let Some(req) = node.data.version_req() {
+                line.push_str(&format!(" {req}"));
             }
+
+            write!(f, "{} ", line.paint(color))
+        };
+        format_node(idx, f)?;
+        write!(f, " imports:")?;
+        for dep in self.node_ids(idx).skip(1) {
+            write!(f, "\n    ")?;
+            format_node(dep, f)?;
         }
 
         Ok(())
@@ -617,23 +622,17 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             // iterate over all the nodes once again and find the one incompatible
             for node in &nodes {
                 if self.node(*node).check_available_version(&all_versions, offline).is_err() {
-                    let mut msg = String::new();
+                    let mut msg = "Found incompatible versions:\n".white().to_string();
 
-                    // avoid formatting root node as import
-                    let imports = if *node == idx {
-                        vec![failed_node_idx]
-                    } else {
-                        vec![*node, failed_node_idx]
-                    };
-
-                    self.format_imports_list(idx, imports, &mut msg).unwrap();
-                    return Err(format!("Found incompatible versions:\n{msg}"));
+                    self.format_imports_list(idx, [*node, failed_node_idx].into(), &mut msg)
+                        .unwrap();
+                    return Err(msg);
                 }
             }
         }
 
-        let mut msg = String::new();
-        self.format_imports_list(idx, nodes[1..].to_vec(), &mut msg).unwrap();
+        let mut msg = "Found incompatible versions:\n".white().to_string();
+        self.format_imports_list(idx, nodes.into_iter().collect(), &mut msg).unwrap();
         Err(format!("Found incompatible versions:\n{msg}"))
     }
 
