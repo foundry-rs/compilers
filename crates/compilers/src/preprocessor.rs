@@ -263,7 +263,7 @@ impl ContractData<'_> {
     /// vm.deployCode("artifact path", encodeArgs335(DeployHelper335.ConstructorArgs({name: name, symbol: symbol})))
     /// ```
     pub fn build_helper(&self) -> Result<Option<String>> {
-        let Self { ast_id, path, name, constructor_params, src, .. } = self;
+        let Self { ast_id, path, name, constructor_params, src, artifact } = self;
 
         let Some(params) = constructor_params else { return Ok(None) };
 
@@ -278,6 +278,9 @@ impl ContractData<'_> {
 
         let abi_encode_args =
             params.parameters.iter().map(|param| format!("args.{}", param.name)).join(", ");
+        
+        let vm_interface_name = format!("VmContractHelper{}", ast_id);
+        let vm = format!("{vm_interface_name}(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D)");
 
         let helper = format!(
             r#"
@@ -293,6 +296,16 @@ abstract contract DeployHelper{ast_id} is {name} {{
 
 function encodeArgs{ast_id}(DeployHelper{ast_id}.ConstructorArgs memory args) pure returns (bytes memory) {{
     return abi.encode({abi_encode_args});
+}}
+
+function deployCode{ast_id}(DeployHelper{ast_id}.ConstructorArgs memory args) returns({name}) {{
+    return {name}(payable({vm}.deployCode("{artifact}", encodeArgs{ast_id}(args))));
+}}
+
+interface {vm_interface_name} {{
+    function deployCode(string memory _artifact, bytes memory _data) external returns (address);
+    function deployCode(string memory _artifact) external returns (address);
+    function getCode(string memory _artifact) external returns (bytes memory);
 }}
         "#,
             path = path.display(),
@@ -464,16 +477,16 @@ impl BytecodeDependencyOptimizer<'_> {
                             updates.insert((
                                 new_loc.start,
                                 new_loc.end,
-                                format!("{name}(payable({vm}.deployCode(\"{artifact}\", encodeArgs{id}(DeployHelper{id}.ConstructorArgs", id = dep.referenced_contract),
+                                format!("deployCode{id}(DeployHelper{id}.ConstructorArgs", id = dep.referenced_contract),
                             ));
-                            updates.insert((dep.loc.end, dep.loc.end, "))))".to_string()));
+                            updates.insert((dep.loc.end, dep.loc.end, ")".to_string()));
                         }
                     }
                 };
             }
             let helper_imports = used_helpers.into_iter().map(|id| {
                 format!(
-                    "import {{DeployHelper{id}, encodeArgs{id}}} from \"foundry-pp/DeployHelper{id}.sol\";",
+                    "import {{DeployHelper{id}, encodeArgs{id}, deployCode{id}}} from \"foundry-pp/DeployHelper{id}.sol\";",
                 )
             }).join("\n");
             updates.insert((
