@@ -246,8 +246,12 @@ impl SourceElement {
     }
 
     #[inline]
-    fn set_modifier_depth(&mut self, modifier_depth: u32) {
-        self.set_jump_and_modifier_depth(self.jump(), modifier_depth);
+    fn set_modifier_depth(&mut self, modifier_depth: usize) -> Result<(), SyntaxError> {
+        if modifier_depth > (1 << 30) - 1 {
+            return Err(SyntaxError::new(None, "modifier depth overflow"));
+        }
+        self.set_jump_and_modifier_depth(self.jump(), modifier_depth as u32);
+        Ok(())
     }
 
     #[inline]
@@ -369,7 +373,7 @@ impl SourceElementBuilder {
         get_field!(|jump| element.set_jump(jump));
         // Modifier depth is optional.
         if let Some(modifier_depth) = self.modifier_depth {
-            element.set_modifier_depth(modifier_depth.try_into()?);
+            element.set_modifier_depth(modifier_depth)?;
         }
         Ok(element)
     }
