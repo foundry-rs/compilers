@@ -1,30 +1,78 @@
 use std::{fmt, fmt::Write, iter::Peekable, str::CharIndices};
 
-type Spanned<Token, Loc, Error> = Result<(Token, Loc), Error>;
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Jump {
+    /// A jump instruction that goes into a function
+    In,
+    /// A jump  represents an instruction that returns from a function
+    Out,
+    /// A regular jump instruction
+    Regular,
+}
 
-macro_rules! syntax_err {
-    ($msg:expr) => {{
-        Err(SyntaxError::new($msg))
-    }};
-    ($msg:expr, $($tt:tt)*) => {{
-        Err(SyntaxError::new(format!($msg, $($tt)*)))
-    }};
+impl Jump {
+    /// Returns the string representation of the jump instruction.
+    pub fn to_str(self) -> &'static str {
+        match self {
+            Self::In => "i",
+            Self::Out => "o",
+            Self::Regular => "-",
+        }
+    }
+
+    fn to_int(self) -> u32 {
+        match self {
+            Self::In => 0,
+            Self::Out => 1,
+            Self::Regular => 2,
+        }
+    }
+
+    fn from_int(i: u32) -> Self {
+        match i {
+            0 => Self::In,
+            1 => Self::Out,
+            2 => Self::Regular,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl fmt::Display for Jump {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.to_str())
+    }
 }
 
 /// An error that can happen during source map parsing.
-#[derive(Clone, Debug, thiserror::Error)]
-#[error("{0}")]
-pub struct SyntaxError(String);
+#[derive(Debug, thiserror::Error)]
+pub struct SyntaxError(Box<SyntaxErrorInner>);
+
+#[derive(Debug)]
+struct SyntaxErrorInner {
+    pos: Option<usize>,
+    msg: String,
+}
+
+impl fmt::Display for SyntaxError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("failed to parse source map: ")?;
+        if let Some(pos) = self.0.pos {
+            write!(f, "[{pos}] ")?;
+        }
+        f.write_str(&self.0.msg)
+    }
+}
 
 impl SyntaxError {
-    pub fn new(s: impl Into<String>) -> Self {
-        Self(s.into())
+    fn new(pos: impl Into<Option<usize>>, msg: impl Into<String>) -> Self {
+        Self(Box::new(SyntaxErrorInner { pos: pos.into(), msg: msg.into() }))
     }
 }
 
 impl From<std::num::TryFromIntError> for SyntaxError {
     fn from(_value: std::num::TryFromIntError) -> Self {
-        Self::new("offset overflow".to_string())
+        Self::new(None, "offset overflow")
     }
 }
 
@@ -67,21 +115,17 @@ impl<'a> fmt::Display for Token<'a> {
     }
 }
 
-struct TokenStream<'input> {
+struct Lexer<'input> {
     input: &'input str,
     chars: Peekable<CharIndices<'input>>,
 }
 
-impl<'input> TokenStream<'input> {
-    pub fn new(input: &'input str) -> Self {
-        TokenStream { chars: input.char_indices().peekable(), input }
+impl<'input> Lexer<'input> {
+    fn new(input: &'input str) -> Self {
+        Lexer { chars: input.char_indices().peekable(), input }
     }
 
-    fn number(
-        &mut self,
-        start: usize,
-        mut end: usize,
-    ) -> Option<Spanned<Token<'input>, usize, SyntaxError>> {
+    fn number(&mut self, start: usize, mut end: usize) -> Token<'input> {
         loop {
             if let Some((_, ch)) = self.chars.peek().cloned() {
                 if !ch.is_ascii_digit() {
@@ -94,74 +138,31 @@ impl<'input> TokenStream<'input> {
                 break;
             }
         }
-        Some(Ok((Token::Number(&self.input[start..end]), start)))
+        Token::Number(&self.input[start..end])
     }
 }
 
-impl<'input> Iterator for TokenStream<'input> {
-    type Item = Spanned<Token<'input>, usize, SyntaxError>;
+impl<'input> Iterator for Lexer<'input> {
+    type Item = Result<(Token<'input>, usize), SyntaxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.chars.next()? {
-            (i, ';') => Some(Ok((Token::Semicolon, i))),
-            (i, ':') => Some(Ok((Token::Colon, i))),
-            (i, 'i') => Some(Ok((Token::In, i))),
-            (i, 'o') => Some(Ok((Token::Out, i))),
-            (start, '-') => match self.chars.peek() {
+        let (start, ch) = self.chars.next()?;
+        let token = match ch {
+            ';' => Token::Semicolon,
+            ':' => Token::Colon,
+            'i' => Token::In,
+            'o' => Token::Out,
+            '-' => match self.chars.peek() {
                 Some((_, ch)) if ch.is_ascii_digit() => {
                     self.chars.next();
                     self.number(start, start + 2)
                 }
-                _ => Some(Ok((Token::Regular, start))),
+                _ => Token::Regular,
             },
-            (start, ch) if ch.is_ascii_digit() => self.number(start, start + 1),
-            (i, c) => Some(syntax_err!("Unexpected input {} at {}", c, i)),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Jump {
-    /// A jump instruction that goes into a function
-    In,
-    /// A jump  represents an instruction that returns from a function
-    Out,
-    /// A regular jump instruction
-    Regular,
-}
-
-impl Jump {
-    fn to_int(self) -> u32 {
-        match self {
-            Self::In => 0,
-            Self::Out => 1,
-            Self::Regular => 2,
-        }
-    }
-
-    fn from_int(i: u32) -> Self {
-        match i {
-            0 => Self::In,
-            1 => Self::Out,
-            2 => Self::Regular,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl AsRef<str> for Jump {
-    fn as_ref(&self) -> &str {
-        match self {
-            Self::In => "i",
-            Self::Out => "o",
-            Self::Regular => "-",
-        }
-    }
-}
-
-impl fmt::Display for Jump {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_ref())
+            ch if ch.is_ascii_digit() => self.number(start, start + 1),
+            ch => return Some(Err(SyntaxError::new(start, format!("unexpected character: {ch}")))),
+        };
+        Some(Ok((token, start)))
     }
 }
 
@@ -245,8 +246,12 @@ impl SourceElement {
     }
 
     #[inline]
-    fn set_modifier_depth(&mut self, modifier_depth: u32) {
-        self.set_jump_and_modifier_depth(self.jump(), modifier_depth);
+    fn set_modifier_depth(&mut self, modifier_depth: usize) -> Result<(), SyntaxError> {
+        if modifier_depth > (1 << 30) - 1 {
+            return Err(SyntaxError::new(None, "modifier depth overflow"));
+        }
+        self.set_jump_and_modifier_depth(self.jump(), modifier_depth as u32);
+        Ok(())
     }
 
     #[inline]
@@ -355,7 +360,10 @@ impl SourceElementBuilder {
                 if let Some($field) = self.$field {
                     $e;
                 } else if no_prev {
-                    return Err(SyntaxError::new(format!("No previous {}", stringify!($field))));
+                    return Err(SyntaxError::new(
+                        None,
+                        format!("no previous {}", stringify!($field)),
+                    ));
                 }
             };
         }
@@ -365,54 +373,54 @@ impl SourceElementBuilder {
         get_field!(|jump| element.set_jump(jump));
         // Modifier depth is optional.
         if let Some(modifier_depth) = self.modifier_depth {
-            element.set_modifier_depth(modifier_depth.try_into()?);
+            element.set_modifier_depth(modifier_depth)?;
         }
         Ok(element)
     }
 
-    fn set_jmp(&mut self, jmp: Jump, i: usize) -> Option<SyntaxError> {
+    fn set_jmp(&mut self, jmp: Jump, pos: usize) -> Result<(), SyntaxError> {
         if self.jump.is_some() {
-            return Some(SyntaxError::new(format!("Jump already set: {i}")));
+            return Err(SyntaxError::new(pos, "jump already set"));
         }
         self.jump = Some(jmp);
-        None
+        Ok(())
     }
 
-    fn set_offset(&mut self, offset: usize, i: usize) -> Option<SyntaxError> {
+    fn set_offset(&mut self, offset: usize, pos: usize) -> Result<(), SyntaxError> {
         if self.offset.is_some() {
-            return Some(SyntaxError::new(format!("Offset already set: {i}")));
+            return Err(SyntaxError::new(pos, "offset already set"));
         }
         self.offset = Some(offset);
-        None
+        Ok(())
     }
 
-    fn set_length(&mut self, length: usize, i: usize) -> Option<SyntaxError> {
+    fn set_length(&mut self, length: usize, pos: usize) -> Result<(), SyntaxError> {
         if self.length.is_some() {
-            return Some(SyntaxError::new(format!("Length already set: {i}")));
+            return Err(SyntaxError::new(pos, "length already set"));
         }
         self.length = Some(length);
-        None
+        Ok(())
     }
 
-    fn set_index(&mut self, index: Option<u32>, i: usize) -> Option<SyntaxError> {
+    fn set_index(&mut self, index: Option<u32>, pos: usize) -> Result<(), SyntaxError> {
         if self.index.is_some() {
-            return Some(SyntaxError::new(format!("Index already set: {i}")));
+            return Err(SyntaxError::new(pos, "index already set"));
         }
         self.index = Some(index);
-        None
+        Ok(())
     }
 
-    fn set_modifier(&mut self, modifier_depth: usize, i: usize) -> Option<SyntaxError> {
+    fn set_modifier(&mut self, modifier_depth: usize, pos: usize) -> Result<(), SyntaxError> {
         if self.modifier_depth.is_some() {
-            return Some(SyntaxError::new(format!("Modifier depth already set: {i}")));
+            return Err(SyntaxError::new(pos, "modifier depth already set"));
         }
         self.modifier_depth = Some(modifier_depth);
-        None
+        Ok(())
     }
 }
 
 pub struct Parser<'input> {
-    stream: TokenStream<'input>,
+    lexer: Lexer<'input>,
     last_element: Option<SourceElement>,
     done: bool,
     #[cfg(test)]
@@ -423,95 +431,63 @@ impl<'input> Parser<'input> {
     pub fn new(input: &'input str) -> Self {
         Self {
             done: input.is_empty(),
-            stream: TokenStream::new(input),
+            lexer: Lexer::new(input),
             last_element: None,
             #[cfg(test)]
             output: None,
         }
     }
-}
 
-macro_rules! parse_number {
-    ($num:expr, $pos:expr) => {{
-        let num = match $num.parse::<i64>() {
-            Ok(num) => num,
-            Err(_) => {
-                return Some(syntax_err!("Expected {} to be a valid integer at {}", $num, $pos))
-            }
-        };
-        match num {
-            i if i < -1 => {
-                return Some(syntax_err!("Unexpected negative identifier of `{}` at {}", i, $pos))
-            }
-            -1 => None,
-            i => Some(i as u32),
-        }
-    }};
-}
-
-macro_rules! bail_opt {
-    ($opt:expr) => {
-        if let Some(err) = $opt {
-            return Some(Err(err));
-        }
-    };
-}
-
-impl<'input> Iterator for Parser<'input> {
-    type Item = Result<SourceElement, SyntaxError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn advance(&mut self) -> Result<Option<SourceElement>, SyntaxError> {
         // start parsing at the offset state, `s`
         let mut state = State::Offset;
         let mut builder = SourceElementBuilder::default();
 
+        let parse_number = |num: &str, pos: usize| {
+            let num = match num.parse::<i64>() {
+                Ok(num) => num,
+                Err(e) => return Err(SyntaxError::new(pos, e.to_string())),
+            };
+            match num {
+                ..-1 => Err(SyntaxError::new(pos, "unexpected negative number")),
+                -1 => Ok(None),
+                0.. => u32::try_from(num)
+                    .map(Some)
+                    .map_err(|_| SyntaxError::new(pos, "number too large")),
+            }
+        };
+
         loop {
-            match self.stream.next() {
+            match self.lexer.next() {
                 Some(Ok((token, pos))) => match token {
                     Token::Semicolon => break,
                     Token::Number(num) => match state {
                         State::Offset => {
-                            bail_opt!(builder.set_offset(
-                                parse_number!(num, pos).unwrap_or_default() as usize,
-                                pos
-                            ))
+                            builder
+                                .set_offset(parse_number(num, pos)?.unwrap_or(0) as usize, pos)?;
                         }
                         State::Length => {
-                            bail_opt!(builder.set_length(
-                                parse_number!(num, pos).unwrap_or_default() as usize,
-                                pos
-                            ))
+                            builder
+                                .set_length(parse_number(num, pos)?.unwrap_or(0) as usize, pos)?;
                         }
                         State::Index => {
-                            bail_opt!(builder.set_index(parse_number!(num, pos), pos))
+                            builder.set_index(parse_number(num, pos)?, pos)?;
                         }
-                        State::Modifier => {
-                            bail_opt!(builder.set_modifier(
-                                parse_number!(num, pos).unwrap_or_default() as usize,
-                                pos
-                            ))
-                        }
+                        State::Modifier => builder
+                            .set_modifier(parse_number(num, pos)?.unwrap_or(0) as usize, pos)?,
                         State::Jmp => {
-                            return Some(syntax_err!("Expected Jump found number at {}", pos))
+                            return Err(SyntaxError::new(pos, "expected jump, found number"));
                         }
                     },
-                    Token::Colon => {
-                        bail_opt!(state.advance(pos))
-                    }
-                    Token::In => {
-                        bail_opt!(builder.set_jmp(Jump::In, pos))
-                    }
-                    Token::Out => {
-                        bail_opt!(builder.set_jmp(Jump::Out, pos))
-                    }
-                    Token::Regular => {
-                        bail_opt!(builder.set_jmp(Jump::Regular, pos))
-                    }
+                    Token::Colon => state.advance(pos)?,
+                    Token::In => builder.set_jmp(Jump::In, pos)?,
+                    Token::Out => builder.set_jmp(Jump::Out, pos)?,
+                    Token::Regular => builder.set_jmp(Jump::Regular, pos)?,
                 },
-                Some(Err(err)) => return Some(Err(err)),
+                Some(Err(err)) => return Err(err),
                 None => {
                     if self.done {
-                        return None;
+                        return Ok(None);
                     }
                     self.done = true;
                     break;
@@ -527,14 +503,17 @@ impl<'input> Iterator for Parser<'input> {
             let _ = out.write_str(&builder.to_string());
         }
 
-        let element = match builder.finish(self.last_element.take()) {
-            Ok(element) => {
-                self.last_element = Some(element.clone());
-                Ok(element)
-            }
-            Err(err) => Err(err),
-        };
-        Some(element)
+        let element = builder.finish(self.last_element.take())?;
+        self.last_element = Some(element.clone());
+        Ok(Some(element))
+    }
+}
+
+impl<'input> Iterator for Parser<'input> {
+    type Item = Result<SourceElement, SyntaxError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.advance().transpose()
     }
 }
 
@@ -554,15 +533,15 @@ enum State {
 }
 
 impl State {
-    fn advance(&mut self, i: usize) -> Option<SyntaxError> {
+    fn advance(&mut self, pos: usize) -> Result<(), SyntaxError> {
         match self {
             Self::Offset => *self = Self::Length,
             Self::Length => *self = Self::Index,
             Self::Index => *self = Self::Jmp,
             Self::Jmp => *self = Self::Modifier,
-            Self::Modifier => return Some(SyntaxError::new(format!("unexpected colon at {i}"))),
+            Self::Modifier => return Err(SyntaxError::new(pos, "unexpected colon")),
         }
-        None
+        Ok(())
     }
 }
 
