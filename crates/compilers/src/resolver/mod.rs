@@ -560,7 +560,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                 line.push_str(&format!(" {req}"));
             }
 
-            write!(f, "{} ", line.paint(color))
+            write!(f, "{}", line.paint(color))
         };
         format_node(idx, f)?;
         write!(f, " imports:")?;
@@ -1049,6 +1049,32 @@ src/Dapp.t.sol >=0.6.6
 └── node_modules/hardhat/console.sol >=0.4.22, <0.9.0
 ",
             String::from_utf8(out).unwrap()
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "svm-solc")]
+    fn test_print_unresolved() {
+        let root =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/incompatible-pragmas");
+        let paths = ProjectPathsConfig::dapptools(&root).unwrap();
+        let graph = Graph::<SolData>::resolve(&paths).unwrap();
+        let Err(SolcError::Message(err)) = graph.get_input_node_versions(
+            false,
+            &Default::default(),
+            &crate::solc::SolcCompiler::AutoDetect,
+        ) else {
+            panic!("expected error");
+        };
+
+        snapbox::assert_data_eq!(
+            err,
+            snapbox::str![[r#"
+[37mFound incompatible versions:
+[0m[31msrc/A.sol =0.8.25[0m imports:
+    [37msrc/B.sol[0m
+    [31msrc/C.sol =0.7.0[0m
+"#]]
         );
     }
 
