@@ -5,11 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1](https://github.com/foundry-rs/compilers/releases/tag/v0.11.1) - 2024-09-17
+
+### Bug Fixes
+
+- Ast Node Bindings ([#199](https://github.com/foundry-rs/compilers/issues/199))
+- Actualize output selection options ([#196](https://github.com/foundry-rs/compilers/issues/196))
+
+### Features
+
+- Better error messages for incompatible versions ([#200](https://github.com/foundry-rs/compilers/issues/200))
+
+### Miscellaneous Tasks
+
+- Improve error handling in source map parsing ([#201](https://github.com/foundry-rs/compilers/issues/201))
+- Clippy happy ([#195](https://github.com/foundry-rs/compilers/issues/195))
+- Fix up the README example ([#194](https://github.com/foundry-rs/compilers/issues/194))
+
 ## [0.11.0](https://github.com/foundry-rs/compilers/releases/tag/v0.11.0) - 2024-09-02
 
 ### Dependencies
 
 - [deps] Bump alloy ([#193](https://github.com/foundry-rs/compilers/issues/193))
+
+### Miscellaneous Tasks
+
+- Release 0.11.0
 
 ## [0.10.3](https://github.com/foundry-rs/compilers/releases/tag/v0.10.3) - 2024-08-26
 
