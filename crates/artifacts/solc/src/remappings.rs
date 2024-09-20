@@ -723,7 +723,7 @@ fn find_remapping_candidates(
 
     // need to find the actual next window in the event `open` is a lib dir
     let window_start = next_nested_window(open, current_dir);
-    // finally, we need to merge, adjust candidates from the same level and opening window
+    // finally, we need to merge, adjust candidates from the same level and open window
     if is_candidate
         || candidates
             .iter()
@@ -771,7 +771,7 @@ fn dir_distance(root: &Path, current: &Path) -> usize {
 }
 
 /// This finds the next window between `root` and `current`
-/// If `root` ends with a `lib` component then start join components from `current` until no valid
+/// If `root` ends with a `lib` component then start joining components from `current` until no valid
 /// window opener is found
 fn next_nested_window(root: &Path, current: &Path) -> PathBuf {
     if !is_lib_dir(root) || root == current {
