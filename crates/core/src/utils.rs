@@ -587,9 +587,8 @@ pub fn tempdir(name: &str) -> Result<tempfile::TempDir, SolcIoError> {
 /// Reads the json file and deserialize it into the provided type.
 pub fn read_json_file<T: DeserializeOwned>(path: &Path) -> Result<T, SolcError> {
     // See: https://github.com/serde-rs/json/issues/160
-    let file = fs::File::open(path).map_err(|err| SolcError::io(err, path))?;
-    let bytes = unsafe { memmap2::Mmap::map(&file).map_err(|err| SolcError::io(err, path))? };
-    serde_json::from_slice(&bytes).map_err(Into::into)
+    let s = fs::read_to_string(path).map_err(|err| SolcError::io(err, path))?;
+    serde_json::from_str(&s).map_err(Into::into)
 }
 
 /// Writes serializes the provided value to JSON and writes it to a file.
