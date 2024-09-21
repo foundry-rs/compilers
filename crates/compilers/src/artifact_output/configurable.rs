@@ -546,7 +546,7 @@ impl ExtraOutputValues {
     }
 }
 
-/// Determines what to emit as additional file
+/// Determines what to emit as an additional file
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ExtraOutputFiles {
     pub abi: bool,
