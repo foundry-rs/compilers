@@ -771,8 +771,8 @@ fn dir_distance(root: &Path, current: &Path) -> usize {
 }
 
 /// This finds the next window between `root` and `current`
-/// If `root` ends with a `lib` component then start joining components from `current` until no valid
-/// window opener is found
+/// If `root` ends with a `lib` component then start joining components from `current` until no
+/// valid window opener is found
 fn next_nested_window(root: &Path, current: &Path) -> PathBuf {
     if !is_lib_dir(root) || root == current {
         return root.to_path_buf();
