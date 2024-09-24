@@ -197,8 +197,10 @@ impl<D> GraphEdges<D> {
     }
 }
 
-/// Represents a fully-resolved solidity dependency graph. Each node in the graph
-/// is a file and edges represent dependencies between them.
+/// Represents a fully-resolved solidity dependency graph.
+///
+/// Each node in the graph is a file and edges represent dependencies between them.
+///
 /// See also <https://docs.soliditylang.org/en/latest/layout-of-source-files.html?highlight=import#importing-other-source-files>
 #[derive(Debug)]
 pub struct Graph<D = SolData> {
