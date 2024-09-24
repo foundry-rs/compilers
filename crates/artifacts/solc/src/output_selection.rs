@@ -6,7 +6,8 @@ use std::{collections::BTreeMap, fmt, str::FromStr};
 /// Represents the desired outputs based on a File `(file -> (contract -> [outputs]))`
 pub type FileOutputSelection = BTreeMap<String, Vec<String>>;
 
-/// Represents the selected output of files and contracts
+/// Represents the selected output of files and contracts.
+///
 /// The first level key is the file name and the second level key is the
 /// contract name. An empty contract name is used for outputs that are
 /// not tied to a contract but to the whole source file like the AST.

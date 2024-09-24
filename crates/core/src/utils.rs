@@ -399,11 +399,12 @@ pub fn resolve_absolute_library(
     None
 }
 
-/// Reads the list of Solc versions that have been installed in the machine. The version list is
-/// sorted in ascending order.
-/// Checks for installed solc versions under the given path as
-/// `<root>/<major.minor.path>`, (e.g.: `~/.svm/0.8.10`)
-/// and returns them sorted in ascending order
+/// Reads the list of Solc versions that have been installed in the machine.
+///
+/// The version list is sorted in ascending order.
+///
+/// Checks for installed solc versions under the given path as `<root>/<major.minor.path>`,
+/// (e.g.: `~/.svm/0.8.10`) and returns them sorted in ascending order.
 pub fn installed_versions(root: &Path) -> Result<Vec<Version>, SolcError> {
     let mut versions: Vec<_> = walkdir::WalkDir::new(root)
         .max_depth(1)
@@ -619,13 +620,13 @@ pub fn create_parent_dir_all(file: &Path) -> Result<(), SolcError> {
     Ok(())
 }
 
-/// Given the regex and the target string, find all occurrences
-/// of named groups within the string. This method returns
-/// the tuple of matches `(a, b)` where `a` is the match for the
-/// entire regex and `b` is the match for the first named group.
+/// Given the regex and the target string, find all occurrences of named groups within the string.
 ///
-/// NOTE: This method will return the match for the first named
-/// group, so the order of passed named groups matters.
+/// This method returns the tuple of matches `(a, b)` where `a` is the match for the entire regex
+/// and `b` is the match for the first named group.
+///
+/// NOTE: This method will return the match for the first named group, so the order of passed named
+/// groups matters.
 pub fn capture_outer_and_inner<'a>(
     content: &'a str,
     regex: &regex::Regex,
