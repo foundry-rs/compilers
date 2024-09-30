@@ -188,6 +188,7 @@ fn can_compile_configured() {
             ir: true,
             ir_optimized: true,
             opcodes: true,
+            legacy_assembly: true,
             ..Default::default()
         },
         ..Default::default()
@@ -202,6 +203,8 @@ fn can_compile_configured() {
     assert!(artifact.ir.is_some());
     assert!(artifact.ir_optimized.is_some());
     assert!(artifact.opcodes.is_some());
+    assert!(artifact.opcodes.is_some());
+    assert!(artifact.legacy_assembly.is_some());
 }
 
 #[test]

@@ -265,7 +265,7 @@ impl ParsedSource for SolData {
         _paths: &crate::ProjectPathsConfig<C>,
         _include_paths: &mut BTreeSet<PathBuf>,
     ) -> Result<Vec<PathBuf>> {
-        return Ok(self.imports.iter().map(|i| i.data().path().to_path_buf()).collect_vec());
+        Ok(self.imports.iter().map(|i| i.data().path().to_path_buf()).collect_vec())
     }
 
     fn language(&self) -> Self::Language {
