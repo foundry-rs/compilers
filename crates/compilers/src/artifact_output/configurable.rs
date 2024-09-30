@@ -751,9 +751,8 @@ impl ExtraOutputFiles {
     ) -> Result<(), SolcError> {
         if self.legacy_assembly {
             if let Some(legacy_asm) = asm {
-                let file = file.with_extension("legacyAssembly");
-                fs::write(&file, legacy_asm.as_str().unwrap_or_default())
-                    .map_err(|err| SolcError::io(err, file))?
+                let file = file.with_extension("legacyAssembly.json");
+                fs::write(&file, format!("{legacy_asm}")).map_err(|err| SolcError::io(err, file))?
             }
         }
         Ok(())
@@ -824,6 +823,7 @@ impl ExtraOutputFiles {
 
         let evm = contract.evm.as_ref();
         self.process_assembly(evm.and_then(|evm| evm.assembly.as_deref()), file)?;
+        self.process_legacy_assembly(evm.and_then(|evm| evm.legacy_assembly.clone()), file)?;
 
         let bytecode = evm.and_then(|evm| evm.bytecode.as_ref());
         self.process_generated_sources(bytecode.map(|b| &b.generated_sources), file)?;

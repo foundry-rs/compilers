@@ -379,7 +379,7 @@ impl FromStr for EvmOutputSelection {
         match s {
             "evm" => Ok(Self::All),
             "asm" | "evm.assembly" => Ok(Self::Assembly),
-            "evm.legacyAssembly" => Ok(Self::LegacyAssembly),
+            "legacyAssembly" | "evm.legacyAssembly" => Ok(Self::LegacyAssembly),
             "methodidentifiers" | "evm.methodIdentifiers" | "evm.methodidentifiers" => {
                 Ok(Self::MethodIdentifiers)
             }
