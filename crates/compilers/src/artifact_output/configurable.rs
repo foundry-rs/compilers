@@ -96,6 +96,7 @@ impl ConfigurableArtifacts {
             storage_layout,
             transient_storage_layout,
             assembly,
+            legacy_assembly,
             gas_estimates,
             metadata,
             ir,
@@ -132,6 +133,9 @@ impl ConfigurableArtifacts {
         }
         if assembly || self.additional_files.assembly {
             selection.push(EvmOutputSelection::Assembly.into());
+        }
+        if legacy_assembly || self.additional_files.legacy_assembly {
+            selection.push(EvmOutputSelection::LegacyAssembly.into());
         }
         if ewasm || self.additional_files.ewasm {
             selection.push(EwasmOutputSelection::All.into());
@@ -207,6 +211,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
         let mut artifact_function_debug_data = None;
         let mut artifact_method_identifiers = None;
         let mut artifact_assembly = None;
+        let mut artifact_legacy_assembly = None;
         let mut artifact_storage_layout = None;
         let mut artifact_transient_storage_layout = None;
         let mut generated_sources = None;
@@ -264,7 +269,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
                 deployed_bytecode,
                 method_identifiers,
                 gas_estimates,
-                legacy_assembly: _,
+                legacy_assembly,
             } = evm;
 
             if self.additional_values.function_debug_data {
@@ -290,6 +295,10 @@ impl ArtifactOutput for ConfigurableArtifacts {
             if self.additional_values.assembly {
                 artifact_assembly = assembly;
             }
+
+            if self.additional_values.legacy_assembly {
+                artifact_legacy_assembly = legacy_assembly;
+            }
         }
 
         ConfigurableContractArtifact {
@@ -297,6 +306,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
             bytecode: artifact_bytecode,
             deployed_bytecode: artifact_deployed_bytecode,
             assembly: artifact_assembly,
+            legacy_assembly: artifact_legacy_assembly,
             opcodes,
             function_debug_data: artifact_function_debug_data,
             method_identifiers: artifact_method_identifiers,
@@ -343,6 +353,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
             ir_optimized,
             ewasm,
             assembly,
+            legacy_assembly,
             source_map,
             generated_sources,
             bytecode: _,
@@ -363,6 +374,12 @@ impl ArtifactOutput for ConfigurableArtifacts {
             return Ok(true);
         }
         if assembly && artifact.assembly.is_none() {
+            return Ok(true);
+        }
+        if assembly && artifact.assembly.is_none() {
+            return Ok(true);
+        }
+        if legacy_assembly && artifact.legacy_assembly.is_none() {
             return Ok(true);
         }
         if source_map && artifact.get_source_map_str().is_none() {
@@ -387,6 +404,8 @@ impl ArtifactOutput for ConfigurableArtifacts {
                     let artifact = &artifact_file.artifact;
                     self.additional_files.process_abi(artifact.abi.as_ref(), file)?;
                     self.additional_files.process_assembly(artifact.assembly.as_deref(), file)?;
+                    self.additional_files
+                        .process_legacy_assembly(artifact.legacy_assembly.clone(), file)?;
                     self.additional_files
                         .process_bytecode(artifact.bytecode.as_ref().map(|b| &b.object), file)?;
                     self.additional_files.process_deployed_bytecode(
@@ -424,6 +443,7 @@ pub struct ExtraOutputValues {
     pub storage_layout: bool,
     pub transient_storage_layout: bool,
     pub assembly: bool,
+    pub legacy_assembly: bool,
     pub gas_estimates: bool,
     pub metadata: bool,
     pub ir: bool,
@@ -458,6 +478,7 @@ impl ExtraOutputValues {
             storage_layout: true,
             transient_storage_layout: true,
             assembly: true,
+            legacy_assembly: true,
             gas_estimates: true,
             metadata: true,
             ir: true,
@@ -500,6 +521,7 @@ impl ExtraOutputValues {
                 ContractOutputSelection::Evm(evm) => match evm {
                     EvmOutputSelection::All => {
                         config.assembly = true;
+                        config.legacy_assembly = true;
                         config.gas_estimates = true;
                         config.method_identifiers = true;
                         config.generated_sources = true;
@@ -508,6 +530,9 @@ impl ExtraOutputValues {
                     }
                     EvmOutputSelection::Assembly => {
                         config.assembly = true;
+                    }
+                    EvmOutputSelection::LegacyAssembly => {
+                        config.legacy_assembly = true;
                     }
                     EvmOutputSelection::MethodIdentifiers => {
                         config.method_identifiers = true;
@@ -555,6 +580,7 @@ pub struct ExtraOutputFiles {
     pub ir_optimized: bool,
     pub ewasm: bool,
     pub assembly: bool,
+    pub legacy_assembly: bool,
     pub source_map: bool,
     pub generated_sources: bool,
     pub bytecode: bool,
@@ -582,6 +608,7 @@ impl ExtraOutputFiles {
             ir_optimized: true,
             ewasm: true,
             assembly: true,
+            legacy_assembly: true,
             source_map: true,
             generated_sources: true,
             bytecode: true,
@@ -612,6 +639,7 @@ impl ExtraOutputFiles {
                 ContractOutputSelection::Evm(evm) => match evm {
                     EvmOutputSelection::All => {
                         config.assembly = true;
+                        config.legacy_assembly = true;
                         config.generated_sources = true;
                         config.source_map = true;
                         config.bytecode = true;
@@ -619,6 +647,9 @@ impl ExtraOutputFiles {
                     }
                     EvmOutputSelection::Assembly => {
                         config.assembly = true;
+                    }
+                    EvmOutputSelection::LegacyAssembly => {
+                        config.legacy_assembly = true;
                     }
                     EvmOutputSelection::ByteCode(BytecodeOutputSelection::GeneratedSources) => {
                         config.generated_sources = true;
@@ -708,6 +739,21 @@ impl ExtraOutputFiles {
             if let Some(asm) = asm {
                 let file = file.with_extension("asm");
                 fs::write(&file, asm).map_err(|err| SolcError::io(err, file))?
+            }
+        }
+        Ok(())
+    }
+
+    fn process_legacy_assembly(
+        &self,
+        asm: Option<serde_json::Value>,
+        file: &Path,
+    ) -> Result<(), SolcError> {
+        if self.legacy_assembly {
+            if let Some(legacy_asm) = asm {
+                let file = file.with_extension("legacyAssembly");
+                fs::write(&file, legacy_asm.as_str().unwrap_or_default())
+                    .map_err(|err| SolcError::io(err, file))?
             }
         }
         Ok(())
