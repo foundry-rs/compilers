@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.2](https://github.com/foundry-rs/compilers/releases/tag/v0.11.2) - 2024-09-30
+
+### Bug Fixes
+
+- Include `evm.legacyAssembly` output ([#206](https://github.com/foundry-rs/compilers/issues/206))
+
+### Documentation
+
+- Fix typos ([#202](https://github.com/foundry-rs/compilers/issues/202))
+
+### Miscellaneous Tasks
+
+- Clippy ([#204](https://github.com/foundry-rs/compilers/issues/204))
+- Use serde_json::from_str ([#203](https://github.com/foundry-rs/compilers/issues/203))
+
 ## [0.11.1](https://github.com/foundry-rs/compilers/releases/tag/v0.11.1) - 2024-09-17
 
 ### Bug Fixes
@@ -18,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.11.1
 - Improve error handling in source map parsing ([#201](https://github.com/foundry-rs/compilers/issues/201))
 - Clippy happy ([#195](https://github.com/foundry-rs/compilers/issues/195))
 - Fix up the README example ([#194](https://github.com/foundry-rs/compilers/issues/194))
