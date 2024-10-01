@@ -447,7 +447,7 @@ impl Solc {
     /// Invokes `solc --version` and parses the output as a SemVer [`Version`].
     #[instrument(level = "debug", skip_all)]
     pub fn version(solc: impl Into<PathBuf>) -> Result<Version> {
-        Self::version_with_args(solc, &Vec::new())
+        Self::version_with_args(solc, &[])
     }
 
     /// Invokes `solc --version` and parses the output as a SemVer [`Version`].
