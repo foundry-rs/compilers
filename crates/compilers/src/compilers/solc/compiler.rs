@@ -90,8 +90,26 @@ impl Solc {
     /// Returns error if `solc` is not found in the system or if the version cannot be retrieved.
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
         let path = path.into();
-        let version = Self::version(path.clone())?;
+        let version = Self::version(path.clone(), &Vec::new())?;
         Ok(Self::new_with_version(path, version))
+    }
+
+    /// A new instance which points to `solc` with additional cli arguments. Invokes `solc
+    /// --version` to determine the version.
+    ///
+    /// Returns error if `solc` is not found in the system or if the version cannot be retrieved.
+    pub fn new_with_args(
+        path: impl Into<PathBuf>,
+        extra_args: impl IntoIterator<Item: Into<String>>,
+    ) -> Result<Self> {
+        let args = extra_args.into_iter().map(Into::into).collect();
+        let path = path.into();
+        let version = Self::version(path.clone(), &args)?;
+
+        let mut solc = Self::new_with_version(path, version);
+        solc.extra_args = args;
+
+        Ok(solc)
     }
 
     /// A new instance which points to `solc` with the given version
@@ -428,10 +446,11 @@ impl Solc {
 
     /// Invokes `solc --version` and parses the output as a SemVer [`Version`].
     #[instrument(level = "debug", skip_all)]
-    pub fn version(solc: impl Into<PathBuf>) -> Result<Version> {
-        crate::cache_version(solc.into(), |solc| {
+    pub fn version(solc: impl Into<PathBuf>, args: &Vec<String>) -> Result<Version> {
+        crate::cache_version(solc.into(), args, |solc| {
             let mut cmd = Command::new(solc);
-            cmd.arg("--version")
+            cmd.args(args)
+                .arg("--version")
                 .stdin(Stdio::piped())
                 .stderr(Stdio::piped())
                 .stdout(Stdio::piped());
@@ -454,6 +473,7 @@ impl Solc {
     pub fn configure_cmd(&self) -> Command {
         let mut cmd = Command::new(&self.solc);
         cmd.stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
+        cmd.args(&self.extra_args);
 
         if !self.allow_paths.is_empty() {
             cmd.arg("--allow-paths");
@@ -478,7 +498,6 @@ impl Solc {
             cmd.current_dir(base_path);
         }
 
-        cmd.args(&self.extra_args);
         cmd.arg("--standard-json");
 
         cmd
@@ -624,7 +643,7 @@ mod tests {
 
     #[test]
     fn solc_version_works() {
-        Solc::version(solc().solc).unwrap();
+        Solc::version(solc().solc, &Vec::new()).unwrap();
     }
 
     #[test]

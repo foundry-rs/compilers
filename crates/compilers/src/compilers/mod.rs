@@ -278,19 +278,23 @@ pub trait Compiler: Send + Sync + Clone {
 
 pub(crate) fn cache_version(
     path: PathBuf,
+    args: &Vec<String>,
     f: impl FnOnce(&Path) -> Result<Version>,
 ) -> Result<Version> {
-    static VERSION_CACHE: OnceLock<Mutex<HashMap<PathBuf, Version>>> = OnceLock::new();
+    static VERSION_CACHE: OnceLock<Mutex<HashMap<PathBuf, HashMap<Vec<String>, Version>>>> =
+        OnceLock::new();
     let mut lock = VERSION_CACHE
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    Ok(match lock.entry(path) {
-        std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
-        std::collections::hash_map::Entry::Vacant(entry) => {
-            let value = f(entry.key())?;
-            entry.insert(value)
-        }
+
+    if let Some(version) = lock.get(&path).and_then(|versions| versions.get(args)) {
+        return Ok(version.clone());
     }
-    .clone())
+
+    let version = f(&path)?;
+
+    lock.entry(path).or_default().insert(args.clone(), version.clone());
+
+    Ok(version)
 }
