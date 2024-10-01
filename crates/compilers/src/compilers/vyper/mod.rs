@@ -166,7 +166,7 @@ impl Vyper {
     /// Invokes `vyper --version` and parses the output as a SemVer [`Version`].
     #[instrument(level = "debug", skip_all)]
     pub fn version(vyper: impl Into<PathBuf>) -> Result<Version> {
-        crate::cache_version(vyper.into(), |vyper| {
+        crate::cache_version(vyper.into(), &[], |vyper| {
             let mut cmd = Command::new(vyper);
             cmd.arg("--version")
                 .stdin(Stdio::piped())
