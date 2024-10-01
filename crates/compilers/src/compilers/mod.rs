@@ -281,6 +281,7 @@ pub(crate) fn cache_version(
     args: &Vec<String>,
     f: impl FnOnce(&Path) -> Result<Version>,
 ) -> Result<Version> {
+    #[allow(clippy::complexity)]
     static VERSION_CACHE: OnceLock<Mutex<HashMap<PathBuf, HashMap<Vec<String>, Version>>>> =
         OnceLock::new();
     let mut lock = VERSION_CACHE
