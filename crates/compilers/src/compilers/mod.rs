@@ -278,7 +278,7 @@ pub trait Compiler: Send + Sync + Clone {
 
 pub(crate) fn cache_version(
     path: PathBuf,
-    args: &Vec<String>,
+    args: &[String],
     f: impl FnOnce(&Path) -> Result<Version>,
 ) -> Result<Version> {
     #[allow(clippy::complexity)]
@@ -295,7 +295,7 @@ pub(crate) fn cache_version(
 
     let version = f(&path)?;
 
-    lock.entry(path).or_default().insert(args.clone(), version.clone());
+    lock.entry(path).or_default().insert(args.to_vec(), version.clone());
 
     Ok(version)
 }

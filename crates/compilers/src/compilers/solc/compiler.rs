@@ -90,7 +90,7 @@ impl Solc {
     /// Returns error if `solc` is not found in the system or if the version cannot be retrieved.
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
         let path = path.into();
-        let version = Self::version(path.clone(), &Vec::new())?;
+        let version = Self::version(path.clone())?;
         Ok(Self::new_with_version(path, version))
     }
 
@@ -102,9 +102,9 @@ impl Solc {
         path: impl Into<PathBuf>,
         extra_args: impl IntoIterator<Item: Into<String>>,
     ) -> Result<Self> {
-        let args = extra_args.into_iter().map(Into::into).collect();
+        let args = extra_args.into_iter().map(Into::into).collect::<Vec<_>>();
         let path = path.into();
-        let version = Self::version(path.clone(), &args)?;
+        let version = Self::version_with_args(path.clone(), &args)?;
 
         let mut solc = Self::new_with_version(path, version);
         solc.extra_args = args;
@@ -446,7 +446,13 @@ impl Solc {
 
     /// Invokes `solc --version` and parses the output as a SemVer [`Version`].
     #[instrument(level = "debug", skip_all)]
-    pub fn version(solc: impl Into<PathBuf>, args: &Vec<String>) -> Result<Version> {
+    pub fn version(solc: impl Into<PathBuf>) -> Result<Version> {
+        Self::version_with_args(solc, &Vec::new())
+    }
+
+    /// Invokes `solc --version` and parses the output as a SemVer [`Version`].
+    #[instrument(level = "debug", skip_all)]
+    pub fn version_with_args(solc: impl Into<PathBuf>, args: &[String]) -> Result<Version> {
         crate::cache_version(solc.into(), args, |solc| {
             let mut cmd = Command::new(solc);
             cmd.args(args)
@@ -643,7 +649,7 @@ mod tests {
 
     #[test]
     fn solc_version_works() {
-        Solc::version(solc().solc, &Vec::new()).unwrap();
+        Solc::version(solc().solc).unwrap();
     }
 
     #[test]
