@@ -14,6 +14,8 @@
 
 // <https://github.com/tokio-rs/tracing/blob/master/tracing-core/src/dispatch.rs>
 
+#![allow(static_mut_refs)] // TODO
+
 use foundry_compilers_artifacts::remappings::Remapping;
 use semver::Version;
 use std::{
