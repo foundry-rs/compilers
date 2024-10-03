@@ -78,8 +78,11 @@ impl From<std::num::TryFromIntError> for SyntaxError {
 
 #[derive(PartialEq, Eq)]
 enum Token<'a> {
+    /// Decimal number
     Number(&'a str),
+    /// `;`
     Semicolon,
+    /// `:`
     Colon,
     /// `i` which represents an instruction that goes into a function
     In,
@@ -175,7 +178,7 @@ pub type SourceMap = Vec<SourceElement>;
 /// A single element in a [`SourceMap`].
 ///
 /// Solidity reference: <https://docs.soliditylang.org/en/latest/internals/source_mappings.html#source-mappings>
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct SourceElement {
     offset: u32,
     length: u32,
@@ -184,10 +187,35 @@ pub struct SourceElement {
     jump_and_modifier_depth: u32,
 }
 
+impl fmt::Debug for SourceElement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SourceElement")
+            .field("offset", &self.offset())
+            .field("length", &self.length())
+            .field("index", &self.index_i32())
+            .field("jump", &self.jump())
+            .field("modifier_depth", &self.modifier_depth())
+            .field("formatted", &format_args!("{self}"))
+            .finish()
+    }
+}
+
+impl Default for SourceElement {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SourceElement {
     /// Creates a new source element with default values.
-    pub fn new_invalid() -> Self {
+    pub fn new() -> Self {
         Self { offset: 0, length: 0, index: -1, jump_and_modifier_depth: 0 }
+    }
+
+    /// Creates a new source element with default values.
+    #[deprecated = "use `new` instead"]
+    pub fn new_invalid() -> Self {
+        Self::new()
     }
 
     /// The byte-offset to the start of the range in the source file.
@@ -295,10 +323,10 @@ impl fmt::Display for SourceElementBuilder {
         }
 
         if let Some(s) = self.offset {
-            if self.index == Some(None) {
+            if s == 0 && self.index == Some(None) {
                 f.write_str("-1")?;
             } else {
-                s.fmt(f)?;
+                write!(f, "{s}")?;
             }
         }
         if self.length.is_none()
@@ -311,10 +339,10 @@ impl fmt::Display for SourceElementBuilder {
         f.write_char(':')?;
 
         if let Some(s) = self.length {
-            if self.index == Some(None) {
+            if s == 0 && self.index == Some(None) {
                 f.write_str("-1")?;
             } else {
-                s.fmt(f)?;
+                write!(f, "{s}")?;
             }
         }
         if self.index.is_none() && self.jump.is_none() && self.modifier_depth.is_none() {
@@ -324,7 +352,7 @@ impl fmt::Display for SourceElementBuilder {
 
         if let Some(s) = self.index {
             let s = s.map(|s| s as i64).unwrap_or(-1);
-            s.fmt(f)?;
+            write!(f, "{s}")?;
         }
         if self.jump.is_none() && self.modifier_depth.is_none() {
             return Ok(());
@@ -332,7 +360,7 @@ impl fmt::Display for SourceElementBuilder {
         f.write_char(':')?;
 
         if let Some(s) = self.jump {
-            s.fmt(f)?;
+            write!(f, "{s}")?;
         }
         if self.modifier_depth.is_none() {
             return Ok(());
@@ -353,17 +381,11 @@ impl fmt::Display for SourceElementBuilder {
 
 impl SourceElementBuilder {
     fn finish(self, prev: Option<SourceElement>) -> Result<SourceElement, SyntaxError> {
-        let no_prev = prev.is_none();
-        let mut element = prev.unwrap_or_else(SourceElement::new_invalid);
+        let mut element = prev.unwrap_or_default();
         macro_rules! get_field {
             (| $field:ident | $e:expr) => {
                 if let Some($field) = self.$field {
                     $e;
-                } else if no_prev {
-                    return Err(SyntaxError::new(
-                        None,
-                        format!("no previous {}", stringify!($field)),
-                    ));
                 }
             };
         }
@@ -498,9 +520,9 @@ impl<'input> Parser<'input> {
         #[cfg(test)]
         if let Some(out) = self.output.as_mut() {
             if self.last_element.is_some() {
-                let _ = out.write_char(';');
+                out.write_char(';').unwrap();
             }
-            let _ = out.write_str(&builder.to_string());
+            write!(out, "{builder}").unwrap();
         }
 
         let element = builder.finish(self.last_element.take())?;
@@ -554,29 +576,53 @@ pub fn parse(input: &str) -> Result<SourceMap, SyntaxError> {
 mod tests {
     use super::*;
 
+    fn parse_test(input: &str) {
+        match parse_test_(input) {
+            Ok(_) => {}
+            Err(e) => panic!("{e}"),
+        }
+    }
+
+    fn parse_test_(input: &str) -> Result<SourceMap, SyntaxError> {
+        let mut s = String::new();
+        let mut p = Parser::new(input);
+        p.output = Some(&mut s);
+        let sm = p.collect::<Result<SourceMap, _>>()?;
+        if s != input {
+            return Err(SyntaxError::new(
+                None,
+                format!("mismatched output:\n   actual: {s:?}\n expected: {input:?}\n       sm: {sm:#?}"),
+            ));
+        }
+        Ok(sm)
+    }
+
     #[test]
-    fn can_parse_source_maps() {
+    fn empty() {
+        parse_test("");
+    }
+
+    #[test]
+    fn source_maps() {
         // all source maps from the compiler output test data
         let source_maps = include_str!("../../../../test-data/out-source-maps.txt");
 
         for (line, s) in source_maps.lines().enumerate() {
-            parse(s).unwrap_or_else(|e| panic!("Failed to parse line {line}: {e}"));
+            let line = line + 1;
+            parse_test_(s).unwrap_or_else(|e| panic!("Failed to parse line {line}: {e}\n{s:?}"));
         }
     }
 
     #[test]
-    fn can_parse_foundry_cheatcodes_sol_maps() {
+    fn cheatcodes() {
         let s = include_str!("../../../../test-data/cheatcodes.sol-sourcemap.txt");
-        let mut out = String::new();
-        let mut parser = Parser::new(s);
-        parser.output = Some(&mut out);
-        let _map = parser.collect::<Result<SourceMap, _>>().unwrap();
-        assert_eq!(out, s);
+        parse_test(s);
     }
 
+    // https://github.com/foundry-rs/foundry/issues/8986
     #[test]
-    fn can_parse_empty() {
-        let s = Parser::new("").collect::<Result<SourceMap, _>>().unwrap();
-        assert_eq!(s.len(), 0);
+    fn univ4_deployer() {
+        let s = ":::-:0;;1888:10801:91;2615:100;;;2679:3;2615:100;;;;2700:4;2615:100;;;;-1:-1:-1;2615:100:91;;;;2546:169;;;-1:-1:-1;;2546:169:91;;;;;;;;;;;2615:100;2546:169;;;2615:100;2797:101;;;;;;;;;-1:-1:-1;;2797:101:91;;;;;;;;2546:169;2721:177;;;;;;;;;;;;;;;;;;2957:101;1888:10801;2957:101;2797;2957;;;-1:-1:-1;;2957:101:91;;;;356:29:89;2957:101:91;;;;2904:154;;;-1:-1:-1;;2904:154:91;;;;;;;;;;;;-1:-1:-1;;;;;;2904:154:91;;;;;;;;4018:32;;;;;4048:2;4018:32;;;4056:74;;;-1:-1:-1;;;;;4056:74:91;;;;;;;;1888:10801;;;;;;;;;;;;;;;;";
+        parse_test(s);
     }
 }
