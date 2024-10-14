@@ -98,7 +98,7 @@ pub(crate) fn create_contract_file(path: &Path, content: impl AsRef<str>) -> Res
 
 fn contract_file_name(name: &str) -> String {
     let name = name.trim();
-    if name.ends_with(".sol") {
+    if name.ends_with(".sol") || name.ends_with(".vy") || name.ends_with(".vyi") {
         name.to_string()
     } else {
         format!("{name}.sol")
