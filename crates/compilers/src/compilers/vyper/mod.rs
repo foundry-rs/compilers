@@ -177,7 +177,9 @@ impl Vyper {
             trace!(?output);
             if output.status.success() {
                 let stdout = String::from_utf8_lossy(&output.stdout);
-                Ok(Version::from_str(&stdout.trim().replace("rc", "-rc").replace("b", "-b"))?)
+                Ok(Version::from_str(
+                    &stdout.trim().replace("rc", "-rc").replace("b", "-b").replace("a", "-a"),
+                )?)
             } else {
                 Err(SolcError::solc_output(&output))
             }
