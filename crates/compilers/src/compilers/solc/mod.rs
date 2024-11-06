@@ -9,7 +9,7 @@ use foundry_compilers_artifacts::{
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Error, EvmVersion, Settings, Severity, SolcInput,
+    BytecodeHash, Error, EvmVersion, Settings, Severity, SolcInput,
 };
 use foundry_compilers_core::error::Result;
 use itertools::Itertools;
@@ -242,6 +242,7 @@ pub struct SolcRestrictions {
     pub evm_version: Restriction<EvmVersion>,
     pub via_ir: Option<bool>,
     pub optimizer_runs: Restriction<usize>,
+    pub bytecode_hash: Option<BytecodeHash>,
 }
 
 impl CompilerSettingsRestrictions for SolcRestrictions {
@@ -252,10 +253,19 @@ impl CompilerSettingsRestrictions for SolcRestrictions {
             }
         }
 
+        if let (Some(bytecode_hash), Some(other_bytecode_hash)) =
+            (self.bytecode_hash, other.bytecode_hash)
+        {
+            if bytecode_hash != other_bytecode_hash {
+                return None;
+            }
+        }
+
         Some(Self {
             evm_version: self.evm_version.merge(other.evm_version)?,
             via_ir: self.via_ir.or(other.via_ir),
             optimizer_runs: self.optimizer_runs.merge(other.optimizer_runs)?,
+            bytecode_hash: self.bytecode_hash.or(other.bytecode_hash),
         })
     }
 }
@@ -323,14 +333,17 @@ impl CompilerSettings for SolcSettings {
     fn satisfies_restrictions(&self, restrictions: &Self::Restrictions) -> bool {
         let mut satisfies = true;
 
-        satisfies &= restrictions.evm_version.satisfies(self.evm_version);
-        satisfies &=
-            restrictions.via_ir.map_or(true, |via_ir| via_ir == self.via_ir.unwrap_or_default());
-        satisfies &= restrictions.optimizer_runs.satisfies(self.optimizer.runs);
+        let SolcRestrictions { evm_version, via_ir, optimizer_runs, bytecode_hash } = restrictions;
+
+        satisfies &= evm_version.satisfies(self.evm_version);
+        satisfies &= via_ir.map_or(true, |via_ir| via_ir == self.via_ir.unwrap_or_default());
+        satisfies &= bytecode_hash.map_or(true, |bytecode_hash| {
+            self.metadata.as_ref().and_then(|m| m.bytecode_hash) == Some(bytecode_hash)
+        });
+        satisfies &= optimizer_runs.satisfies(self.optimizer.runs);
 
         // Ensure that we either don't have min optimizer runs set or that the optimizer is enabled
-        satisfies &= restrictions
-            .optimizer_runs
+        satisfies &= optimizer_runs
             .min
             .map_or(true, |min| min == 0 || self.optimizer.enabled.unwrap_or_default());
 
