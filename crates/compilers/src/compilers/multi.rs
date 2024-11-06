@@ -222,6 +222,13 @@ impl CompilerInput for MultiCompilerInput {
         }
     }
 
+    fn compiler_path(&self) -> Option<PathBuf> {
+        match self {
+            Self::Solc(input) => input.compiler_path(),
+            Self::Vyper(input) => input.compiler_path(),
+        }
+    }
+
     fn language(&self) -> Self::Language {
         match self {
             Self::Solc(input) => MultiCompilerLanguage::Solc(input.language()),

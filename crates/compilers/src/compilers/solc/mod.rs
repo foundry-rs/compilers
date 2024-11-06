@@ -148,6 +148,10 @@ impl CompilerInput for SolcVersionedInput {
         "Solc".into()
     }
 
+    fn compiler_path(&self) -> Option<PathBuf> {
+        Solc::find_svm_installed_version(&self.version).ok()?.map(|solc| solc.solc)
+    }
+
     fn strip_prefix(&mut self, base: &Path) {
         self.input.strip_prefix(base);
     }

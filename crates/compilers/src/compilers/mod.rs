@@ -119,10 +119,14 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
     /// Returns compiler version for which this input is intended.
     fn version(&self) -> &Version;
 
+    /// Returns the sources included into this input.
     fn sources(&self) -> impl Iterator<Item = (&Path, &Source)>;
 
     /// Returns compiler name used by reporters to display output during compilation.
     fn compiler_name(&self) -> Cow<'static, str>;
+
+    /// Returns the path to the compiler binary used to compile this input.
+    fn compiler_path(&self) -> Option<PathBuf>;
 
     /// Strips given prefix from all paths.
     fn strip_prefix(&mut self, base: &Path);
