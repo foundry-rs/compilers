@@ -770,7 +770,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     /// If `offline` is set to `true` then only already installed.
     fn get_input_node_versions<C: Compiler<Language = L>, T: ArtifactOutput>(
         &self,
-        project: &Project<C, T>
+        project: &Project<C, T>,
     ) -> Result<HashMap<L, HashMap<Version, Vec<usize>>>> {
         trace!("resolving input node versions");
 
@@ -784,7 +784,8 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
 
             // the sorted list of all versions
             let all_versions = if project.offline {
-                project.compiler
+                project
+                    .compiler
                     .available_versions(&language)
                     .into_iter()
                     .filter(|v| v.is_installed())
@@ -878,7 +879,9 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                 for idx in nodes {
                     let mut profile_candidates =
                         project.settings_profiles().enumerate().collect::<Vec<_>>();
-                    if let Err(err) = self.retain_compatible_profiles(idx, project, &mut profile_candidates) {
+                    if let Err(err) =
+                        self.retain_compatible_profiles(idx, project, &mut profile_candidates)
+                    {
                         errors.push(err);
                     } else {
                         let (profile_idx, _) = profile_candidates.first().expect("exists");
@@ -1180,9 +1183,12 @@ src/Dapp.t.sol >=0.6.6
             Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/incompatible-pragmas");
         let paths = ProjectPathsConfig::dapptools(&root).unwrap();
         let graph = Graph::<SolData>::resolve(&paths).unwrap();
-        let Err(SolcError::Message(err)) =
-            graph.get_input_node_versions(&ProjectBuilder::<SolcCompiler>::default().paths(paths).build(SolcCompiler::AutoDetect).unwrap())
-        else {
+        let Err(SolcError::Message(err)) = graph.get_input_node_versions(
+            &ProjectBuilder::<SolcCompiler>::default()
+                .paths(paths)
+                .build(SolcCompiler::AutoDetect)
+                .unwrap(),
+        ) else {
             panic!("expected error");
         };
 
