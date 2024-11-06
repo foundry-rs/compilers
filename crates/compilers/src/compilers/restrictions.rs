@@ -5,8 +5,8 @@ use std::{
 
 use semver::VersionReq;
 
-pub trait CompilerSettingsRestrictions: Debug + Sync + Send + Clone + Default {
-    fn merge(&mut self, other: Self);
+pub trait CompilerSettingsRestrictions: Copy + Debug + Sync + Send + Clone + Default {
+    fn merge(self, other: Self) -> Option<Self>;
 }
 
 /// Combines [CompilerSettingsRestrictions] with a restrictions on compiler versions for a given

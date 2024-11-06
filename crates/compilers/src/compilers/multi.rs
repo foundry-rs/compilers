@@ -138,9 +138,8 @@ pub struct MultiCompilerRestrictions {
 }
 
 impl CompilerSettingsRestrictions for MultiCompilerRestrictions {
-    fn merge(&mut self, other: Self) {
-        self.solc.merge(other.solc);
-        self.vyper.merge(other.vyper);
+    fn merge(self, other: Self) -> Option<Self> {
+        Some(Self { solc: self.solc.merge(other.solc)?, vyper: self.vyper.merge(other.vyper)? })
     }
 }
 

@@ -16,7 +16,7 @@ use foundry_compilers::{
     info::ContractInfo,
     multi::MultiCompilerRestrictions,
     project_util::*,
-    solc::{EvmVersionRestriction, SolcRestrictions, SolcSettings},
+    solc::{Restriction, SolcRestrictions, SolcSettings},
     take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
     ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, RestrictionsWithVersion,
     TestFileFilter,
@@ -4073,10 +4073,7 @@ contract SimpleContract {}
     let cancun_restriction = RestrictionsWithVersion {
         restrictions: MultiCompilerRestrictions {
             solc: SolcRestrictions {
-                evm_version: EvmVersionRestriction {
-                    min_evm_version: Some(EvmVersion::Cancun),
-                    ..Default::default()
-                },
+                evm_version: Restriction { min: Some(EvmVersion::Cancun), ..Default::default() },
                 ..Default::default()
             },
             ..Default::default()

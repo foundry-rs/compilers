@@ -3,18 +3,18 @@ use std::{collections::BTreeSet, path::PathBuf};
 pub use crate::artifacts::vyper::VyperSettings;
 use crate::{
     compilers::{restrictions::CompilerSettingsRestrictions, CompilerSettings},
-    solc::EvmVersionRestriction,
+    solc::Restriction,
 };
-use foundry_compilers_artifacts::output_selection::OutputSelection;
+use foundry_compilers_artifacts::{output_selection::OutputSelection, EvmVersion};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct VyperRestrictions {
-    pub evm_version: EvmVersionRestriction,
+    pub evm_version: Restriction<EvmVersion>,
 }
 
 impl CompilerSettingsRestrictions for VyperRestrictions {
-    fn merge(&mut self, other: Self) {
-        self.evm_version.merge(&other.evm_version);
+    fn merge(self, other: Self) -> Option<Self> {
+        Some(Self { evm_version: self.evm_version.merge(other.evm_version)? })
     }
 }
 
