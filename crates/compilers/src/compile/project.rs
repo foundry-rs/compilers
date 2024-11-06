@@ -309,7 +309,7 @@ struct ArtifactsState<'a, T: ArtifactOutput, C: Compiler> {
     compiled_artifacts: Artifacts<T::Artifact>,
 }
 
-impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
+impl<T: ArtifactOutput, C: Compiler> ArtifactsState<'_, T, C> {
     /// Writes the cache file
     ///
     /// this concludes the [`Project::compile()`] statemachine

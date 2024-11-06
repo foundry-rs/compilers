@@ -64,6 +64,7 @@ use std::{
     io,
     path::{Path, PathBuf},
 };
+use yansi::{Color, Paint};
 
 pub mod parse;
 mod tree;
@@ -196,8 +197,10 @@ impl<D> GraphEdges<D> {
     }
 }
 
-/// Represents a fully-resolved solidity dependency graph. Each node in the graph
-/// is a file and edges represent dependencies between them.
+/// Represents a fully-resolved solidity dependency graph.
+///
+/// Each node in the graph is a file and edges represent dependencies between them.
+///
 /// See also <https://docs.soliditylang.org/en/latest/layout-of-source-files.html?highlight=import#importing-other-source-files>
 #[derive(Debug)]
 pub struct Graph<D = SolData> {
@@ -209,7 +212,7 @@ pub struct Graph<D = SolData> {
     root: PathBuf,
 }
 
-impl<D: ParsedSource> Graph<D> {
+impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     /// Print the graph to `StdOut`
     pub fn print(&self) {
         self.print_with_options(Default::default())
@@ -553,63 +556,143 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     ///     path/to/c.sol (<version>)
     ///     ...
     /// ```
-    fn format_imports_list<W: std::fmt::Write, C: Compiler<Language = L>, T: ArtifactOutput>(
+    fn format_imports_list<W: std::fmt::Write>(
         &self,
         idx: usize,
-        project: &Project<C, T>,
+        incompatible: HashSet<usize>,
         f: &mut W,
     ) -> std::result::Result<(), std::fmt::Error> {
-        self.format_node(idx, project, f)?;
+        let format_node = |idx, f: &mut W| {
+            let node = self.node(idx);
+            let color = if incompatible.contains(&idx) { Color::Red } else { Color::White };
+
+            let mut line = utils::source_name(&node.path, &self.root).display().to_string();
+            if let Some(req) = node.data.version_req() {
+                line.push_str(&format!(" {req}"));
+            }
+
+            write!(f, "{}", line.paint(color))
+        };
+        format_node(idx, f)?;
         write!(f, " imports:")?;
         for dep in self.node_ids(idx).skip(1) {
             write!(f, "\n    ")?;
-            self.format_node(dep, project, f)?;
+            format_node(dep, f)?;
         }
 
         Ok(())
     }
 
-    /// Formats a single node along with its version requirements.
-    fn format_node<W: std::fmt::Write, C: Compiler<Language = L>, T: ArtifactOutput>(
+    /// Combines version requirement parsed from file and from project restrictions.
+    fn version_requirement<C: Compiler, T: ArtifactOutput>(
         &self,
         idx: usize,
         project: &Project<C, T>,
-        f: &mut W,
-    ) -> std::result::Result<(), std::fmt::Error> {
+    ) -> Option<VersionReq> {
         let node = self.node(idx);
-        write!(f, "{}", utils::source_name(&node.path, &self.root).display())?;
-        if let Some(req) = node.data.version_req() {
-            write!(f, " {req}")?;
+        let parsed_req = node.data.version_req();
+        let other_req = project.restrictions.get(&node.path).and_then(|r| r.version.as_ref());
+
+        match (parsed_req, other_req) {
+            (Some(parsed_req), Some(other_req)) => {
+                let mut req = parsed_req.clone();
+                req.comparators.extend(other_req.comparators.clone());
+                Some(req)
+            }
+            (Some(parsed_req), None) => Some(parsed_req.clone()),
+            (None, Some(other_req)) => Some(other_req.clone()),
+            _ => None,
         }
-        if let Some(req) = project.restrictions.get(&node.path).and_then(|r| r.version.as_ref()) {
-            write!(f, " {req}")?;
+    }
+
+    /// Checks that the file's version is even available.
+    ///
+    /// This returns an error if the file's version is invalid semver, or is not available such as
+    /// 0.8.20, if the highest available version is `0.8.19`
+    fn check_available_version<C: Compiler, T: ArtifactOutput>(
+        &self,
+        idx: usize,
+        all_versions: &[&CompilerVersion],
+        project: &Project<C, T>,
+    ) -> std::result::Result<(), SourceVersionError> {
+        let Some(req) = self.version_requirement(idx, project) else { return Ok(()) };
+
+        if !all_versions.iter().any(|v| req.matches(v.as_ref())) {
+            return if project.offline {
+                Err(SourceVersionError::NoMatchingVersionOffline(req.clone()))
+            } else {
+                Err(SourceVersionError::NoMatchingVersion(req.clone()))
+            };
         }
 
         Ok(())
     }
 
-    /// Filters incompatible versions from the `candidates`.
+    /// Filters incompatible versions from the `candidates`. It iterates over node imports and in
+    /// case if there is no compatible version it returns the latest seen node id.
     fn retain_compatible_versions<C: Compiler, T: ArtifactOutput>(
         &self,
         idx: usize,
-        project: &Project<C, T>,
         candidates: &mut Vec<&CompilerVersion>,
-    ) {
-        let nodes: HashSet<_> = self.node_ids(idx).collect();
-        for node in nodes {
-            let node = self.node(node);
-            if let Some(req) = node.data.version_req() {
+        project: &Project<C, T>,
+    ) -> Result<(), String> {
+        let mut all_versions = candidates.clone();
+
+        let nodes: Vec<_> = self.node_ids(idx).collect();
+        let mut failed_node_idx = None;
+        for node in nodes.iter() {
+            if let Some(req) = self.version_requirement(*node, project) {
                 candidates.retain(|v| req.matches(v.as_ref()));
-            }
-            if let Some(req) = project.restrictions.get(&node.path).and_then(|r| r.version.as_ref())
-            {
-                candidates.retain(|v| req.matches(v.as_ref()));
-            }
-            if candidates.is_empty() {
-                // nothing to filter anymore
-                return;
+
+                if candidates.is_empty() {
+                    failed_node_idx = Some(*node);
+                    break;
+                }
             }
         }
+
+        let Some(failed_node_idx) = failed_node_idx else {
+            // everything is fine
+            return Ok(());
+        };
+
+        // This now keeps data for the node which were the last one before we had no candidates
+        // left. It means that there is a node directly conflicting with it in `nodes` coming
+        // before.
+        let failed_node = self.node(failed_node_idx);
+
+        if let Err(version_err) =
+            self.check_available_version(failed_node_idx, &all_versions, project)
+        {
+            // check if the version is even valid
+            let f = utils::source_name(&failed_node.path, &self.root).display();
+            return Err(
+                format!("Encountered invalid solc version in {f}: {version_err}").to_string()
+            );
+        } else {
+            // if the node requirement makes sense, it means that there is at least one node
+            // which requirement conflicts with it
+
+            // retain only versions compatible with the `failed_node`
+            if let Some(req) = self.version_requirement(failed_node_idx, project) {
+                all_versions.retain(|v| req.matches(v.as_ref()));
+            }
+
+            // iterate over all the nodes once again and find the one incompatible
+            for node in &nodes {
+                if self.check_available_version(*node, &all_versions, project).is_err() {
+                    let mut msg = "Found incompatible versions:\n".white().to_string();
+
+                    self.format_imports_list(idx, [*node, failed_node_idx].into(), &mut msg)
+                        .unwrap();
+                    return Err(msg);
+                }
+            }
+        }
+
+        let mut msg = "Found incompatible versions:\n".white().to_string();
+        self.format_imports_list(idx, nodes.into_iter().collect(), &mut msg).unwrap();
+        Err(msg)
     }
 
     fn retain_compatible_profiles<C: Compiler, T: ArtifactOutput>(
@@ -617,19 +700,52 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         idx: usize,
         project: &Project<C, T>,
         candidates: &mut Vec<(usize, (&str, &C::Settings))>,
-    ) {
-        let nodes: HashSet<_> = self.node_ids(idx).collect();
-        for node in nodes {
-            let node = self.node(node);
-            if let Some(requirement) = project.restrictions.get(&node.path) {
-                candidates
-                    .retain(|(_, (_, settings))| settings.satisfies_restrictions(&**requirement));
-            }
-            if candidates.is_empty() {
-                // nothing to filter anymore
-                return;
+    ) -> Result<(), String> {
+        let mut all_profiles = candidates.clone();
+
+        let nodes: Vec<_> = self.node_ids(idx).collect();
+        let mut failed_node_idx = None;
+        for node in nodes.iter() {
+            if let Some(req) = project.restrictions.get(&self.node(*node).path) {
+                candidates.retain(|(_, (_, settings))| settings.satisfies_restrictions(&**req));
+                if candidates.is_empty() {
+                    failed_node_idx = Some(*node);
+                    break;
+                }
             }
         }
+
+        let Some(failed_node_idx) = failed_node_idx else {
+            // everything is fine
+            return Ok(());
+        };
+
+        let failed_node = self.node(failed_node_idx);
+
+        // retain only profiles compatible with the `failed_node`
+        if let Some(req) = project.restrictions.get(&failed_node.path) {
+            all_profiles.retain(|(_, (_, settings))| settings.satisfies_restrictions(&**req));
+        }
+
+        // iterate over all the nodes once again and find the one incompatible
+        for node in &nodes {
+            if let Some(req) = project.restrictions.get(&self.node(*node).path) {
+                if !all_profiles
+                    .iter()
+                    .any(|(_, (_, settings))| settings.satisfies_restrictions(&**req))
+                {
+                    let mut msg = "Found incompatible settings restrictions:\n".white().to_string();
+
+                    self.format_imports_list(idx, [*node, failed_node_idx].into(), &mut msg)
+                        .unwrap();
+                    return Err(msg);
+                }
+            }
+        }
+
+        let mut msg = "Found incompatible settings restrictions:\n".white().to_string();
+        self.format_imports_list(idx, nodes.into_iter().collect(), &mut msg).unwrap();
+        Err(msg)
     }
 
     fn input_nodes_by_language(&self) -> HashMap<D::Language, Vec<usize>> {
@@ -652,9 +768,9 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     ///
     /// This also attempts to prefer local installations over remote available.
     /// If `offline` is set to `true` then only already installed.
-    fn get_input_node_versions<C: Compiler<Language = L>>(
+    fn get_input_node_versions<C: Compiler<Language = L>, T: ArtifactOutput>(
         &self,
-        project: &Project<C, impl ArtifactOutput>,
+        project: &Project<C, T>
     ) -> Result<HashMap<L, HashMap<Version, Vec<usize>>>> {
         trace!("resolving input node versions");
 
@@ -665,13 +781,10 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             // exit on first error, instead gather all the errors and return a bundled
             // error message instead
             let mut errors = Vec::new();
-            // we also  don't want duplicate error diagnostic
-            let mut erroneous_nodes = HashSet::with_capacity(self.edges.num_input_files);
 
             // the sorted list of all versions
             let all_versions = if project.offline {
-                project
-                    .compiler
+                project.compiler
                     .available_versions(&language)
                     .into_iter()
                     .filter(|v| v.is_installed())
@@ -696,25 +809,8 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                 let mut candidates = all_versions.iter().collect::<Vec<_>>();
                 // remove all incompatible versions from the candidates list by checking the node
                 // and all its imports
-                self.retain_compatible_versions(idx, project, &mut candidates);
-
-                if candidates.is_empty() && !erroneous_nodes.contains(&idx) {
-                    // check if the version is even valid
-                    let node = self.node(idx);
-                    if let Err(version_err) =
-                        node.check_available_version(&all_versions, project.offline)
-                    {
-                        let f = utils::source_name(&node.path, &self.root).display();
-                        errors.push(format!(
-                            "Encountered invalid solc version in {f}: {version_err}"
-                        ));
-                    } else {
-                        let mut msg = String::new();
-                        self.format_imports_list(idx, project, &mut msg).unwrap();
-                        errors.push(format!("Found incompatible versions:\n{msg}"));
-                    }
-
-                    erroneous_nodes.insert(idx);
+                if let Err(err) = self.retain_compatible_versions(idx, &mut candidates, project) {
+                    errors.push(err);
                 } else {
                     // found viable candidates, pick the most recent version that's already
                     // installed
@@ -782,14 +878,11 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                 for idx in nodes {
                     let mut profile_candidates =
                         project.settings_profiles().enumerate().collect::<Vec<_>>();
-                    self.retain_compatible_profiles(idx, project, &mut profile_candidates);
-
-                    if let Some((profile_idx, _)) = profile_candidates.first() {
-                        profile_to_nodes.entry(*profile_idx).or_insert_with(Vec::new).push(idx);
+                    if let Err(err) = self.retain_compatible_profiles(idx, project, &mut profile_candidates) {
+                        errors.push(err);
                     } else {
-                        let mut msg = String::new();
-                        self.format_imports_list(idx, project, &mut msg).unwrap();
-                        errors.push(format!("Found incompatible settings restrictions:\n{msg}"));
+                        let (profile_idx, _) = profile_candidates.first().expect("exists");
+                        profile_to_nodes.entry(*profile_idx).or_insert_with(Vec::new).push(idx);
                     }
                 }
                 versioned_sources.insert(version, profile_to_nodes);
@@ -903,7 +996,7 @@ impl<'a, D> NodesIter<'a, D> {
     }
 }
 
-impl<'a, D> Iterator for NodesIter<'a, D> {
+impl<D> Iterator for NodesIter<'_, D> {
     type Item = usize;
     fn next(&mut self) -> Option<Self::Item> {
         let node = self.stack.pop_front()?;
@@ -958,28 +1051,6 @@ impl<D: ParsedSource> Node<D> {
     pub fn unpack(&self) -> (&PathBuf, &Source) {
         (&self.path, &self.source)
     }
-
-    /// Checks that the file's version is even available.
-    ///
-    /// This returns an error if the file's version is invalid semver, or is not available such as
-    /// 0.8.20, if the highest available version is `0.8.19`
-    fn check_available_version(
-        &self,
-        all_versions: &[CompilerVersion],
-        offline: bool,
-    ) -> std::result::Result<(), SourceVersionError> {
-        let Some(req) = self.data.version_req() else { return Ok(()) };
-
-        if !all_versions.iter().any(|v| req.matches(v.as_ref())) {
-            return if offline {
-                Err(SourceVersionError::NoMatchingVersionOffline(req.clone()))
-            } else {
-                Err(SourceVersionError::NoMatchingVersion(req.clone()))
-            };
-        }
-
-        Ok(())
-    }
 }
 
 /// Helper type for formatting a node
@@ -988,7 +1059,7 @@ pub(crate) struct DisplayNode<'a, D> {
     root: &'a PathBuf,
 }
 
-impl<'a, D: ParsedSource> fmt::Display for DisplayNode<'a, D> {
+impl<D: ParsedSource> fmt::Display for DisplayNode<'_, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let path = utils::source_name(&self.node.path, self.root);
         write!(f, "{}", path.display())?;
@@ -1097,6 +1168,32 @@ src/Dapp.t.sol >=0.6.6
 └── node_modules/hardhat/console.sol >=0.4.22, <0.9.0
 ",
             String::from_utf8(out).unwrap()
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "svm-solc")]
+    fn test_print_unresolved() {
+        use crate::{solc::SolcCompiler, ProjectBuilder};
+
+        let root =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/incompatible-pragmas");
+        let paths = ProjectPathsConfig::dapptools(&root).unwrap();
+        let graph = Graph::<SolData>::resolve(&paths).unwrap();
+        let Err(SolcError::Message(err)) =
+            graph.get_input_node_versions(&ProjectBuilder::<SolcCompiler>::default().paths(paths).build(SolcCompiler::AutoDetect).unwrap())
+        else {
+            panic!("expected error");
+        };
+
+        snapbox::assert_data_eq!(
+            err,
+            snapbox::str![[r#"
+[37mFound incompatible versions:
+[0m[31msrc/A.sol =0.8.25[0m imports:
+    [37msrc/B.sol[0m
+    [31msrc/C.sol =0.7.0[0m
+"#]]
         );
     }
 

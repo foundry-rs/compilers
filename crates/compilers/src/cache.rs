@@ -652,7 +652,7 @@ pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput, C: Compiler> {
     pub content_hashes: HashMap<PathBuf, String>,
 }
 
-impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
+impl<T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'_, T, C> {
     /// Creates a new cache entry for the file
     fn create_cache_entry(&mut self, file: PathBuf, source: &Source) {
         let imports = self

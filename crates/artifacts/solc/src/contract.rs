@@ -455,7 +455,7 @@ pub struct CompactContractRefSome<'a> {
     pub bin_runtime: &'a BytecodeObject,
 }
 
-impl<'a> CompactContractRefSome<'a> {
+impl CompactContractRefSome<'_> {
     /// Returns the individual parts of this contract.
     ///
     /// If the values are `None`, then `Default` is returned.

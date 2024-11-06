@@ -139,8 +139,10 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
 }
 
 /// Parser of the source files which is used to identify imports and version requirements of the
-/// given source. Used by path resolver to resolve imports or determine compiler versions needed to
-/// compiler given sources.
+/// given source.
+///
+/// Used by path resolver to resolve imports or determine compiler versions needed to compiler given
+/// sources.
 pub trait ParsedSource: Debug + Sized + Send + Clone {
     type Language: Language;
 
@@ -257,9 +259,10 @@ pub trait Language:
     const FILE_EXTENSIONS: &'static [&'static str];
 }
 
-/// The main compiler abstraction trait. Currently mostly represents a wrapper around compiler
-/// binary aware of the version and able to compile given input into [CompilerOutput] including
-/// artifacts and errors.'
+/// The main compiler abstraction trait.
+///
+/// Currently mostly represents a wrapper around compiler binary aware of the version and able to
+/// compile given input into [`CompilerOutput`] including artifacts and errors.
 #[auto_impl::auto_impl(&, Box, Arc)]
 pub trait Compiler: Send + Sync + Clone {
     /// Input type for the compiler. Contains settings and sources to be compiled.
@@ -285,19 +288,24 @@ pub trait Compiler: Send + Sync + Clone {
 
 pub(crate) fn cache_version(
     path: PathBuf,
+    args: &[String],
     f: impl FnOnce(&Path) -> Result<Version>,
 ) -> Result<Version> {
-    static VERSION_CACHE: OnceLock<Mutex<HashMap<PathBuf, Version>>> = OnceLock::new();
+    #[allow(clippy::complexity)]
+    static VERSION_CACHE: OnceLock<Mutex<HashMap<PathBuf, HashMap<Vec<String>, Version>>>> =
+        OnceLock::new();
     let mut lock = VERSION_CACHE
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    Ok(match lock.entry(path) {
-        std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
-        std::collections::hash_map::Entry::Vacant(entry) => {
-            let value = f(entry.key())?;
-            entry.insert(value)
-        }
+
+    if let Some(version) = lock.get(&path).and_then(|versions| versions.get(args)) {
+        return Ok(version.clone());
     }
-    .clone())
+
+    let version = f(&path)?;
+
+    lock.entry(path).or_default().insert(args.to_vec(), version.clone());
+
+    Ok(version)
 }

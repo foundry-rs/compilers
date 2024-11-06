@@ -56,6 +56,7 @@ allow = [
     "LicenseRef-webpki",
     "BSL-1.0",
     "Unicode-3.0",
+    "Zlib",
 ]
 
 # Allow 1 or more licenses on a per-crate basis, so that particular licenses

@@ -56,7 +56,7 @@ impl Compiler for SolcCompiler {
         solc.base_path.clone_from(&input.cli_settings.base_path);
         solc.allow_paths.clone_from(&input.cli_settings.allow_paths);
         solc.include_paths.clone_from(&input.cli_settings.include_paths);
-        solc.extra_args.clone_from(&input.cli_settings.extra_args);
+        solc.extra_args.extend_from_slice(&input.cli_settings.extra_args);
 
         let solc_output = solc.compile(&input.input)?;
 
@@ -356,7 +356,7 @@ impl ParsedSource for SolData {
         _paths: &crate::ProjectPathsConfig<C>,
         _include_paths: &mut BTreeSet<PathBuf>,
     ) -> Result<Vec<PathBuf>> {
-        return Ok(self.imports.iter().map(|i| i.data().path().to_path_buf()).collect_vec());
+        Ok(self.imports.iter().map(|i| i.data().path().to_path_buf()).collect_vec())
     }
 
     fn language(&self) -> Self::Language {

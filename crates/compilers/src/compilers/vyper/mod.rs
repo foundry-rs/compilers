@@ -166,7 +166,7 @@ impl Vyper {
     /// Invokes `vyper --version` and parses the output as a SemVer [`Version`].
     #[instrument(level = "debug", skip_all)]
     pub fn version(vyper: impl Into<PathBuf>) -> Result<Version> {
-        crate::cache_version(vyper.into(), |vyper| {
+        crate::cache_version(vyper.into(), &[], |vyper| {
             let mut cmd = Command::new(vyper);
             cmd.arg("--version")
                 .stdin(Stdio::piped())
@@ -177,7 +177,9 @@ impl Vyper {
             trace!(?output);
             if output.status.success() {
                 let stdout = String::from_utf8_lossy(&output.stdout);
-                Ok(Version::from_str(&stdout.trim().replace("rc", "-rc"))?)
+                Ok(Version::from_str(
+                    &stdout.trim().replace("rc", "-rc").replace("b", "-b").replace("a", "-a"),
+                )?)
             } else {
                 Err(SolcError::solc_output(&output))
             }

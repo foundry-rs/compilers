@@ -891,7 +891,7 @@ pub struct OutputDiagnostics<'a, C: Compiler> {
     compiler_severity_filter: Severity,
 }
 
-impl<'a, C: Compiler> OutputDiagnostics<'a, C> {
+impl<C: Compiler> OutputDiagnostics<'_, C> {
     /// Returns true if there is at least one error of high severity
     pub fn has_error(&self) -> bool {
         self.compiler_output.has_error(
@@ -907,7 +907,7 @@ impl<'a, C: Compiler> OutputDiagnostics<'a, C> {
     }
 }
 
-impl<'a, C: Compiler> fmt::Display for OutputDiagnostics<'a, C> {
+impl<C: Compiler> fmt::Display for OutputDiagnostics<'_, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Compiler run ")?;
         if self.has_error() {

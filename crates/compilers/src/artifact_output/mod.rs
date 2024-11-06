@@ -381,7 +381,7 @@ impl<T> Artifacts<T> {
         })
     }
 
-    ///  Finds the artifact with matching path and name
+    ///  Finds the artifact with a matching path and name
     pub fn find(&self, contract_path: &Path, contract_name: &str) -> Option<&T> {
         self.0.iter().filter(|(path, _)| path.as_path() == contract_path).find_map(
             |(_file, contracts)| {

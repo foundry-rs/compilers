@@ -5,17 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.11.0](https://github.com/foundry-rs/compilers/releases/tag/v0.11.0) - 2024-09-02
+## [0.11.6](https://github.com/foundry-rs/compilers/releases/tag/v0.11.6) - 2024-10-16
+
+### Bug Fixes
+
+- Correctly handle b as pre-release in Vyper version ([#213](https://github.com/foundry-rs/compilers/issues/213))
+- Accept partial first sourcemap element ([#209](https://github.com/foundry-rs/compilers/issues/209))
+
+### Miscellaneous Tasks
+
+- Release 0.11.5
+- Allow adding vyper sources with `add_raw_source` w/ `.vy` / `.vyi` extension ([#211](https://github.com/foundry-rs/compilers/issues/211))
+- [`ci`] Fix deny (add `ZLib` exception) ([#212](https://github.com/foundry-rs/compilers/issues/212))
+
+## [0.11.4](https://github.com/foundry-rs/compilers/releases/tag/v0.11.4) - 2024-10-02
+
+### Bug Fixes
+
+- Include `evm.legacyAssembly` output ([#206](https://github.com/foundry-rs/compilers/issues/206))
+- Ast Node Bindings ([#199](https://github.com/foundry-rs/compilers/issues/199))
+- Actualize output selection options ([#196](https://github.com/foundry-rs/compilers/issues/196))
 
 ### Dependencies
 
 - [deps] Bump alloy ([#193](https://github.com/foundry-rs/compilers/issues/193))
+
+### Documentation
+
+- Fix typos ([#202](https://github.com/foundry-rs/compilers/issues/202))
+
+### Features
+
+- Better extra_args handling ([#208](https://github.com/foundry-rs/compilers/issues/208))
+- Better error messages for incompatible versions ([#200](https://github.com/foundry-rs/compilers/issues/200))
+
+### Miscellaneous Tasks
+
+- Release 0.11.4
+- Release 0.11.3
+- Proper generate legacy asm extra output file ([#207](https://github.com/foundry-rs/compilers/issues/207))
+- Release 0.11.2
+- Clippy ([#204](https://github.com/foundry-rs/compilers/issues/204))
+- Use serde_json::from_str ([#203](https://github.com/foundry-rs/compilers/issues/203))
+- Release 0.11.1
+- Improve error handling in source map parsing ([#201](https://github.com/foundry-rs/compilers/issues/201))
+- Clippy happy ([#195](https://github.com/foundry-rs/compilers/issues/195))
+- Fix up the README example ([#194](https://github.com/foundry-rs/compilers/issues/194))
+- Release 0.11.0
 
 ## [0.10.3](https://github.com/foundry-rs/compilers/releases/tag/v0.10.3) - 2024-08-26
 
 ### Bug Fixes
 
 - [flatten] Update license handling logic ([#184](https://github.com/foundry-rs/compilers/issues/184))
+- Unify logic for ignored warnings ([#179](https://github.com/foundry-rs/compilers/issues/179))
+- Remove outdated build infos ([#177](https://github.com/foundry-rs/compilers/issues/177))
+- Make remappings resolution more deterministic ([#176](https://github.com/foundry-rs/compilers/issues/176))
 
 ### Documentation
 
@@ -26,33 +71,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Always provide `Default` for `MultiCompiler` ([#188](https://github.com/foundry-rs/compilers/issues/188))
 - [vyper] Add experimental codegen to settings ([#186](https://github.com/foundry-rs/compilers/issues/186))
 - More user-friendly error when no compiler is available ([#185](https://github.com/foundry-rs/compilers/issues/185))
-
-### Miscellaneous Tasks
-
-- Release 0.10.3
-
-### Other
-
-- Incorrect Default EVM Version for Solidity Compiler 0.4.21-0.5.4 ([#189](https://github.com/foundry-rs/compilers/issues/189))
-
-## [0.10.2](https://github.com/foundry-rs/compilers/releases/tag/v0.10.2) - 2024-08-01
-
-### Bug Fixes
-
-- Unify logic for ignored warnings ([#179](https://github.com/foundry-rs/compilers/issues/179))
-- Remove outdated build infos ([#177](https://github.com/foundry-rs/compilers/issues/177))
-- Make remappings resolution more deterministic ([#176](https://github.com/foundry-rs/compilers/issues/176))
-
-### Features
-
 - Sanitize EVM version for vyper ([#181](https://github.com/foundry-rs/compilers/issues/181))
 
 ### Miscellaneous Tasks
 
+- Release 0.10.3
 - Release 0.10.2
 
 ### Other
 
+- Incorrect Default EVM Version for Solidity Compiler 0.4.21-0.5.4 ([#189](https://github.com/foundry-rs/compilers/issues/189))
 - Update README to link docs and update install instructions ([#180](https://github.com/foundry-rs/compilers/issues/180))
 
 ## [0.10.1](https://github.com/foundry-rs/compilers/releases/tag/v0.10.1) - 2024-07-26

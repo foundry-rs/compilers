@@ -190,6 +190,7 @@ fn can_compile_configured() {
             ir: true,
             ir_optimized: true,
             opcodes: true,
+            legacy_assembly: true,
             ..Default::default()
         },
         ..Default::default()
@@ -204,6 +205,8 @@ fn can_compile_configured() {
     assert!(artifact.ir.is_some());
     assert!(artifact.ir_optimized.is_some());
     assert!(artifact.opcodes.is_some());
+    assert!(artifact.opcodes.is_some());
+    assert!(artifact.legacy_assembly.is_some());
 }
 
 #[test]
@@ -3848,9 +3851,9 @@ fn test_deterministic_metadata() {
     copy_dir_all(&orig_root, tmp_dir.path()).unwrap();
 
     let compiler = MultiCompiler {
-        solc: SolcCompiler::Specific(
+        solc: Some(SolcCompiler::Specific(
             Solc::find_svm_installed_version(&Version::new(0, 8, 18)).unwrap().unwrap(),
-        ),
+        )),
         vyper: None,
     };
     let paths = ProjectPathsConfig::builder().root(root).build().unwrap();
