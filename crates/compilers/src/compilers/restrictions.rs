@@ -5,7 +5,9 @@ use std::{
 
 use semver::VersionReq;
 
+/// Abstraction over set of restrictions for given [`crate::Compiler::Settings`].
 pub trait CompilerSettingsRestrictions: Copy + Debug + Sync + Send + Clone + Default {
+    /// Combines this restriction with another one. Returns `None` if restrictions are incompatible.
     fn merge(self, other: Self) -> Option<Self>;
 }
 

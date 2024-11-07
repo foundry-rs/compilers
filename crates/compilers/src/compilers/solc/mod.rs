@@ -190,14 +190,15 @@ impl DerefMut for SolcSettings {
     }
 }
 
+/// Abstraction over min/max restrictions on some value.
 #[derive(Debug, Clone, Copy, Eq, Default, PartialEq)]
 pub struct Restriction<V> {
     pub min: Option<V>,
     pub max: Option<V>,
 }
 
-impl<V: PartialEq + Ord + Copy> Restriction<V> {
-    /// Returns true if the given version satisfies the restrictions
+impl<V: Ord + Copy> Restriction<V> {
+    /// Returns true if the given value satisfies the restrictions
     ///
     /// If given None, only returns true if no restrictions are set
     pub fn satisfies(&self, value: Option<V>) -> bool {
@@ -237,6 +238,7 @@ impl<V: PartialEq + Ord + Copy> Restriction<V> {
     }
 }
 
+/// Restrictions on settings for the solc compiler.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SolcRestrictions {
     pub evm_version: Restriction<EvmVersion>,

@@ -695,6 +695,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         Err(msg)
     }
 
+    /// Filters profiles incompatible with the given node and its imports.
     fn retain_compatible_profiles<C: Compiler, T: ArtifactOutput>(
         &self,
         idx: usize,
@@ -730,7 +731,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         if all_profiles.is_empty() {
             let f = utils::source_name(&failed_node.path, &self.root).display();
             return Err(
-                format!("Missing profile satisfying settings restrictions for {f}").to_string(),
+                format!("Missing profile satisfying settings restrictions for {f}").to_string()
             );
         }
 
