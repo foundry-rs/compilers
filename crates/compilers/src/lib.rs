@@ -52,7 +52,7 @@ use derivative::Derivative;
 use foundry_compilers_artifacts::solc::{
     output_selection::OutputSelection,
     sources::{Source, SourceCompilationKind, Sources},
-    Contract, Severity, SourceFile, StandardJsonCompilerInput,
+    Severity, SourceFile, StandardJsonCompilerInput,
 };
 use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
 use output::sources::{VersionedSourceFile, VersionedSourceFiles};
@@ -69,7 +69,10 @@ use std::{
 /// Represents a project workspace and handles `solc` compiling of all contracts in that workspace.
 #[derive(Clone, Derivative)]
 #[derivative(Debug)]
-pub struct Project<C: Compiler = MultiCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct Project<
+    C: Compiler = MultiCompiler,
+    T: ArtifactOutput<CompilerContract = C::CompilerContract> = ConfigurableArtifacts,
+> {
     pub compiler: C,
     /// Compiler versions locked for specific languages.
     pub locked_versions: HashMap<C::Language, Version>,
@@ -137,14 +140,14 @@ impl Project {
     }
 }
 
-impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
+impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Project<C, T> {
     /// Returns the handler that takes care of processing all artifacts
     pub fn artifacts_handler(&self) -> &T {
         &self.artifacts
     }
 }
 
-impl<C: Compiler, T: ArtifactOutput> Project<C, T>
+impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> Project<C, T>
 where
     C::Settings: Into<SolcSettings>,
 {
@@ -190,7 +193,7 @@ where
     }
 }
 
-impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
+impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Project<C, T> {
     /// Returns the path to the artifacts directory
     pub fn artifacts_path(&self) -> &PathBuf {
         &self.paths.artifacts
@@ -443,7 +446,10 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     }
 }
 
-pub struct ProjectBuilder<C: Compiler = MultiCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct ProjectBuilder<
+    C: Compiler = MultiCompiler,
+    T: ArtifactOutput<CompilerContract = C::CompilerContract> = ConfigurableArtifacts,
+> {
     /// The layout of the
     paths: Option<ProjectPathsConfig<C::Language>>,
     /// Compiler versions locked for specific languages.
@@ -473,7 +479,7 @@ pub struct ProjectBuilder<C: Compiler = MultiCompiler, T: ArtifactOutput = Confi
     sparse_output: Option<Box<dyn FileFilter>>,
 }
 
-impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
+impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> ProjectBuilder<C, T> {
     /// Create a new builder with the given artifacts handler
     pub fn new(artifacts: T) -> Self {
         Self {
@@ -628,7 +634,10 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
     }
 
     /// Set arbitrary `ArtifactOutputHandler`
-    pub fn artifacts<A: ArtifactOutput>(self, artifacts: A) -> ProjectBuilder<C, A> {
+    pub fn artifacts<A: ArtifactOutput<CompilerContract = C::CompilerContract>>(
+        self,
+        artifacts: A,
+    ) -> ProjectBuilder<C, A> {
         let Self {
             paths,
             cached,
@@ -710,18 +719,23 @@ impl<C: Compiler, T: ArtifactOutput> ProjectBuilder<C, T> {
     }
 }
 
-impl<C: Compiler, T: ArtifactOutput + Default> Default for ProjectBuilder<C, T> {
+impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract> + Default> Default
+    for ProjectBuilder<C, T>
+{
     fn default() -> Self {
         Self::new(T::default())
     }
 }
 
-impl<T: ArtifactOutput, C: Compiler> ArtifactOutput for Project<C, T> {
+impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> ArtifactOutput
+    for Project<C, T>
+{
     type Artifact = T::Artifact;
+    type CompilerContract = C::CompilerContract;
 
     fn on_output<CP>(
         &self,
-        contracts: &VersionedContracts,
+        contracts: &VersionedContracts<C::CompilerContract>,
         sources: &VersionedSourceFiles,
         layout: &ProjectPathsConfig<CP>,
         ctx: OutputContext<'_>,
@@ -731,7 +745,7 @@ impl<T: ArtifactOutput, C: Compiler> ArtifactOutput for Project<C, T> {
 
     fn handle_artifacts(
         &self,
-        contracts: &VersionedContracts,
+        contracts: &VersionedContracts<C::CompilerContract>,
         artifacts: &Artifacts<Self::Artifact>,
     ) -> Result<()> {
         self.artifacts_handler().handle_artifacts(contracts, artifacts)
@@ -777,7 +791,7 @@ impl<T: ArtifactOutput, C: Compiler> ArtifactOutput for Project<C, T> {
         &self,
         file: &Path,
         name: &str,
-        contract: Contract,
+        contract: C::CompilerContract,
         source_file: Option<&SourceFile>,
     ) -> Self::Artifact {
         self.artifacts_handler().contract_to_artifact(file, name, contract, source_file)
@@ -785,7 +799,7 @@ impl<T: ArtifactOutput, C: Compiler> ArtifactOutput for Project<C, T> {
 
     fn output_to_artifacts<CP>(
         &self,
-        contracts: &VersionedContracts,
+        contracts: &VersionedContracts<C::CompilerContract>,
         sources: &VersionedSourceFiles,
         ctx: OutputContext<'_>,
         layout: &ProjectPathsConfig<CP>,

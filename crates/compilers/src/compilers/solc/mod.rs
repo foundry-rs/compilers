@@ -9,7 +9,7 @@ use foundry_compilers_artifacts::{
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Error, Settings, Severity, SolcInput,
+    Contract, Error, Settings, Severity, SolcInput,
 };
 use foundry_compilers_core::error::Result;
 use itertools::Itertools;
@@ -44,8 +44,12 @@ impl Compiler for SolcCompiler {
     type ParsedSource = SolData;
     type Settings = SolcSettings;
     type Language = SolcLanguage;
+    type CompilerContract = Contract;
 
-    fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>> {
+    fn compile(
+        &self,
+        input: &Self::Input,
+    ) -> Result<CompilerOutput<Self::CompilationError, Self::CompilerContract>> {
         let mut solc = match self {
             Self::Specific(solc) => solc.clone(),
 

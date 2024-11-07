@@ -120,7 +120,11 @@ use std::{collections::HashMap, path::PathBuf, time::Instant};
 pub(crate) type VersionedSources<L> = HashMap<L, HashMap<Version, Sources>>;
 
 #[derive(Debug)]
-pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
+pub struct ProjectCompiler<
+    'a,
+    T: ArtifactOutput<CompilerContract = C::CompilerContract>,
+    C: Compiler,
+> {
     /// Contains the relationship of the source files and their imports
     edges: GraphEdges<C::ParsedSource>,
     project: &'a Project<C, T>,
@@ -128,7 +132,9 @@ pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
     sources: CompilerSources<C::Language>,
 }
 
-impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
+impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
+    ProjectCompiler<'a, T, C>
+{
     /// Create a new `ProjectCompiler` to bootstrap the compilation process of the project's
     /// sources.
     pub fn new(project: &'a Project<C, T>) -> Result<Self> {
@@ -215,7 +221,8 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
 ///
 /// The main reason is to debug all states individually
 #[derive(Debug)]
-struct PreprocessedState<'a, T: ArtifactOutput, C: Compiler> {
+struct PreprocessedState<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
+{
     /// Contains all the sources to compile.
     sources: CompilerSources<C::Language>,
 
@@ -223,7 +230,9 @@ struct PreprocessedState<'a, T: ArtifactOutput, C: Compiler> {
     cache: ArtifactsCache<'a, T, C>,
 }
 
-impl<'a, T: ArtifactOutput, C: Compiler> PreprocessedState<'a, T, C> {
+impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
+    PreprocessedState<'a, T, C>
+{
     /// advance to the next state by compiling all sources
     fn compile(self) -> Result<CompiledState<'a, T, C>> {
         trace!("compiling");
@@ -244,12 +253,14 @@ impl<'a, T: ArtifactOutput, C: Compiler> PreprocessedState<'a, T, C> {
 
 /// Represents the state after `solc` was successfully invoked
 #[derive(Debug)]
-struct CompiledState<'a, T: ArtifactOutput, C: Compiler> {
+struct CompiledState<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> {
     output: AggregatedCompilerOutput<C>,
     cache: ArtifactsCache<'a, T, C>,
 }
 
-impl<'a, T: ArtifactOutput, C: Compiler> CompiledState<'a, T, C> {
+impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
+    CompiledState<'a, T, C>
+{
     /// advance to the next state by handling all artifacts
     ///
     /// Writes all output contracts to disk if enabled in the `Project` and if the build was
@@ -307,13 +318,15 @@ impl<'a, T: ArtifactOutput, C: Compiler> CompiledState<'a, T, C> {
 
 /// Represents the state after all artifacts were written to disk
 #[derive(Debug)]
-struct ArtifactsState<'a, T: ArtifactOutput, C: Compiler> {
+struct ArtifactsState<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> {
     output: AggregatedCompilerOutput<C>,
     cache: ArtifactsCache<'a, T, C>,
     compiled_artifacts: Artifacts<T::Artifact>,
 }
 
-impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
+impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
+    ArtifactsState<'a, T, C>
+{
     /// Writes the cache file
     ///
     /// this concludes the [`Project::compile()`] statemachine
@@ -388,7 +401,10 @@ impl<L: Language> CompilerSources<L> {
     }
 
     /// Filters out all sources that don't need to be compiled, see [`ArtifactsCache::filter`]
-    fn filter<T: ArtifactOutput, C: Compiler<Language = L>>(
+    fn filter<
+        T: ArtifactOutput<CompilerContract = C::CompilerContract>,
+        C: Compiler<Language = L>,
+    >(
         &mut self,
         cache: &mut ArtifactsCache<'_, T, C>,
     ) {
@@ -407,7 +423,10 @@ impl<L: Language> CompilerSources<L> {
     }
 
     /// Compiles all the files with `Solc`
-    fn compile<C: Compiler<Language = L>, T: ArtifactOutput>(
+    fn compile<
+        C: Compiler<Language = L>,
+        T: ArtifactOutput<CompilerContract = C::CompilerContract>,
+    >(
         self,
         cache: &mut ArtifactsCache<'_, T, C>,
     ) -> Result<AggregatedCompilerOutput<C>> {
@@ -492,13 +511,13 @@ impl<L: Language> CompilerSources<L> {
     }
 }
 
-type CompilationResult<I, E> = Result<Vec<(I, CompilerOutput<E>, Vec<PathBuf>)>>;
+type CompilationResult<I, E, C> = Result<Vec<(I, CompilerOutput<E, C>, Vec<PathBuf>)>>;
 
 /// Compiles the input set sequentially and returns a [Vec] of outputs.
 fn compile_sequential<C: Compiler>(
     compiler: &C,
     jobs: Vec<(C::Input, Vec<PathBuf>)>,
-) -> CompilationResult<C::Input, C::CompilationError> {
+) -> CompilationResult<C::Input, C::CompilationError, C::CompilerContract> {
     jobs.into_iter()
         .map(|(input, actually_dirty)| {
             let start = Instant::now();
@@ -520,7 +539,7 @@ fn compile_parallel<C: Compiler>(
     compiler: &C,
     jobs: Vec<(C::Input, Vec<PathBuf>)>,
     num_jobs: usize,
-) -> CompilationResult<C::Input, C::CompilationError> {
+) -> CompilationResult<C::Input, C::CompilationError, C::CompilerContract> {
     // need to get the currently installed reporter before installing the pool, otherwise each new
     // thread in the pool will get initialized with the default value of the `thread_local!`'s
     // localkey. This way we keep access to the reporter in the rayon pool

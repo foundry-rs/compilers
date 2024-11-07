@@ -1,6 +1,8 @@
 //! Represents an entire build
 
-use crate::compilers::{CompilationError, CompilerInput, CompilerOutput, Language};
+use crate::compilers::{
+    CompilationError, CompilerContract, CompilerInput, CompilerOutput, Language,
+};
 use alloy_primitives::hex;
 use foundry_compilers_core::{error::Result, utils};
 use md5::Digest;
@@ -43,7 +45,7 @@ pub struct BuildContext<L> {
 }
 
 impl<L: Language> BuildContext<L> {
-    pub fn new<I, E>(input: &I, output: &CompilerOutput<E>) -> Result<Self>
+    pub fn new<I, E, C>(input: &I, output: &CompilerOutput<E, C>) -> Result<Self>
     where
         I: CompilerInput<Language = L>,
     {
@@ -87,9 +89,9 @@ pub struct RawBuildInfo<L> {
 
 impl<L: Language> RawBuildInfo<L> {
     /// Serializes a `BuildInfo` object
-    pub fn new<I: CompilerInput<Language = L>, E: CompilationError>(
+    pub fn new<I: CompilerInput<Language = L>, E: CompilationError, C: CompilerContract>(
         input: &I,
-        output: &CompilerOutput<E>,
+        output: &CompilerOutput<E, C>,
         full_build_info: bool,
     ) -> Result<Self> {
         let version = input.version().clone();
@@ -130,7 +132,7 @@ impl<L: Language> RawBuildInfo<L> {
 mod tests {
     use super::*;
     use crate::compilers::solc::SolcVersionedInput;
-    use foundry_compilers_artifacts::{sources::Source, Error, SolcLanguage, Sources};
+    use foundry_compilers_artifacts::{sources::Source, Contract, Error, SolcLanguage, Sources};
     use std::path::PathBuf;
 
     #[test]
@@ -142,9 +144,9 @@ mod tests {
             SolcLanguage::Solidity,
             v,
         );
-        let output = CompilerOutput::<Error>::default();
+        let output = CompilerOutput::<Error, Contract>::default();
         let raw_info = RawBuildInfo::new(&input, &output, true).unwrap();
-        let _info: BuildInfo<SolcVersionedInput, CompilerOutput<Error>> =
+        let _info: BuildInfo<SolcVersionedInput, CompilerOutput<Error, Contract>> =
             serde_json::from_str(&serde_json::to_string(&raw_info).unwrap()).unwrap();
     }
 }

@@ -1,6 +1,8 @@
+use foundry_compilers_artifacts::Contract;
+
 use crate::artifacts::vyper::{VyperCompilationError, VyperOutput};
 
-impl From<VyperOutput> for super::CompilerOutput<VyperCompilationError> {
+impl From<VyperOutput> for super::CompilerOutput<VyperCompilationError, Contract> {
     fn from(output: VyperOutput) -> Self {
         Self {
             errors: output.errors,

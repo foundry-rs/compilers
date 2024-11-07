@@ -37,7 +37,7 @@ use crate::{
         contracts::VersionedContracts,
         sources::{VersionedSourceFile, VersionedSourceFiles},
     },
-    ProjectPathsConfig,
+    CompilerContract, ProjectPathsConfig,
 };
 
 /// Represents unique artifact metadata for identifying artifacts on output
@@ -605,16 +605,17 @@ where
 pub trait ArtifactOutput {
     /// Represents the artifact that will be stored for a `Contract`
     type Artifact: Artifact + DeserializeOwned + Serialize + fmt::Debug + Send + Sync;
+    type CompilerContract: CompilerContract;
 
     /// Handle the aggregated set of compiled contracts from the solc [`crate::CompilerOutput`].
     ///
     /// This will be invoked with all aggregated contracts from (multiple) solc `CompilerOutput`.
     /// See [`crate::AggregatedCompilerOutput`]
-    fn on_output<C>(
+    fn on_output<L>(
         &self,
-        contracts: &VersionedContracts,
+        contracts: &VersionedContracts<Self::CompilerContract>,
         sources: &VersionedSourceFiles,
-        layout: &ProjectPathsConfig<C>,
+        layout: &ProjectPathsConfig<L>,
         ctx: OutputContext<'_>,
     ) -> Result<Artifacts<Self::Artifact>> {
         let mut artifacts = self.output_to_artifacts(contracts, sources, ctx, layout);
@@ -634,7 +635,7 @@ pub trait ArtifactOutput {
     /// Invoked after artifacts has been written to disk for additional processing.
     fn handle_artifacts(
         &self,
-        _contracts: &VersionedContracts,
+        _contracts: &VersionedContracts<Self::CompilerContract>,
         _artifacts: &Artifacts<Self::Artifact>,
     ) -> Result<()> {
         Ok(())
@@ -794,7 +795,7 @@ pub trait ArtifactOutput {
         &self,
         _file: &Path,
         _name: &str,
-        contract: Contract,
+        contract: Self::CompilerContract,
         source_file: Option<&SourceFile>,
     ) -> Self::Artifact;
 
@@ -840,7 +841,7 @@ pub trait ArtifactOutput {
     /// [`Self::on_output()`]
     fn output_to_artifacts<C>(
         &self,
-        contracts: &VersionedContracts,
+        contracts: &VersionedContracts<Self::CompilerContract>,
         sources: &VersionedSourceFiles,
         ctx: OutputContext<'_>,
         layout: &ProjectPathsConfig<C>,
@@ -1069,6 +1070,7 @@ pub struct MinimalCombinedArtifacts {
 
 impl ArtifactOutput for MinimalCombinedArtifacts {
     type Artifact = CompactContractBytecode;
+    type CompilerContract = Contract;
 
     fn contract_to_artifact(
         &self,
@@ -1098,10 +1100,11 @@ pub struct MinimalCombinedArtifactsHardhatFallback {
 
 impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
     type Artifact = CompactContractBytecode;
+    type CompilerContract = Contract;
 
     fn on_output<C>(
         &self,
-        output: &VersionedContracts,
+        output: &VersionedContracts<Contract>,
         sources: &VersionedSourceFiles,
         layout: &ProjectPathsConfig<C>,
         ctx: OutputContext<'_>,
