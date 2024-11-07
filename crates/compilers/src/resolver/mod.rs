@@ -727,6 +727,13 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             all_profiles.retain(|(_, (_, settings))| settings.satisfies_restrictions(&**req));
         }
 
+        if all_profiles.is_empty() {
+            let f = utils::source_name(&failed_node.path, &self.root).display();
+            return Err(
+                format!("Missing profile satisfying settings restrictions for {f}").to_string(),
+            );
+        }
+
         // iterate over all the nodes once again and find the one incompatible
         for node in &nodes {
             if let Some(req) = project.restrictions.get(&self.node(*node).path) {
