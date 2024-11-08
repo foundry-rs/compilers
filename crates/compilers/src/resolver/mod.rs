@@ -556,10 +556,11 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     ///     path/to/c.sol (<version>)
     ///     ...
     /// ```
-    fn format_imports_list<W: std::fmt::Write>(
+    fn format_imports_list<C: Compiler, T: ArtifactOutput, W: std::fmt::Write>(
         &self,
         idx: usize,
         incompatible: HashSet<usize>,
+        project: &Project<C, T>,
         f: &mut W,
     ) -> std::result::Result<(), std::fmt::Error> {
         let format_node = |idx, f: &mut W| {
@@ -567,7 +568,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             let color = if incompatible.contains(&idx) { Color::Red } else { Color::White };
 
             let mut line = utils::source_name(&node.path, &self.root).display().to_string();
-            if let Some(req) = node.data.version_req() {
+            if let Some(req) = self.version_requirement(idx, project) {
                 line.push_str(&format!(" {req}"));
             }
 
@@ -683,15 +684,20 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                 if self.check_available_version(*node, &all_versions, project).is_err() {
                     let mut msg = "Found incompatible versions:\n".white().to_string();
 
-                    self.format_imports_list(idx, [*node, failed_node_idx].into(), &mut msg)
-                        .unwrap();
+                    self.format_imports_list(
+                        idx,
+                        [*node, failed_node_idx].into(),
+                        project,
+                        &mut msg,
+                    )
+                    .unwrap();
                     return Err(msg);
                 }
             }
         }
 
         let mut msg = "Found incompatible versions:\n".white().to_string();
-        self.format_imports_list(idx, nodes.into_iter().collect(), &mut msg).unwrap();
+        self.format_imports_list(idx, nodes.into_iter().collect(), project, &mut msg).unwrap();
         Err(msg)
     }
 
@@ -744,15 +750,20 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                 {
                     let mut msg = "Found incompatible settings restrictions:\n".white().to_string();
 
-                    self.format_imports_list(idx, [*node, failed_node_idx].into(), &mut msg)
-                        .unwrap();
+                    self.format_imports_list(
+                        idx,
+                        [*node, failed_node_idx].into(),
+                        project,
+                        &mut msg,
+                    )
+                    .unwrap();
                     return Err(msg);
                 }
             }
         }
 
         let mut msg = "Found incompatible settings restrictions:\n".white().to_string();
-        self.format_imports_list(idx, nodes.into_iter().collect(), &mut msg).unwrap();
+        self.format_imports_list(idx, nodes.into_iter().collect(), project, &mut msg).unwrap();
         Err(msg)
     }
 
