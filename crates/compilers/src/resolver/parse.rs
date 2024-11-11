@@ -249,31 +249,6 @@ impl<T> Spanned<T> {
     }
 }
 
-/// Capture the import statement information together with aliases
-pub fn capture_imports(content: &str) -> Vec<Spanned<SolImport>> {
-    let mut imports = vec![];
-    for cap in utils::RE_SOL_IMPORT.captures_iter(content) {
-        if let Some(name_match) = ["p1", "p2", "p3", "p4"].iter().find_map(|name| cap.name(name)) {
-            let statement_match = cap.get(0).unwrap();
-            let mut aliases = vec![];
-            for alias_cap in utils::RE_SOL_IMPORT_ALIAS.captures_iter(statement_match.as_str()) {
-                if let Some(alias) = alias_cap.name("alias") {
-                    let alias = alias.as_str().to_owned();
-                    let import_alias = match alias_cap.name("target") {
-                        Some(target) => SolImportAlias::Contract(alias, target.as_str().to_owned()),
-                        None => SolImportAlias::File(alias),
-                    };
-                    aliases.push(import_alias);
-                }
-            }
-            let sol_import =
-                SolImport::new(PathBuf::from(name_match.as_str())).set_aliases(aliases);
-            imports.push(Spanned::new(sol_import, statement_match.range()));
-        }
-    }
-    imports
-}
-
 fn library_is_inlined(contract: &ast::ItemContract<'_>) -> bool {
     contract
         .body
@@ -288,60 +263,4 @@ fn library_is_inlined(contract: &ast::ItemContract<'_>) -> bool {
                 Some(ast::Visibility::Public | ast::Visibility::External)
             )
         })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn can_capture_curly_imports() {
-        let content = r#"
-import { T } from "../Test.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {DsTest} from "ds-test/test.sol";
-"#;
-
-        let captured_imports =
-            capture_imports(content).into_iter().map(|s| s.data.path).collect::<Vec<_>>();
-
-        let expected =
-            utils::find_import_paths(content).map(|m| m.as_str().into()).collect::<Vec<PathBuf>>();
-
-        assert_eq!(captured_imports, expected);
-
-        assert_eq!(
-            captured_imports,
-            vec![
-                PathBuf::from("../Test.sol"),
-                "@openzeppelin/contracts/utils/ReentrancyGuard.sol".into(),
-                "ds-test/test.sol".into(),
-            ]
-        );
-    }
-
-    #[test]
-    fn cap_capture_aliases() {
-        let content = r#"
-import * as T from "./Test.sol";
-import { DsTest as Test } from "ds-test/test.sol";
-import "ds-test/test.sol" as Test;
-import { FloatMath as Math, Math as FloatMath } from "./Math.sol";
-"#;
-
-        let caputred_imports =
-            capture_imports(content).into_iter().map(|s| s.data.aliases).collect::<Vec<_>>();
-        assert_eq!(
-            caputred_imports,
-            vec![
-                vec![SolImportAlias::File("T".into())],
-                vec![SolImportAlias::Contract("Test".into(), "DsTest".into())],
-                vec![SolImportAlias::File("Test".into())],
-                vec![
-                    SolImportAlias::Contract("Math".into(), "FloatMath".into()),
-                    SolImportAlias::Contract("FloatMath".into(), "Math".into()),
-                ],
-            ]
-        );
-    }
 }
