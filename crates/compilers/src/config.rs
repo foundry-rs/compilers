@@ -135,6 +135,7 @@ impl ProjectPathsConfig<SolcLanguage> {
                 SolcError::msg(format!("cannot resolve file at {}", path.display()))
             })?;
             let node = graph.node(node_id);
+            node.data.parse_result()?;
             let content = node.content();
 
             // Firstly we strip all licesnses, verson pragmas

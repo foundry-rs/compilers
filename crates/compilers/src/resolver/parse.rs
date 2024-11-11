@@ -20,9 +20,15 @@ pub struct SolData {
     pub libraries: Vec<SolLibrary>,
     pub contract_names: Vec<String>,
     pub is_yul: bool,
+    pub parse_result: Result<(), String>,
 }
 
 impl SolData {
+    /// Returns the result of parsing the file.
+    pub fn parse_result(&self) -> crate::Result<()> {
+        self.parse_result.clone().map_err(crate::SolcError::ParseError)
+    }
+
     #[allow(dead_code)]
     pub fn fmt_version<W: std::fmt::Write>(
         &self,
@@ -45,6 +51,7 @@ impl SolData {
         let mut imports = Vec::<Spanned<SolImport>>::new();
         let mut libraries = Vec::new();
         let mut contract_names = Vec::new();
+        let mut parse_error = Ok(());
 
         let sess = solar_parse::interface::Session::builder()
             .with_buffer_emitter(Default::default())
@@ -110,7 +117,9 @@ impl SolData {
             }
         });
         if let Err(e) = sess.emitted_diagnostics().unwrap() {
+            let e = e.to_string();
             trace!("failed parsing {file:?}: {e}");
+            parse_error = Err(e);
         }
         let license = content.lines().next().and_then(|line| {
             utils::capture_outer_and_inner(
@@ -132,6 +141,7 @@ impl SolData {
             libraries,
             contract_names,
             is_yul,
+            parse_result: parse_error,
         }
     }
 
