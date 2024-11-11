@@ -316,6 +316,20 @@ impl ParsedSource for MultiCompilerParsedSource {
         }
     }
 
+    fn contract_names(&self) -> &[String] {
+        match self {
+            Self::Solc(parsed) => parsed.contract_names(),
+            Self::Vyper(parsed) => parsed.contract_names(),
+        }
+    }
+
+    fn language(&self) -> Self::Language {
+        match self {
+            Self::Solc(parsed) => MultiCompilerLanguage::Solc(parsed.language()),
+            Self::Vyper(parsed) => MultiCompilerLanguage::Vyper(parsed.language()),
+        }
+    }
+
     fn resolve_imports<C>(
         &self,
         paths: &crate::ProjectPathsConfig<C>,
@@ -324,13 +338,6 @@ impl ParsedSource for MultiCompilerParsedSource {
         match self {
             Self::Solc(parsed) => parsed.resolve_imports(paths, include_paths),
             Self::Vyper(parsed) => parsed.resolve_imports(paths, include_paths),
-        }
-    }
-
-    fn language(&self) -> Self::Language {
-        match self {
-            Self::Solc(parsed) => MultiCompilerLanguage::Solc(parsed.language()),
-            Self::Vyper(parsed) => MultiCompilerLanguage::Vyper(parsed.language()),
         }
     }
 

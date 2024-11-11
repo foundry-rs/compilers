@@ -50,7 +50,6 @@ use compile::output::contracts::VersionedContracts;
 use compilers::multi::MultiCompiler;
 use derivative::Derivative;
 use foundry_compilers_artifacts::solc::{
-    output_selection::OutputSelection,
     sources::{Source, SourceCompilationKind, Sources},
     Contract, Severity, SourceFile, StandardJsonCompilerInput,
 };
@@ -58,11 +57,9 @@ use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
 use output::sources::{VersionedSourceFile, VersionedSourceFiles};
 use project::ProjectCompiler;
 use semver::Version;
-use solang_parser::pt::SourceUnitPart;
 use solc::SolcSettings;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    fs,
     path::{Path, PathBuf},
 };
 
@@ -361,39 +358,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
         Ok(())
     }
 
-    /// Runs solc compiler without requesting any output and collects a mapping from contract names
-    /// to source files containing artifact with given name.
-    fn collect_contract_names_solc(&self) -> Result<HashMap<String, Vec<PathBuf>>>
-    where
-        T: Clone,
-        C: Clone,
-    {
-        let mut temp_project = (*self).clone();
-        temp_project.no_artifacts = true;
-        temp_project.settings.update_output_selection(|selection| {
-            *selection = OutputSelection::common_output_selection(["abi".to_string()]);
-        });
-
-        let output = temp_project.compile()?;
-
-        if output.has_compiler_errors() {
-            return Err(SolcError::msg(output));
-        }
-
-        let contracts = output.into_artifacts().fold(
-            HashMap::new(),
-            |mut contracts: HashMap<_, Vec<_>>, (id, _)| {
-                contracts.entry(id.name).or_default().push(id.source);
-                contracts
-            },
-        );
-
-        Ok(contracts)
-    }
-
-    /// Parses project sources via solang parser, collecting mapping from contract name to source
-    /// files containing artifact with given name. On parser failure, fallbacks to
-    /// [Self::collect_contract_names_solc].
+    /// Parses the sources in memory and collects all the contract names mapped to their file paths.
     fn collect_contract_names(&self) -> Result<HashMap<String, Vec<PathBuf>>>
     where
         T: Clone,
@@ -401,22 +366,16 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
     {
         let graph = Graph::<C::ParsedSource>::resolve(&self.paths)?;
         let mut contracts: HashMap<String, Vec<PathBuf>> = HashMap::new();
-
-        for file in graph.files().keys() {
-            let src = fs::read_to_string(file).map_err(|e| SolcError::io(e, file))?;
-            let Ok((parsed, _)) = solang_parser::parse(&src, 0) else {
-                return self.collect_contract_names_solc();
-            };
-
-            for part in parsed.0 {
-                if let SourceUnitPart::ContractDefinition(contract) = part {
-                    if let Some(name) = contract.name {
-                        contracts.entry(name.name).or_default().push(file.clone());
-                    }
+        if !graph.is_empty() {
+            for node in graph.nodes(0) {
+                for contract_name in node.data.contract_names() {
+                    contracts
+                        .entry(contract_name.clone())
+                        .or_default()
+                        .push(node.path().to_path_buf());
                 }
             }
         }
-
         Ok(contracts)
     }
 

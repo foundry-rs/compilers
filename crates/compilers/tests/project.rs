@@ -711,7 +711,7 @@ contract A { }
 }
 
 #[test]
-fn can_flatten_on_solang_failure() {
+fn cannot_flatten_on_failure() {
     let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
@@ -742,26 +742,8 @@ contract Contract {
         .unwrap();
 
     let result = project.paths().clone().with_language::<SolcLanguage>().flatten(target.as_path());
-    assert!(result.is_ok());
-
-    let result = result.unwrap();
-    assert_eq!(
-        result,
-        r"// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.10;
-
-// src/Lib.sol
-
-library Lib {}
-
-// src/Contract.sol
-
-// Intentionally erroneous code
-contract Contract {
-    failure();
-}
-"
-    );
+    assert!(result.is_err());
+    println!("{}", result.unwrap_err());
 }
 
 #[test]
