@@ -52,6 +52,14 @@ impl ParsedSource for VyperParsedSource {
         self.version_req.as_ref()
     }
 
+    fn contract_names(&self) -> &[String] {
+        &[]
+    }
+
+    fn language(&self) -> Self::Language {
+        VyperLanguage
+    }
+
     fn resolve_imports<C>(
         &self,
         paths: &ProjectPathsConfig<C>,
@@ -136,10 +144,6 @@ impl ParsedSource for VyperParsedSource {
             )));
         }
         Ok(imports)
-    }
-
-    fn language(&self) -> Self::Language {
-        VyperLanguage
     }
 }
 

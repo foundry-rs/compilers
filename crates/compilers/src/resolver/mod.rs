@@ -240,9 +240,14 @@ impl<D: ParsedSource> Graph<D> {
         !self.edges.edges[index].is_empty()
     }
 
-    /// Returns all the resolved files and their index in the graph
+    /// Returns all the resolved files and their index in the graph.
     pub fn files(&self) -> &HashMap<PathBuf, usize> {
         &self.edges.indices
+    }
+
+    /// Returns `true` if the graph is empty.
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
     }
 
     /// Gets a node by index.
@@ -905,6 +910,12 @@ impl<D: ParsedSource> Node<D> {
         Ok(Self { path: file.to_path_buf(), source, data })
     }
 
+    /// Returns the path of the file.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Returns the contents of the file.
     pub fn content(&self) -> &str {
         &self.source.content
     }

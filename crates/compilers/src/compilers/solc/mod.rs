@@ -12,7 +12,6 @@ use foundry_compilers_artifacts::{
     Error, Settings, Severity, SolcInput,
 };
 use foundry_compilers_core::error::Result;
-use itertools::Itertools;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -260,12 +259,8 @@ impl ParsedSource for SolData {
         self.version_req.as_ref()
     }
 
-    fn resolve_imports<C>(
-        &self,
-        _paths: &crate::ProjectPathsConfig<C>,
-        _include_paths: &mut BTreeSet<PathBuf>,
-    ) -> Result<Vec<PathBuf>> {
-        Ok(self.imports.iter().map(|i| i.data().path().to_path_buf()).collect_vec())
+    fn contract_names(&self) -> &[String] {
+        &self.contract_names
     }
 
     fn language(&self) -> Self::Language {
@@ -274,6 +269,14 @@ impl ParsedSource for SolData {
         } else {
             SolcLanguage::Solidity
         }
+    }
+
+    fn resolve_imports<C>(
+        &self,
+        _paths: &crate::ProjectPathsConfig<C>,
+        _include_paths: &mut BTreeSet<PathBuf>,
+    ) -> Result<Vec<PathBuf>> {
+        Ok(self.imports.iter().map(|i| i.data().path().to_path_buf()).collect())
     }
 
     fn compilation_dependencies<'a>(

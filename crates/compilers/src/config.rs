@@ -131,10 +131,10 @@ impl ProjectPathsConfig<SolcLanguage> {
         let mut result = String::new();
 
         for path in ordered_deps.iter() {
-            let node_id = graph.files().get(path).ok_or_else(|| {
+            let node_id = *graph.files().get(path).ok_or_else(|| {
                 SolcError::msg(format!("cannot resolve file at {}", path.display()))
             })?;
-            let node = graph.node(*node_id);
+            let node = graph.node(node_id);
             let content = node.content();
 
             // Firstly we strip all licesnses, verson pragmas
@@ -142,25 +142,25 @@ impl ProjectPathsConfig<SolcLanguage> {
             let mut ranges_to_remove = Vec::new();
 
             if let Some(license) = &node.data.license {
-                ranges_to_remove.push(license.loc());
+                ranges_to_remove.push(license.span());
                 if *path == flatten_target {
-                    result.push_str(&content[license.loc()]);
+                    result.push_str(&content[license.span()]);
                     result.push('\n');
                 }
             }
             if let Some(version) = &node.data.version {
-                let content = &content[version.loc()];
-                ranges_to_remove.push(version.loc());
+                let content = &content[version.span()];
+                ranges_to_remove.push(version.span());
                 version_pragmas.push(content);
             }
             if let Some(experimental) = &node.data.experimental {
-                ranges_to_remove.push(experimental.loc());
+                ranges_to_remove.push(experimental.span());
                 if experimental_pragma.is_none() {
-                    experimental_pragma = Some(content[experimental.loc()].to_owned());
+                    experimental_pragma = Some(content[experimental.span()].to_owned());
                 }
             }
             for import in &node.data.imports {
-                ranges_to_remove.push(import.loc());
+                ranges_to_remove.push(import.span());
             }
             ranges_to_remove.sort_by_key(|loc| loc.start);
 

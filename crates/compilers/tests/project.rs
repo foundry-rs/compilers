@@ -711,7 +711,7 @@ contract A { }
 }
 
 #[test]
-fn can_flatten_on_solang_failure() {
+fn can_flatten_on_failure() {
     let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
