@@ -51,7 +51,7 @@ impl SolData {
         let mut imports = Vec::<Spanned<SolImport>>::new();
         let mut libraries = Vec::new();
         let mut contract_names = Vec::new();
-        let mut parse_error = Ok(());
+        let mut parse_result = Ok(());
 
         let sess = solar_parse::interface::Session::builder()
             .with_buffer_emitter(Default::default())
@@ -119,7 +119,7 @@ impl SolData {
         if let Err(e) = sess.emitted_diagnostics().unwrap() {
             let e = e.to_string();
             trace!("failed parsing {file:?}: {e}");
-            parse_error = Err(e);
+            parse_result = Err(e);
         }
         let license = content.lines().next().and_then(|line| {
             utils::capture_outer_and_inner(
@@ -141,7 +141,7 @@ impl SolData {
             libraries,
             contract_names,
             is_yul,
-            parse_result: parse_error,
+            parse_result,
         }
     }
 
