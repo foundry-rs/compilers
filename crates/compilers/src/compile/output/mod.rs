@@ -575,7 +575,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
         let build_id = build_info.id.clone();
         self.build_infos.push(build_info);
 
-        let CompilerOutput { errors, sources, contracts } = output;
+        let CompilerOutput { errors, sources, contracts, .. } = output;
         self.errors.extend(errors);
 
         for (path, source_file) in sources {

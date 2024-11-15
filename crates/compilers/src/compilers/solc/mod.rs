@@ -17,7 +17,7 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
@@ -67,6 +67,7 @@ impl Compiler for SolcCompiler {
             errors: solc_output.errors,
             contracts: solc_output.contracts,
             sources: solc_output.sources,
+            metadata: BTreeMap::new(),
         };
 
         Ok(output)
@@ -354,6 +355,7 @@ mod tests {
             errors: out.errors,
             contracts: Default::default(),
             sources: Default::default(),
+            metadata: Default::default(),
         };
 
         let v: Version = "0.8.12".parse().unwrap();

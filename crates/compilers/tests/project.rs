@@ -20,8 +20,8 @@ use foundry_compilers::{
     ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, TestFileFilter,
 };
 use foundry_compilers_artifacts::{
-    output_selection::OutputSelection, remappings::Remapping, BytecodeHash, DevDoc, Error,
-    ErrorDoc, EventDoc, Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings,
+    output_selection::OutputSelection, remappings::Remapping, BytecodeHash, Contract, DevDoc,
+    Error, ErrorDoc, EventDoc, Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings,
     Settings, Severity, SolcInput, UserDoc, UserDocNotice,
 };
 use foundry_compilers_core::{
@@ -403,7 +403,8 @@ contract B { }
     let mut build_info_count = 0;
     for entry in fs::read_dir(info_dir).unwrap() {
         let _info =
-            BuildInfo::<SolcInput, CompilerOutput<Error>>::read(&entry.unwrap().path()).unwrap();
+            BuildInfo::<SolcInput, CompilerOutput<Error, Contract>>::read(&entry.unwrap().path())
+                .unwrap();
         build_info_count += 1;
     }
     assert_eq!(build_info_count, 1);
@@ -445,7 +446,8 @@ contract B { }
     let mut build_info_count = 0;
     for entry in fs::read_dir(info_dir).unwrap() {
         let _info =
-            BuildInfo::<SolcInput, CompilerOutput<Error>>::read(&entry.unwrap().path()).unwrap();
+            BuildInfo::<SolcInput, CompilerOutput<Error, Contract>>::read(&entry.unwrap().path())
+                .unwrap();
         build_info_count += 1;
     }
     assert_eq!(build_info_count, 1);

@@ -191,6 +191,8 @@ pub struct CompilerOutput<E, C> {
     pub contracts: FileToContractsMap<C>,
     #[serde(default)]
     pub sources: BTreeMap<PathBuf, SourceFile>,
+    #[serde(default)]
+    pub metadata: BTreeMap<String, String>,
 }
 
 impl<E, C> CompilerOutput<E, C> {
@@ -232,13 +234,19 @@ impl<E, C> CompilerOutput<E, C> {
             errors: self.errors.into_iter().map(op).collect(),
             contracts: self.contracts,
             sources: self.sources,
+            metadata: self.metadata,
         }
     }
 }
 
 impl<E, C> Default for CompilerOutput<E, C> {
     fn default() -> Self {
-        Self { errors: Vec::new(), contracts: BTreeMap::new(), sources: BTreeMap::new() }
+        Self {
+            errors: Vec::new(),
+            contracts: BTreeMap::new(),
+            sources: BTreeMap::new(),
+            metadata: BTreeMap::new(),
+        }
     }
 }
 
