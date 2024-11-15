@@ -262,6 +262,7 @@ pub struct VersionedContract {
     pub contract: Contract,
     pub version: Version,
     pub build_id: String,
+    pub profile: String,
 }
 
 /// A mapping of `ArtifactId` and their `CompactContractBytecode`

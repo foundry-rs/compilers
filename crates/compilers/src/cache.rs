@@ -30,7 +30,7 @@ use std::{
 /// `ethers-solc` uses a different format version id, but the actual format is consistent with
 /// hardhat This allows ethers-solc to detect if the cache file was written by hardhat or
 /// `ethers-solc`
-const ETHERS_FORMAT_VERSION: &str = "ethers-rs-sol-cache-3";
+const ETHERS_FORMAT_VERSION: &str = "ethers-rs-sol-cache-4";
 
 /// The file name of the default cache file
 pub const SOLIDITY_FILES_CACHE_FILENAME: &str = "solidity-files-cache.json";
@@ -42,13 +42,20 @@ pub struct CompilerCache<S = Settings> {
     pub format: String,
     /// contains all directories used for the project
     pub paths: ProjectPaths,
-    pub files: BTreeMap<PathBuf, CacheEntry<S>>,
+    pub files: BTreeMap<PathBuf, CacheEntry>,
     pub builds: BTreeSet<String>,
+    pub profiles: BTreeMap<String, S>,
 }
 
 impl<S> CompilerCache<S> {
     pub fn new(format: String, paths: ProjectPaths) -> Self {
-        Self { format, paths, files: Default::default(), builds: Default::default() }
+        Self {
+            format,
+            paths,
+            files: Default::default(),
+            builds: Default::default(),
+            profiles: Default::default(),
+        }
     }
 }
 
@@ -57,13 +64,8 @@ impl<S: CompilerSettings> CompilerCache<S> {
         self.files.is_empty()
     }
 
-    /// Returns `true` if the cache contains any artifacts for the given file and version.
-    pub fn contains(&self, file: &Path, version: &Version) -> bool {
-        self.files.get(file).map_or(true, |entry| !entry.contains_version(version))
-    }
-
     /// Removes entry for the given file
-    pub fn remove(&mut self, file: &Path) -> Option<CacheEntry<S>> {
+    pub fn remove(&mut self, file: &Path) -> Option<CacheEntry> {
         self.files.remove(file)
     }
 
@@ -78,17 +80,17 @@ impl<S: CompilerSettings> CompilerCache<S> {
     }
 
     /// Returns an iterator over all `CacheEntry` this cache contains
-    pub fn entries(&self) -> impl Iterator<Item = &CacheEntry<S>> {
+    pub fn entries(&self) -> impl Iterator<Item = &CacheEntry> {
         self.files.values()
     }
 
     /// Returns the corresponding `CacheEntry` for the file if it exists
-    pub fn entry(&self, file: &Path) -> Option<&CacheEntry<S>> {
+    pub fn entry(&self, file: &Path) -> Option<&CacheEntry> {
         self.files.get(file)
     }
 
     /// Returns the corresponding `CacheEntry` for the file if it exists
-    pub fn entry_mut(&mut self, file: &Path) -> Option<&mut CacheEntry<S>> {
+    pub fn entry_mut(&mut self, file: &Path) -> Option<&mut CacheEntry> {
         self.files.get_mut(file)
     }
 
@@ -155,6 +157,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
             if !self
                 .entries()
                 .flat_map(|e| e.artifacts.values())
+                .flat_map(|a| a.values())
                 .flat_map(|a| a.values())
                 .any(|a| a.build_id == *build_id)
             {
@@ -373,6 +376,7 @@ impl<S> Default for CompilerCache<S> {
             builds: Default::default(),
             files: Default::default(),
             paths: Default::default(),
+            profiles: Default::default(),
         }
     }
 }
@@ -393,6 +397,8 @@ pub struct CachedArtifact {
     pub build_id: String,
 }
 
+pub type CachedArtifacts = BTreeMap<String, BTreeMap<Version, BTreeMap<String, CachedArtifact>>>;
+
 /// A `CacheEntry` in the cache file represents a solidity file
 ///
 /// A solidity file can contain several contracts, for every contract a separate `Artifact` is
@@ -400,15 +406,13 @@ pub struct CachedArtifact {
 /// `solc` versions generating version specific artifacts.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CacheEntry<S = Settings> {
+pub struct CacheEntry {
     /// the last modification time of this file
     pub last_modification_date: u64,
     /// hash to identify whether the content of the file changed
     pub content_hash: String,
     /// identifier name see [`foundry_compilers_core::utils::source_name()`]
     pub source_name: PathBuf,
-    /// what config was set when compiling this file
-    pub compiler_settings: S,
     /// fully resolved imports of the file
     ///
     /// all paths start relative from the project's root: `src/importedFile.sol`
@@ -422,9 +426,9 @@ pub struct CacheEntry<S = Settings> {
     /// file `C` would be compiled twice, with `0.8.10` and `0.8.11`, producing two different
     /// artifacts.
     ///
-    /// This map tracks the artifacts by `name -> (Version -> PathBuf)`.
+    /// This map tracks the artifacts by `name -> (Version -> profile -> PathBuf)`.
     /// This mimics the default artifacts directory structure
-    pub artifacts: BTreeMap<String, BTreeMap<Version, CachedArtifact>>,
+    pub artifacts: CachedArtifacts,
     /// Whether this file was compiled at least once.
     ///
     /// If this is true and `artifacts` are empty, it means that given version of the file does
@@ -435,7 +439,7 @@ pub struct CacheEntry<S = Settings> {
     pub seen_by_compiler: bool,
 }
 
-impl<S> CacheEntry<S> {
+impl CacheEntry {
     /// Returns the last modified timestamp `Duration`
     pub fn last_modified(&self) -> Duration {
         Duration::from_millis(self.last_modification_date)
@@ -456,7 +460,12 @@ impl<S> CacheEntry<S> {
     /// # }
     /// ```
     pub fn find_artifact_path(&self, contract_name: &str) -> Option<&Path> {
-        self.artifacts.get(contract_name)?.iter().next().map(|(_, p)| p.path.as_path())
+        self.artifacts
+            .get(contract_name)?
+            .iter()
+            .next()
+            .and_then(|(_, a)| a.iter().next())
+            .map(|(_, p)| p.path.as_path())
     }
 
     /// Reads the last modification date from the file's metadata
@@ -481,13 +490,16 @@ impl<S> CacheEntry<S> {
         for (artifact_name, versioned_files) in self.artifacts.iter() {
             let mut files = Vec::with_capacity(versioned_files.len());
             for (version, cached_artifact) in versioned_files {
-                let artifact: Artifact = utils::read_json_file(&cached_artifact.path)?;
-                files.push(ArtifactFile {
-                    artifact,
-                    file: cached_artifact.path.clone(),
-                    version: version.clone(),
-                    build_id: cached_artifact.build_id.clone(),
-                });
+                for (profile, cached_artifact) in cached_artifact {
+                    let artifact: Artifact = utils::read_json_file(&cached_artifact.path)?;
+                    files.push(ArtifactFile {
+                        artifact,
+                        file: cached_artifact.path.clone(),
+                        version: version.clone(),
+                        build_id: cached_artifact.build_id.clone(),
+                        profile: profile.clone(),
+                    });
+                }
             }
             artifacts.insert(artifact_name.clone(), files);
         }
@@ -501,30 +513,48 @@ impl<S> CacheEntry<S> {
     {
         for (name, artifacts) in artifacts.into_iter() {
             for artifact in artifacts {
-                self.artifacts.entry(name.clone()).or_default().insert(
-                    artifact.version.clone(),
-                    CachedArtifact {
-                        build_id: artifact.build_id.clone(),
-                        path: artifact.file.clone(),
-                    },
-                );
+                self.artifacts
+                    .entry(name.clone())
+                    .or_default()
+                    .entry(artifact.version.clone())
+                    .or_default()
+                    .insert(
+                        artifact.profile.clone(),
+                        CachedArtifact {
+                            build_id: artifact.build_id.clone(),
+                            path: artifact.file.clone(),
+                        },
+                    );
             }
         }
     }
 
     /// Returns `true` if the artifacts set contains the given version
-    pub fn contains_version(&self, version: &Version) -> bool {
-        self.artifacts_versions().any(|(v, _)| v == version)
+    pub fn contains(&self, version: &Version, profile: &str) -> bool {
+        self.artifacts.values().any(|artifacts| {
+            artifacts.get(version).and_then(|artifacts| artifacts.get(profile)).is_some()
+        })
     }
 
     /// Iterator that yields all artifact files and their version
-    pub fn artifacts_versions(&self) -> impl Iterator<Item = (&Version, &CachedArtifact)> {
-        self.artifacts.values().flatten()
+    pub fn artifacts_versions(&self) -> impl Iterator<Item = (&Version, &str, &CachedArtifact)> {
+        self.artifacts
+            .values()
+            .flatten()
+            .flat_map(|(v, a)| a.iter().map(move |(p, a)| (v, p.as_str(), a)))
     }
 
     /// Returns the artifact file for the contract and version pair
-    pub fn find_artifact(&self, contract: &str, version: &Version) -> Option<&CachedArtifact> {
-        self.artifacts.get(contract).and_then(|files| files.get(version))
+    pub fn find_artifact(
+        &self,
+        contract: &str,
+        version: &Version,
+        profile: &str,
+    ) -> Option<&CachedArtifact> {
+        self.artifacts
+            .get(contract)
+            .and_then(|files| files.get(version))
+            .and_then(|files| files.get(profile))
     }
 
     /// Iterator that yields all artifact files and their version
@@ -532,17 +562,17 @@ impl<S> CacheEntry<S> {
         &'a self,
         version: &'a Version,
     ) -> impl Iterator<Item = &'a CachedArtifact> + 'a {
-        self.artifacts_versions().filter_map(move |(ver, file)| (ver == version).then_some(file))
+        self.artifacts_versions().filter_map(move |(ver, _, file)| (ver == version).then_some(file))
     }
 
     /// Iterator that yields all artifact files
     pub fn artifacts(&self) -> impl Iterator<Item = &CachedArtifact> {
-        self.artifacts.values().flat_map(BTreeMap::values)
+        self.artifacts.values().flat_map(BTreeMap::values).flat_map(BTreeMap::values)
     }
 
     /// Mutable iterator over all artifact files
     pub fn artifacts_mut(&mut self) -> impl Iterator<Item = &mut CachedArtifact> {
-        self.artifacts.values_mut().flat_map(BTreeMap::values_mut)
+        self.artifacts.values_mut().flat_map(BTreeMap::values_mut).flat_map(BTreeMap::values_mut)
     }
 
     /// Checks if all artifact files exist
@@ -622,7 +652,7 @@ pub(crate) struct ArtifactsCacheInner<'a, T: ArtifactOutput, C: Compiler> {
     pub content_hashes: HashMap<PathBuf, String>,
 }
 
-impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
+impl<T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'_, T, C> {
     /// Creates a new cache entry for the file
     fn create_cache_entry(&mut self, file: PathBuf, source: &Source) {
         let imports = self
@@ -633,11 +663,10 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             .collect();
 
         let entry = CacheEntry {
-            last_modification_date: CacheEntry::<C::Settings>::read_last_modification_date(&file)
+            last_modification_date: CacheEntry::read_last_modification_date(&file)
                 .unwrap_or_default(),
             content_hash: source.content_hash(),
             source_name: strip_prefix(&file, self.project.root()).into(),
-            compiler_settings: self.project.settings.clone(),
             imports,
             version_requirement: self.edges.version_requirement(&file).map(|v| v.to_string()),
             // artifacts remain empty until we received the compiler output
@@ -658,7 +687,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
     /// 2. [SourceCompilationKind::Optimized] - the file is not dirty, but is imported by a dirty
     ///    file and thus will be processed by solc. For such files we don't need full data, so we
     ///    are marking them as clean to optimize output selection later.
-    fn filter(&mut self, sources: &mut Sources, version: &Version) {
+    fn filter(&mut self, sources: &mut Sources, version: &Version, profile: &str) {
         // sources that should be passed to compiler.
         let mut compile_complete = HashSet::new();
         let mut compile_optimized = HashSet::new();
@@ -667,7 +696,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             self.sources_in_scope.insert(file.clone(), version.clone());
 
             // If we are missing artifact for file, compile it.
-            if self.is_missing_artifacts(file, version) {
+            if self.is_missing_artifacts(file, version, profile) {
                 compile_complete.insert(file.clone());
             }
 
@@ -701,7 +730,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
 
     /// Returns whether we are missing artifacts for the given file and version.
     #[instrument(level = "trace", skip(self))]
-    fn is_missing_artifacts(&self, file: &Path, version: &Version) -> bool {
+    fn is_missing_artifacts(&self, file: &Path, version: &Version, profile: &str) -> bool {
         let Some(entry) = self.cache.entry(file) else {
             trace!("missing cache entry");
             return true;
@@ -715,7 +744,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
             return false;
         }
 
-        if !entry.contains_version(version) {
+        if !entry.contains(version, profile) {
             trace!("missing linked artifacts");
             return true;
         }
@@ -747,6 +776,44 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
                     dirty_files.insert(file.to_path_buf());
                     populate_dirty_files(file, dirty_files, edges);
                 }
+            }
+        }
+
+        let existing_profiles = self.project.settings_profiles().collect::<BTreeMap<_, _>>();
+
+        let mut dirty_profiles = HashSet::new();
+        for (profile, settings) in &self.cache.profiles {
+            if !existing_profiles
+                .get(profile.as_str())
+                .map_or(false, |p| p.can_use_cached(settings))
+            {
+                trace!("dirty profile: {}", profile);
+                dirty_profiles.insert(profile.clone());
+            }
+        }
+
+        for profile in &dirty_profiles {
+            self.cache.profiles.remove(profile);
+        }
+
+        self.cache.files.retain(|_, entry| {
+            // keep entries which already had no artifacts
+            if entry.artifacts.is_empty() {
+                return true;
+            }
+            entry.artifacts.retain(|_, artifacts| {
+                artifacts.retain(|_, artifacts| {
+                    artifacts.retain(|profile, _| !dirty_profiles.contains(profile));
+                    !artifacts.is_empty()
+                });
+                !artifacts.is_empty()
+            });
+            !entry.artifacts.is_empty()
+        });
+
+        for (profile, settings) in existing_profiles {
+            if !self.cache.profiles.contains_key(profile) {
+                self.cache.profiles.insert(profile.to_string(), settings.clone());
             }
         }
 
@@ -808,11 +875,6 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'a, T, C> {
 
         if entry.content_hash != *hash {
             trace!("content hash changed");
-            return true;
-        }
-
-        if !self.project.settings.can_use_cached(&entry.compiler_settings) {
-            trace!("solc config not compatible");
             return true;
         }
 
@@ -974,10 +1036,10 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsCache<'a, T, C> {
     }
 
     /// Filters out those sources that don't need to be compiled
-    pub fn filter(&mut self, sources: &mut Sources, version: &Version) {
+    pub fn filter(&mut self, sources: &mut Sources, version: &Version, profile: &str) {
         match self {
             ArtifactsCache::Ephemeral(..) => {}
-            ArtifactsCache::Cached(cache) => cache.filter(sources, version),
+            ArtifactsCache::Cached(cache) => cache.filter(sources, version, profile),
         }
     }
 

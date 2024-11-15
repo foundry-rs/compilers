@@ -88,7 +88,7 @@ pub struct ContractInfoRef<'a> {
     pub name: Cow<'a, str>,
 }
 
-impl<'a> From<ContractInfo> for ContractInfoRef<'a> {
+impl From<ContractInfo> for ContractInfoRef<'_> {
     fn from(info: ContractInfo) -> Self {
         ContractInfoRef { path: info.path.map(Into::into), name: info.name.into() }
     }
@@ -102,7 +102,7 @@ impl<'a> From<&'a ContractInfo> for ContractInfoRef<'a> {
         }
     }
 }
-impl<'a> From<FullContractInfo> for ContractInfoRef<'a> {
+impl From<FullContractInfo> for ContractInfoRef<'_> {
     fn from(info: FullContractInfo) -> Self {
         ContractInfoRef { path: Some(info.path.into()), name: info.name.into() }
     }

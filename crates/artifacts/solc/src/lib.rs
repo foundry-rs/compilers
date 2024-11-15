@@ -1150,7 +1150,7 @@ impl<'de> Deserialize<'de> for LosslessMetadata {
     {
         struct LosslessMetadataVisitor;
 
-        impl<'de> Visitor<'de> for LosslessMetadataVisitor {
+        impl Visitor<'_> for LosslessMetadataVisitor {
             type Value = LosslessMetadata;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
