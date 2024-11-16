@@ -14,15 +14,17 @@ use foundry_compilers::{
     },
     flatten::Flattener,
     info::ContractInfo,
+    multi::MultiCompilerRestrictions,
     project_util::*,
-    solc::SolcSettings,
+    solc::{Restriction, SolcRestrictions, SolcSettings},
     take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, TestFileFilter,
+    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, RestrictionsWithVersion,
+    TestFileFilter,
 };
 use foundry_compilers_artifacts::{
     output_selection::OutputSelection, remappings::Remapping, BytecodeHash, Contract, DevDoc,
-    Error, ErrorDoc, EventDoc, Libraries, MethodDoc, ModelCheckerEngine::CHC, ModelCheckerSettings,
-    Settings, Severity, SolcInput, UserDoc, UserDocNotice,
+    Error, ErrorDoc, EventDoc, EvmVersion, Libraries, MethodDoc, ModelCheckerEngine::CHC,
+    ModelCheckerSettings, Settings, Severity, SolcInput, UserDoc, UserDocNotice,
 };
 use foundry_compilers_core::{
     error::SolcError,
@@ -713,7 +715,7 @@ contract A { }
 }
 
 #[test]
-fn can_flatten_on_solang_failure() {
+fn cannot_flatten_on_failure() {
     let project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
     project
@@ -744,26 +746,8 @@ contract Contract {
         .unwrap();
 
     let result = project.paths().clone().with_language::<SolcLanguage>().flatten(target.as_path());
-    assert!(result.is_ok());
-
-    let result = result.unwrap();
-    assert_eq!(
-        result,
-        r"// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.10;
-
-// src/Lib.sol
-
-library Lib {}
-
-// src/Contract.sol
-
-// Intentionally erroneous code
-contract Contract {
-    failure();
-}
-"
-    );
+    assert!(result.is_err());
+    println!("{}", result.unwrap_err());
 }
 
 #[test]
@@ -3850,12 +3834,14 @@ fn test_deterministic_metadata() {
     let orig_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
     copy_dir_all(&orig_root, tmp_dir.path()).unwrap();
 
+    let compiler = MultiCompiler {
+        solc: Some(SolcCompiler::Specific(
+            Solc::find_svm_installed_version(&Version::new(0, 8, 18)).unwrap().unwrap(),
+        )),
+        vyper: None,
+    };
     let paths = ProjectPathsConfig::builder().root(root).build().unwrap();
-    let project = Project::builder()
-        .locked_version(SolcLanguage::Solidity, Version::new(0, 8, 18))
-        .paths(paths)
-        .build(MultiCompiler::default())
-        .unwrap();
+    let project = Project::builder().paths(paths).build(compiler).unwrap();
 
     let compiled = project.compile().unwrap();
     compiled.assert_success();
@@ -3995,7 +3981,6 @@ fn test_can_compile_multi() {
 }
 
 // This is a reproduction of https://github.com/foundry-rs/compilers/issues/47
-#[cfg(feature = "svm-solc")]
 #[test]
 fn remapping_trailing_slash_issue47() {
     use std::sync::Arc;
@@ -4025,4 +4010,83 @@ fn remapping_trailing_slash_issue47() {
     let compiler = Solc::find_or_install(&Version::new(0, 6, 8)).unwrap();
     let output = compiler.compile_exact(&input).unwrap();
     assert!(!output.has_error());
+}
+
+#[test]
+fn test_settings_restrictions() {
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
+    // default EVM version is Paris, Cancun contract won't compile
+    project.project_mut().settings.solc.evm_version = Some(EvmVersion::Paris);
+
+    let common_path = project.add_source("Common.sol", "").unwrap();
+
+    let cancun_path = project
+        .add_source(
+            "Cancun.sol",
+            r#"
+import "./Common.sol";
+
+contract TransientContract {
+    function lock()public {
+        assembly {
+            tstore(0, 1)
+        }
+    }
+}"#,
+        )
+        .unwrap();
+
+    let cancun_importer_path =
+        project.add_source("CancunImporter.sol", "import \"./Cancun.sol\";").unwrap();
+    let simple_path = project
+        .add_source(
+            "Simple.sol",
+            r#"
+import "./Common.sol";
+
+contract SimpleContract {}
+"#,
+        )
+        .unwrap();
+
+    // Add config with Cancun enabled
+    let mut cancun_settings = project.project().settings.clone();
+    cancun_settings.solc.evm_version = Some(EvmVersion::Cancun);
+    project.project_mut().additional_settings.insert("cancun".to_string(), cancun_settings);
+
+    let cancun_restriction = RestrictionsWithVersion {
+        restrictions: MultiCompilerRestrictions {
+            solc: SolcRestrictions {
+                evm_version: Restriction { min: Some(EvmVersion::Cancun), ..Default::default() },
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        version: None,
+    };
+
+    // Restrict compiling Cancun contract to Cancun EVM version
+    project.project_mut().restrictions.insert(cancun_path.clone(), cancun_restriction);
+
+    let output = project.compile().unwrap();
+
+    output.assert_success();
+
+    let artifacts = output
+        .artifact_ids()
+        .map(|(id, _)| (id.profile, id.source))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        artifacts,
+        vec![
+            ("cancun".to_string(), cancun_path),
+            ("cancun".to_string(), cancun_importer_path),
+            ("cancun".to_string(), common_path.clone()),
+            ("default".to_string(), common_path),
+            ("default".to_string(), simple_path),
+        ]
+    );
 }

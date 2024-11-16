@@ -1,5 +1,6 @@
 use super::{
-    solc::{SolcCompiler, SolcVersionedInput, SOLC_EXTENSIONS},
+    restrictions::CompilerSettingsRestrictions,
+    solc::{SolcCompiler, SolcSettings, SolcVersionedInput, SOLC_EXTENSIONS},
     vyper::{
         input::VyperVersionedInput, parser::VyperParsedSource, Vyper, VyperLanguage,
         VYPER_EXTENSIONS,
@@ -10,7 +11,8 @@ use super::{
 use crate::{
     artifacts::vyper::{VyperCompilationError, VyperSettings},
     resolver::parse::SolData,
-    solc::SolcSettings,
+    settings::VyperRestrictions,
+    solc::SolcRestrictions,
 };
 use foundry_compilers_artifacts::{
     error::SourceLocation,
@@ -129,6 +131,18 @@ impl fmt::Display for MultiCompilerError {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MultiCompilerRestrictions {
+    pub solc: SolcRestrictions,
+    pub vyper: VyperRestrictions,
+}
+
+impl CompilerSettingsRestrictions for MultiCompilerRestrictions {
+    fn merge(self, other: Self) -> Option<Self> {
+        Some(Self { solc: self.solc.merge(other.solc)?, vyper: self.vyper.merge(other.vyper)? })
+    }
+}
+
 /// Settings for the [MultiCompiler]. Includes settings for both Solc and Vyper compilers.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MultiCompilerSettings {
@@ -137,6 +151,8 @@ pub struct MultiCompilerSettings {
 }
 
 impl CompilerSettings for MultiCompilerSettings {
+    type Restrictions = MultiCompilerRestrictions;
+
     fn can_use_cached(&self, other: &Self) -> bool {
         self.solc.can_use_cached(&other.solc) && self.vyper.can_use_cached(&other.vyper)
     }
@@ -172,6 +188,11 @@ impl CompilerSettings for MultiCompilerSettings {
             solc: self.solc.with_remappings(remappings),
             vyper: self.vyper.with_remappings(remappings),
         }
+    }
+
+    fn satisfies_restrictions(&self, restrictions: &Self::Restrictions) -> bool {
+        self.solc.satisfies_restrictions(&restrictions.solc)
+            && self.vyper.satisfies_restrictions(&restrictions.vyper)
     }
 }
 
@@ -320,6 +341,20 @@ impl ParsedSource for MultiCompilerParsedSource {
         }
     }
 
+    fn contract_names(&self) -> &[String] {
+        match self {
+            Self::Solc(parsed) => parsed.contract_names(),
+            Self::Vyper(parsed) => parsed.contract_names(),
+        }
+    }
+
+    fn language(&self) -> Self::Language {
+        match self {
+            Self::Solc(parsed) => MultiCompilerLanguage::Solc(parsed.language()),
+            Self::Vyper(parsed) => MultiCompilerLanguage::Vyper(parsed.language()),
+        }
+    }
+
     fn resolve_imports<C>(
         &self,
         paths: &crate::ProjectPathsConfig<C>,
@@ -328,13 +363,6 @@ impl ParsedSource for MultiCompilerParsedSource {
         match self {
             Self::Solc(parsed) => parsed.resolve_imports(paths, include_paths),
             Self::Vyper(parsed) => parsed.resolve_imports(paths, include_paths),
-        }
-    }
-
-    fn language(&self) -> Self::Language {
-        match self {
-            Self::Solc(parsed) => MultiCompilerLanguage::Solc(parsed.language()),
-            Self::Vyper(parsed) => MultiCompilerLanguage::Vyper(parsed.language()),
         }
     }
 

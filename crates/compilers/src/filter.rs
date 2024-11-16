@@ -170,7 +170,7 @@ impl<'a> SparseOutputFilter<'a> {
     }
 }
 
-impl<'a> fmt::Debug for SparseOutputFilter<'a> {
+impl fmt::Debug for SparseOutputFilter<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SparseOutputFilter::Optimized => f.write_str("Optimized"),

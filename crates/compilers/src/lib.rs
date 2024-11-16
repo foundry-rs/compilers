@@ -58,11 +58,9 @@ use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
 use output::sources::{VersionedSourceFile, VersionedSourceFiles};
 use project::ProjectCompiler;
 use semver::Version;
-use solang_parser::pt::SourceUnitPart;
 use solc::SolcSettings;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    fs,
     path::{Path, PathBuf},
 };
 
@@ -74,12 +72,19 @@ pub struct Project<
     T: ArtifactOutput<CompilerContract = C::CompilerContract> = ConfigurableArtifacts,
 > {
     pub compiler: C,
-    /// Compiler versions locked for specific languages.
-    pub locked_versions: HashMap<C::Language, Version>,
     /// The layout of the project
     pub paths: ProjectPathsConfig<C::Language>,
     /// The compiler settings
     pub settings: C::Settings,
+    /// Additional settings for cases when default compiler settings are not enough to cover all
+    /// possible restrictions.
+    pub additional_settings: BTreeMap<String, C::Settings>,
+    /// Mapping from file path to requrements on settings to compile it.
+    ///
+    /// This file will only be included into compiler inputs with profiles which satisfy the
+    /// restrictions.
+    pub restrictions:
+        BTreeMap<PathBuf, RestrictionsWithVersion<<C::Settings as CompilerSettings>::Restrictions>>,
     /// Whether caching is enabled
     pub cached: bool,
     /// Whether to output build information with each solc call.
@@ -144,6 +149,11 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Pro
     /// Returns the handler that takes care of processing all artifacts
     pub fn artifacts_handler(&self) -> &T {
         &self.artifacts
+    }
+
+    pub fn settings_profiles(&self) -> impl Iterator<Item = (&str, &C::Settings)> {
+        std::iter::once(("default", &self.settings))
+            .chain(self.additional_settings.iter().map(|(p, s)| (p.as_str(), s)))
     }
 }
 
@@ -364,39 +374,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Pro
         Ok(())
     }
 
-    /// Runs solc compiler without requesting any output and collects a mapping from contract names
-    /// to source files containing artifact with given name.
-    fn collect_contract_names_solc(&self) -> Result<HashMap<String, Vec<PathBuf>>>
-    where
-        T: Clone,
-        C: Clone,
-    {
-        let mut temp_project = (*self).clone();
-        temp_project.no_artifacts = true;
-        temp_project.settings.update_output_selection(|selection| {
-            *selection = OutputSelection::common_output_selection(["abi".to_string()]);
-        });
-
-        let output = temp_project.compile()?;
-
-        if output.has_compiler_errors() {
-            return Err(SolcError::msg(output));
-        }
-
-        let contracts = output.into_artifacts().fold(
-            HashMap::new(),
-            |mut contracts: HashMap<_, Vec<_>>, (id, _)| {
-                contracts.entry(id.name).or_default().push(id.source);
-                contracts
-            },
-        );
-
-        Ok(contracts)
-    }
-
-    /// Parses project sources via solang parser, collecting mapping from contract name to source
-    /// files containing artifact with given name. On parser failure, fallbacks to
-    /// [Self::collect_contract_names_solc].
+    /// Parses the sources in memory and collects all the contract names mapped to their file paths.
     fn collect_contract_names(&self) -> Result<HashMap<String, Vec<PathBuf>>>
     where
         T: Clone,
@@ -404,22 +382,16 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Pro
     {
         let graph = Graph::<C::ParsedSource>::resolve(&self.paths)?;
         let mut contracts: HashMap<String, Vec<PathBuf>> = HashMap::new();
-
-        for file in graph.files().keys() {
-            let src = fs::read_to_string(file).map_err(|e| SolcError::io(e, file))?;
-            let Ok((parsed, _)) = solang_parser::parse(&src, 0) else {
-                return self.collect_contract_names_solc();
-            };
-
-            for part in parsed.0 {
-                if let SourceUnitPart::ContractDefinition(contract) = part {
-                    if let Some(name) = contract.name {
-                        contracts.entry(name.name).or_default().push(file.clone());
-                    }
+        if !graph.is_empty() {
+            for node in graph.nodes(0) {
+                for contract_name in node.data.contract_names() {
+                    contracts
+                        .entry(contract_name.clone())
+                        .or_default()
+                        .push(node.path().to_path_buf());
                 }
             }
         }
-
         Ok(contracts)
     }
 
@@ -444,6 +416,15 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Pro
 
         Ok(paths.remove(0))
     }
+
+    /// Invokes [CompilerSettings::update_output_selection] on the project's settings and all
+    /// additional settings profiles.
+    pub fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy) {
+        self.settings.update_output_selection(f);
+        self.additional_settings.iter_mut().for_each(|(_, s)| {
+            s.update_output_selection(f);
+        });
+    }
 }
 
 pub struct ProjectBuilder<
@@ -452,10 +433,11 @@ pub struct ProjectBuilder<
 > {
     /// The layout of the
     paths: Option<ProjectPathsConfig<C::Language>>,
-    /// Compiler versions locked for specific languages.
-    locked_versions: HashMap<C::Language, Version>,
     /// How solc invocation should be configured.
     settings: Option<C::Settings>,
+    additional_settings: BTreeMap<String, C::Settings>,
+    restrictions:
+        BTreeMap<PathBuf, RestrictionsWithVersion<<C::Settings as CompilerSettings>::Restrictions>>,
     /// Whether caching is enabled, default is true.
     cached: bool,
     /// Whether to output build information with each solc call.
@@ -495,8 +477,9 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> Pro
             compiler_severity_filter: Severity::Error,
             solc_jobs: None,
             settings: None,
-            locked_versions: Default::default(),
             sparse_output: None,
+            additional_settings: BTreeMap::new(),
+            restrictions: BTreeMap::new(),
         }
     }
 
@@ -613,23 +596,29 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> Pro
     }
 
     #[must_use]
-    pub fn locked_version(mut self, lang: impl Into<C::Language>, version: Version) -> Self {
-        self.locked_versions.insert(lang.into(), version);
-        self
-    }
-
-    #[must_use]
-    pub fn locked_versions(mut self, versions: HashMap<C::Language, Version>) -> Self {
-        self.locked_versions = versions;
-        self
-    }
-
-    #[must_use]
     pub fn sparse_output<F>(mut self, filter: F) -> Self
     where
         F: FileFilter + 'static,
     {
         self.sparse_output = Some(Box::new(filter));
+        self
+    }
+
+    #[must_use]
+    pub fn additional_settings(mut self, additional: BTreeMap<String, C::Settings>) -> Self {
+        self.additional_settings = additional;
+        self
+    }
+
+    #[must_use]
+    pub fn restrictions(
+        mut self,
+        restrictions: BTreeMap<
+            PathBuf,
+            RestrictionsWithVersion<<C::Settings as CompilerSettings>::Restrictions>,
+        >,
+    ) -> Self {
+        self.restrictions = restrictions;
         self
     }
 
@@ -650,14 +639,17 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> Pro
             slash_paths,
             ignored_file_paths,
             settings,
-            locked_versions,
             sparse_output,
+            additional_settings,
+            restrictions,
             ..
         } = self;
         ProjectBuilder {
             paths,
             cached,
             no_artifacts,
+            additional_settings,
+            restrictions,
             offline,
             slash_paths,
             artifacts,
@@ -667,7 +659,6 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> Pro
             solc_jobs,
             build_info,
             settings,
-            locked_versions,
             sparse_output,
         }
     }
@@ -686,8 +677,9 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> Pro
             build_info,
             slash_paths,
             settings,
-            locked_versions,
             sparse_output,
+            additional_settings,
+            restrictions,
         } = self;
 
         let mut paths = paths.map(Ok).unwrap_or_else(ProjectPathsConfig::current_hardhat)?;
@@ -713,8 +705,9 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> Pro
             offline,
             slash_paths,
             settings: settings.unwrap_or_default(),
-            locked_versions,
             sparse_output,
+            additional_settings,
+            restrictions,
         })
     }
 }
@@ -751,28 +744,29 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Art
         self.artifacts_handler().handle_artifacts(contracts, artifacts)
     }
 
-    fn output_file_name(name: &str) -> PathBuf {
-        T::output_file_name(name)
+    fn output_file_name(
+        name: &str,
+        version: &Version,
+        profile: &str,
+        with_version: bool,
+        with_profile: bool,
+    ) -> PathBuf {
+        T::output_file_name(name, version, profile, with_version, with_profile)
     }
 
-    fn output_file_name_versioned(name: &str, version: &Version) -> PathBuf {
-        T::output_file_name_versioned(name, version)
-    }
-
-    fn output_file(contract_file: &Path, name: &str) -> PathBuf {
-        T::output_file(contract_file, name)
-    }
-
-    fn output_file_versioned(contract_file: &Path, name: &str, version: &Version) -> PathBuf {
-        T::output_file_versioned(contract_file, name, version)
+    fn output_file(
+        contract_file: &Path,
+        name: &str,
+        version: &Version,
+        profile: &str,
+        with_version: bool,
+        with_profile: bool,
+    ) -> PathBuf {
+        T::output_file(contract_file, name, version, profile, with_version, with_profile)
     }
 
     fn contract_name(file: &Path) -> Option<String> {
         T::contract_name(file)
-    }
-
-    fn output_exists(contract_file: &Path, name: &str, root: &Path) -> bool {
-        T::output_exists(contract_file, name, root)
     }
 
     fn read_cached_artifact(path: &Path) -> Result<Self::Artifact> {

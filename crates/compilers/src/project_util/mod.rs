@@ -61,16 +61,12 @@ impl<
     /// Explicitly sets the solc version for the project
     #[cfg(feature = "svm-solc")]
     pub fn set_solc(&mut self, solc: &str) -> &mut Self {
-        use crate::compilers::{multi::MultiCompilerLanguage, solc::SolcLanguage};
-        use semver::Version;
+        use crate::solc::{Solc, SolcCompiler};
 
-        let version = Version::parse(solc).unwrap();
-        self.inner
-            .locked_versions
-            .insert(MultiCompilerLanguage::Solc(SolcLanguage::Solidity), version.clone());
-        self.inner
-            .locked_versions
-            .insert(MultiCompilerLanguage::Solc(SolcLanguage::Yul), version.clone());
+        self.inner.compiler.solc = Some(SolcCompiler::Specific(
+            Solc::find_svm_installed_version(&solc.parse().unwrap()).unwrap().unwrap(),
+        ));
+
         self
     }
 }

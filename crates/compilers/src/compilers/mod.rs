@@ -25,6 +25,9 @@ pub mod solc;
 pub mod vyper;
 pub use vyper::*;
 
+mod restrictions;
+pub use restrictions::{CompilerSettingsRestrictions, RestrictionsWithVersion};
+
 /// A compiler version is either installed (available locally) or can be downloaded, from the remote
 /// endpoint
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -66,6 +69,10 @@ impl fmt::Display for CompilerVersion {
 pub trait CompilerSettings:
     Default + Serialize + DeserializeOwned + Clone + Debug + Send + Sync + 'static
 {
+    /// We allow configuring settings restrictions which might optionally contain specific
+    /// requiremets for compiler configuration. e.g. min/max evm_version, optimizer runs
+    type Restrictions: CompilerSettingsRestrictions;
+
     /// Executes given fn with mutable reference to configured [OutputSelection].
     fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy);
 
@@ -98,6 +105,9 @@ pub trait CompilerSettings:
     fn with_include_paths(self, _include_paths: &BTreeSet<PathBuf>) -> Self {
         self
     }
+
+    /// Returns whether current settings satisfy given restrictions.
+    fn satisfies_restrictions(&self, restrictions: &Self::Restrictions) -> bool;
 }
 
 /// Input of a compiler, including sources and settings used for their compilation.
@@ -137,8 +147,17 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
 pub trait ParsedSource: Debug + Sized + Send + Clone {
     type Language: Language;
 
+    /// Parses the content of the source file.
     fn parse(content: &str, file: &Path) -> Result<Self>;
+
+    /// Returns the version requirement of the source.
     fn version_req(&self) -> Option<&VersionReq>;
+
+    /// Returns a list of contract names defined in the source.
+    fn contract_names(&self) -> &[String];
+
+    /// Returns the language of the source.
+    fn language(&self) -> Self::Language;
 
     /// Invoked during import resolution. Should resolve imports for the given source, and populate
     /// include_paths for compilers which support this config.
@@ -147,7 +166,6 @@ pub trait ParsedSource: Debug + Sized + Send + Clone {
         paths: &ProjectPathsConfig<C>,
         include_paths: &mut BTreeSet<PathBuf>,
     ) -> Result<Vec<PathBuf>>;
-    fn language(&self) -> Self::Language;
 
     /// Used to configure [OutputSelection] for sparse builds. In certain cases, we might want to
     /// include some of the file dependencies into the compiler output even if we might not be

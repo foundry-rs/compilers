@@ -1,27 +1,34 @@
 use foundry_compilers_core::utils;
 use semver::VersionReq;
-use solang_parser::pt::{
-    ContractPart, ContractTy, FunctionAttribute, FunctionDefinition, Import, ImportPath, Loc,
-    SourceUnitPart, Visibility,
+use solar_parse::{
+    ast,
+    interface::{sym, Pos},
 };
 use std::{
     ops::Range,
     path::{Path, PathBuf},
 };
 
-/// Represents various information about a solidity file parsed via [solang_parser]
+/// Represents various information about a Solidity file.
 #[derive(Clone, Debug)]
 pub struct SolData {
-    pub license: Option<SolDataUnit<String>>,
-    pub version: Option<SolDataUnit<String>>,
-    pub experimental: Option<SolDataUnit<String>>,
-    pub imports: Vec<SolDataUnit<SolImport>>,
+    pub license: Option<Spanned<String>>,
+    pub version: Option<Spanned<String>>,
+    pub experimental: Option<Spanned<String>>,
+    pub imports: Vec<Spanned<SolImport>>,
     pub version_req: Option<VersionReq>,
     pub libraries: Vec<SolLibrary>,
+    pub contract_names: Vec<String>,
     pub is_yul: bool,
+    pub parse_result: Result<(), String>,
 }
 
 impl SolData {
+    /// Returns the result of parsing the file.
+    pub fn parse_result(&self) -> crate::Result<()> {
+        self.parse_result.clone().map_err(crate::SolcError::ParseError)
+    }
+
     #[allow(dead_code)]
     pub fn fmt_version<W: std::fmt::Write>(
         &self,
@@ -41,76 +48,79 @@ impl SolData {
         let is_yul = file.extension().map_or(false, |ext| ext == "yul");
         let mut version = None;
         let mut experimental = None;
-        let mut imports = Vec::<SolDataUnit<SolImport>>::new();
+        let mut imports = Vec::<Spanned<SolImport>>::new();
         let mut libraries = Vec::new();
+        let mut contract_names = Vec::new();
+        let mut parse_result = Ok(());
 
-        match solang_parser::parse(content, 0) {
-            Ok((units, _)) => {
-                for unit in units.0 {
-                    match unit {
-                        SourceUnitPart::PragmaDirective(loc, Some(pragma), Some(value)) => {
-                            if pragma.name == "solidity" {
-                                // we're only interested in the solidity version pragma
-                                version = Some(SolDataUnit::from_loc(value.string.clone(), loc));
-                            }
-
-                            if pragma.name == "experimental" {
-                                experimental = Some(SolDataUnit::from_loc(value.string, loc));
-                            }
+        let sess = solar_parse::interface::Session::builder()
+            .with_buffer_emitter(Default::default())
+            .build();
+        sess.enter(|| {
+            let arena = ast::Arena::new();
+            let filename = solar_parse::interface::source_map::FileName::Real(file.to_path_buf());
+            let Ok(mut parser) =
+                solar_parse::Parser::from_source_code(&sess, &arena, filename, content.to_string())
+            else {
+                return;
+            };
+            let Ok(ast) = parser.parse_file().map_err(|e| e.emit()) else { return };
+            for item in ast.items {
+                let loc = item.span.lo().to_usize()..item.span.hi().to_usize();
+                match &item.kind {
+                    ast::ItemKind::Pragma(pragma) => match &pragma.tokens {
+                        ast::PragmaTokens::Version(name, req) if name.name == sym::solidity => {
+                            version = Some(Spanned::new(req.to_string(), loc));
                         }
-                        SourceUnitPart::ImportDirective(import) => {
-                            let (import, ids, loc) = match import {
-                                Import::Plain(s, l) => (s, vec![], l),
-                                Import::GlobalSymbol(s, i, l) => (s, vec![(i, None)], l),
-                                Import::Rename(s, i, l) => (s, i, l),
-                            };
-                            let import = match import {
-                                ImportPath::Filename(s) => s.string.clone(),
-                                ImportPath::Path(p) => p.to_string(),
-                            };
-                            let sol_import = SolImport::new(PathBuf::from(import)).set_aliases(
-                                ids.into_iter()
-                                    .map(|(id, alias)| match alias {
-                                        Some(al) => SolImportAlias::Contract(al.name, id.name),
-                                        None => SolImportAlias::File(id.name),
-                                    })
-                                    .collect(),
-                            );
-                            imports.push(SolDataUnit::from_loc(sol_import, loc));
-                        }
-                        SourceUnitPart::ContractDefinition(def) => {
-                            let functions = def
-                                .parts
-                                .into_iter()
-                                .filter_map(|part| match part {
-                                    ContractPart::FunctionDefinition(f) => Some(*f),
-                                    _ => None,
-                                })
-                                .collect();
-                            if let ContractTy::Library(_) = def.ty {
-                                libraries.push(SolLibrary { functions });
-                            }
+                        ast::PragmaTokens::Custom(name, value)
+                            if name.as_str() == "experimental" =>
+                        {
+                            let value =
+                                value.as_ref().map(|v| v.as_str().to_string()).unwrap_or_default();
+                            experimental = Some(Spanned::new(value, loc));
                         }
                         _ => {}
+                    },
+
+                    ast::ItemKind::Import(import) => {
+                        let path = import.path.value.to_string();
+                        let aliases = match &import.items {
+                            ast::ImportItems::Plain(None) | ast::ImportItems::Glob(None) => &[][..],
+                            ast::ImportItems::Plain(Some(alias))
+                            | ast::ImportItems::Glob(Some(alias)) => &[(*alias, None)][..],
+                            ast::ImportItems::Aliases(aliases) => aliases,
+                        };
+                        let sol_import = SolImport::new(PathBuf::from(path)).set_aliases(
+                            aliases
+                                .iter()
+                                .map(|(id, alias)| match alias {
+                                    Some(al) => SolImportAlias::Contract(
+                                        al.name.to_string(),
+                                        id.name.to_string(),
+                                    ),
+                                    None => SolImportAlias::File(id.name.to_string()),
+                                })
+                                .collect(),
+                        );
+                        imports.push(Spanned::new(sol_import, loc));
                     }
+
+                    ast::ItemKind::Contract(contract) => {
+                        if contract.kind.is_library() {
+                            libraries.push(SolLibrary { is_inlined: library_is_inlined(contract) });
+                        }
+                        contract_names.push(contract.name.to_string());
+                    }
+
+                    _ => {}
                 }
             }
-            Err(err) => {
-                trace!(
-                    "failed to parse \"{}\" ast: \"{:?}\". Falling back to regex to extract data",
-                    file.display(),
-                    err
-                );
-                version = utils::capture_outer_and_inner(
-                    content,
-                    &utils::RE_SOL_PRAGMA_VERSION,
-                    &["version"],
-                )
-                .first()
-                .map(|(cap, name)| SolDataUnit::new(name.as_str().to_owned(), cap.range()));
-                imports = capture_imports(content);
-            }
-        };
+        });
+        if let Err(e) = sess.emitted_diagnostics().unwrap() {
+            let e = e.to_string();
+            trace!("failed parsing {file:?}: {e}");
+            parse_result = Err(e);
+        }
         let license = content.lines().next().and_then(|line| {
             utils::capture_outer_and_inner(
                 line,
@@ -118,11 +128,21 @@ impl SolData {
                 &["license"],
             )
             .first()
-            .map(|(cap, l)| SolDataUnit::new(l.as_str().to_owned(), cap.range()))
+            .map(|(cap, l)| Spanned::new(l.as_str().to_owned(), cap.range()))
         });
         let version_req = version.as_ref().and_then(|v| Self::parse_version_req(v.data()).ok());
 
-        Self { version_req, version, experimental, imports, license, libraries, is_yul }
+        Self {
+            version_req,
+            version,
+            experimental,
+            imports,
+            license,
+            libraries,
+            contract_names,
+            is_yul,
+            parse_result,
+        }
     }
 
     /// Returns the corresponding SemVer version requirement for the solidity version.
@@ -179,7 +199,7 @@ impl SolImport {
 /// Minimal representation of a contract inside a solidity file
 #[derive(Clone, Debug)]
 pub struct SolLibrary {
-    pub functions: Vec<FunctionDefinition>,
+    pub is_inlined: bool,
 }
 
 impl SolLibrary {
@@ -192,138 +212,55 @@ impl SolLibrary {
     ///
     /// See also <https://docs.soliditylang.org/en/latest/contracts.html#libraries>
     pub fn is_inlined(&self) -> bool {
-        for f in self.functions.iter() {
-            for attr in f.attributes.iter() {
-                if let FunctionAttribute::Visibility(
-                    Visibility::External(_) | Visibility::Public(_),
-                ) = attr
-                {
-                    return false;
-                }
-            }
-        }
-        true
+        self.is_inlined
     }
 }
 
-/// Represents an item in a solidity file with its location in the file
+/// A spanned item.
 #[derive(Clone, Debug)]
-pub struct SolDataUnit<T> {
-    loc: Range<usize>,
-    data: T,
+pub struct Spanned<T> {
+    /// The byte range of `data` in the file.
+    pub span: Range<usize>,
+    /// The data of the item.
+    pub data: T,
 }
 
-/// Solidity Data Unit decorated with its location within the file
-impl<T> SolDataUnit<T> {
-    pub fn new(data: T, loc: Range<usize>) -> Self {
-        Self { data, loc }
+impl<T> Spanned<T> {
+    /// Creates a new data unit with the given data and location.
+    pub fn new(data: T, span: Range<usize>) -> Self {
+        Self { data, span }
     }
 
-    pub fn from_loc(data: T, loc: Loc) -> Self {
-        Self {
-            data,
-            loc: match loc {
-                Loc::File(_, start, end) => Range { start, end: end + 1 },
-                _ => Range { start: 0, end: 0 },
-            },
-        }
-    }
-
-    /// Returns the underlying data for the unit
+    /// Returns the underlying data.
     pub fn data(&self) -> &T {
         &self.data
     }
 
-    /// Returns the location of the given data unit
-    pub fn loc(&self) -> Range<usize> {
-        self.loc.clone()
+    /// Returns the location.
+    pub fn span(&self) -> Range<usize> {
+        self.span.clone()
     }
 
-    /// Returns the location of the given data unit adjusted by an offset.
-    /// Used to determine new position of the unit within the file after
-    /// content manipulation.
+    /// Returns the location adjusted by an offset.
+    ///
+    /// Used to determine new position of the unit within the file after content manipulation.
     pub fn loc_by_offset(&self, offset: isize) -> Range<usize> {
-        utils::range_by_offset(&self.loc, offset)
+        utils::range_by_offset(&self.span, offset)
     }
 }
 
-/// Capture the import statement information together with aliases
-pub fn capture_imports(content: &str) -> Vec<SolDataUnit<SolImport>> {
-    let mut imports = vec![];
-    for cap in utils::RE_SOL_IMPORT.captures_iter(content) {
-        if let Some(name_match) = ["p1", "p2", "p3", "p4"].iter().find_map(|name| cap.name(name)) {
-            let statement_match = cap.get(0).unwrap();
-            let mut aliases = vec![];
-            for alias_cap in utils::RE_SOL_IMPORT_ALIAS.captures_iter(statement_match.as_str()) {
-                if let Some(alias) = alias_cap.name("alias") {
-                    let alias = alias.as_str().to_owned();
-                    let import_alias = match alias_cap.name("target") {
-                        Some(target) => SolImportAlias::Contract(alias, target.as_str().to_owned()),
-                        None => SolImportAlias::File(alias),
-                    };
-                    aliases.push(import_alias);
-                }
-            }
-            let sol_import =
-                SolImport::new(PathBuf::from(name_match.as_str())).set_aliases(aliases);
-            imports.push(SolDataUnit::new(sol_import, statement_match.range()));
-        }
-    }
-    imports
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn can_capture_curly_imports() {
-        let content = r#"
-import { T } from "../Test.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {DsTest} from "ds-test/test.sol";
-"#;
-
-        let captured_imports =
-            capture_imports(content).into_iter().map(|s| s.data.path).collect::<Vec<_>>();
-
-        let expected =
-            utils::find_import_paths(content).map(|m| m.as_str().into()).collect::<Vec<PathBuf>>();
-
-        assert_eq!(captured_imports, expected);
-
-        assert_eq!(
-            captured_imports,
-            vec![
-                PathBuf::from("../Test.sol"),
-                "@openzeppelin/contracts/utils/ReentrancyGuard.sol".into(),
-                "ds-test/test.sol".into(),
-            ]
-        );
-    }
-
-    #[test]
-    fn cap_capture_aliases() {
-        let content = r#"
-import * as T from "./Test.sol";
-import { DsTest as Test } from "ds-test/test.sol";
-import "ds-test/test.sol" as Test;
-import { FloatMath as Math, Math as FloatMath } from "./Math.sol";
-"#;
-
-        let caputred_imports =
-            capture_imports(content).into_iter().map(|s| s.data.aliases).collect::<Vec<_>>();
-        assert_eq!(
-            caputred_imports,
-            vec![
-                vec![SolImportAlias::File("T".into())],
-                vec![SolImportAlias::Contract("Test".into(), "DsTest".into())],
-                vec![SolImportAlias::File("Test".into())],
-                vec![
-                    SolImportAlias::Contract("Math".into(), "FloatMath".into()),
-                    SolImportAlias::Contract("FloatMath".into(), "Math".into()),
-                ],
-            ]
-        );
-    }
+fn library_is_inlined(contract: &ast::ItemContract<'_>) -> bool {
+    contract
+        .body
+        .iter()
+        .filter_map(|item| match &item.kind {
+            ast::ItemKind::Function(f) => Some(f),
+            _ => None,
+        })
+        .all(|f| {
+            !matches!(
+                f.header.visibility,
+                Some(ast::Visibility::Public | ast::Visibility::External)
+            )
+        })
 }

@@ -1,6 +1,6 @@
 use super::{
-    CompilationError, Compiler, CompilerInput, CompilerOutput, CompilerSettings, CompilerVersion,
-    Language, ParsedSource,
+    restrictions::CompilerSettingsRestrictions, CompilationError, Compiler, CompilerInput,
+    CompilerOutput, CompilerSettings, CompilerVersion, Language, ParsedSource,
 };
 use crate::resolver::parse::SolData;
 pub use foundry_compilers_artifacts::SolcLanguage;
@@ -9,10 +9,9 @@ use foundry_compilers_artifacts::{
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Contract, Error, Settings, Severity, SolcInput,
+    BytecodeHash, Contract, Error, EvmVersion, Settings, Severity, SolcInput,
 };
 use foundry_compilers_core::error::Result;
-use itertools::Itertools;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -195,7 +194,91 @@ impl DerefMut for SolcSettings {
     }
 }
 
+/// Abstraction over min/max restrictions on some value.
+#[derive(Debug, Clone, Copy, Eq, Default, PartialEq)]
+pub struct Restriction<V> {
+    pub min: Option<V>,
+    pub max: Option<V>,
+}
+
+impl<V: Ord + Copy> Restriction<V> {
+    /// Returns true if the given value satisfies the restrictions
+    ///
+    /// If given None, only returns true if no restrictions are set
+    pub fn satisfies(&self, value: Option<V>) -> bool {
+        self.min.map_or(true, |min| value.map_or(false, |v| v >= min))
+            && self.max.map_or(true, |max| value.map_or(false, |v| v <= max))
+    }
+
+    /// Combines two restrictions into a new one
+    pub fn merge(self, other: Self) -> Option<Self> {
+        let Self { mut min, mut max } = self;
+        let Self { min: other_min, max: other_max } = other;
+
+        min = min.map_or(other_min, |this_min| {
+            Some(other_min.map_or(this_min, |other_min| this_min.max(other_min)))
+        });
+        max = max.map_or(other_max, |this_max| {
+            Some(other_max.map_or(this_max, |other_max| this_max.min(other_max)))
+        });
+
+        if let (Some(min), Some(max)) = (min, max) {
+            if min > max {
+                return None;
+            }
+        }
+
+        Some(Self { min, max })
+    }
+
+    pub fn apply(&self, value: Option<V>) -> Option<V> {
+        match (value, self.min, self.max) {
+            (None, Some(min), _) => Some(min),
+            (None, None, Some(max)) => Some(max),
+            (Some(cur), Some(min), _) if cur < min => Some(min),
+            (Some(cur), _, Some(max)) if cur > max => Some(max),
+            _ => value,
+        }
+    }
+}
+
+/// Restrictions on settings for the solc compiler.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SolcRestrictions {
+    pub evm_version: Restriction<EvmVersion>,
+    pub via_ir: Option<bool>,
+    pub optimizer_runs: Restriction<usize>,
+    pub bytecode_hash: Option<BytecodeHash>,
+}
+
+impl CompilerSettingsRestrictions for SolcRestrictions {
+    fn merge(self, other: Self) -> Option<Self> {
+        if let (Some(via_ir), Some(other_via_ir)) = (self.via_ir, other.via_ir) {
+            if via_ir != other_via_ir {
+                return None;
+            }
+        }
+
+        if let (Some(bytecode_hash), Some(other_bytecode_hash)) =
+            (self.bytecode_hash, other.bytecode_hash)
+        {
+            if bytecode_hash != other_bytecode_hash {
+                return None;
+            }
+        }
+
+        Some(Self {
+            evm_version: self.evm_version.merge(other.evm_version)?,
+            via_ir: self.via_ir.or(other.via_ir),
+            optimizer_runs: self.optimizer_runs.merge(other.optimizer_runs)?,
+            bytecode_hash: self.bytecode_hash.or(other.bytecode_hash),
+        })
+    }
+}
+
 impl CompilerSettings for SolcSettings {
+    type Restrictions = SolcRestrictions;
+
     fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy) {
         f(&mut self.settings.output_selection)
     }
@@ -252,6 +335,26 @@ impl CompilerSettings for SolcSettings {
         self.cli_settings.include_paths.clone_from(include_paths);
         self
     }
+
+    fn satisfies_restrictions(&self, restrictions: &Self::Restrictions) -> bool {
+        let mut satisfies = true;
+
+        let SolcRestrictions { evm_version, via_ir, optimizer_runs, bytecode_hash } = restrictions;
+
+        satisfies &= evm_version.satisfies(self.evm_version);
+        satisfies &= via_ir.map_or(true, |via_ir| via_ir == self.via_ir.unwrap_or_default());
+        satisfies &= bytecode_hash.map_or(true, |bytecode_hash| {
+            self.metadata.as_ref().and_then(|m| m.bytecode_hash) == Some(bytecode_hash)
+        });
+        satisfies &= optimizer_runs.satisfies(self.optimizer.runs);
+
+        // Ensure that we either don't have min optimizer runs set or that the optimizer is enabled
+        satisfies &= optimizer_runs
+            .min
+            .map_or(true, |min| min == 0 || self.optimizer.enabled.unwrap_or_default());
+
+        satisfies
+    }
 }
 
 impl ParsedSource for SolData {
@@ -265,12 +368,8 @@ impl ParsedSource for SolData {
         self.version_req.as_ref()
     }
 
-    fn resolve_imports<C>(
-        &self,
-        _paths: &crate::ProjectPathsConfig<C>,
-        _include_paths: &mut BTreeSet<PathBuf>,
-    ) -> Result<Vec<PathBuf>> {
-        Ok(self.imports.iter().map(|i| i.data().path().to_path_buf()).collect_vec())
+    fn contract_names(&self) -> &[String] {
+        &self.contract_names
     }
 
     fn language(&self) -> Self::Language {
@@ -279,6 +378,14 @@ impl ParsedSource for SolData {
         } else {
             SolcLanguage::Solidity
         }
+    }
+
+    fn resolve_imports<C>(
+        &self,
+        _paths: &crate::ProjectPathsConfig<C>,
+        _include_paths: &mut BTreeSet<PathBuf>,
+    ) -> Result<Vec<PathBuf>> {
+        Ok(self.imports.iter().map(|i| i.data().path().to_path_buf()).collect())
     }
 
     fn compilation_dependencies<'a>(
@@ -367,7 +474,7 @@ mod tests {
         );
         let build_info = RawBuildInfo::new(&input, &out_converted, true).unwrap();
         let mut aggregated = AggregatedCompilerOutput::<SolcCompiler>::default();
-        aggregated.extend(v, build_info, out_converted);
+        aggregated.extend(v, build_info, "default", out_converted);
         assert!(!aggregated.is_unchanged());
     }
 }

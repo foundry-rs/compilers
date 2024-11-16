@@ -92,7 +92,7 @@ enum Token<'a> {
     Regular,
 }
 
-impl<'a> fmt::Debug for Token<'a> {
+impl fmt::Debug for Token<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Token::Number(s) => write!(f, "NUMBER({s:?})"),
@@ -105,7 +105,7 @@ impl<'a> fmt::Debug for Token<'a> {
     }
 }
 
-impl<'a> fmt::Display for Token<'a> {
+impl fmt::Display for Token<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Token::Number(_) => write!(f, "number"),
@@ -531,7 +531,7 @@ impl<'input> Parser<'input> {
     }
 }
 
-impl<'input> Iterator for Parser<'input> {
+impl Iterator for Parser<'_> {
     type Item = Result<SourceElement, SyntaxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
