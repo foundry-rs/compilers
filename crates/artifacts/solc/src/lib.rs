@@ -314,6 +314,14 @@ impl Settings {
             self.via_ir = None;
         }
 
+        const V0_8_5: Version = Version::new(0, 8, 5);
+        if *version < V0_8_5 {
+            // introduced in 0.8.5 <https://github.com/ethereum/solidity/releases/tag/v0.8.5>
+            if let Some(optimizer_details) = &mut self.optimizer.details {
+                optimizer_details.inliner = None;
+            }
+        }
+
         const V0_8_7: Version = Version::new(0, 8, 7);
         if *version < V0_8_7 {
             // lower the disable version from 0.8.10 to 0.8.7, due to `divModNoSlacks`,
@@ -2220,5 +2228,21 @@ mod tests {
             Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../test-data/0.6.12-with-libs.json");
         let content = fs::read_to_string(path).unwrap();
         let _output: CompilerOutput = serde_json::from_str(&content).unwrap();
+    }
+
+    // <https://github.com/foundry-rs/foundry/issues/9322>
+    #[test]
+    fn can_sanitize_optimizer_inliner() {
+        let version: Version = "0.8.4".parse().unwrap();
+        let settings = Settings::default().with_via_ir_minimum_optimization();
+
+        let input =
+            SolcInput { language: SolcLanguage::Solidity, sources: Default::default(), settings };
+
+        let i = input.clone().sanitized(&version);
+        assert!(i.settings.optimizer.details.unwrap().inliner.is_none());
+
+        let i = input.sanitized(&Version::new(0, 8, 5));
+        assert_eq!(i.settings.optimizer.details.unwrap().inliner, Some(false));
     }
 }
