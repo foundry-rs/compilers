@@ -2229,4 +2229,20 @@ mod tests {
         let content = fs::read_to_string(path).unwrap();
         let _output: CompilerOutput = serde_json::from_str(&content).unwrap();
     }
+
+    // <https://github.com/foundry-rs/foundry/issues/9322>
+    #[test]
+    fn can_sanitize_optimizer_inliner() {
+        let version: Version = "0.8.4".parse().unwrap();
+        let settings = Settings::default().with_via_ir_minimum_optimization();
+
+        let input =
+            SolcInput { language: SolcLanguage::Solidity, sources: Default::default(), settings };
+
+        let i = input.clone().sanitized(&version);
+        assert!(i.settings.optimizer.details.unwrap().inliner.is_none());
+
+        let i = input.sanitized(&Version::new(0, 8, 5));
+        assert_eq!(i.settings.optimizer.details.unwrap().inliner, Some(false));
+    }
 }
