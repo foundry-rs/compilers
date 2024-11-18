@@ -205,7 +205,7 @@ impl<D> GraphEdges<D> {
 #[derive(Debug)]
 pub struct Graph<D = SolData> {
     /// all nodes in the project, a `Node` represents a single file
-    nodes: Vec<Node<D>>,
+    pub nodes: Vec<Node<D>>,
     /// relationship of the nodes
     edges: GraphEdges<D>,
     /// the root of the project this graph represents
