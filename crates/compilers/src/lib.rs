@@ -49,9 +49,12 @@ use cache::CompilerCache;
 use compile::output::contracts::VersionedContracts;
 use compilers::multi::MultiCompiler;
 use derivative::Derivative;
-use foundry_compilers_artifacts::solc::{
-    sources::{Source, SourceCompilationKind, Sources},
-    Contract, Severity, SourceFile, StandardJsonCompilerInput,
+use foundry_compilers_artifacts::{
+    output_selection::OutputSelection,
+    solc::{
+        sources::{Source, SourceCompilationKind, Sources},
+        Contract, Severity, SourceFile, StandardJsonCompilerInput,
+    },
 };
 use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
 use output::sources::{VersionedSourceFile, VersionedSourceFiles};
