@@ -467,7 +467,8 @@ impl Settings {
         self.via_ir = Some(true);
         self.optimizer.details = Some(OptimizerDetails {
             peephole: Some(false),
-            inliner: Some(false),
+            // Set to None as it is only supported for solc starting from 0.8.5.
+            inliner: None,
             jumpdest_remover: Some(false),
             order_literals: Some(false),
             deduplicate: Some(false),
