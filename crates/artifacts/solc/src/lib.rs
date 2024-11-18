@@ -314,6 +314,14 @@ impl Settings {
             self.via_ir = None;
         }
 
+        const V0_8_5: Version = Version::new(0, 8, 5);
+        if *version < V0_8_5 {
+            // introduced in 0.8.5 <https://github.com/ethereum/solidity/releases/tag/v0.8.5>
+            if let Some(optimizer_details) = &mut self.optimizer.details {
+                optimizer_details.inliner = None;
+            }
+        }
+
         const V0_8_7: Version = Version::new(0, 8, 7);
         if *version < V0_8_7 {
             // lower the disable version from 0.8.10 to 0.8.7, due to `divModNoSlacks`,
@@ -467,8 +475,7 @@ impl Settings {
         self.via_ir = Some(true);
         self.optimizer.details = Some(OptimizerDetails {
             peephole: Some(false),
-            // Set to None as it is only supported for solc starting from 0.8.5.
-            inliner: None,
+            inliner: Some(false),
             jumpdest_remover: Some(false),
             order_literals: Some(false),
             deduplicate: Some(false),
