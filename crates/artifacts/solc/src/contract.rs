@@ -48,7 +48,7 @@ pub struct Contract {
 
 impl<'a> From<&'a Contract> for CompactContractBytecodeCow<'a> {
     fn from(artifact: &'a Contract) -> Self {
-        let (bytecode, deployed_bytecode) = if let Some(ref evm) = artifact.evm {
+        let (bytecode, deployed_bytecode) = if let Some(evm) = &artifact.evm {
             (
                 evm.bytecode.clone().map(Into::into).map(Cow::Owned),
                 evm.deployed_bytecode.clone().map(Into::into).map(Cow::Owned),
@@ -523,7 +523,7 @@ impl<'a> CompactContractRef<'a> {
 
 impl<'a> From<&'a Contract> for CompactContractRef<'a> {
     fn from(c: &'a Contract) -> Self {
-        let (bin, bin_runtime) = if let Some(ref evm) = c.evm {
+        let (bin, bin_runtime) = if let Some(evm) = &c.evm {
             (
                 evm.bytecode.as_ref().map(|c| &c.object),
                 evm.deployed_bytecode

@@ -34,7 +34,7 @@ impl SolData {
         &self,
         f: &mut W,
     ) -> std::result::Result<(), std::fmt::Error> {
-        if let Some(ref version) = self.version {
+        if let Some(version) = &self.version {
             write!(f, "({})", version.data)?;
         }
         Ok(())

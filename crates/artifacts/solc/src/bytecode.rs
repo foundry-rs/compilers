@@ -303,7 +303,7 @@ impl BytecodeObject {
     ///
     /// See also: <https://docs.soliditylang.org/en/develop/using-the-compiler.html#library-linking>
     pub fn link_fully_qualified(&mut self, name: &str, addr: Address) -> &mut Self {
-        if let Self::Unlinked(ref mut unlinked) = self {
+        if let Self::Unlinked(unlinked) = self {
             let place_holder = utils::library_hash_placeholder(name);
             // the address as hex without prefix
             let hex_addr = hex::encode(addr);

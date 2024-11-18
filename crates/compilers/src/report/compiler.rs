@@ -56,14 +56,14 @@ impl SolcCompilerIoReporter {
 
     /// Callback to write the input to disk if target is set
     pub fn log_compiler_input(&self, input: &SolcInput, version: &Version) {
-        if let Some(ref target) = self.target {
+        if let Some(target) = &self.target {
             target.write_input(input, version)
         }
     }
 
     /// Callback to write the input to disk if target is set
     pub fn log_compiler_output(&self, output: &CompilerOutput, version: &Version) {
-        if let Some(ref target) = self.target {
+        if let Some(target) = &self.target {
             target.write_output(output, version)
         }
     }
