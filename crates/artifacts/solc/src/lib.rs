@@ -2033,25 +2033,20 @@ mod tests {
 
     #[test]
     fn can_sanitize_byte_code_hash() {
-        let version: Version = "0.6.0".parse().unwrap();
-
         let settings = Settings { metadata: Some(BytecodeHash::Ipfs.into()), ..Default::default() };
 
         let input =
             SolcInput { language: SolcLanguage::Solidity, sources: Default::default(), settings };
 
-        let i = input.clone().sanitized(&version);
+        let i = input.clone().sanitized(&Version::new(0, 6, 0));
         assert_eq!(i.settings.metadata.unwrap().bytecode_hash, Some(BytecodeHash::Ipfs));
 
-        let version: Version = "0.5.17".parse().unwrap();
-        let i = input.sanitized(&version);
+        let i = input.sanitized(&Version::new(0, 5, 17));
         assert!(i.settings.metadata.unwrap().bytecode_hash.is_none());
     }
 
     #[test]
     fn can_sanitize_cbor_metadata() {
-        let version: Version = "0.8.18".parse().unwrap();
-
         let settings = Settings {
             metadata: Some(SettingsMetadata::new(BytecodeHash::Ipfs, true)),
             ..Default::default()
@@ -2060,7 +2055,7 @@ mod tests {
         let input =
             SolcInput { language: SolcLanguage::Solidity, sources: Default::default(), settings };
 
-        let i = input.clone().sanitized(&version);
+        let i = input.clone().sanitized(&Version::new(0, 8, 18));
         assert_eq!(i.settings.metadata.unwrap().cbor_metadata, Some(true));
 
         let i = input.sanitized(&Version::new(0, 8, 0));
@@ -2233,13 +2228,12 @@ mod tests {
     // <https://github.com/foundry-rs/foundry/issues/9322>
     #[test]
     fn can_sanitize_optimizer_inliner() {
-        let version: Version = "0.8.4".parse().unwrap();
         let settings = Settings::default().with_via_ir_minimum_optimization();
 
         let input =
             SolcInput { language: SolcLanguage::Solidity, sources: Default::default(), settings };
 
-        let i = input.clone().sanitized(&version);
+        let i = input.clone().sanitized(&Version::new(0, 8, 4));
         assert!(i.settings.optimizer.details.unwrap().inliner.is_none());
 
         let i = input.sanitized(&Version::new(0, 8, 5));
