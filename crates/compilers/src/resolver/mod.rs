@@ -1096,7 +1096,7 @@ impl<D: ParsedSource> fmt::Display for DisplayNode<'_, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let path = utils::source_name(&self.node.path, self.root);
         write!(f, "{}", path.display())?;
-        if let Some(ref v) = self.node.data.version_req() {
+        if let Some(v) = self.node.data.version_req() {
             write!(f, " {v}")?;
         }
         Ok(())

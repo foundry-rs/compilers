@@ -361,7 +361,7 @@ impl Settings {
             }
         }
 
-        if let Some(ref mut evm_version) = self.evm_version {
+        if let Some(evm_version) = self.evm_version {
             self.evm_version = evm_version.normalize_version_solc(version);
         }
 
