@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.1](https://github.com/foundry-rs/compilers/releases/tag/v0.12.1) - 2024-11-18
+
+### Bug Fixes
+
+- `collect_contract_names` ([#221](https://github.com/foundry-rs/compilers/issues/221))
+
 ## [0.12.0](https://github.com/foundry-rs/compilers/releases/tag/v0.12.0) - 2024-11-18
 
 ### Bug Fixes
@@ -20,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.12.0
 - Remove outdated `ref` patterns ([#218](https://github.com/foundry-rs/compilers/issues/218))
 - Inline constants in Settings::sanitize ([#219](https://github.com/foundry-rs/compilers/issues/219))
 - Use Version::new over .parse ([#220](https://github.com/foundry-rs/compilers/issues/220))
