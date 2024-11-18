@@ -382,7 +382,7 @@ impl<T: ArtifactOutput, C: Compiler> Project<C, T> {
         let graph = Graph::<C::ParsedSource>::resolve(&self.paths)?;
         let mut contracts: HashMap<String, Vec<PathBuf>> = HashMap::new();
         if !graph.is_empty() {
-            for node in graph.nodes(0) {
+            for node in &graph.nodes {
                 for contract_name in node.data.contract_names() {
                     contracts
                         .entry(contract_name.clone())
