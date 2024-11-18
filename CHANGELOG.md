@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0](https://github.com/foundry-rs/compilers/releases/tag/v0.12.0) - 2024-11-18
+
+### Bug Fixes
+
+- Sanitize `settings.optimizer.details.inliner` ([#216](https://github.com/foundry-rs/compilers/issues/216))
+- [tests] Always try installing pinned solc ([#217](https://github.com/foundry-rs/compilers/issues/217))
+- Outdated merge build error
+
+### Features
+
+- Allow multiple compiler configs ([#170](https://github.com/foundry-rs/compilers/issues/170))
+- Replace solang with solar ([#215](https://github.com/foundry-rs/compilers/issues/215))
+
+### Miscellaneous Tasks
+
+- Remove outdated `ref` patterns ([#218](https://github.com/foundry-rs/compilers/issues/218))
+- Inline constants in Settings::sanitize ([#219](https://github.com/foundry-rs/compilers/issues/219))
+- Use Version::new over .parse ([#220](https://github.com/foundry-rs/compilers/issues/220))
+
 ## [0.11.6](https://github.com/foundry-rs/compilers/releases/tag/v0.11.6) - 2024-10-16
 
 ### Bug Fixes
@@ -14,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.11.6
 - Release 0.11.5
 - Allow adding vyper sources with `add_raw_source` w/ `.vy` / `.vyi` extension ([#211](https://github.com/foundry-rs/compilers/issues/211))
 - [`ci`] Fix deny (add `ZLib` exception) ([#212](https://github.com/foundry-rs/compilers/issues/212))
