@@ -110,7 +110,7 @@ impl ArtifactId {
     }
 }
 
-/// Represents an artifact file representing a [`crate::Contract`]
+/// Represents an artifact file representing a [`crate::compilers::CompilerContract`]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ArtifactFile<T> {
     /// The Artifact that was written
@@ -428,7 +428,7 @@ impl<T> Artifacts<T> {
     }
 }
 
-/// A trait representation for a [`crate::Contract`] artifact
+/// A trait representation for a [`crate::compilers::CompilerContract`] artifact
 pub trait Artifact {
     /// Returns the artifact's [`JsonAbi`] and bytecode.
     fn into_inner(self) -> (Option<JsonAbi>, Option<Bytes>);
@@ -596,7 +596,7 @@ where
 
 /// Handler invoked with the output of `solc`
 ///
-/// Implementers of this trait are expected to take care of [`crate::Contract`] to
+/// Implementers of this trait are expected to take care of [`crate::compilers::CompilerContract`] to
 /// [`crate::ArtifactOutput::Artifact`] conversion and how that `Artifact` type is stored on disk,
 /// this includes artifact file location and naming.
 ///
