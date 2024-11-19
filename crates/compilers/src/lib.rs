@@ -49,10 +49,12 @@ use cache::CompilerCache;
 use compile::output::contracts::VersionedContracts;
 use compilers::multi::MultiCompiler;
 use derivative::Derivative;
-use foundry_compilers_artifacts::solc::{
+use foundry_compilers_artifacts::{
     output_selection::OutputSelection,
-    sources::{Source, SourceCompilationKind, Sources},
-    Severity, SourceFile, StandardJsonCompilerInput,
+    solc::{
+        sources::{Source, SourceCompilationKind, Sources},
+        Severity, SourceFile, StandardJsonCompilerInput,
+    },
 };
 use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
 use output::sources::{VersionedSourceFile, VersionedSourceFiles};
@@ -383,7 +385,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Pro
         let graph = Graph::<C::ParsedSource>::resolve(&self.paths)?;
         let mut contracts: HashMap<String, Vec<PathBuf>> = HashMap::new();
         if !graph.is_empty() {
-            for node in graph.nodes(0) {
+            for node in &graph.nodes {
                 for contract_name in node.data.contract_names() {
                     contracts
                         .entry(contract_name.clone())

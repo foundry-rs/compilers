@@ -297,8 +297,7 @@ impl Settings {
 
     /// This will remove/adjust values in the settings that are not compatible with this version.
     pub fn sanitize(&mut self, version: &Version, language: SolcLanguage) {
-        const V0_6_0: Version = Version::new(0, 6, 0);
-        if *version < V0_6_0 {
+        if *version < Version::new(0, 6, 0) {
             if let Some(meta) = &mut self.metadata {
                 // introduced in <https://docs.soliditylang.org/en/v0.6.0/using-the-compiler.html#compiler-api>
                 // missing in <https://docs.soliditylang.org/en/v0.5.17/using-the-compiler.html#compiler-api>
@@ -308,22 +307,26 @@ impl Settings {
             self.debug = None;
         }
 
-        const V0_7_5: Version = Version::new(0, 7, 5);
-        if *version < V0_7_5 {
+        if *version < Version::new(0, 7, 5) {
             // introduced in 0.7.5 <https://github.com/ethereum/solidity/releases/tag/v0.7.5>
             self.via_ir = None;
         }
 
-        const V0_8_7: Version = Version::new(0, 8, 7);
-        if *version < V0_8_7 {
+        if *version < Version::new(0, 8, 5) {
+            // introduced in 0.8.5 <https://github.com/ethereum/solidity/releases/tag/v0.8.5>
+            if let Some(optimizer_details) = &mut self.optimizer.details {
+                optimizer_details.inliner = None;
+            }
+        }
+
+        if *version < Version::new(0, 8, 7) {
             // lower the disable version from 0.8.10 to 0.8.7, due to `divModNoSlacks`,
             // `showUnproved` and `solvers` are implemented
             // introduced in <https://github.com/ethereum/solidity/releases/tag/v0.8.7>
             self.model_checker = None;
         }
 
-        const V0_8_10: Version = Version::new(0, 8, 10);
-        if *version < V0_8_10 {
+        if *version < Version::new(0, 8, 10) {
             if let Some(debug) = &mut self.debug {
                 // introduced in <https://docs.soliditylang.org/en/v0.8.10/using-the-compiler.html#compiler-api>
                 // <https://github.com/ethereum/solidity/releases/tag/v0.8.10>
@@ -336,8 +339,7 @@ impl Settings {
             }
         }
 
-        const V0_8_18: Version = Version::new(0, 8, 18);
-        if *version < V0_8_18 {
+        if *version < Version::new(0, 8, 18) {
             // introduced in 0.8.18 <https://github.com/ethereum/solidity/releases/tag/v0.8.18>
             if let Some(meta) = &mut self.metadata {
                 meta.cbor_metadata = None;
@@ -351,7 +353,7 @@ impl Settings {
             }
         }
 
-        if *version < SHANGHAI_SOLC {
+        if *version < Version::new(0, 8, 20) {
             // introduced in 0.8.20 <https://github.com/ethereum/solidity/releases/tag/v0.8.20>
             if let Some(model_checker) = &mut self.model_checker {
                 model_checker.show_proved_safe = None;
@@ -359,15 +361,18 @@ impl Settings {
             }
         }
 
-        if let Some(ref mut evm_version) = self.evm_version {
+        if let Some(evm_version) = self.evm_version {
             self.evm_version = evm_version.normalize_version_solc(version);
         }
 
-        if language == SolcLanguage::Yul {
-            if !self.remappings.is_empty() {
-                warn!("omitting remappings supplied for the yul sources");
+        match language {
+            SolcLanguage::Solidity => {}
+            SolcLanguage::Yul => {
+                if !self.remappings.is_empty() {
+                    warn!("omitting remappings supplied for the yul sources");
+                }
+                self.remappings = Vec::new();
             }
-            self.remappings = Vec::new();
         }
     }
 
@@ -2025,25 +2030,20 @@ mod tests {
 
     #[test]
     fn can_sanitize_byte_code_hash() {
-        let version: Version = "0.6.0".parse().unwrap();
-
         let settings = Settings { metadata: Some(BytecodeHash::Ipfs.into()), ..Default::default() };
 
         let input =
             SolcInput { language: SolcLanguage::Solidity, sources: Default::default(), settings };
 
-        let i = input.clone().sanitized(&version);
+        let i = input.clone().sanitized(&Version::new(0, 6, 0));
         assert_eq!(i.settings.metadata.unwrap().bytecode_hash, Some(BytecodeHash::Ipfs));
 
-        let version: Version = "0.5.17".parse().unwrap();
-        let i = input.sanitized(&version);
+        let i = input.sanitized(&Version::new(0, 5, 17));
         assert!(i.settings.metadata.unwrap().bytecode_hash.is_none());
     }
 
     #[test]
     fn can_sanitize_cbor_metadata() {
-        let version: Version = "0.8.18".parse().unwrap();
-
         let settings = Settings {
             metadata: Some(SettingsMetadata::new(BytecodeHash::Ipfs, true)),
             ..Default::default()
@@ -2052,7 +2052,7 @@ mod tests {
         let input =
             SolcInput { language: SolcLanguage::Solidity, sources: Default::default(), settings };
 
-        let i = input.clone().sanitized(&version);
+        let i = input.clone().sanitized(&Version::new(0, 8, 18));
         assert_eq!(i.settings.metadata.unwrap().cbor_metadata, Some(true));
 
         let i = input.sanitized(&Version::new(0, 8, 0));
@@ -2220,5 +2220,20 @@ mod tests {
             Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../test-data/0.6.12-with-libs.json");
         let content = fs::read_to_string(path).unwrap();
         let _output: CompilerOutput = serde_json::from_str(&content).unwrap();
+    }
+
+    // <https://github.com/foundry-rs/foundry/issues/9322>
+    #[test]
+    fn can_sanitize_optimizer_inliner() {
+        let settings = Settings::default().with_via_ir_minimum_optimization();
+
+        let input =
+            SolcInput { language: SolcLanguage::Solidity, sources: Default::default(), settings };
+
+        let i = input.clone().sanitized(&Version::new(0, 8, 4));
+        assert!(i.settings.optimizer.details.unwrap().inliner.is_none());
+
+        let i = input.sanitized(&Version::new(0, 8, 5));
+        assert_eq!(i.settings.optimizer.details.unwrap().inliner, Some(false));
     }
 }

@@ -465,7 +465,7 @@ mod tests {
             metadata: Default::default(),
         };
 
-        let v: Version = "0.8.12".parse().unwrap();
+        let v = Version::new(0, 8, 12);
         let input = SolcVersionedInput::build(
             Default::default(),
             Default::default(),

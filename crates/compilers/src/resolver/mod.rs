@@ -205,7 +205,7 @@ impl<D> GraphEdges<D> {
 #[derive(Debug)]
 pub struct Graph<D = SolData> {
     /// all nodes in the project, a `Node` represents a single file
-    nodes: Vec<Node<D>>,
+    pub nodes: Vec<Node<D>>,
     /// relationship of the nodes
     edges: GraphEdges<D>,
     /// the root of the project this graph represents
@@ -1118,7 +1118,7 @@ impl<D: ParsedSource> fmt::Display for DisplayNode<'_, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let path = utils::source_name(&self.node.path, self.root);
         write!(f, "{}", path.display())?;
-        if let Some(ref v) = self.node.data.version_req() {
+        if let Some(v) = self.node.data.version_req() {
             write!(f, " {v}")?;
         }
         Ok(())

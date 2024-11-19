@@ -917,13 +917,12 @@ impl<C: Compiler> fmt::Display for OutputDiagnostics<'_, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Compiler run ")?;
         if self.has_error() {
-            Paint::red("failed:")
+            write!(f, "{}:", "failed".red())
         } else if self.has_warning() {
-            Paint::yellow("successful with warnings:")
+            write!(f, "{}:", "successful with warnings".yellow())
         } else {
-            Paint::green("successful!")
-        }
-        .fmt(f)?;
+            write!(f, "{}!", "successful".green())
+        }?;
 
         for err in &self.compiler_output.errors {
             if !self.compiler_output.should_ignore(

@@ -63,9 +63,8 @@ impl<
     pub fn set_solc(&mut self, solc: &str) -> &mut Self {
         use crate::solc::{Solc, SolcCompiler};
 
-        self.inner.compiler.solc = Some(SolcCompiler::Specific(
-            Solc::find_svm_installed_version(&solc.parse().unwrap()).unwrap().unwrap(),
-        ));
+        self.inner.compiler.solc =
+            Some(SolcCompiler::Specific(Solc::find_or_install(&solc.parse().unwrap()).unwrap()));
 
         self
     }
