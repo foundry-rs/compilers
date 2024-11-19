@@ -67,7 +67,6 @@ where
     /// ```
     pub fn find_first(&self, contract_name: &str) -> Option<CompactContractRef<'_>> {
         self.contracts().find_map(|(name, contract)| {
-            //(name == contract_name).then(|| CompactContractRef::from(contract))
             (name == contract_name).then(|| contract.as_compact_contract_ref())
         })
     }
