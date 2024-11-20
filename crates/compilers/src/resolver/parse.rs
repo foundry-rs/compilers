@@ -130,7 +130,7 @@ impl SolData {
                 .first()
                 .map(|(cap, name)| Spanned::new(name.as_str().to_owned(), cap.range()));
             }
-            if !imports.is_empty() {
+            if imports.is_empty() {
                 imports = capture_imports(content);
             }
         }
