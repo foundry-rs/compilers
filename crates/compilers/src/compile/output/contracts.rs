@@ -13,14 +13,9 @@ use std::{
 /// file -> [(contract name  -> Contract + solc version)]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct VersionedContracts<C: CompilerContract>(
-    pub FileToContractsMap<Vec<VersionedContract<C>>>,
-);
+pub struct VersionedContracts<C>(pub FileToContractsMap<Vec<VersionedContract<C>>>);
 
-impl<C> Default for VersionedContracts<C>
-where
-    C: CompilerContract,
-{
+impl<C> Default for VersionedContracts<C> {
     fn default() -> Self {
         Self(BTreeMap::new())
     }
@@ -284,7 +279,7 @@ where
 
 /// A contract and the compiler version used to compile it
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VersionedContract<C: CompilerContract> {
+pub struct VersionedContract<C> {
     pub contract: C,
     pub version: Version,
     pub build_id: String,
