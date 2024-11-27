@@ -276,6 +276,7 @@ pub trait Language:
     const FILE_EXTENSIONS: &'static [&'static str];
 }
 
+/// Represents a compiled contract
 pub trait CompilerContract: Serialize + Send + Sync + Debug + Clone + Eq + Sized {
     fn abi_ref(&self) -> Option<&JsonAbi>;
     fn bin_ref(&self) -> Option<&BytecodeObject>;
