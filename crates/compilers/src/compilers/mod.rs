@@ -209,8 +209,8 @@ pub struct CompilerOutput<E, C> {
     pub contracts: FileToContractsMap<C>,
     #[serde(default)]
     pub sources: BTreeMap<PathBuf, SourceFile>,
-    #[serde(default)]
-    pub metadata: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "::std::collections::BTreeMap::is_empty")]
+    pub metadata: BTreeMap<String, serde_json::Value>,
 }
 
 impl<E, C> CompilerOutput<E, C> {
