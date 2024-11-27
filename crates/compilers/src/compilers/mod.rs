@@ -199,8 +199,8 @@ pub trait CompilationError:
     fn error_code(&self) -> Option<u64>;
 }
 
-/// Output of the compiler, including contracts, sources and errors. Currently only generic over the
-/// error but might be extended in the future.
+/// Output of the compiler, including contracts, sources, errors and metadata. might be
+/// extended to be more generic in the future.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompilerOutput<E, C> {
     #[serde(default = "Vec::new", skip_serializing_if = "Vec::is_empty")]
