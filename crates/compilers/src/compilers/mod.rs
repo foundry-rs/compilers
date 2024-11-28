@@ -278,8 +278,13 @@ pub trait Language:
 
 /// Represents a compiled contract
 pub trait CompilerContract: Serialize + Send + Sync + Debug + Clone + Eq + Sized {
+    /// Reference to contract ABI
     fn abi_ref(&self) -> Option<&JsonAbi>;
+    
+    //// Reference to contract bytecode
     fn bin_ref(&self) -> Option<&BytecodeObject>;
+    
+    //// Reference to contract runtime bytecode
     fn bin_runtime_ref(&self) -> Option<&BytecodeObject>;
 
     fn as_compact_contract_ref(&self) -> CompactContractRef<'_> {
