@@ -10,7 +10,7 @@
 //!      compatible with, solidity version pragma.
 //!   2. A dependency can be imported from any directory, see `Remappings`
 //!
-//! Finding all dependencies is fairly simple, we're simply doing a DFS, starting the source
+//! Finding all dependencies is fairly simple, we're simply doing a DFS, starting from the source
 //! contracts
 //!
 //! ## Solc version auto-detection
