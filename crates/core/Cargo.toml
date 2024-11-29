@@ -18,7 +18,6 @@ workspace = true
 alloy-primitives.workspace = true
 cfg-if.workspace = true
 dunce.workspace = true
-once_cell.workspace = true
 path-slash.workspace = true
 regex.workspace = true
 semver.workspace = true
