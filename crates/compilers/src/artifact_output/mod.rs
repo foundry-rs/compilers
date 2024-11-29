@@ -596,9 +596,9 @@ where
 
 /// Handler invoked with the output of `solc`
 ///
-/// Implementers of this trait are expected to take care of [`crate::compilers::CompilerContract`] to
-/// [`crate::ArtifactOutput::Artifact`] conversion and how that `Artifact` type is stored on disk,
-/// this includes artifact file location and naming.
+/// Implementers of this trait are expected to take care of [`crate::compilers::CompilerContract`]
+/// to [`crate::ArtifactOutput::Artifact`] conversion and how that `Artifact` type is stored on
+/// disk, this includes artifact file location and naming.
 ///
 /// Depending on the [`crate::Project`] contracts and their compatible versions,
 /// The project compiler may invoke different `solc` executables on the same
