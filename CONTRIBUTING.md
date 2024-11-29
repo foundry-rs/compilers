@@ -64,7 +64,7 @@ the best of your ability. Do not worry if you cannot answer every detail, just
 fill in what you can.
 
 The two most important pieces of information we need in order to properly
-evaluate the report is a description of the behavior you are seeing and a simple
+evaluate the report are a description of the behavior you are seeing and a simple
 test case we can use to recreate the problem on our own. If we cannot recreate
 the issue, it becomes impossible for us to fix.
 
