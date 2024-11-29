@@ -30,7 +30,6 @@ use foundry_compilers_core::{
     error::SolcError,
     utils::{self, canonicalize, RuntimeOrHandle},
 };
-use once_cell::sync::Lazy;
 use semver::Version;
 use similar_asserts::assert_eq;
 use std::{
@@ -39,10 +38,11 @@ use std::{
     io,
     path::{Path, PathBuf, MAIN_SEPARATOR},
     str::FromStr,
+    sync::LazyLock,
 };
 use svm::{platform, Platform};
 
-pub static VYPER: Lazy<Vyper> = Lazy::new(|| {
+pub static VYPER: LazyLock<Vyper> = LazyLock::new(|| {
     RuntimeOrHandle::new().block_on(async {
         #[cfg(target_family = "unix")]
         use std::{fs::Permissions, os::unix::fs::PermissionsExt};

@@ -29,7 +29,6 @@ thiserror.workspace = true
 path-slash.workspace = true
 yansi.workspace = true
 solar-parse.workspace = true
-once_cell = { workspace = true, optional = true }
 futures-util = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 
@@ -85,7 +84,6 @@ svm-solc = [
     "dep:svm-builds",
     "dep:sha2",
     "foundry-compilers-core/svm-solc",
-    "dep:once_cell",
 ]
 # Utilities for creating and testing project workspaces.
 project-util = [
