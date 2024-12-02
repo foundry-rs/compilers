@@ -201,8 +201,8 @@ impl<V: Ord + Copy> Restriction<V> {
     ///
     /// If given None, only returns true if no restrictions are set
     pub fn satisfies(&self, value: Option<V>) -> bool {
-        self.min.map_or(true, |min| value.map_or(false, |v| v >= min))
-            && self.max.map_or(true, |max| value.map_or(false, |v| v <= max))
+        self.min.map_or(true, |min| value.is_some_and(|v| v >= min))
+            && self.max.map_or(true, |max| value.is_some_and(|v| v <= max))
     }
 
     /// Combines two restrictions into a new one

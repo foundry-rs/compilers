@@ -110,9 +110,9 @@ impl SolcInput {
         let mut yul_sources = Sources::new();
 
         for (file, source) in sources {
-            if file.extension().map_or(false, |e| e == "yul") {
+            if file.extension().is_some_and(|e| e == "yul") {
                 yul_sources.insert(file, source);
-            } else if file.extension().map_or(false, |e| e == "sol") {
+            } else if file.extension().is_some_and(|e| e == "sol") {
                 solidity_sources.insert(file, source);
             }
         }

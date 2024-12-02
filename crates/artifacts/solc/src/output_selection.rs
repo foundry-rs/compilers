@@ -149,9 +149,9 @@ impl OutputSelection {
     /// TODO: correctly process wildcard keys to reduce false negatives
     pub fn is_subset_of(&self, other: &Self) -> bool {
         self.0.iter().all(|(file, selection)| {
-            other.0.get(file).map_or(false, |other_selection| {
+            other.0.get(file).is_some_and(|other_selection| {
                 selection.iter().all(|(contract, outputs)| {
-                    other_selection.get(contract).map_or(false, |other_outputs| {
+                    other_selection.get(contract).is_some_and(|other_outputs| {
                         outputs.iter().all(|output| other_outputs.contains(output))
                     })
                 })
