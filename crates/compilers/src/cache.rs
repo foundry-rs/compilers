@@ -616,7 +616,7 @@ impl GroupedSources {
 
     /// Returns true if the file was included with the given version.
     pub fn contains(&self, file: &Path, version: &Version) -> bool {
-        self.inner.get(file).map_or(false, |versions| versions.contains(version))
+        self.inner.get(file).is_some_and(|versions| versions.contains(version))
     }
 }
 
@@ -783,9 +783,7 @@ impl<T: ArtifactOutput, C: Compiler> ArtifactsCacheInner<'_, T, C> {
 
         let mut dirty_profiles = HashSet::new();
         for (profile, settings) in &self.cache.profiles {
-            if !existing_profiles
-                .get(profile.as_str())
-                .map_or(false, |p| p.can_use_cached(settings))
+            if !existing_profiles.get(profile.as_str()).is_some_and(|p| p.can_use_cached(settings))
             {
                 trace!("dirty profile: {}", profile);
                 dirty_profiles.insert(profile.clone());

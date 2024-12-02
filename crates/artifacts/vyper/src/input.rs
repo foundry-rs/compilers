@@ -22,7 +22,7 @@ impl VyperInput {
         let mut interfaces = Sources::new();
 
         for (path, content) in sources {
-            if path.extension().map_or(false, |ext| ext == VYPER_INTERFACE_EXTENSION) {
+            if path.extension().is_some_and(|ext| ext == VYPER_INTERFACE_EXTENSION) {
                 // Interface .vyi files should be removed from the output selection.
                 settings.output_selection.0.remove(path.to_string_lossy().as_ref());
                 interfaces.insert(path, content);
