@@ -5,11 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.4](https://github.com/foundry-rs/compilers/releases/tag/v0.12.4) - 2024-12-02
+
+### Bug Fixes
+
+- Add fallback parser for contract names ([#229](https://github.com/foundry-rs/compilers/issues/229))
+- Fix minor grammatical issue in project documentation ([#226](https://github.com/foundry-rs/compilers/issues/226))
+
+### Dependencies
+
+- Bump MSRV to 1.83 ([#230](https://github.com/foundry-rs/compilers/issues/230))
+
+### Other
+
+- Add note about grammar,spelling prs ([#228](https://github.com/foundry-rs/compilers/issues/228))
+
 ## [0.12.3](https://github.com/foundry-rs/compilers/releases/tag/v0.12.3) - 2024-11-20
 
 ### Bug Fixes
 
 - Imports regex fallback ([#225](https://github.com/foundry-rs/compilers/issues/225))
+
+### Miscellaneous Tasks
+
+- Release 0.12.3
 
 ## [0.12.2](https://github.com/foundry-rs/compilers/releases/tag/v0.12.2) - 2024-11-20
 
