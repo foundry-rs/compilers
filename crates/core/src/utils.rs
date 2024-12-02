@@ -3,7 +3,6 @@
 use crate::error::{SolcError, SolcIoError};
 use alloy_primitives::{hex, keccak256};
 use cfg_if::cfg_if;
-use once_cell::sync::Lazy;
 use regex::{Match, Regex};
 use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Serialize};
@@ -13,6 +12,7 @@ use std::{
     io::Write,
     ops::Range,
     path::{Component, Path, PathBuf},
+    sync::LazyLock as Lazy,
 };
 use walkdir::WalkDir;
 
@@ -45,6 +45,11 @@ pub static RE_THREE_OR_MORE_NEWLINES: Lazy<Regex> = Lazy::new(|| Regex::new("\n{
 /// A regex that matches version pragma in a Vyper
 pub static RE_VYPER_VERSION: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"#(?:pragma version|@version)\s+(?P<version>.+)").unwrap());
+
+/// A regex that matches the contract names in a Solidity file.
+pub static RE_CONTRACT_NAMES: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\b(?:contract|library|abstract\s+contract|interface)\s+([\w$]+)").unwrap()
+});
 
 /// Extensions acceptable by solc compiler.
 pub const SOLC_EXTENSIONS: &[&str] = &["sol", "yul"];

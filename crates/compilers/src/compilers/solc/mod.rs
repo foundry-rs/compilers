@@ -206,8 +206,8 @@ impl<V: Ord + Copy> Restriction<V> {
     ///
     /// If given None, only returns true if no restrictions are set
     pub fn satisfies(&self, value: Option<V>) -> bool {
-        self.min.map_or(true, |min| value.map_or(false, |v| v >= min))
-            && self.max.map_or(true, |max| value.map_or(false, |v| v <= max))
+        self.min.is_none_or(|min| value.is_some_and(|v| v >= min))
+            && self.max.is_none_or(|max| value.is_some_and(|v| v <= max))
     }
 
     /// Combines two restrictions into a new one
@@ -351,7 +351,7 @@ impl CompilerSettings for SolcSettings {
         // Ensure that we either don't have min optimizer runs set or that the optimizer is enabled
         satisfies &= optimizer_runs
             .min
-            .map_or(true, |min| min == 0 || self.optimizer.enabled.unwrap_or_default());
+            .is_none_or(|min| min == 0 || self.optimizer.enabled.unwrap_or_default());
 
         satisfies
     }

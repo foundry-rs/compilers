@@ -878,7 +878,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
 
         self.contracts.contracts_with_files().filter(|(path, _, _)| *path == contract_path).any(
             |(_, _, contract)| {
-                contract.abi_ref().map_or(false, |abi| abi.functions.contains_key("IS_TEST"))
+                contract.abi_ref().is_some_and(|abi| abi.functions.contains_key("IS_TEST"))
             },
         )
     }

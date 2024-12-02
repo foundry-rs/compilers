@@ -45,7 +45,7 @@ impl SolData {
     /// This will attempt to parse the solidity AST and extract the imports and version pragma. If
     /// parsing fails, we'll fall back to extract that info via regex
     pub fn parse(content: &str, file: &Path) -> Self {
-        let is_yul = file.extension().map_or(false, |ext| ext == "yul");
+        let is_yul = file.extension().is_some_and(|ext| ext == "yul");
         let mut version = None;
         let mut experimental = None;
         let mut imports = Vec::<Spanned<SolImport>>::new();
@@ -132,6 +132,11 @@ impl SolData {
             }
             if imports.is_empty() {
                 imports = capture_imports(content);
+            }
+            if contract_names.is_empty() {
+                utils::RE_CONTRACT_NAMES.captures_iter(content).for_each(|cap| {
+                    contract_names.push(cap[1].to_owned());
+                });
             }
         }
         let license = content.lines().next().and_then(|line| {
@@ -313,6 +318,12 @@ mod tests {
         assert_eq!(data.version_req, version_req.map(|v| v.parse().unwrap()), "src:\n{src}");
     }
 
+    #[track_caller]
+    fn assert_contract_names(names: &[&str], src: &str) {
+        let data = SolData::parse(src, "test.sol".as_ref());
+        assert_eq!(data.contract_names, names, "src:\n{src}");
+    }
+
     #[test]
     fn soldata_parsing() {
         assert_version(None, "");
@@ -330,6 +341,18 @@ contract BugReport {
     }
     function deposit() public payable {}
 }
+        "#,
+        );
+
+        assert_contract_names(
+            &["A", "B69$_", "C_", "$D"],
+            r#"
+    contract A {}
+library B69$_ {}
+abstract contract C_ {} interface $D {}
+
+uint constant x = .1e10;
+uint constant y = .1 ether;
         "#,
         );
     }

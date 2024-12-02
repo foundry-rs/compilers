@@ -150,9 +150,11 @@ impl fmt::Display for Error {
         // unless it also contains a source location, in which case the entire error message is an
         // old style error message, like:
         //     path/to/file:line:column: ErrorType: message
-        if lines.clone().next().map_or(false, |l| {
-            l.contains(short_msg) && l.bytes().filter(|b| *b == b':').count() < 3
-        }) {
+        if lines
+            .clone()
+            .next()
+            .is_some_and(|l| l.contains(short_msg) && l.bytes().filter(|b| *b == b':').count() < 3)
+        {
             let _ = lines.next();
         }
 

@@ -45,8 +45,8 @@ macro_rules! take_solc_installer_lock {
 /// we should download.
 /// The boolean value marks whether there was an error accessing the release list
 #[cfg(feature = "svm-solc")]
-pub static RELEASES: once_cell::sync::Lazy<(svm::Releases, Vec<Version>, bool)> =
-    once_cell::sync::Lazy::new(|| {
+pub static RELEASES: std::sync::LazyLock<(svm::Releases, Vec<Version>, bool)> =
+    std::sync::LazyLock::new(|| {
         match serde_json::from_str::<svm::Releases>(svm_builds::RELEASE_LIST_JSON) {
             Ok(releases) => {
                 let sorted_versions = releases.clone().into_versions();

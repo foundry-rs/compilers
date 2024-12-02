@@ -74,6 +74,7 @@ cases should be limited, as much as possible, to using only Foundry Compilers AP
 See [How to create a Minimal, Complete, and Verifiable example][mcve].
 
 [mcve]: https://stackoverflow.com/help/mcve
+
 [template]: .github/PULL_REQUEST_TEMPLATE.md
 
 ### Triaging a Bug Report
@@ -119,6 +120,11 @@ Foundry Compilers maintains strict standards for code quality and style, as well
 commit signing. This option allows us to make small changes to your PR to bring
 it in line with these standards. It helps us get your PR in faster, and with
 less work from you.
+
+### Contributions Related to Spelling and Grammar
+
+At this time, we will not be accepting contributions that only fix spelling or grammatical errors in documentation, code
+or elsewhere.
 
 ### Cargo Commands
 
@@ -304,5 +310,7 @@ the commit log, or by using an `Author: ` meta-data tag in the commit.
 _Adapted from the [Tokio contributing guide]_.
 
 [hiding-a-comment]: https://help.github.com/articles/managing-disruptive-comments/#hiding-a-comment
+
 [documentation test]: https://doc.rust-lang.org/rustdoc/documentation-tests.html
+
 [Tokio contributing guide]: https://github.com/tokio-rs/tokio/blob/master/CONTRIBUTING.md

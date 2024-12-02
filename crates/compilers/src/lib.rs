@@ -406,7 +406,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Pro
     {
         let mut contracts = self.collect_contract_names()?;
 
-        if contracts.get(target_name).map_or(true, |paths| paths.is_empty()) {
+        if contracts.get(target_name).is_none_or(|paths| paths.is_empty()) {
             return Err(SolcError::msg(format!("No contract found with the name `{target_name}`")));
         }
         let mut paths = contracts.remove(target_name).unwrap();
