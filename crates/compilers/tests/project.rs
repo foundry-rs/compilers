@@ -60,7 +60,7 @@ pub static VYPER: LazyLock<Vyper> = LazyLock::new(|| {
 
         let base = "https://github.com/vyperlang/vyper/releases/download/v0.4.0/vyper.0.4.0+commit.e9db8d9f";
         let url = format!(
-            "{base}{}",
+            "{base}.{}",
             match platform() {
                 Platform::MacOsAarch64 => "darwin",
                 Platform::LinuxAmd64 => "linux",
