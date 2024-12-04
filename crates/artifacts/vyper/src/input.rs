@@ -17,7 +17,7 @@ pub struct VyperInput {
 }
 
 impl VyperInput {
-    pub fn new(sources: Sources, mut settings: VyperSettings) -> Self {
+    pub fn new(sources: Sources, mut settings: VyperSettings, version: &Version) -> Self {
         let mut new_sources = Sources::new();
         let mut interfaces = Sources::new();
 
@@ -31,7 +31,7 @@ impl VyperInput {
             }
         }
 
-        settings.sanitize_output_selection();
+        settings.sanitize_output_selection(version);
         Self { language: "Vyper".to_string(), sources: new_sources, interfaces, settings }
     }
 

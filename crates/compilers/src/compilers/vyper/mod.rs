@@ -79,8 +79,11 @@ impl Vyper {
 
     /// Convenience function for compiling all sources under the given path
     pub fn compile_source(&self, path: &Path) -> Result<VyperOutput> {
-        let input =
-            VyperInput::new(Source::read_all_from(path, VYPER_EXTENSIONS)?, Default::default());
+        let input = VyperInput::new(
+            Source::read_all_from(path, VYPER_EXTENSIONS)?,
+            Default::default(),
+            &self.version,
+        );
         self.compile(&input)
     }
 

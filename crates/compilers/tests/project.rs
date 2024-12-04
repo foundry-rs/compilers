@@ -47,6 +47,10 @@ pub static VYPER: LazyLock<Vyper> = LazyLock::new(|| {
         #[cfg(target_family = "unix")]
         use std::{fs::Permissions, os::unix::fs::PermissionsExt};
 
+        if let Ok(vyper) = Vyper::new("vyper") {
+            return vyper;
+        }
+
         take_solc_installer_lock!(_lock);
         let path = std::env::temp_dir().join("vyper");
 
@@ -54,14 +58,15 @@ pub static VYPER: LazyLock<Vyper> = LazyLock::new(|| {
             return Vyper::new(&path).unwrap();
         }
 
-        let url = match platform() {
-            Platform::MacOsAarch64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.darwin",
-            Platform::LinuxAmd64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux",
-            Platform::WindowsAmd64 => "https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.windows.exe",
-            _ => panic!("unsupported")
-        };
+        let base = "https://github.com/vyperlang/vyper/releases/download/v0.4.0/vyper.0.4.0+commit.e9db8d9f";
+        let url = format!("{base}{}", match platform() {
+            Platform::MacOsAarch64 => "darwin",
+            Platform::LinuxAmd64 => "linux",
+            Platform::WindowsAmd64 => "windows.exe",
+            platform => panic!("unsupported platform: {platform:?}")
+        });
 
-        let res = reqwest::Client::builder().build().unwrap().get(url).send().await.unwrap();
+        let res = reqwest::get(url).await.unwrap();
 
         assert!(res.status().is_success());
 
@@ -3889,17 +3894,20 @@ fn can_compile_vyper_with_cache() {
         .unwrap();
 
     let compiled = project.compile().unwrap();
+    compiled.assert_success();
     assert!(compiled.find_first("Counter").is_some());
     compiled.assert_success();
 
     // cache is used when nothing to compile
     let compiled = project.compile().unwrap();
+    compiled.assert_success();
     assert!(compiled.find_first("Counter").is_some());
     assert!(compiled.is_unchanged());
 
     // deleted artifacts cause recompile even with cache
     std::fs::remove_dir_all(project.artifacts_path()).unwrap();
     let compiled = project.compile().unwrap();
+    compiled.assert_success();
     assert!(compiled.find_first("Counter").is_some());
     assert!(!compiled.is_unchanged());
 }
@@ -3975,9 +3983,9 @@ fn test_can_compile_multi() {
         .unwrap();
 
     let compiled = project.compile().unwrap();
+    compiled.assert_success();
     assert!(compiled.find(&root.join("src/Counter.sol"), "Counter").is_some());
     assert!(compiled.find(&root.join("src/Counter.vy"), "Counter").is_some());
-    compiled.assert_success();
 }
 
 // This is a reproduction of https://github.com/foundry-rs/compilers/issues/47

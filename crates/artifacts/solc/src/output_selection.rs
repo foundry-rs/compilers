@@ -51,24 +51,6 @@ pub type FileOutputSelection = BTreeMap<String, Vec<String>>;
 /// Note that using a using `evm`, `evm.bytecode`, `ewasm`, etc. will select
 /// every target part of that output. Additionally, `*` can be used as a
 /// wildcard to request everything.
-///
-/// The default output selection is
-///
-/// ```json
-///   {
-///    "*": {
-///      "*": [
-///        "abi",
-///        "evm.bytecode",
-///        "evm.deployedBytecode",
-///        "evm.methodIdentifiers"
-///      ],
-///      "": [
-///        "ast"
-///      ]
-///    }
-///  }
-/// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
 #[serde(transparent)]
 pub struct OutputSelection(pub BTreeMap<String, FileOutputSelection>);
@@ -88,31 +70,18 @@ impl OutputSelection {
         .into()
     }
 
-    /// Default output selection for compiler output:
-    ///
-    /// `{ "*": { "*": [ "*" ], "": [
-    /// "abi","evm.bytecode","evm.deployedBytecode","evm.methodIdentifiers"] } }`
-    ///
-    /// Which enables it for all files and all their contracts ("*" wildcard)
+    /// Default output selection.
     pub fn default_output_selection() -> Self {
         BTreeMap::from([("*".to_string(), Self::default_file_output_selection())]).into()
     }
 
-    /// Default output selection for a single file:
+    /// Default file output selection.
     ///
-    /// `{ "*": [ "*" ], "": [
-    /// "abi","evm.bytecode","evm.deployedBytecode","evm.methodIdentifiers"] }`
-    ///
-    /// Which enables it for all the contracts in the file ("*" wildcard)
+    /// Uses [`ContractOutputSelection::basic`].
     pub fn default_file_output_selection() -> FileOutputSelection {
         BTreeMap::from([(
             "*".to_string(),
-            vec![
-                "abi".to_string(),
-                "evm.bytecode".to_string(),
-                "evm.deployedBytecode".to_string(),
-                "evm.methodIdentifiers".to_string(),
-            ],
+            ContractOutputSelection::basic().iter().map(ToString::to_string).collect(),
         )])
     }
 
@@ -146,7 +115,7 @@ impl OutputSelection {
     }
 
     /// Returns true if this output selection is a subset of the other output selection.
-    /// TODO: correctly process wildcard keys to reduce false negatives
+    // TODO: correctly process wildcard keys to reduce false negatives
     pub fn is_subset_of(&self, other: &Self) -> bool {
         self.0.iter().all(|(file, selection)| {
             other.0.get(file).is_some_and(|other_selection| {
@@ -229,16 +198,24 @@ pub enum ContractOutputSelection {
 
 impl ContractOutputSelection {
     /// Returns the basic set of contract level settings that should be included in the `Contract`
-    /// that solc emits:
-    ///    - "abi"
-    ///    - "evm.bytecode"
-    ///    - "evm.deployedBytecode"
-    ///    - "evm.methodIdentifiers"
+    /// that solc emits.
+    ///
+    /// These correspond to the fields in `CompactBytecode`, `CompactDeployedBytecode`, ABI, and
+    /// method identfiers.
     pub fn basic() -> Vec<Self> {
+        // We don't include all the `bytecode` fields because `generatedSources` is a massive JSON
+        // object and is not used by Foundry.
         vec![
             Self::Abi,
-            BytecodeOutputSelection::All.into(),
-            DeployedBytecodeOutputSelection::All.into(),
+            // The fields in `CompactBytecode`.
+            BytecodeOutputSelection::Object.into(),
+            BytecodeOutputSelection::SourceMap.into(),
+            BytecodeOutputSelection::LinkReferences.into(),
+            // The fields in `CompactDeployedBytecode`.
+            DeployedBytecodeOutputSelection::Object.into(),
+            DeployedBytecodeOutputSelection::SourceMap.into(),
+            DeployedBytecodeOutputSelection::LinkReferences.into(),
+            DeployedBytecodeOutputSelection::ImmutableReferences.into(),
             EvmOutputSelection::MethodIdentifiers.into(),
         ]
     }
