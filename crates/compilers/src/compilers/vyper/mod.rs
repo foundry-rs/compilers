@@ -7,6 +7,7 @@ use foundry_compilers_core::error::{Result, SolcError};
 use semver::Version;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
+    io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     str::FromStr,
@@ -152,8 +153,11 @@ impl Vyper {
         let mut child = cmd.spawn().map_err(self.map_io_err())?;
         debug!("spawned");
 
-        let stdin = child.stdin.as_mut().unwrap();
-        serde_json::to_writer(stdin, input)?;
+        {
+            let mut stdin = io::BufWriter::new(child.stdin.take().unwrap());
+            serde_json::to_writer(&mut stdin, input)?;
+            stdin.flush().map_err(self.map_io_err())?;
+        }
         debug!("wrote JSON input to stdin");
 
         let output = child.wait_with_output().map_err(self.map_io_err())?;
