@@ -7,6 +7,7 @@ use foundry_compilers_core::error::{Result, SolcError};
 use semver::Version;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
+    io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     str::FromStr,
@@ -79,8 +80,11 @@ impl Vyper {
 
     /// Convenience function for compiling all sources under the given path
     pub fn compile_source(&self, path: &Path) -> Result<VyperOutput> {
-        let input =
-            VyperInput::new(Source::read_all_from(path, VYPER_EXTENSIONS)?, Default::default());
+        let input = VyperInput::new(
+            Source::read_all_from(path, VYPER_EXTENSIONS)?,
+            Default::default(),
+            &self.version,
+        );
         self.compile(&input)
     }
 
@@ -114,7 +118,7 @@ impl Vyper {
     /// let vyper = Vyper::new("vyper")?;
     /// let path = Path::new("path/to/sources");
     /// let sources = Source::read_all_from(path, &["vy", "vyi"])?;
-    /// let input = VyperInput::new(sources, VyperSettings::default());
+    /// let input = VyperInput::new(sources, VyperSettings::default(), &vyper.version);
     /// let output = vyper.compile(&input)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -149,8 +153,11 @@ impl Vyper {
         let mut child = cmd.spawn().map_err(self.map_io_err())?;
         debug!("spawned");
 
-        let stdin = child.stdin.as_mut().unwrap();
-        serde_json::to_writer(stdin, input)?;
+        {
+            let mut stdin = io::BufWriter::new(child.stdin.take().unwrap());
+            serde_json::to_writer(&mut stdin, input)?;
+            stdin.flush().map_err(self.map_io_err())?;
+        }
         debug!("wrote JSON input to stdin");
 
         let output = child.wait_with_output().map_err(self.map_io_err())?;

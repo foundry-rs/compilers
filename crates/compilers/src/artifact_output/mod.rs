@@ -868,7 +868,7 @@ pub trait ArtifactOutput {
 
         let mut files = contracts.keys().collect::<Vec<_>>();
         // Iterate starting with top-most files to ensure that they get the shortest paths.
-        files.sort_by(|file1, file2| {
+        files.sort_by(|&file1, &file2| {
             (file1.components().count(), file1).cmp(&(file2.components().count(), file2))
         });
         for file in files {

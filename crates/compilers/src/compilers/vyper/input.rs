@@ -26,7 +26,7 @@ impl CompilerInput for VyperVersionedInput {
         _language: Self::Language,
         version: Version,
     ) -> Self {
-        Self { input: VyperInput::new(sources, settings), version }
+        Self { input: VyperInput::new(sources, settings, &version), version }
     }
 
     fn compiler_name(&self) -> Cow<'static, str> {
