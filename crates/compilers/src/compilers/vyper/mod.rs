@@ -117,7 +117,7 @@ impl Vyper {
     /// let vyper = Vyper::new("vyper")?;
     /// let path = Path::new("path/to/sources");
     /// let sources = Source::read_all_from(path, &["vy", "vyi"])?;
-    /// let input = VyperInput::new(sources, VyperSettings::default());
+    /// let input = VyperInput::new(sources, VyperSettings::default(), &vyper.version);
     /// let output = vyper.compile(&input)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
