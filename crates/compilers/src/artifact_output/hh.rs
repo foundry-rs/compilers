@@ -13,6 +13,7 @@ pub struct HardhatArtifacts {
 
 impl ArtifactOutput for HardhatArtifacts {
     type Artifact = HardhatArtifact;
+    type CompilerContract = Contract;
 
     fn contract_to_artifact(
         &self,

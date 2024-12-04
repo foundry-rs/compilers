@@ -19,7 +19,7 @@ use foundry_compilers_artifacts::{
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Error, Severity, SolcLanguage,
+    Contract, Error, Severity, SolcLanguage,
 };
 use foundry_compilers_core::error::{Result, SolcError};
 use semver::Version;
@@ -280,8 +280,12 @@ impl Compiler for MultiCompiler {
     type ParsedSource = MultiCompilerParsedSource;
     type Settings = MultiCompilerSettings;
     type Language = MultiCompilerLanguage;
+    type CompilerContract = Contract;
 
-    fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>> {
+    fn compile(
+        &self,
+        input: &Self::Input,
+    ) -> Result<CompilerOutput<Self::CompilationError, Self::CompilerContract>> {
         match input {
             MultiCompilerInput::Solc(input) => {
                 if let Some(solc) = &self.solc {

@@ -9,14 +9,14 @@ use foundry_compilers_artifacts::{
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    BytecodeHash, Error, EvmVersion, Settings, Severity, SolcInput,
+    BytecodeHash, Contract, Error, EvmVersion, Settings, Severity, SolcInput,
 };
 use foundry_compilers_core::error::Result;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
@@ -43,8 +43,12 @@ impl Compiler for SolcCompiler {
     type ParsedSource = SolData;
     type Settings = SolcSettings;
     type Language = SolcLanguage;
+    type CompilerContract = Contract;
 
-    fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>> {
+    fn compile(
+        &self,
+        input: &Self::Input,
+    ) -> Result<CompilerOutput<Self::CompilationError, Self::CompilerContract>> {
         let mut solc = match self {
             Self::Specific(solc) => solc.clone(),
 
@@ -62,6 +66,7 @@ impl Compiler for SolcCompiler {
             errors: solc_output.errors,
             contracts: solc_output.contracts,
             sources: solc_output.sources,
+            metadata: BTreeMap::new(),
         };
 
         Ok(output)
@@ -457,6 +462,7 @@ mod tests {
             errors: out.errors,
             contracts: Default::default(),
             sources: Default::default(),
+            metadata: Default::default(),
         };
 
         let v = Version::new(0, 8, 12);

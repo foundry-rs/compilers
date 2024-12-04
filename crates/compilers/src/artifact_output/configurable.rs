@@ -169,11 +169,12 @@ impl ConfigurableArtifacts {
 
 impl ArtifactOutput for ConfigurableArtifacts {
     type Artifact = ConfigurableContractArtifact;
+    type CompilerContract = Contract;
 
     /// Writes extra files for compiled artifact based on [Self::additional_files]
     fn handle_artifacts(
         &self,
-        contracts: &crate::VersionedContracts,
+        contracts: &crate::VersionedContracts<Contract>,
         artifacts: &crate::Artifacts<Self::Artifact>,
     ) -> Result<(), SolcError> {
         for (file, contracts) in contracts.as_ref().iter() {

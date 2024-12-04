@@ -2,7 +2,7 @@ use crate::{
     compilers::{Compiler, ParsedSource},
     filter::MaybeSolData,
     resolver::parse::SolData,
-    CompilerSettings, Graph, Project, ProjectPathsConfig,
+    ArtifactOutput, CompilerSettings, Graph, Project, ProjectPathsConfig,
 };
 use foundry_compilers_artifacts::{
     ast::{visitor::Visitor, *},
@@ -204,8 +204,8 @@ pub struct Flattener {
 
 impl Flattener {
     /// Compiles the target file and prepares AST and analysis data for flattening.
-    pub fn new<C: Compiler>(
-        mut project: Project<C>,
+    pub fn new<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>>(
+        mut project: Project<C, T>,
         target: &Path,
     ) -> std::result::Result<Self, FlattenerError>
     where

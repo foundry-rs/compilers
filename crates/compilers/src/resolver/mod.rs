@@ -473,7 +473,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         project: &Project<C, T>,
     ) -> Result<(VersionedSources<'_, L, S>, GraphEdges<D>)>
     where
-        T: ArtifactOutput,
+        T: ArtifactOutput<CompilerContract = C::CompilerContract>,
         S: CompilerSettings,
         C: Compiler<ParsedSource = D, Language = L, Settings = S>,
     {
@@ -561,7 +561,11 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     ///     path/to/c.sol (<version>)
     ///     ...
     /// ```
-    fn format_imports_list<C: Compiler, T: ArtifactOutput, W: std::fmt::Write>(
+    fn format_imports_list<
+        C: Compiler,
+        T: ArtifactOutput<CompilerContract = C::CompilerContract>,
+        W: std::fmt::Write,
+    >(
         &self,
         idx: usize,
         incompatible: HashSet<usize>,
@@ -590,7 +594,10 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     }
 
     /// Combines version requirement parsed from file and from project restrictions.
-    fn version_requirement<C: Compiler, T: ArtifactOutput>(
+    fn version_requirement<
+        C: Compiler,
+        T: ArtifactOutput<CompilerContract = C::CompilerContract>,
+    >(
         &self,
         idx: usize,
         project: &Project<C, T>,
@@ -615,7 +622,10 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     ///
     /// This returns an error if the file's version is invalid semver, or is not available such as
     /// 0.8.20, if the highest available version is `0.8.19`
-    fn check_available_version<C: Compiler, T: ArtifactOutput>(
+    fn check_available_version<
+        C: Compiler,
+        T: ArtifactOutput<CompilerContract = C::CompilerContract>,
+    >(
         &self,
         idx: usize,
         all_versions: &[&CompilerVersion],
@@ -636,7 +646,10 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
 
     /// Filters incompatible versions from the `candidates`. It iterates over node imports and in
     /// case if there is no compatible version it returns the latest seen node id.
-    fn retain_compatible_versions<C: Compiler, T: ArtifactOutput>(
+    fn retain_compatible_versions<
+        C: Compiler,
+        T: ArtifactOutput<CompilerContract = C::CompilerContract>,
+    >(
         &self,
         idx: usize,
         candidates: &mut Vec<&CompilerVersion>,
@@ -707,7 +720,10 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     }
 
     /// Filters profiles incompatible with the given node and its imports.
-    fn retain_compatible_profiles<C: Compiler, T: ArtifactOutput>(
+    fn retain_compatible_profiles<
+        C: Compiler,
+        T: ArtifactOutput<CompilerContract = C::CompilerContract>,
+    >(
         &self,
         idx: usize,
         project: &Project<C, T>,
@@ -792,7 +808,10 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     ///
     /// This also attempts to prefer local installations over remote available.
     /// If `offline` is set to `true` then only already installed.
-    fn get_input_node_versions<C: Compiler<Language = L>, T: ArtifactOutput>(
+    fn get_input_node_versions<
+        C: Compiler<Language = L>,
+        T: ArtifactOutput<CompilerContract = C::CompilerContract>,
+    >(
         &self,
         project: &Project<C, T>,
     ) -> Result<HashMap<L, HashMap<Version, Vec<usize>>>> {
@@ -889,7 +908,10 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     }
 
     #[allow(clippy::complexity)]
-    fn resolve_settings<C: Compiler<Language = L>, T: ArtifactOutput>(
+    fn resolve_settings<
+        C: Compiler<Language = L>,
+        T: ArtifactOutput<CompilerContract = C::CompilerContract>,
+    >(
         &self,
         project: &Project<C, T>,
         input_nodes_versions: HashMap<L, HashMap<Version, Vec<usize>>>,

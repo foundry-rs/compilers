@@ -1,11 +1,12 @@
 use crate::ProjectPathsConfig;
+use alloy_json_abi::JsonAbi;
 use core::fmt;
 use foundry_compilers_artifacts::{
     error::SourceLocation,
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Contract, FileToContractsMap, Severity, SourceFile,
+    BytecodeObject, CompactContractRef, Contract, FileToContractsMap, Severity, SourceFile,
 };
 use foundry_compilers_core::error::Result;
 use semver::{Version, VersionReq};
@@ -198,19 +199,21 @@ pub trait CompilationError:
     fn error_code(&self) -> Option<u64>;
 }
 
-/// Output of the compiler, including contracts, sources and errors. Currently only generic over the
-/// error but might be extended in the future.
+/// Output of the compiler, including contracts, sources, errors and metadata. might be
+/// extended to be more generic in the future.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CompilerOutput<E> {
+pub struct CompilerOutput<E, C> {
     #[serde(default = "Vec::new", skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<E>,
-    #[serde(default)]
-    pub contracts: FileToContractsMap<Contract>,
+    #[serde(default = "BTreeMap::new")]
+    pub contracts: FileToContractsMap<C>,
     #[serde(default)]
     pub sources: BTreeMap<PathBuf, SourceFile>,
+    #[serde(default, skip_serializing_if = "::std::collections::BTreeMap::is_empty")]
+    pub metadata: BTreeMap<String, serde_json::Value>,
 }
 
-impl<E> CompilerOutput<E> {
+impl<E, C> CompilerOutput<E, C> {
     /// Retains only those files the given iterator yields
     ///
     /// In other words, removes all contracts for files not included in the iterator
@@ -244,18 +247,24 @@ impl<E> CompilerOutput<E> {
             .collect();
     }
 
-    pub fn map_err<F, O: FnMut(E) -> F>(self, op: O) -> CompilerOutput<F> {
+    pub fn map_err<F, O: FnMut(E) -> F>(self, op: O) -> CompilerOutput<F, C> {
         CompilerOutput {
             errors: self.errors.into_iter().map(op).collect(),
             contracts: self.contracts,
             sources: self.sources,
+            metadata: self.metadata,
         }
     }
 }
 
-impl<E> Default for CompilerOutput<E> {
+impl<E, C> Default for CompilerOutput<E, C> {
     fn default() -> Self {
-        Self { errors: Vec::new(), contracts: BTreeMap::new(), sources: BTreeMap::new() }
+        Self {
+            errors: Vec::new(),
+            contracts: BTreeMap::new(),
+            sources: BTreeMap::new(),
+            metadata: BTreeMap::new(),
+        }
     }
 }
 
@@ -265,6 +274,48 @@ pub trait Language:
 {
     /// Extensions of source files recognized by the language set.
     const FILE_EXTENSIONS: &'static [&'static str];
+}
+
+/// Represents a compiled contract
+pub trait CompilerContract: Serialize + Send + Sync + Debug + Clone + Eq + Sized {
+    /// Reference to contract ABI
+    fn abi_ref(&self) -> Option<&JsonAbi>;
+
+    //// Reference to contract bytecode
+    fn bin_ref(&self) -> Option<&BytecodeObject>;
+
+    //// Reference to contract runtime bytecode
+    fn bin_runtime_ref(&self) -> Option<&BytecodeObject>;
+
+    fn as_compact_contract_ref(&self) -> CompactContractRef<'_> {
+        CompactContractRef {
+            abi: self.abi_ref(),
+            bin: self.bin_ref(),
+            bin_runtime: self.bin_runtime_ref(),
+        }
+    }
+}
+
+impl CompilerContract for Contract {
+    fn abi_ref(&self) -> Option<&JsonAbi> {
+        self.abi.as_ref()
+    }
+    fn bin_ref(&self) -> Option<&BytecodeObject> {
+        if let Some(ref evm) = self.evm {
+            evm.bytecode.as_ref().map(|c| &c.object)
+        } else {
+            None
+        }
+    }
+    fn bin_runtime_ref(&self) -> Option<&BytecodeObject> {
+        if let Some(ref evm) = self.evm {
+            evm.deployed_bytecode
+                .as_ref()
+                .and_then(|deployed| deployed.bytecode.as_ref().map(|evm| &evm.object))
+        } else {
+            None
+        }
+    }
 }
 
 /// The main compiler abstraction trait.
@@ -277,6 +328,8 @@ pub trait Compiler: Send + Sync + Clone {
     type Input: CompilerInput<Settings = Self::Settings, Language = Self::Language>;
     /// Error type returned by the compiler.
     type CompilationError: CompilationError;
+    /// Output data for each contract
+    type CompilerContract: CompilerContract;
     /// Source parser used for resolving imports and version requirements.
     type ParsedSource: ParsedSource<Language = Self::Language>;
     /// Compiler settings.
@@ -287,7 +340,10 @@ pub trait Compiler: Send + Sync + Clone {
     /// Main entrypoint for the compiler. Compiles given input into [CompilerOutput]. Takes
     /// ownership over the input and returns back version with potential modifications made to it.
     /// Returned input is always the one which was seen by the binary.
-    fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>>;
+    fn compile(
+        &self,
+        input: &Self::Input,
+    ) -> Result<CompilerOutput<Self::CompilationError, Self::CompilerContract>>;
 
     /// Returns all versions available locally and remotely. Should return versions with stripped
     /// metadata.

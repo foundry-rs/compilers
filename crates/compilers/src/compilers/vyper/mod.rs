@@ -2,7 +2,7 @@ use self::{input::VyperVersionedInput, parser::VyperParsedSource};
 use super::{Compiler, CompilerOutput, Language};
 pub use crate::artifacts::vyper::{VyperCompilationError, VyperInput, VyperOutput, VyperSettings};
 use core::fmt;
-use foundry_compilers_artifacts::sources::Source;
+use foundry_compilers_artifacts::{sources::Source, Contract};
 use foundry_compilers_core::error::{Result, SolcError};
 use semver::Version;
 use serde::{de::DeserializeOwned, Serialize};
@@ -197,8 +197,12 @@ impl Compiler for Vyper {
     type ParsedSource = VyperParsedSource;
     type Input = VyperVersionedInput;
     type Language = VyperLanguage;
+    type CompilerContract = Contract;
 
-    fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<VyperCompilationError>> {
+    fn compile(
+        &self,
+        input: &Self::Input,
+    ) -> Result<CompilerOutput<VyperCompilationError, Contract>> {
         self.compile(input).map(Into::into)
     }
 

@@ -37,7 +37,7 @@ use crate::{
         contracts::VersionedContracts,
         sources::{VersionedSourceFile, VersionedSourceFiles},
     },
-    ProjectPathsConfig,
+    CompilerContract, ProjectPathsConfig,
 };
 
 /// Represents unique artifact metadata for identifying artifacts on output
@@ -110,7 +110,7 @@ impl ArtifactId {
     }
 }
 
-/// Represents an artifact file representing a [`crate::Contract`]
+/// Represents an artifact file representing a [`crate::compilers::CompilerContract`]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ArtifactFile<T> {
     /// The Artifact that was written
@@ -428,7 +428,7 @@ impl<T> Artifacts<T> {
     }
 }
 
-/// A trait representation for a [`crate::Contract`] artifact
+/// A trait representation for a [`crate::compilers::CompilerContract`] artifact
 pub trait Artifact {
     /// Returns the artifact's [`JsonAbi`] and bytecode.
     fn into_inner(self) -> (Option<JsonAbi>, Option<Bytes>);
@@ -596,9 +596,9 @@ where
 
 /// Handler invoked with the output of `solc`
 ///
-/// Implementers of this trait are expected to take care of [`crate::Contract`] to
-/// [`crate::ArtifactOutput::Artifact`] conversion and how that `Artifact` type is stored on disk,
-/// this includes artifact file location and naming.
+/// Implementers of this trait are expected to take care of [`crate::compilers::CompilerContract`]
+/// to [`crate::ArtifactOutput::Artifact`] conversion and how that `Artifact` type is stored on
+/// disk, this includes artifact file location and naming.
 ///
 /// Depending on the [`crate::Project`] contracts and their compatible versions,
 /// The project compiler may invoke different `solc` executables on the same
@@ -609,16 +609,17 @@ where
 pub trait ArtifactOutput {
     /// Represents the artifact that will be stored for a `Contract`
     type Artifact: Artifact + DeserializeOwned + Serialize + fmt::Debug + Send + Sync;
+    type CompilerContract: CompilerContract;
 
     /// Handle the aggregated set of compiled contracts from the solc [`crate::CompilerOutput`].
     ///
     /// This will be invoked with all aggregated contracts from (multiple) solc `CompilerOutput`.
     /// See [`crate::AggregatedCompilerOutput`]
-    fn on_output<C>(
+    fn on_output<L>(
         &self,
-        contracts: &VersionedContracts,
+        contracts: &VersionedContracts<Self::CompilerContract>,
         sources: &VersionedSourceFiles,
-        layout: &ProjectPathsConfig<C>,
+        layout: &ProjectPathsConfig<L>,
         ctx: OutputContext<'_>,
     ) -> Result<Artifacts<Self::Artifact>> {
         let mut artifacts = self.output_to_artifacts(contracts, sources, ctx, layout);
@@ -638,7 +639,7 @@ pub trait ArtifactOutput {
     /// Invoked after artifacts has been written to disk for additional processing.
     fn handle_artifacts(
         &self,
-        _contracts: &VersionedContracts,
+        _contracts: &VersionedContracts<Self::CompilerContract>,
         _artifacts: &Artifacts<Self::Artifact>,
     ) -> Result<()> {
         Ok(())
@@ -800,7 +801,7 @@ pub trait ArtifactOutput {
         &self,
         _file: &Path,
         _name: &str,
-        contract: Contract,
+        contract: Self::CompilerContract,
         source_file: Option<&SourceFile>,
     ) -> Self::Artifact;
 
@@ -845,7 +846,7 @@ pub trait ArtifactOutput {
     /// [`Self::on_output()`]
     fn output_to_artifacts<C>(
         &self,
-        contracts: &VersionedContracts,
+        contracts: &VersionedContracts<Self::CompilerContract>,
         sources: &VersionedSourceFiles,
         ctx: OutputContext<'_>,
         layout: &ProjectPathsConfig<C>,
@@ -1083,6 +1084,7 @@ pub struct MinimalCombinedArtifacts {
 
 impl ArtifactOutput for MinimalCombinedArtifacts {
     type Artifact = CompactContractBytecode;
+    type CompilerContract = Contract;
 
     fn contract_to_artifact(
         &self,
@@ -1112,10 +1114,11 @@ pub struct MinimalCombinedArtifactsHardhatFallback {
 
 impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
     type Artifact = CompactContractBytecode;
+    type CompilerContract = Contract;
 
     fn on_output<C>(
         &self,
-        output: &VersionedContracts,
+        output: &VersionedContracts<Contract>,
         sources: &VersionedSourceFiles,
         layout: &ProjectPathsConfig<C>,
         ctx: OutputContext<'_>,

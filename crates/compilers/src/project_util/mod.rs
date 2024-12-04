@@ -31,14 +31,20 @@ pub mod mock;
 /// A [`Project`] wrapper that lives in a new temporary directory
 ///
 /// Once `TempProject` is dropped, the temp dir is automatically removed, see [`TempDir::drop()`]
-pub struct TempProject<C: Compiler = MultiCompiler, T: ArtifactOutput = ConfigurableArtifacts> {
+pub struct TempProject<
+    C: Compiler = MultiCompiler,
+    T: ArtifactOutput<CompilerContract = C::CompilerContract> = ConfigurableArtifacts,
+> {
     /// temporary workspace root
     _root: TempDir,
     /// actual project workspace with the `root` tempdir as its root
     inner: Project<C, T>,
 }
 
-impl<T: ArtifactOutput + Default> TempProject<MultiCompiler, T> {
+impl<
+        T: ArtifactOutput<CompilerContract = <MultiCompiler as Compiler>::CompilerContract> + Default,
+    > TempProject<MultiCompiler, T>
+{
     /// Creates a new temp project using the provided paths and artifacts handler.
     /// sets the project root to a temp dir
     #[cfg(feature = "svm-solc")]
@@ -64,7 +70,10 @@ impl<T: ArtifactOutput + Default> TempProject<MultiCompiler, T> {
     }
 }
 
-impl<T: ArtifactOutput + Default> TempProject<MultiCompiler, T> {
+impl<
+        T: ArtifactOutput<CompilerContract = <MultiCompiler as Compiler>::CompilerContract> + Default,
+    > TempProject<MultiCompiler, T>
+{
     /// Creates a new temp project for the given `PathStyle`
     #[cfg(feature = "svm-solc")]
     pub fn with_style(prefix: &str, style: PathStyle) -> Result<Self> {
@@ -76,7 +85,10 @@ impl<T: ArtifactOutput + Default> TempProject<MultiCompiler, T> {
     }
 }
 
-impl<T: ArtifactOutput> fmt::Debug for TempProject<MultiCompiler, T> {
+impl<
+        T: ArtifactOutput<CompilerContract = <MultiCompiler as Compiler>::CompilerContract> + Default,
+    > fmt::Debug for TempProject<MultiCompiler, T>
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TempProject").field("paths", &self.inner.paths).finish()
     }
@@ -116,7 +128,11 @@ impl TempProject<MultiCompiler, HardhatArtifacts> {
     }
 }
 
-impl<C: Compiler + Default, T: ArtifactOutput + Default> TempProject<C, T> {
+impl<
+        C: Compiler + Default,
+        T: ArtifactOutput<CompilerContract = C::CompilerContract> + Default,
+    > TempProject<C, T>
+{
     /// Makes sure all resources are created
     pub fn create_new(
         root: TempDir,
@@ -461,8 +477,9 @@ impl TempProject {
     }
 }
 
-impl<T: ArtifactOutput + Default> AsRef<Project<MultiCompiler, T>>
-    for TempProject<MultiCompiler, T>
+impl<
+        T: ArtifactOutput<CompilerContract = <MultiCompiler as Compiler>::CompilerContract> + Default,
+    > AsRef<Project<MultiCompiler, T>> for TempProject<MultiCompiler, T>
 {
     fn as_ref(&self) -> &Project<MultiCompiler, T> {
         self.project()
