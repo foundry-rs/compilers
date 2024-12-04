@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.12.5](https://github.com/foundry-rs/compilers/releases/tag/v0.12.5) - 2024-12-04
 
+### Miscellaneous Tasks
+
+- Release 0.12.5
+
 ### Refactor
 
 - Make Contract generic for Compiler and add metadata to CompilerOutput ([#224](https://github.com/foundry-rs/compilers/issues/224))
