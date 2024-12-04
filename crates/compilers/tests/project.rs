@@ -59,16 +59,31 @@ pub static VYPER: LazyLock<Vyper> = LazyLock::new(|| {
         }
 
         let base = "https://github.com/vyperlang/vyper/releases/download/v0.4.0/vyper.0.4.0+commit.e9db8d9f";
-        let url = format!("{base}{}", match platform() {
-            Platform::MacOsAarch64 => "darwin",
-            Platform::LinuxAmd64 => "linux",
-            Platform::WindowsAmd64 => "windows.exe",
-            platform => panic!("unsupported platform: {platform:?}")
-        });
+        let url = format!(
+            "{base}{}",
+            match platform() {
+                Platform::MacOsAarch64 => "darwin",
+                Platform::LinuxAmd64 => "linux",
+                Platform::WindowsAmd64 => "windows.exe",
+                platform => panic!("unsupported platform: {platform:?}"),
+            }
+        );
 
-        let res = reqwest::get(url).await.unwrap();
-
-        assert!(res.status().is_success());
+        let mut retry = 3;
+        let mut res = None;
+        while retry > 0 {
+            match reqwest::get(&url).await.unwrap().error_for_status() {
+                Ok(res2) => {
+                    res = Some(res2);
+                    break;
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    retry -= 1;
+                }
+            }
+        }
+        let res = res.expect("failed to get vyper binary");
 
         let bytes = res.bytes().await.unwrap();
 
