@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.7](https://github.com/foundry-rs/compilers/releases/tag/v0.12.7) - 2024-12-05
+
+### Bug Fixes
+
+- Vyper version comparison typo ([#232](https://github.com/foundry-rs/compilers/issues/232))
+
 ## [0.12.6](https://github.com/foundry-rs/compilers/releases/tag/v0.12.6) - 2024-12-04
+
+### Miscellaneous Tasks
+
+- Release 0.12.6
 
 ### Performance
 
