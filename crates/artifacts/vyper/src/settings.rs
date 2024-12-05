@@ -82,7 +82,7 @@ impl VyperSettings {
                 // Unsupported selections.
                 #[rustfmt::skip]
                 selection.retain(|selection| {
-                    if *version <= VYPER_0_4 {
+                    if *version < VYPER_0_4 {
                         if matches!(
                             selection.as_str(),
                             | "evm.bytecode.sourceMap" | "evm.deployedBytecode.sourceMap"
