@@ -35,7 +35,7 @@ tokio = { workspace = true, optional = true }
 auto_impl = "1"
 winnow = "0.6"
 dyn-clone = "1"
-derivative = "2.2"
+derive_more = { version = "1", features = ["debug"] }
 home = "0.5"
 dirs = "5.0"
 itertools = "0.13"

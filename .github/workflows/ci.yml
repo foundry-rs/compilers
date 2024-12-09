@@ -105,3 +105,6 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all --check
+
+  deny:
+    uses: ithacaxyz/ci/.github/workflows/deny.yml@main

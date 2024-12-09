@@ -48,7 +48,6 @@ pub use foundry_compilers_core::{error, utils};
 use cache::CompilerCache;
 use compile::output::contracts::VersionedContracts;
 use compilers::multi::MultiCompiler;
-use derivative::Derivative;
 use foundry_compilers_artifacts::{
     output_selection::OutputSelection,
     solc::{
@@ -67,8 +66,7 @@ use std::{
 };
 
 /// Represents a project workspace and handles `solc` compiling of all contracts in that workspace.
-#[derive(Clone, Derivative)]
-#[derivative(Debug)]
+#[derive(Clone, derive_more::Debug)]
 pub struct Project<
     C: Compiler = MultiCompiler,
     T: ArtifactOutput<CompilerContract = C::CompilerContract> = ConfigurableArtifacts,
@@ -110,7 +108,7 @@ pub struct Project<
     /// This is a noop on other platforms
     pub slash_paths: bool,
     /// Optional sparse output filter used to optimize compilation.
-    #[derivative(Debug = "ignore")]
+    #[debug(skip)]
     pub sparse_output: Option<Box<dyn FileFilter>>,
 }
 
