@@ -5,37 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.7](https://github.com/foundry-rs/compilers/releases/tag/v0.12.7) - 2024-12-05
+## [0.12.8](https://github.com/foundry-rs/compilers/releases/tag/v0.12.8) - 2024-12-13
 
 ### Bug Fixes
 
+- Correctly merge restrictions ([#234](https://github.com/foundry-rs/compilers/issues/234))
 - Vyper version comparison typo ([#232](https://github.com/foundry-rs/compilers/issues/232))
-
-## [0.12.6](https://github.com/foundry-rs/compilers/releases/tag/v0.12.6) - 2024-12-04
-
-### Miscellaneous Tasks
-
-- Release 0.12.6
-
-### Performance
-
-- Don't request unnecessary output ([#231](https://github.com/foundry-rs/compilers/issues/231))
-
-## [0.12.5](https://github.com/foundry-rs/compilers/releases/tag/v0.12.5) - 2024-12-04
-
-### Miscellaneous Tasks
-
-- Release 0.12.5
-- Release 0.12.5
-
-### Refactor
-
-- Make Contract generic for Compiler and add metadata to CompilerOutput ([#224](https://github.com/foundry-rs/compilers/issues/224))
-
-## [0.12.4](https://github.com/foundry-rs/compilers/releases/tag/v0.12.4) - 2024-12-02
-
-### Bug Fixes
-
 - Add fallback parser for contract names ([#229](https://github.com/foundry-rs/compilers/issues/229))
 - Fix minor grammatical issue in project documentation ([#226](https://github.com/foundry-rs/compilers/issues/226))
 
@@ -45,11 +20,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.12.7
+- Release 0.12.6
+- Release 0.12.5
+- Release 0.12.5
 - Release 0.12.4
 
 ### Other
 
+- Move deny to ci ([#233](https://github.com/foundry-rs/compilers/issues/233))
 - Add note about grammar,spelling prs ([#228](https://github.com/foundry-rs/compilers/issues/228))
+
+### Performance
+
+- Don't request unnecessary output ([#231](https://github.com/foundry-rs/compilers/issues/231))
+
+### Refactor
+
+- Make Contract generic for Compiler and add metadata to CompilerOutput ([#224](https://github.com/foundry-rs/compilers/issues/224))
 
 ## [0.12.3](https://github.com/foundry-rs/compilers/releases/tag/v0.12.3) - 2024-11-20
 
@@ -89,7 +77,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sanitize `settings.optimizer.details.inliner` ([#216](https://github.com/foundry-rs/compilers/issues/216))
 - [tests] Always try installing pinned solc ([#217](https://github.com/foundry-rs/compilers/issues/217))
 - Outdated merge build error
-- Correctly handle b as pre-release in Vyper version ([#213](https://github.com/foundry-rs/compilers/issues/213))
 
 ### Features
 
@@ -102,6 +89,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove outdated `ref` patterns ([#218](https://github.com/foundry-rs/compilers/issues/218))
 - Inline constants in Settings::sanitize ([#219](https://github.com/foundry-rs/compilers/issues/219))
 - Use Version::new over .parse ([#220](https://github.com/foundry-rs/compilers/issues/220))
+
+## [0.11.6](https://github.com/foundry-rs/compilers/releases/tag/v0.11.6) - 2024-10-16
+
+### Bug Fixes
+
+- Correctly handle b as pre-release in Vyper version ([#213](https://github.com/foundry-rs/compilers/issues/213))
+
+### Miscellaneous Tasks
+
 - Release 0.11.6
 
 ## [0.11.5](https://github.com/foundry-rs/compilers/releases/tag/v0.11.5) - 2024-10-14
