@@ -957,8 +957,8 @@ impl FromStr for EvmVersion {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "homestead" => Ok(Self::Homestead),
-            "tangerineWhistle" => Ok(Self::TangerineWhistle),
-            "spuriousDragon" => Ok(Self::SpuriousDragon),
+            "tangerineWhistle" | "tangerinewhistle" => Ok(Self::TangerineWhistle),
+            "spuriousDragon" | "spuriousdragon" => Ok(Self::SpuriousDragon),
             "byzantium" => Ok(Self::Byzantium),
             "constantinople" => Ok(Self::Constantinople),
             "petersburg" => Ok(Self::Petersburg),
