@@ -118,7 +118,7 @@ impl From<Contract> for ContractBytecode {
             (None, None)
         };
 
-        Self { abi: c.abi.map(Into::into), bytecode, deployed_bytecode }
+        Self { abi: c.abi, bytecode, deployed_bytecode }
     }
 }
 
@@ -174,7 +174,7 @@ impl From<Contract> for CompactContractBytecode {
             (None, None)
         };
 
-        Self { abi: c.abi.map(Into::into), bytecode, deployed_bytecode }
+        Self { abi: c.abi, bytecode, deployed_bytecode }
     }
 }
 
