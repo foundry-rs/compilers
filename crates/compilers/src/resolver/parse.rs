@@ -1,9 +1,6 @@
 use foundry_compilers_core::utils;
 use semver::VersionReq;
-use solar_parse::{
-    ast,
-    interface::{sym, Pos},
-};
+use solar_parse::{ast, interface::sym};
 use std::{
     ops::Range,
     path::{Path, PathBuf},
@@ -116,7 +113,7 @@ impl SolData {
                 }
             }
         });
-        if let Err(e) = sess.emitted_diagnostics().unwrap() {
+        if let Err(e) = sess.emitted_errors().unwrap() {
             let e = e.to_string();
             trace!("failed parsing {file:?}: {e}");
             parse_result = Err(e);
