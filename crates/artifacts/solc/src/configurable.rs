@@ -91,7 +91,7 @@ impl ConfigurableContractArtifact {
 impl From<ConfigurableContractArtifact> for CompactContractBytecode {
     fn from(artifact: ConfigurableContractArtifact) -> Self {
         Self {
-            abi: artifact.abi.map(Into::into),
+            abi: artifact.abi,
             bytecode: artifact.bytecode,
             deployed_bytecode: artifact.deployed_bytecode,
         }
