@@ -21,11 +21,15 @@ dbg-macro = "warn"
 manual-string-new = "warn"
 uninlined-format-args = "warn"
 use-self = "warn"
+redundant-clone = "warn"
+# until <https://github.com/rust-lang/rust-clippy/issues/13885> is fixed
+literal-string-with-formatting-args = "allow"
 
 [workspace.lints.rust]
-rust-2018-idioms = "deny"
+rust-2018-idioms = "warn"
 # unreachable-pub = "warn"
-unused-must-use = "deny"
+unused-must-use = "warn"
+redundant-lifetimes = "warn"
 
 [workspace.lints.rustdoc]
 all = "warn"
