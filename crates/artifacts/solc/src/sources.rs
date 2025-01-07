@@ -1,6 +1,4 @@
-use alloy_primitives::hex;
-use foundry_compilers_core::{error::SolcIoError, utils};
-use md5::Digest;
+use foundry_compilers_core::error::SolcIoError;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -8,6 +6,9 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+
+#[cfg(feature = "walkdir")]
+use foundry_compilers_core::utils;
 
 type SourcesInner = BTreeMap<PathBuf, Source>;
 
@@ -142,11 +143,13 @@ impl Source {
     }
 
     /// Recursively finds all source files under the given dir path and reads them all
+    #[cfg(feature = "walkdir")]
     pub fn read_all_from(dir: &Path, extensions: &[&str]) -> Result<Sources, SolcIoError> {
         Self::read_all_files(utils::source_files(dir, extensions))
     }
 
     /// Recursively finds all solidity and yul files under the given dir path and reads them all
+    #[cfg(feature = "walkdir")]
     pub fn read_sol_yul_from(dir: &Path) -> Result<Sources, SolcIoError> {
         Self::read_all_from(dir, utils::SOLC_EXTENSIONS)
     }
@@ -175,6 +178,7 @@ impl Source {
     ///
     /// NOTE: this is only expected to be faster than `Self::read_all` if the given iterator
     /// contains at least several paths or the files are rather large.
+    #[cfg(feature = "rayon")]
     pub fn par_read_all<T, I>(files: I) -> Result<Sources, SolcIoError>
     where
         I: IntoIterator<Item = T>,
@@ -191,12 +195,10 @@ impl Source {
             .map(Sources)
     }
 
-    /// Generate a non-cryptographically secure checksum of the file's content
+    /// Generate a non-cryptographically secure checksum of the file's content.
+    #[cfg(feature = "checksum")]
     pub fn content_hash(&self) -> String {
-        let mut hasher = md5::Md5::new();
-        hasher.update(self);
-        let result = hasher.finalize();
-        hex::encode(result)
+        alloy_primitives::hex::encode(<md5::Md5 as md5::Digest>::digest(self.content.as_bytes()))
     }
 }
 
@@ -217,6 +219,7 @@ impl Source {
     }
 
     /// Finds all source files under the given dir path and reads them all
+    #[cfg(feature = "walkdir")]
     pub async fn async_read_all_from(
         dir: &Path,
         extensions: &[&str],

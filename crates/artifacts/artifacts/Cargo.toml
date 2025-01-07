@@ -20,3 +20,6 @@ foundry-compilers-artifacts-vyper.workspace = true
 
 [features]
 async = ["foundry-compilers-artifacts-solc/async"]
+checksum = ["foundry-compilers-artifacts-solc/checksum"]
+walkdir = ["foundry-compilers-artifacts-solc/walkdir"]
+rayon = ["foundry-compilers-artifacts-solc/rayon"]
