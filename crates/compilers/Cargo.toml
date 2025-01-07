@@ -15,8 +15,12 @@ exclude.workspace = true
 workspace = true
 
 [dependencies]
-foundry-compilers-artifacts.workspace = true
-foundry-compilers-core.workspace = true
+foundry-compilers-artifacts = { workspace = true, features = [
+    "checksum",
+    "walkdir",
+    "rayon",
+] }
+foundry-compilers-core = { workspace = true, features = ["regex"] }
 serde.workspace = true
 semver.workspace = true
 alloy-primitives.workspace = true
@@ -38,7 +42,7 @@ dyn-clone = "1"
 derive_more = { version = "1", features = ["debug"] }
 home = "0.5"
 dirs = "5.0"
-itertools = "0.13"
+itertools = ">=0.13, <=0.14"
 
 # project-util
 tempfile = { version = "3.9", optional = true }

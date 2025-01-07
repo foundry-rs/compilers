@@ -19,18 +19,26 @@ foundry-compilers-core.workspace = true
 
 alloy-json-abi.workspace = true
 alloy-primitives.workspace = true
-futures-util = { workspace = true, optional = true }
-md-5.workspace = true
-rayon.workspace = true
 semver.workspace = true
 serde_json.workspace = true
+serde_repr = "0.1"
 serde.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, optional = true }
 tracing.workspace = true
-walkdir.workspace = true
 yansi.workspace = true
-serde_repr = "0.1"
+
+# async
+tokio = { workspace = true, optional = true, features = ["fs"] }
+futures-util = { workspace = true, optional = true }
+
+# checksum
+md-5 = { workspace = true, optional = true }
+
+# walkdir
+walkdir = { workspace = true, optional = true }
+
+# rayon
+rayon = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
 path-slash.workspace = true
@@ -41,4 +49,7 @@ similar-asserts.workspace = true
 foundry-compilers-core = { workspace = true, features = ["test-utils"] }
 
 [features]
-async = ["dep:tokio", "futures-util", "tokio/fs"]
+async = ["dep:tokio", "dep:futures-util"]
+checksum = ["dep:md-5"]
+walkdir = ["dep:walkdir", "foundry-compilers-core/walkdir"]
+rayon = ["dep:rayon"]
