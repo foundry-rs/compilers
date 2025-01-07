@@ -28,7 +28,7 @@ impl<T: CompilerSettingsRestrictions> RestrictionsWithVersion<T> {
             if let Some(self_version) = self.version.as_mut() {
                 self_version.comparators.extend(version.comparators);
             } else {
-                self.version = Some(version.clone());
+                self.version = Some(version);
             }
         }
         self.restrictions = self.restrictions.merge(other.restrictions)?;

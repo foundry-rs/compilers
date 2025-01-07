@@ -635,9 +635,9 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
 
         if !all_versions.iter().any(|v| req.matches(v.as_ref())) {
             return if project.offline {
-                Err(SourceVersionError::NoMatchingVersionOffline(req.clone()))
+                Err(SourceVersionError::NoMatchingVersionOffline(req))
             } else {
-                Err(SourceVersionError::NoMatchingVersion(req.clone()))
+                Err(SourceVersionError::NoMatchingVersion(req))
             };
         }
 
@@ -685,9 +685,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         {
             // check if the version is even valid
             let f = utils::source_name(&failed_node.path, &self.root).display();
-            return Err(
-                format!("Encountered invalid solc version in {f}: {version_err}").to_string()
-            );
+            return Err(format!("Encountered invalid solc version in {f}: {version_err}"));
         } else {
             // if the node requirement makes sense, it means that there is at least one node
             // which requirement conflicts with it
@@ -757,9 +755,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
 
         if all_profiles.is_empty() {
             let f = utils::source_name(&failed_node.path, &self.root).display();
-            return Err(
-                format!("Missing profile satisfying settings restrictions for {f}").to_string()
-            );
+            return Err(format!("Missing profile satisfying settings restrictions for {f}"));
         }
 
         // iterate over all the nodes once again and find the one incompatible

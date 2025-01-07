@@ -680,7 +680,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             seen_by_compiler: false,
         };
 
-        self.cache.files.insert(file, entry.clone());
+        self.cache.files.insert(file, entry);
     }
 
     /// Returns the set of [Source]s that need to be compiled to produce artifacts for requested

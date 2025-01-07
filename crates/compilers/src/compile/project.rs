@@ -748,7 +748,7 @@ mod tests {
     fn extra_output_cached() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
         let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-        let mut project = TempProject::<MultiCompiler>::new(paths.clone()).unwrap();
+        let mut project = TempProject::<MultiCompiler>::new(paths).unwrap();
 
         // Compile once without enabled extra output
         project.compile().unwrap();

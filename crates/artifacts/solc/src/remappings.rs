@@ -101,8 +101,7 @@ impl FromStr for Remapping {
             return Err(RemappingError::EmptyRemappingValue(remapping.to_string()));
         }
         // if the remapping just starts with : (no context name), treat it as global
-        let context =
-            context.and_then(|c| if c.trim().is_empty() { None } else { Some(c.to_string()) });
+        let context = context.filter(|c| !c.trim().is_empty());
         Ok(Self { context, name: name.to_string(), path: path.to_string() })
     }
 }
