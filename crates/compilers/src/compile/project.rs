@@ -82,7 +82,7 @@
 //! provided to solc.
 //! For every file the cache file contains a dedicated [cache entry](crate::cache::CacheEntry),
 //! which represents the state of the file. A solidity file can contain several contracts, for every
-//! contract a separate [artifact](crate::Artifact) is emitted. Therefor the entry also tracks all
+//! contract a separate [artifact](crate::Artifact) is emitted. Therefore the entry also tracks all
 //! artifacts emitted by a file. A solidity file can also be compiled with several solc versions.
 //!
 //! For example in `A(<=0.8.10) imports C(>0.4.0)` and
