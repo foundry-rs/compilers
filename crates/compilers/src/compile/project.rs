@@ -108,7 +108,7 @@ use crate::{
     filter::SparseOutputFilter,
     output::{AggregatedCompilerOutput, Builds},
     report,
-    resolver::GraphEdges,
+    resolver::{GraphEdges, ResolvedSources},
     ArtifactOutput, CompilerSettings, Graph, Project, ProjectCompileOutput, Sources,
 };
 use foundry_compilers_core::error::Result;
@@ -128,6 +128,8 @@ pub struct ProjectCompiler<
     /// Contains the relationship of the source files and their imports
     edges: GraphEdges<C::ParsedSource>,
     project: &'a Project<C, T>,
+    /// A mapping from a source file path to the primary profile name selected for it.
+    primary_profiles: HashMap<PathBuf, &'a str>,
     /// how to compile all the sources
     sources: CompilerSources<'a, C::Language, C::Settings>,
 }
@@ -152,7 +154,8 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             sources.retain(|f, _| filter.is_match(f))
         }
         let graph = Graph::resolve_sources(&project.paths, sources)?;
-        let (sources, edges) = graph.into_sources_by_version(project)?;
+        let ResolvedSources { sources, primary_profiles, edges } =
+            graph.into_sources_by_version(project)?;
 
         // If there are multiple different versions, and we can use multiple jobs we can compile
         // them in parallel.
@@ -162,7 +165,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             sources,
         };
 
-        Ok(Self { edges, project, sources })
+        Ok(Self { edges, primary_profiles, project, sources })
     }
 
     /// Compiles all the sources of the `Project` in the appropriate mode
@@ -199,7 +202,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///   - check cache
     fn preprocess(self) -> Result<PreprocessedState<'a, T, C>> {
         trace!("preprocessing");
-        let Self { edges, project, mut sources } = self;
+        let Self { edges, project, mut sources, primary_profiles } = self;
 
         // convert paths on windows to ensure consistency with the `CompilerOutput` `solc` emits,
         // which is unix style `/`
@@ -209,7 +212,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         // retain and compile only dirty sources and all their imports
         sources.filter(&mut cache);
 
-        Ok(PreprocessedState { sources, cache })
+        Ok(PreprocessedState { sources, cache, primary_profiles })
     }
 }
 
@@ -224,6 +227,9 @@ struct PreprocessedState<'a, T: ArtifactOutput<CompilerContract = C::CompilerCon
 
     /// Cache that holds `CacheEntry` objects if caching is enabled and the project is recompiled
     cache: ArtifactsCache<'a, T, C>,
+
+    /// A mapping from a source file path to the primary profile name selected for it.
+    primary_profiles: HashMap<PathBuf, &'a str>,
 }
 
 impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
@@ -232,7 +238,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     /// advance to the next state by compiling all sources
     fn compile(self) -> Result<CompiledState<'a, T, C>> {
         trace!("compiling");
-        let PreprocessedState { sources, mut cache } = self;
+        let PreprocessedState { sources, mut cache, primary_profiles } = self;
 
         let mut output = sources.compile(&mut cache)?;
 
@@ -243,7 +249,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         // contracts again
         output.join_all(cache.project().root());
 
-        Ok(CompiledState { output, cache })
+        Ok(CompiledState { output, cache, primary_profiles })
     }
 }
 
@@ -252,6 +258,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 struct CompiledState<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> {
     output: AggregatedCompilerOutput<C>,
     cache: ArtifactsCache<'a, T, C>,
+    primary_profiles: HashMap<PathBuf, &'a str>,
 }
 
 impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
@@ -263,7 +270,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     /// successful
     #[instrument(skip_all, name = "write-artifacts")]
     fn write_artifacts(self) -> Result<ArtifactsState<'a, T, C>> {
-        let CompiledState { output, cache } = self;
+        let CompiledState { output, cache, primary_profiles } = self;
 
         let project = cache.project();
         let ctx = cache.output_ctx();
@@ -275,6 +282,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
                 &output.sources,
                 ctx,
                 &project.paths,
+                &primary_profiles,
             )
         } else if output.has_error(
             &project.ignored_error_codes,
@@ -287,6 +295,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
                 &output.sources,
                 ctx,
                 &project.paths,
+                &primary_profiles,
             )
         } else {
             trace!(
@@ -300,6 +309,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
                 &output.sources,
                 &project.paths,
                 ctx,
+                &primary_profiles,
             )?;
 
             // emits all the build infos, if they exist

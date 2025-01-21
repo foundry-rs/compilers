@@ -17,7 +17,7 @@ use semver::Version;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     borrow::Cow,
-    collections::{btree_map::BTreeMap, HashSet},
+    collections::{btree_map::BTreeMap, HashMap, HashSet},
     ffi::OsString,
     fmt, fs,
     hash::Hash,
@@ -621,8 +621,10 @@ pub trait ArtifactOutput {
         sources: &VersionedSourceFiles,
         layout: &ProjectPathsConfig<L>,
         ctx: OutputContext<'_>,
+        primary_profiles: &HashMap<PathBuf, &str>,
     ) -> Result<Artifacts<Self::Artifact>> {
-        let mut artifacts = self.output_to_artifacts(contracts, sources, ctx, layout);
+        let mut artifacts =
+            self.output_to_artifacts(contracts, sources, ctx, layout, primary_profiles);
         fs::create_dir_all(&layout.artifacts).map_err(|err| {
             error!(dir=?layout.artifacts, "Failed to create artifacts folder");
             SolcIoError::new(err, &layout.artifacts)
@@ -850,6 +852,7 @@ pub trait ArtifactOutput {
         sources: &VersionedSourceFiles,
         ctx: OutputContext<'_>,
         layout: &ProjectPathsConfig<C>,
+        primary_profiles: &HashMap<PathBuf, &str>,
     ) -> Artifacts<Self::Artifact> {
         let mut artifacts = ArtifactsMap::new();
 
@@ -877,6 +880,8 @@ pub trait ArtifactOutput {
                     versioned_contracts.iter().map(|c| &c.version).collect::<HashSet<_>>();
                 let unique_profiles =
                     versioned_contracts.iter().map(|c| &c.profile).collect::<HashSet<_>>();
+                let primary_profile = primary_profiles.get(file);
+
                 for contract in versioned_contracts {
                     non_standalone_sources.insert(file);
 
@@ -892,7 +897,8 @@ pub trait ArtifactOutput {
                         &contract.version,
                         &contract.profile,
                         unique_versions.len() > 1,
-                        unique_profiles.len() > 1,
+                        unique_profiles.len() > 1
+                            && primary_profile.is_none_or(|p| p != &contract.profile),
                     );
 
                     taken_paths_lowercase.insert(artifact_path.to_slash_lossy().to_lowercase());
@@ -1122,8 +1128,15 @@ impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
         sources: &VersionedSourceFiles,
         layout: &ProjectPathsConfig<C>,
         ctx: OutputContext<'_>,
+        primary_profiles: &HashMap<PathBuf, &str>,
     ) -> Result<Artifacts<Self::Artifact>> {
-        MinimalCombinedArtifacts::default().on_output(output, sources, layout, ctx)
+        MinimalCombinedArtifacts::default().on_output(
+            output,
+            sources,
+            layout,
+            ctx,
+            primary_profiles,
+        )
     }
 
     fn read_cached_artifact(path: &Path) -> Result<Self::Artifact> {
