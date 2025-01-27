@@ -615,7 +615,7 @@ fn version_from_output(output: Output) -> Result<Version> {
         let version = stdout
             .lines()
             .filter(|l| !l.trim().is_empty())
-            .last()
+            .next_back()
             .ok_or_else(|| SolcError::msg("Version not found in Solc output"))?;
         // NOTE: semver doesn't like `+` in g++ in build metadata which is invalid semver
         Ok(Version::from_str(&version.trim_start_matches("Version: ").replace(".g++", ".gcc"))?)
