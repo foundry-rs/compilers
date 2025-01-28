@@ -13,7 +13,7 @@ pub struct ContractInfo {
     /// Location of the contract
     pub path: Option<String>,
     /// Name of the contract
-    pub name: String,
+    pub name: Option<String>,
 }
 
 // === impl ContractInfo ===
@@ -38,7 +38,7 @@ impl ContractInfo {
     /// );
     /// ```
     pub fn new(info: &str) -> Self {
-        info.parse().unwrap_or_else(|_| Self { path: None, name: info.to_string() })
+        info.parse().unwrap_or_else(|_| Self { path: None, name: Some(info.to_string()) })
     }
 }
 
@@ -47,7 +47,10 @@ impl fmt::Display for ContractInfo {
         if let Some(path) = &self.path {
             write!(f, "{path}:")?;
         }
-        f.write_str(&self.name)
+        if let Some(name) = &self.name {
+            write!(f, "{}", name)?;
+        }
+        Ok(())
     }
 }
 
@@ -66,17 +69,18 @@ impl FromStr for ContractInfo {
         let path = iter.next().map(str::to_string);
 
         if name.ends_with(".sol") || name.contains('/') {
-            return Err(err());
+            // Path has been provided that likely contains a single contract
+            return Ok(Self { path: Some(name), name: None });
         }
 
-        Ok(Self { path, name })
+        Ok(Self { path, name: Some(name) })
     }
 }
 
 impl From<FullContractInfo> for ContractInfo {
     fn from(info: FullContractInfo) -> Self {
         let FullContractInfo { path, name } = info;
-        Self { path: Some(path), name }
+        Self { path: Some(path), name: Some(name) }
     }
 }
 
@@ -89,7 +93,10 @@ pub struct ContractInfoRef<'a> {
 
 impl From<ContractInfo> for ContractInfoRef<'_> {
     fn from(info: ContractInfo) -> Self {
-        ContractInfoRef { path: info.path.map(Into::into), name: info.name.into() }
+        ContractInfoRef {
+            path: info.path.map(Into::into),
+            name: info.name.unwrap_or_default().into(),
+        }
     }
 }
 
@@ -97,7 +104,7 @@ impl<'a> From<&'a ContractInfo> for ContractInfoRef<'a> {
     fn from(info: &'a ContractInfo) -> Self {
         ContractInfoRef {
             path: info.path.as_deref().map(Into::into),
-            name: info.name.as_str().into(),
+            name: info.name.as_deref().unwrap_or_default().into(),
         }
     }
 }
@@ -148,7 +155,40 @@ impl TryFrom<ContractInfo> for FullContractInfo {
             path: path.ok_or_else(|| {
                 ParseContractInfoError("path to contract must be present".to_string())
             })?,
-            name,
+            name: name.ok_or_else(|| {
+                ParseContractInfoError("name of contract must be present".to_string())
+            })?,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use similar_asserts::assert_eq;
+
+    use super::*;
+    #[test]
+    fn parse_contract_info() {
+        let s1 = "src/Greeter.sol:Greeter";
+        let info = s1.parse::<ContractInfo>().unwrap();
+        assert_eq!(
+            info,
+            ContractInfo {
+                path: Some("src/Greeter.sol".to_string()),
+                name: Some("Greeter".to_string())
+            }
+        );
+
+        let s2 = "Greeter";
+        let info = s2.parse::<ContractInfo>().unwrap();
+        assert_eq!(info, ContractInfo { path: None, name: Some("Greeter".to_string()) });
+
+        let s3 = "src/Greeter.sol";
+        let info = s3.parse::<ContractInfo>().unwrap();
+        assert_eq!(info, ContractInfo { path: Some("src/Greeter.sol".to_string()), name: None });
+
+        let s4 = "Greeter.sol";
+        let info = s4.parse::<ContractInfo>().unwrap();
+        assert_eq!(info, ContractInfo { path: Some("Greeter.sol".to_string()), name: None });
     }
 }
