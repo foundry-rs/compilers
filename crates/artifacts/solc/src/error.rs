@@ -147,29 +147,21 @@ impl fmt::Display for Error {
         let mut lines = fmtd_msg.lines();
 
         if let Some(l) = lines.clone().next() {
-            // For whatever reason, exceptions are formatted differently in `message` and
-            // `formattedMessage`:
-            //     YulException:Cannot swap...
-            // vs:
-            //     YulException: Cannot swap...
-            fn after_colon(s: &str) -> &str {
-                s.find(':').map(|i| s[i + 1..].trim()).unwrap_or(s)
-            }
-
-            let sl = short_msg.lines().next().unwrap_or("");
-            if l.contains(sl) || after_colon(l).contains(after_colon(sl)) {
-                // `fmtd_msg` contains `short_msg`.
-                if l.bytes().filter(|b| *b == b':').count() >= 3 {
-                    // This is an old style error message, like:
-                    //     path/to/file:line:column: ErrorType: message
-                    // We want to display this as-is.
-                } else {
-                    // Otherwise, assume that the messages are the same until we find a source
-                    // location.
-                    lines.next();
-                    while lines.clone().next().is_some_and(|l| !l.contains("-->")) {
-                        lines.next();
+            if l.bytes().filter(|&b| b == b':').count() >= 3
+                && (l.contains(['/', '\\']) || l.contains(".sol"))
+            {
+                // This is an old style error message, like:
+                //     path/to/file:line:column: ErrorType: message
+                // We want to display this as-is.
+            } else {
+                // Otherwise, assume that the messages are the same until we find a source
+                // location.
+                lines.next();
+                while let Some(line) = lines.clone().next() {
+                    if line.contains("-->") {
+                        break;
                     }
+                    lines.next();
                 }
             }
         }
@@ -447,5 +439,14 @@ mod tests {
         eprintln!("{s}");
         assert_eq!(s.match_indices("Cannot swap Variable _23").count(), 1, "\n{s}");
         assert!(s.contains("-->"), "\n{s}");
+    }
+
+    #[test]
+    fn stack_too_deep_no_source_location() {
+        let error = r#"{"type":"CompilerError","component":"general","severity":"error","errorCode":null,"message":"Compiler error (/solidity/libyul/backends/evm/AsmCodeGen.cpp:63):Stack too deep. Try compiling with `--via-ir` (cli) or the equivalent `viaIR: true` (standard JSON) while enabling the optimizer. Otherwise, try removing local variables. When compiling inline assembly: Variable key_ is 2 slot(s) too deep inside the stack. Stack too deep. Try compiling with `--via-ir` (cli) or the equivalent `viaIR: true` (standard JSON) while enabling the optimizer. Otherwise, try removing local variables.","formattedMessage":"CompilerError: Stack too deep. Try compiling with `--via-ir` (cli) or the equivalent `viaIR: true` (standard JSON) while enabling the optimizer. Otherwise, try removing local variables. When compiling inline assembly: Variable key_ is 2 slot(s) too deep inside the stack. Stack too deep. Try compiling with `--via-ir` (cli) or the equivalent `viaIR: true` (standard JSON) while enabling the optimizer. Otherwise, try removing local variables.\n\n"}"#;
+        let error = serde_json::from_str::<Error>(error).unwrap();
+        let s = error.to_string();
+        eprintln!("{s}");
+        assert_eq!(s.match_indices("too deep inside the stack.").count(), 1, "\n{s}");
     }
 }
