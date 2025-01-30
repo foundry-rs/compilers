@@ -146,22 +146,38 @@ impl fmt::Display for Error {
 
         let mut lines = fmtd_msg.lines();
 
-        // skip the first line if it contains the same message as the one we just formatted,
-        // unless it also contains a source location, in which case the entire error message is an
-        // old style error message, like:
-        //     path/to/file:line:column: ErrorType: message
-        if lines
-            .clone()
-            .next()
-            .is_some_and(|l| l.contains(short_msg) && l.bytes().filter(|b| *b == b':').count() < 3)
-        {
-            let _ = lines.next();
+        if let Some(l) = lines.clone().next() {
+            // For whatever reason, exceptions are formatted differently in `message` and
+            // `formattedMessage`:
+            //     YulException:Cannot swap...
+            // vs:
+            //     YulException: Cannot swap...
+            fn after_colon(s: &str) -> &str {
+                s.find(':').map(|i| s[i + 1..].trim()).unwrap_or(s)
+            }
+
+            let sl = short_msg.lines().next().unwrap_or("");
+            if l.contains(sl) || after_colon(l).contains(after_colon(sl)) {
+                // `fmtd_msg` contains `short_msg`.
+                if l.bytes().filter(|b| *b == b':').count() >= 3 {
+                    // This is an old style error message, like:
+                    //     path/to/file:line:column: ErrorType: message
+                    // We want to display this as-is.
+                } else {
+                    // Otherwise, assume that the messages are the same until we find a source
+                    // location.
+                    lines.next();
+                    while lines.clone().next().is_some_and(|l| !l.contains("-->")) {
+                        lines.next();
+                    }
+                }
+            }
         }
 
-        // format the main source location
+        // Format the main source location.
         fmt_source_location(f, &mut lines)?;
 
-        // format remaining lines as secondary locations
+        // Format remaining lines as secondary locations.
         while let Some(line) = lines.next() {
             f.write_str("\n")?;
 
@@ -404,7 +420,7 @@ mod tests {
     }
 
     #[test]
-    fn solc_not_formatting_the_message1() {
+    fn no_source_location() {
         let error = r#"{"component":"general","errorCode":"6553","formattedMessage":"SyntaxError: The msize instruction cannot be used when the Yul optimizer is activated because it can change its semantics. Either disable the Yul optimizer or do not use the instruction.\n\n","message":"The msize instruction cannot be used when the Yul optimizer is activated because it can change its semantics. Either disable the Yul optimizer or do not use the instruction.","severity":"error","sourceLocation":{"end":173,"file":"","start":114},"type":"SyntaxError"}"#;
         let error = serde_json::from_str::<Error>(error).unwrap();
         let s = error.to_string();
@@ -414,12 +430,22 @@ mod tests {
     }
 
     #[test]
-    fn solc_not_formatting_the_message2() {
+    fn no_source_location2() {
         let error = r#"{"component":"general","errorCode":"5667","formattedMessage":"Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.\n\n","message":"Unused function parameter. Remove or comment out the variable name to silence this warning.","severity":"warning","sourceLocation":{"end":104,"file":"","start":95},"type":"Warning"}"#;
         let error = serde_json::from_str::<Error>(error).unwrap();
         let s = error.to_string();
         eprintln!("{s}");
         assert!(s.contains("Warning (5667)"), "\n{s}");
         assert!(s.contains("Unused function parameter. Remove or comment out the variable name to silence this warning."), "\n{s}");
+    }
+
+    #[test]
+    fn stack_too_deep_multiline() {
+        let error = r#"{"sourceLocation":{"file":"test/LibMap.t.sol","start":15084,"end":15113},"type":"YulException","component":"general","severity":"error","errorCode":null,"message":"Yul exception:Cannot swap Variable _23 with Slot RET[fun_assertEq]: too deep in the stack by 1 slots in [ var_136614_mpos RET _23 _21 _23 var_map_136608_slot _34 _34 _29 _33 _33 _39 expr_48 var_bitWidth var_map_136608_slot _26 _29 var_bitWidth TMP[eq, 0] RET[fun_assertEq] ]\nmemoryguard was present.","formattedMessage":"YulException: Cannot swap Variable _23 with Slot RET[fun_assertEq]: too deep in the stack by 1 slots in [ var_136614_mpos RET _23 _21 _23 var_map_136608_slot _34 _34 _29 _33 _33 _39 expr_48 var_bitWidth var_map_136608_slot _26 _29 var_bitWidth TMP[eq, 0] RET[fun_assertEq] ]\nmemoryguard was present.\n   --> test/LibMap.t.sol:461:34:\n    |\n461 |             uint256 end = t.o - (t.o > 0 ? _random() % t.o : 0);\n    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n"}"#;
+        let error = serde_json::from_str::<Error>(error).unwrap();
+        let s = error.to_string();
+        eprintln!("{s}");
+        assert_eq!(s.match_indices("Cannot swap Variable _23").count(), 1, "\n{s}");
+        assert!(s.contains("-->"), "\n{s}");
     }
 }
