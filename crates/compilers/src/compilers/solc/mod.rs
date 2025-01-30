@@ -342,8 +342,8 @@ impl CompilerSettings for SolcSettings {
         let SolcRestrictions { evm_version, via_ir, optimizer_runs, bytecode_hash } = restrictions;
 
         satisfies &= evm_version.satisfies(self.evm_version);
-        satisfies &= via_ir.map_or(true, |via_ir| via_ir == self.via_ir.unwrap_or_default());
-        satisfies &= bytecode_hash.map_or(true, |bytecode_hash| {
+        satisfies &= via_ir.is_none_or(|via_ir| via_ir == self.via_ir.unwrap_or_default());
+        satisfies &= bytecode_hash.is_none_or(|bytecode_hash| {
             self.metadata.as_ref().and_then(|m| m.bytecode_hash) == Some(bytecode_hash)
         });
         satisfies &= optimizer_runs.satisfies(self.optimizer.runs);
