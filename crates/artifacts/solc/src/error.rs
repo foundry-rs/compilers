@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::{fmt, ops::Range, str::FromStr};
 use yansi::{Color, Style};
 
+const ARROW: &str = "-->";
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SourceLocation {
     pub file: String,
@@ -158,7 +160,7 @@ impl fmt::Display for Error {
                 // location.
                 lines.next();
                 while let Some(line) = lines.clone().next() {
-                    if line.contains("-->") {
+                    if line.contains(ARROW) {
                         break;
                     }
                     lines.next();
@@ -268,11 +270,9 @@ fn fmt_source_location(f: &mut fmt::Formatter<'_>, lines: &mut std::str::Lines<'
     // --> source
     if let Some(line) = lines.next() {
         f.write_str("\n")?;
-
-        let arrow = "-->";
-        if let Some((left, loc)) = line.split_once(arrow) {
+        if let Some((left, loc)) = line.split_once(ARROW) {
             f.write_str(left)?;
-            styled(f, Error::frame_style(), |f| f.write_str(arrow))?;
+            styled(f, Error::frame_style(), |f| f.write_str(ARROW))?;
             f.write_str(loc)?;
         } else {
             f.write_str(line)?;
