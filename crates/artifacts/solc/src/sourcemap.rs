@@ -556,20 +556,23 @@ enum State {
 
 impl State {
     fn advance(&mut self, pos: usize) -> Result<(), SyntaxError> {
-        match self {
-            Self::Offset => *self = Self::Length,
-            Self::Length => *self = Self::Index,
-            Self::Index => *self = Self::Jmp,
-            Self::Jmp => *self = Self::Modifier,
+        *self = match self {
+            Self::Offset => Self::Length,
+            Self::Length => Self::Index,
+            Self::Index => Self::Jmp,
+            Self::Jmp => Self::Modifier,
             Self::Modifier => return Err(SyntaxError::new(pos, "unexpected colon")),
-        }
+        };
         Ok(())
     }
 }
 
-/// Parses a source map
+/// Parses a source map.
 pub fn parse(input: &str) -> Result<SourceMap, SyntaxError> {
-    Parser::new(input).collect()
+    Parser::new(input).collect::<Result<SourceMap, SyntaxError>>().map(|mut v| {
+        v.shrink_to_fit();
+        v
+    })
 }
 
 #[cfg(test)]

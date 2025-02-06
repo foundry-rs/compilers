@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1](https://github.com/foundry-rs/compilers/releases/tag/v0.13.1) - 2025-02-02
+
+### Dependencies
+
+- [deps] Bump dirs ([#243](https://github.com/foundry-rs/compilers/issues/243))
+
+### Miscellaneous Tasks
+
+- Clippy + winnow 0.7 ([#244](https://github.com/foundry-rs/compilers/issues/244))
+- Call shrink_to_fit afte parsing source maps ([#242](https://github.com/foundry-rs/compilers/issues/242))
+
+## [0.13.0](https://github.com/foundry-rs/compilers/releases/tag/v0.13.0) - 2025-01-21
+
+### Features
+
+- Better artifact filenames for different profiles ([#241](https://github.com/foundry-rs/compilers/issues/241))
+- Add more features to reduce dependencies ([#239](https://github.com/foundry-rs/compilers/issues/239))
+
+### Miscellaneous Tasks
+
+- More lints ([#238](https://github.com/foundry-rs/compilers/issues/238))
+
 ## [0.12.9](https://github.com/foundry-rs/compilers/releases/tag/v0.12.9) - 2025-01-05
 
 ### Dependencies

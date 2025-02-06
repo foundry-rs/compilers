@@ -854,7 +854,24 @@ pub fn collect_ordered_deps<D: ParsedSource + MaybeSolData>(
         paths_with_deps_count.push((path_deps.len(), path));
     }
 
-    paths_with_deps_count.sort();
+    paths_with_deps_count.sort_by(|(count_0, path_0), (count_1, path_1)| {
+        // Compare dependency counts
+        match count_0.cmp(count_1) {
+            o if !o.is_eq() => return o,
+            _ => {}
+        };
+
+        // Try comparing file names
+        if let Some((name_0, name_1)) = path_0.file_name().zip(path_1.file_name()) {
+            match name_0.cmp(name_1) {
+                o if !o.is_eq() => return o,
+                _ => {}
+            }
+        }
+
+        // If both filenames and dependecy counts are equal, fallback to comparing file paths
+        path_0.cmp(path_1)
+    });
 
     let mut ordered_deps =
         paths_with_deps_count.into_iter().map(|(_, path)| path).collect::<Vec<_>>();

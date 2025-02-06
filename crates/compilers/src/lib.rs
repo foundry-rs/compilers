@@ -732,8 +732,9 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Art
         sources: &VersionedSourceFiles,
         layout: &ProjectPathsConfig<CP>,
         ctx: OutputContext<'_>,
+        primary_profiles: &HashMap<PathBuf, &str>,
     ) -> Result<Artifacts<Self::Artifact>> {
-        self.artifacts_handler().on_output(contracts, sources, layout, ctx)
+        self.artifacts_handler().on_output(contracts, sources, layout, ctx, primary_profiles)
     }
 
     fn handle_artifacts(
@@ -797,8 +798,15 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Art
         sources: &VersionedSourceFiles,
         ctx: OutputContext<'_>,
         layout: &ProjectPathsConfig<CP>,
+        primary_profiles: &HashMap<PathBuf, &str>,
     ) -> Artifacts<Self::Artifact> {
-        self.artifacts_handler().output_to_artifacts(contracts, sources, ctx, layout)
+        self.artifacts_handler().output_to_artifacts(
+            contracts,
+            sources,
+            ctx,
+            layout,
+            primary_profiles,
+        )
     }
 
     fn standalone_source_file_to_artifact(
@@ -858,10 +866,10 @@ fn rebase_path(base: &Path, path: &Path) -> PathBuf {
 
         if Some(path_component) != base_component {
             if base_component.is_some() {
-                new_path.extend(
-                    std::iter::repeat(std::path::Component::ParentDir)
-                        .take(base_components.count() + 1),
-                );
+                new_path.extend(std::iter::repeat_n(
+                    std::path::Component::ParentDir,
+                    base_components.count() + 1,
+                ));
             }
 
             new_path.push(path_component);
