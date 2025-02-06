@@ -79,7 +79,7 @@ pub struct Project<
     /// Additional settings for cases when default compiler settings are not enough to cover all
     /// possible restrictions.
     pub additional_settings: BTreeMap<String, C::Settings>,
-    /// Mapping from file path to requrements on settings to compile it.
+    /// Mapping from file path to requirements on settings to compile it.
     ///
     /// This file will only be included into compiler inputs with profiles which satisfy the
     /// restrictions.

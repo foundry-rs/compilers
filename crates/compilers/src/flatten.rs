@@ -115,7 +115,7 @@ impl Visitor for ReferencesCollector {
 type Updates = HashMap<PathBuf, HashSet<(usize, usize, String)>>;
 
 pub struct FlatteningResult<'a> {
-    /// Updated source in the order they shoud be written to the output file.
+    /// Updated source in the order they should be written to the output file.
     sources: Vec<String>,
     /// Pragmas that should be present in the target file.
     pragmas: Vec<String>,
@@ -361,7 +361,7 @@ impl Flattener {
     ///
     /// This approach works by firstly collecting all IDs of import directives, and then looks for
     /// any references of them. Once the reference is found, it's full length is getting removed
-    /// from source + 1 charater ('.')
+    /// from source + 1 character ('.')
     ///
     /// This should work correctly for vast majority of cases, however there are situations for
     /// which such approach won't work, most of which are related to code being formatted in an
@@ -750,7 +750,7 @@ impl Flattener {
             .collect()
     }
 
-    /// Removes all license identifiers from all sources. Returns licesnse identifier from target
+    /// Removes all license identifiers from all sources. Returns license identifier from target
     /// file, if any.
     fn process_licenses(&self, updates: &mut Updates) -> Option<&str> {
         let mut target_license = None;
