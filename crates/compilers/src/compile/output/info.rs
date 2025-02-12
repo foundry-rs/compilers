@@ -1,6 +1,6 @@
 //! Commonly used identifiers for contracts in the compiled output.
 
-use std::{borrow::Cow, fmt, str::FromStr};
+use std::{borrow::Cow, fmt, path::Path, str::FromStr};
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("{0}")]
@@ -39,6 +39,11 @@ impl ContractInfo {
     /// ```
     pub fn new(info: &str) -> Self {
         info.parse().unwrap_or_else(|_| Self { path: None, name: info.to_string() })
+    }
+
+    /// Returns the path to the contract source file if provided.
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_deref().map(Path::new)
     }
 }
 
