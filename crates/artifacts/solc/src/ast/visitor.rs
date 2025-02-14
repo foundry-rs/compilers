@@ -99,6 +99,9 @@ impl_walk!(SourceUnitPart, |part, visitor| {
         SourceUnitPart::ErrorDefinition(error) => {
             error.walk(visitor);
         }
+        SourceUnitPart::EventDefinition(event) => {
+            event.walk(visitor);
+        }
         SourceUnitPart::StructDefinition(struct_) => {
             struct_.walk(visitor);
         }

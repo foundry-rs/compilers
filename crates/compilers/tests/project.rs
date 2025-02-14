@@ -4113,3 +4113,44 @@ contract SimpleContract {}
         ]
     );
 }
+
+// <https://github.com/foundry-rs/foundry/issues/9876>
+#[test]
+fn can_flatten_top_level_event_declaration() {
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
+
+    let target = project
+        .add_source(
+            "A",
+            r#"pragma solidity ^0.8.10;
+import "./B.sol";
+contract A { }
+"#,
+        )
+        .unwrap();
+
+    project
+        .add_source(
+            "B",
+            r#"
+event TestEvent();
+"#,
+        )
+        .unwrap();
+
+    test_flatteners(&project, &target, |result| {
+        assert_eq!(
+            result,
+            r"pragma solidity ^0.8.10;
+
+// src/B.sol
+
+event TestEvent();
+
+// src/A.sol
+
+contract A { }
+"
+        );
+    });
+}

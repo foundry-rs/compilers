@@ -320,7 +320,7 @@ impl Flattener {
             let mut ids = ids.clone().into_iter().collect::<Vec<_>>();
             if needs_rename {
                 // `loc.path` is expected to be different for each id because there can't be 2
-                // top-level eclarations with the same name in the same file.
+                // top-level declarations with the same name in the same file.
                 //
                 // Sorting by index loc.path in sorted files to make the renaming process
                 // deterministic.
