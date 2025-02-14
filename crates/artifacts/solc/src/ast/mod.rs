@@ -57,6 +57,7 @@ node_group! {
     VariableDeclaration,
     EnumDefinition,
     ErrorDefinition,
+    EventDefinition,
     FunctionDefinition,
     StructDefinition,
     UserDefinedValueTypeDefinition,
