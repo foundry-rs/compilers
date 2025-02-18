@@ -21,15 +21,17 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        rust: ["stable", "1.70"]
+        rust: ["stable", "1.83"]
         flags: ["", "--all-features"]
         exclude:
           # Skip because some features have higher MSRV.
-          - rust: "1.70" # MSRV
+          - rust: "1.83" # MSRV
             flags: "--all-features"
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
       - name: Install test binaries
         shell: bash
         run: ./.github/scripts/install_test_binaries.sh
@@ -38,11 +40,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - name: build
-        if: matrix.rust == '1.70' # MSRV
-        run: cargo build --workspace ${{ matrix.flags }}
       - name: test
-        if: matrix.rust != '1.70' # MSRV
         shell: bash
         run: cargo nextest run ${{ matrix.flags }} --retries 2
 
@@ -107,3 +105,6 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all --check
+
+  deny:
+    uses: ithacaxyz/ci/.github/workflows/deny.yml@main

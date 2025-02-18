@@ -1,11 +1,12 @@
 use crate::ProjectPathsConfig;
+use alloy_json_abi::JsonAbi;
 use core::fmt;
 use foundry_compilers_artifacts::{
     error::SourceLocation,
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Contract, FileToContractsMap, Severity, SourceFile,
+    BytecodeObject, CompactContractRef, Contract, FileToContractsMap, Severity, SourceFile,
 };
 use foundry_compilers_core::error::Result;
 use semver::{Version, VersionReq};
@@ -23,6 +24,9 @@ pub mod multi;
 pub mod solc;
 pub mod vyper;
 pub use vyper::*;
+
+mod restrictions;
+pub use restrictions::{CompilerSettingsRestrictions, RestrictionsWithVersion};
 
 /// A compiler version is either installed (available locally) or can be downloaded, from the remote
 /// endpoint
@@ -65,6 +69,10 @@ impl fmt::Display for CompilerVersion {
 pub trait CompilerSettings:
     Default + Serialize + DeserializeOwned + Clone + Debug + Send + Sync + 'static
 {
+    /// We allow configuring settings restrictions which might optionally contain specific
+    /// requiremets for compiler configuration. e.g. min/max evm_version, optimizer runs
+    type Restrictions: CompilerSettingsRestrictions;
+
     /// Executes given fn with mutable reference to configured [OutputSelection].
     fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy);
 
@@ -97,6 +105,9 @@ pub trait CompilerSettings:
     fn with_include_paths(self, _include_paths: &BTreeSet<PathBuf>) -> Self {
         self
     }
+
+    /// Returns whether current settings satisfy given restrictions.
+    fn satisfies_restrictions(&self, restrictions: &Self::Restrictions) -> bool;
 }
 
 /// Input of a compiler, including sources and settings used for their compilation.
@@ -129,13 +140,24 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
 }
 
 /// Parser of the source files which is used to identify imports and version requirements of the
-/// given source. Used by path resolver to resolve imports or determine compiler versions needed to
-/// compiler given sources.
+/// given source.
+///
+/// Used by path resolver to resolve imports or determine compiler versions needed to compiler given
+/// sources.
 pub trait ParsedSource: Debug + Sized + Send + Clone {
     type Language: Language;
 
+    /// Parses the content of the source file.
     fn parse(content: &str, file: &Path) -> Result<Self>;
+
+    /// Returns the version requirement of the source.
     fn version_req(&self) -> Option<&VersionReq>;
+
+    /// Returns a list of contract names defined in the source.
+    fn contract_names(&self) -> &[String];
+
+    /// Returns the language of the source.
+    fn language(&self) -> Self::Language;
 
     /// Invoked during import resolution. Should resolve imports for the given source, and populate
     /// include_paths for compilers which support this config.
@@ -144,7 +166,6 @@ pub trait ParsedSource: Debug + Sized + Send + Clone {
         paths: &ProjectPathsConfig<C>,
         include_paths: &mut BTreeSet<PathBuf>,
     ) -> Result<Vec<PathBuf>>;
-    fn language(&self) -> Self::Language;
 
     /// Used to configure [OutputSelection] for sparse builds. In certain cases, we might want to
     /// include some of the file dependencies into the compiler output even if we might not be
@@ -178,19 +199,21 @@ pub trait CompilationError:
     fn error_code(&self) -> Option<u64>;
 }
 
-/// Output of the compiler, including contracts, sources and errors. Currently only generic over the
-/// error but might be extended in the future.
+/// Output of the compiler, including contracts, sources, errors and metadata. might be
+/// extended to be more generic in the future.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CompilerOutput<E> {
+pub struct CompilerOutput<E, C> {
     #[serde(default = "Vec::new", skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<E>,
-    #[serde(default)]
-    pub contracts: FileToContractsMap<Contract>,
+    #[serde(default = "BTreeMap::new")]
+    pub contracts: FileToContractsMap<C>,
     #[serde(default)]
     pub sources: BTreeMap<PathBuf, SourceFile>,
+    #[serde(default, skip_serializing_if = "::std::collections::BTreeMap::is_empty")]
+    pub metadata: BTreeMap<String, serde_json::Value>,
 }
 
-impl<E> CompilerOutput<E> {
+impl<E, C> CompilerOutput<E, C> {
     /// Retains only those files the given iterator yields
     ///
     /// In other words, removes all contracts for files not included in the iterator
@@ -224,18 +247,24 @@ impl<E> CompilerOutput<E> {
             .collect();
     }
 
-    pub fn map_err<F, O: FnMut(E) -> F>(self, op: O) -> CompilerOutput<F> {
+    pub fn map_err<F, O: FnMut(E) -> F>(self, op: O) -> CompilerOutput<F, C> {
         CompilerOutput {
             errors: self.errors.into_iter().map(op).collect(),
             contracts: self.contracts,
             sources: self.sources,
+            metadata: self.metadata,
         }
     }
 }
 
-impl<E> Default for CompilerOutput<E> {
+impl<E, C> Default for CompilerOutput<E, C> {
     fn default() -> Self {
-        Self { errors: Vec::new(), contracts: BTreeMap::new(), sources: BTreeMap::new() }
+        Self {
+            errors: Vec::new(),
+            contracts: BTreeMap::new(),
+            sources: BTreeMap::new(),
+            metadata: BTreeMap::new(),
+        }
     }
 }
 
@@ -247,15 +276,60 @@ pub trait Language:
     const FILE_EXTENSIONS: &'static [&'static str];
 }
 
-/// The main compiler abstraction trait. Currently mostly represents a wrapper around compiler
-/// binary aware of the version and able to compile given input into [CompilerOutput] including
-/// artifacts and errors.'
+/// Represents a compiled contract
+pub trait CompilerContract: Serialize + Send + Sync + Debug + Clone + Eq + Sized {
+    /// Reference to contract ABI
+    fn abi_ref(&self) -> Option<&JsonAbi>;
+
+    //// Reference to contract bytecode
+    fn bin_ref(&self) -> Option<&BytecodeObject>;
+
+    //// Reference to contract runtime bytecode
+    fn bin_runtime_ref(&self) -> Option<&BytecodeObject>;
+
+    fn as_compact_contract_ref(&self) -> CompactContractRef<'_> {
+        CompactContractRef {
+            abi: self.abi_ref(),
+            bin: self.bin_ref(),
+            bin_runtime: self.bin_runtime_ref(),
+        }
+    }
+}
+
+impl CompilerContract for Contract {
+    fn abi_ref(&self) -> Option<&JsonAbi> {
+        self.abi.as_ref()
+    }
+    fn bin_ref(&self) -> Option<&BytecodeObject> {
+        if let Some(ref evm) = self.evm {
+            evm.bytecode.as_ref().map(|c| &c.object)
+        } else {
+            None
+        }
+    }
+    fn bin_runtime_ref(&self) -> Option<&BytecodeObject> {
+        if let Some(ref evm) = self.evm {
+            evm.deployed_bytecode
+                .as_ref()
+                .and_then(|deployed| deployed.bytecode.as_ref().map(|evm| &evm.object))
+        } else {
+            None
+        }
+    }
+}
+
+/// The main compiler abstraction trait.
+///
+/// Currently mostly represents a wrapper around compiler binary aware of the version and able to
+/// compile given input into [`CompilerOutput`] including artifacts and errors.
 #[auto_impl::auto_impl(&, Box, Arc)]
 pub trait Compiler: Send + Sync + Clone {
     /// Input type for the compiler. Contains settings and sources to be compiled.
     type Input: CompilerInput<Settings = Self::Settings, Language = Self::Language>;
     /// Error type returned by the compiler.
     type CompilationError: CompilationError;
+    /// Output data for each contract
+    type CompilerContract: CompilerContract;
     /// Source parser used for resolving imports and version requirements.
     type ParsedSource: ParsedSource<Language = Self::Language>;
     /// Compiler settings.
@@ -266,7 +340,10 @@ pub trait Compiler: Send + Sync + Clone {
     /// Main entrypoint for the compiler. Compiles given input into [CompilerOutput]. Takes
     /// ownership over the input and returns back version with potential modifications made to it.
     /// Returned input is always the one which was seen by the binary.
-    fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<Self::CompilationError>>;
+    fn compile(
+        &self,
+        input: &Self::Input,
+    ) -> Result<CompilerOutput<Self::CompilationError, Self::CompilerContract>>;
 
     /// Returns all versions available locally and remotely. Should return versions with stripped
     /// metadata.
@@ -275,19 +352,24 @@ pub trait Compiler: Send + Sync + Clone {
 
 pub(crate) fn cache_version(
     path: PathBuf,
+    args: &[String],
     f: impl FnOnce(&Path) -> Result<Version>,
 ) -> Result<Version> {
-    static VERSION_CACHE: OnceLock<Mutex<HashMap<PathBuf, Version>>> = OnceLock::new();
+    #[allow(clippy::complexity)]
+    static VERSION_CACHE: OnceLock<Mutex<HashMap<PathBuf, HashMap<Vec<String>, Version>>>> =
+        OnceLock::new();
     let mut lock = VERSION_CACHE
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    Ok(match lock.entry(path) {
-        std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
-        std::collections::hash_map::Entry::Vacant(entry) => {
-            let value = f(entry.key())?;
-            entry.insert(value)
-        }
+
+    if let Some(version) = lock.get(&path).and_then(|versions| versions.get(args)) {
+        return Ok(version.clone());
     }
-    .clone())
+
+    let version = f(&path)?;
+
+    lock.entry(path).or_default().insert(args.to_vec(), version.clone());
+
+    Ok(version)
 }

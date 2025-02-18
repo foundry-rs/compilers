@@ -16,11 +16,11 @@ use foundry_compilers_artifacts::{
 use foundry_compilers_core::utils;
 use itertools::Itertools;
 use md5::Digest;
-use solang_parser::{diagnostics::Diagnostic, helpers::CodeLocation, pt};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
 };
+use solar_parse::interface::diagnostics::Diagnostic;
 
 /// Removes parts of the contract which do not alter its interface:
 ///   - Internal functions
@@ -28,54 +28,54 @@ use std::{
 ///
 /// Preserves all libraries and interfaces.
 pub(crate) fn interface_representation(content: &str) -> Result<String, Vec<Diagnostic>> {
-    let (source_unit, _) = solang_parser::parse(content, 0)?;
-    let mut locs_to_remove = Vec::new();
-
-    for part in source_unit.0 {
-        if let pt::SourceUnitPart::ContractDefinition(contract) = part {
-            if matches!(contract.ty, pt::ContractTy::Interface(_) | pt::ContractTy::Library(_)) {
-                continue;
-            }
-            for part in contract.parts {
-                if let pt::ContractPart::FunctionDefinition(func) = part {
-                    let is_exposed = func.ty == pt::FunctionTy::Function
-                        && func.attributes.iter().any(|attr| {
-                            matches!(
-                                attr,
-                                pt::FunctionAttribute::Visibility(
-                                    pt::Visibility::External(_) | pt::Visibility::Public(_)
-                                )
-                            )
-                        })
-                        || matches!(
-                            func.ty,
-                            pt::FunctionTy::Constructor
-                                | pt::FunctionTy::Fallback
-                                | pt::FunctionTy::Receive
-                        );
-
-                    if !is_exposed {
-                        locs_to_remove.push(func.loc);
-                    }
-
-                    if let Some(ref body) = func.body {
-                        locs_to_remove.push(body.loc());
-                    }
-                }
-            }
-        }
-    }
-
-    let mut content = content.to_string();
-    let mut offset = 0;
-
-    for loc in locs_to_remove {
-        let start = loc.start() - offset;
-        let end = loc.end() - offset;
-
-        content.replace_range(start..end, "");
-        offset += end - start;
-    }
+    // let (source_unit, _) = solang_parser::parse(content, 0)?;
+    // let mut locs_to_remove = Vec::new();
+    //
+    // for part in source_unit.0 {
+    //     if let pt::SourceUnitPart::ContractDefinition(contract) = part {
+    //         if matches!(contract.ty, pt::ContractTy::Interface(_) | pt::ContractTy::Library(_)) {
+    //             continue;
+    //         }
+    //         for part in contract.parts {
+    //             if let pt::ContractPart::FunctionDefinition(func) = part {
+    //                 let is_exposed = func.ty == pt::FunctionTy::Function
+    //                     && func.attributes.iter().any(|attr| {
+    //                         matches!(
+    //                             attr,
+    //                             pt::FunctionAttribute::Visibility(
+    //                                 pt::Visibility::External(_) | pt::Visibility::Public(_)
+    //                             )
+    //                         )
+    //                     })
+    //                     || matches!(
+    //                         func.ty,
+    //                         pt::FunctionTy::Constructor
+    //                             | pt::FunctionTy::Fallback
+    //                             | pt::FunctionTy::Receive
+    //                     );
+    //
+    //                 if !is_exposed {
+    //                     locs_to_remove.push(func.loc);
+    //                 }
+    //
+    //                 if let Some(ref body) = func.body {
+    //                     locs_to_remove.push(body.loc());
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+    //
+    // let mut content = content.to_string();
+    // let mut offset = 0;
+    //
+    // for loc in locs_to_remove {
+    //     let start = loc.start() - offset;
+    //     let end = loc.end() - offset;
+    //
+    //     content.replace_range(start..end, "");
+    //     offset += end - start;
+    // }
 
     let content = content.replace("\n", "");
     Ok(utils::RE_TWO_OR_MORE_SPACES.replace_all(&content, "").to_string())

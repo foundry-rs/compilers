@@ -6,7 +6,8 @@ use std::{collections::BTreeMap, fmt, str::FromStr};
 /// Represents the desired outputs based on a File `(file -> (contract -> [outputs]))`
 pub type FileOutputSelection = BTreeMap<String, Vec<String>>;
 
-/// Represents the selected output of files and contracts
+/// Represents the selected output of files and contracts.
+///
 /// The first level key is the file name and the second level key is the
 /// contract name. An empty contract name is used for outputs that are
 /// not tied to a contract but to the whole source file like the AST.
@@ -50,24 +51,6 @@ pub type FileOutputSelection = BTreeMap<String, Vec<String>>;
 /// Note that using a using `evm`, `evm.bytecode`, `ewasm`, etc. will select
 /// every target part of that output. Additionally, `*` can be used as a
 /// wildcard to request everything.
-///
-/// The default output selection is
-///
-/// ```json
-///   {
-///    "*": {
-///      "*": [
-///        "abi",
-///        "evm.bytecode",
-///        "evm.deployedBytecode",
-///        "evm.methodIdentifiers"
-///      ],
-///      "": [
-///        "ast"
-///      ]
-///    }
-///  }
-/// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
 #[serde(transparent)]
 pub struct OutputSelection(pub BTreeMap<String, FileOutputSelection>);
@@ -87,31 +70,18 @@ impl OutputSelection {
         .into()
     }
 
-    /// Default output selection for compiler output:
-    ///
-    /// `{ "*": { "*": [ "*" ], "": [
-    /// "abi","evm.bytecode","evm.deployedBytecode","evm.methodIdentifiers"] } }`
-    ///
-    /// Which enables it for all files and all their contracts ("*" wildcard)
+    /// Default output selection.
     pub fn default_output_selection() -> Self {
         BTreeMap::from([("*".to_string(), Self::default_file_output_selection())]).into()
     }
 
-    /// Default output selection for a single file:
+    /// Default file output selection.
     ///
-    /// `{ "*": [ "*" ], "": [
-    /// "abi","evm.bytecode","evm.deployedBytecode","evm.methodIdentifiers"] }`
-    ///
-    /// Which enables it for all the contracts in the file ("*" wildcard)
+    /// Uses [`ContractOutputSelection::basic`].
     pub fn default_file_output_selection() -> FileOutputSelection {
         BTreeMap::from([(
             "*".to_string(),
-            vec![
-                "abi".to_string(),
-                "evm.bytecode".to_string(),
-                "evm.deployedBytecode".to_string(),
-                "evm.methodIdentifiers".to_string(),
-            ],
+            ContractOutputSelection::basic().iter().map(ToString::to_string).collect(),
         )])
     }
 
@@ -145,12 +115,12 @@ impl OutputSelection {
     }
 
     /// Returns true if this output selection is a subset of the other output selection.
-    /// TODO: correctly process wildcard keys to reduce false negatives
+    // TODO: correctly process wildcard keys to reduce false negatives
     pub fn is_subset_of(&self, other: &Self) -> bool {
         self.0.iter().all(|(file, selection)| {
-            other.0.get(file).map_or(false, |other_selection| {
+            other.0.get(file).is_some_and(|other_selection| {
                 selection.iter().all(|(contract, outputs)| {
-                    other_selection.get(contract).map_or(false, |other_outputs| {
+                    other_selection.get(contract).is_some_and(|other_outputs| {
                         outputs.iter().all(|output| other_outputs.contains(output))
                     })
                 })
@@ -219,23 +189,33 @@ pub enum ContractOutputSelection {
     Metadata,
     Ir,
     IrOptimized,
+    IrOptimizedAst,
     StorageLayout,
+    TransientStorageLayout,
     Evm(EvmOutputSelection),
     Ewasm(EwasmOutputSelection),
 }
 
 impl ContractOutputSelection {
     /// Returns the basic set of contract level settings that should be included in the `Contract`
-    /// that solc emits:
-    ///    - "abi"
-    ///    - "evm.bytecode"
-    ///    - "evm.deployedBytecode"
-    ///    - "evm.methodIdentifiers"
+    /// that solc emits.
+    ///
+    /// These correspond to the fields in `CompactBytecode`, `CompactDeployedBytecode`, ABI, and
+    /// method identfiers.
     pub fn basic() -> Vec<Self> {
+        // We don't include all the `bytecode` fields because `generatedSources` is a massive JSON
+        // object and is not used by Foundry.
         vec![
             Self::Abi,
-            BytecodeOutputSelection::All.into(),
-            DeployedBytecodeOutputSelection::All.into(),
+            // The fields in `CompactBytecode`.
+            BytecodeOutputSelection::Object.into(),
+            BytecodeOutputSelection::SourceMap.into(),
+            BytecodeOutputSelection::LinkReferences.into(),
+            // The fields in `CompactDeployedBytecode`.
+            DeployedBytecodeOutputSelection::Object.into(),
+            DeployedBytecodeOutputSelection::SourceMap.into(),
+            DeployedBytecodeOutputSelection::LinkReferences.into(),
+            DeployedBytecodeOutputSelection::ImmutableReferences.into(),
             EvmOutputSelection::MethodIdentifiers.into(),
         ]
     }
@@ -268,7 +248,9 @@ impl fmt::Display for ContractOutputSelection {
             Self::Metadata => f.write_str("metadata"),
             Self::Ir => f.write_str("ir"),
             Self::IrOptimized => f.write_str("irOptimized"),
+            Self::IrOptimizedAst => f.write_str("irOptimizedAst"),
             Self::StorageLayout => f.write_str("storageLayout"),
+            Self::TransientStorageLayout => f.write_str("transientStorageLayout"),
             Self::Evm(e) => e.fmt(f),
             Self::Ewasm(e) => e.fmt(f),
         }
@@ -286,7 +268,11 @@ impl FromStr for ContractOutputSelection {
             "metadata" => Ok(Self::Metadata),
             "ir" => Ok(Self::Ir),
             "ir-optimized" | "irOptimized" | "iroptimized" => Ok(Self::IrOptimized),
+            "irOptimizedAst" | "ir-optimized-ast" | "iroptimizedast" => Ok(Self::IrOptimizedAst),
             "storage-layout" | "storagelayout" | "storageLayout" => Ok(Self::StorageLayout),
+            "transient-storage-layout" | "transientstoragelayout" | "transientStorageLayout" => {
+                Ok(Self::TransientStorageLayout)
+            }
             s => EvmOutputSelection::from_str(s)
                 .map(ContractOutputSelection::Evm)
                 .or_else(|_| EwasmOutputSelection::from_str(s).map(ContractOutputSelection::Ewasm))
@@ -370,7 +356,7 @@ impl FromStr for EvmOutputSelection {
         match s {
             "evm" => Ok(Self::All),
             "asm" | "evm.assembly" => Ok(Self::Assembly),
-            "evm.legacyAssembly" => Ok(Self::LegacyAssembly),
+            "legacyAssembly" | "evm.legacyAssembly" => Ok(Self::LegacyAssembly),
             "methodidentifiers" | "evm.methodIdentifiers" | "evm.methodidentifiers" => {
                 Ok(Self::MethodIdentifiers)
             }

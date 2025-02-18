@@ -23,6 +23,8 @@ pub struct ConfigurableContractArtifact {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub assembly: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legacy_assembly: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub opcodes: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub method_identifiers: Option<BTreeMap<String, String>>,
@@ -39,6 +41,8 @@ pub struct ConfigurableContractArtifact {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub storage_layout: Option<StorageLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transient_storage_layout: Option<StorageLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub userdoc: Option<UserDoc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub devdoc: Option<DevDoc>,
@@ -46,6 +50,8 @@ pub struct ConfigurableContractArtifact {
     pub ir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ir_optimized: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ir_optimized_ast: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ewasm: Option<Ewasm>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -85,7 +91,7 @@ impl ConfigurableContractArtifact {
 impl From<ConfigurableContractArtifact> for CompactContractBytecode {
     fn from(artifact: ConfigurableContractArtifact) -> Self {
         Self {
-            abi: artifact.abi.map(Into::into),
+            abi: artifact.abi,
             bytecode: artifact.bytecode,
             deployed_bytecode: artifact.deployed_bytecode,
         }

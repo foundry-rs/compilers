@@ -77,53 +77,91 @@ impl ConfigurableArtifacts {
 
     /// Returns the `Settings` this configuration corresponds to
     pub fn solc_settings(&self) -> Settings {
-        SolcConfig::builder().additional_outputs(self.output_selection()).build().into()
+        SolcConfig::builder()
+            .additional_outputs(self.output_selection())
+            .ast(self.additional_values.ast)
+            .build()
     }
 
     /// Returns the output selection corresponding to this configuration
     pub fn output_selection(&self) -> Vec<ContractOutputSelection> {
         let mut selection = ContractOutputSelection::basic();
 
-        if self.additional_values.ir || self.additional_files.ir {
+        let ExtraOutputValues {
+            // handled above
+            ast: _,
+            userdoc,
+            devdoc,
+            method_identifiers,
+            storage_layout,
+            transient_storage_layout,
+            assembly,
+            legacy_assembly,
+            gas_estimates,
+            metadata,
+            ir,
+            ir_optimized,
+            ir_optimized_ast,
+            ewasm,
+            function_debug_data,
+            generated_sources,
+            source_map,
+            opcodes,
+            __non_exhaustive,
+        } = self.additional_values;
+
+        if ir || self.additional_files.ir {
             selection.push(ContractOutputSelection::Ir);
         }
-        if self.additional_values.ir_optimized || self.additional_files.ir_optimized {
+        if ir_optimized || self.additional_files.ir_optimized {
             selection.push(ContractOutputSelection::IrOptimized);
         }
-        if self.additional_values.metadata || self.additional_files.metadata {
+        if metadata || self.additional_files.metadata {
             selection.push(ContractOutputSelection::Metadata);
         }
-        if self.additional_values.storage_layout {
+        if storage_layout {
             selection.push(ContractOutputSelection::StorageLayout);
         }
-        if self.additional_values.devdoc {
+        if devdoc {
             selection.push(ContractOutputSelection::DevDoc);
         }
-        if self.additional_values.userdoc {
+        if userdoc {
             selection.push(ContractOutputSelection::UserDoc);
         }
-        if self.additional_values.gas_estimates {
+        if gas_estimates {
             selection.push(EvmOutputSelection::GasEstimates.into());
         }
-        if self.additional_values.assembly || self.additional_files.assembly {
+        if assembly || self.additional_files.assembly {
             selection.push(EvmOutputSelection::Assembly.into());
         }
-        if self.additional_values.ewasm || self.additional_files.ewasm {
+        if legacy_assembly || self.additional_files.legacy_assembly {
+            selection.push(EvmOutputSelection::LegacyAssembly.into());
+        }
+        if ewasm || self.additional_files.ewasm {
             selection.push(EwasmOutputSelection::All.into());
         }
-        if self.additional_values.function_debug_data {
+        if function_debug_data {
             selection.push(BytecodeOutputSelection::FunctionDebugData.into());
         }
-        if self.additional_values.method_identifiers {
+        if method_identifiers {
             selection.push(EvmOutputSelection::MethodIdentifiers.into());
         }
-        if self.additional_values.generated_sources {
+        if generated_sources {
             selection.push(
                 EvmOutputSelection::ByteCode(BytecodeOutputSelection::GeneratedSources).into(),
             );
         }
-        if self.additional_values.source_map {
+        if source_map {
             selection.push(EvmOutputSelection::ByteCode(BytecodeOutputSelection::SourceMap).into());
+        }
+        if ir_optimized_ast {
+            selection.push(ContractOutputSelection::IrOptimizedAst);
+        }
+        if opcodes {
+            selection.push(EvmOutputSelection::ByteCode(BytecodeOutputSelection::Opcodes).into());
+        }
+        if transient_storage_layout {
+            selection.push(ContractOutputSelection::TransientStorageLayout);
         }
         selection
     }
@@ -131,11 +169,12 @@ impl ConfigurableArtifacts {
 
 impl ArtifactOutput for ConfigurableArtifacts {
     type Artifact = ConfigurableContractArtifact;
+    type CompilerContract = Contract;
 
     /// Writes extra files for compiled artifact based on [Self::additional_files]
     fn handle_artifacts(
         &self,
-        contracts: &crate::VersionedContracts,
+        contracts: &crate::VersionedContracts<Contract>,
         artifacts: &crate::Artifacts<Self::Artifact>,
     ) -> Result<(), SolcError> {
         for (file, contracts) in contracts.as_ref().iter() {
@@ -165,6 +204,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
         let mut artifact_metadata = None;
         let mut artifact_ir = None;
         let mut artifact_ir_optimized = None;
+        let mut artifact_ir_optimized_ast = None;
         let mut artifact_ewasm = None;
         let mut artifact_bytecode = None;
         let mut artifact_deployed_bytecode = None;
@@ -172,7 +212,9 @@ impl ArtifactOutput for ConfigurableArtifacts {
         let mut artifact_function_debug_data = None;
         let mut artifact_method_identifiers = None;
         let mut artifact_assembly = None;
+        let mut artifact_legacy_assembly = None;
         let mut artifact_storage_layout = None;
+        let mut artifact_transient_storage_layout = None;
         let mut generated_sources = None;
         let mut opcodes = None;
 
@@ -183,9 +225,11 @@ impl ArtifactOutput for ConfigurableArtifacts {
             devdoc,
             ir,
             storage_layout,
+            transient_storage_layout,
             evm,
             ewasm,
             ir_optimized,
+            ir_optimized_ast,
         } = contract;
 
         if self.additional_values.metadata {
@@ -209,8 +253,14 @@ impl ArtifactOutput for ConfigurableArtifacts {
         if self.additional_values.ir_optimized {
             artifact_ir_optimized = ir_optimized;
         }
+        if self.additional_values.ir_optimized_ast {
+            artifact_ir_optimized_ast = ir_optimized_ast;
+        }
         if self.additional_values.storage_layout {
             artifact_storage_layout = Some(storage_layout);
+        }
+        if self.additional_values.transient_storage_layout {
+            artifact_transient_storage_layout = Some(transient_storage_layout);
         }
 
         if let Some(evm) = evm {
@@ -220,7 +270,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
                 deployed_bytecode,
                 method_identifiers,
                 gas_estimates,
-                legacy_assembly: _,
+                legacy_assembly,
             } = evm;
 
             if self.additional_values.function_debug_data {
@@ -246,6 +296,10 @@ impl ArtifactOutput for ConfigurableArtifacts {
             if self.additional_values.assembly {
                 artifact_assembly = assembly;
             }
+
+            if self.additional_values.legacy_assembly {
+                artifact_legacy_assembly = legacy_assembly;
+            }
         }
 
         ConfigurableContractArtifact {
@@ -253,6 +307,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
             bytecode: artifact_bytecode,
             deployed_bytecode: artifact_deployed_bytecode,
             assembly: artifact_assembly,
+            legacy_assembly: artifact_legacy_assembly,
             opcodes,
             function_debug_data: artifact_function_debug_data,
             method_identifiers: artifact_method_identifiers,
@@ -260,10 +315,12 @@ impl ArtifactOutput for ConfigurableArtifacts {
             raw_metadata: artifact_raw_metadata,
             metadata: artifact_metadata,
             storage_layout: artifact_storage_layout,
+            transient_storage_layout: artifact_transient_storage_layout,
             userdoc: artifact_userdoc,
             devdoc: artifact_devdoc,
             ir: artifact_ir,
             ir_optimized: artifact_ir_optimized,
+            ir_optimized_ast: artifact_ir_optimized_ast,
             ewasm: artifact_ewasm,
             id: source_file.as_ref().map(|s| s.id),
             ast: source_file.and_then(|s| s.ast.clone()),
@@ -297,6 +354,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
             ir_optimized,
             ewasm,
             assembly,
+            legacy_assembly,
             source_map,
             generated_sources,
             bytecode: _,
@@ -317,6 +375,12 @@ impl ArtifactOutput for ConfigurableArtifacts {
             return Ok(true);
         }
         if assembly && artifact.assembly.is_none() {
+            return Ok(true);
+        }
+        if assembly && artifact.assembly.is_none() {
+            return Ok(true);
+        }
+        if legacy_assembly && artifact.legacy_assembly.is_none() {
             return Ok(true);
         }
         if source_map && artifact.get_source_map_str().is_none() {
@@ -341,6 +405,8 @@ impl ArtifactOutput for ConfigurableArtifacts {
                     let artifact = &artifact_file.artifact;
                     self.additional_files.process_abi(artifact.abi.as_ref(), file)?;
                     self.additional_files.process_assembly(artifact.assembly.as_deref(), file)?;
+                    self.additional_files
+                        .process_legacy_assembly(artifact.legacy_assembly.clone(), file)?;
                     self.additional_files
                         .process_bytecode(artifact.bytecode.as_ref().map(|b| &b.object), file)?;
                     self.additional_files.process_deployed_bytecode(
@@ -376,12 +442,14 @@ pub struct ExtraOutputValues {
     pub devdoc: bool,
     pub method_identifiers: bool,
     pub storage_layout: bool,
+    pub transient_storage_layout: bool,
     pub assembly: bool,
+    pub legacy_assembly: bool,
     pub gas_estimates: bool,
-    pub compact_format: bool,
     pub metadata: bool,
     pub ir: bool,
     pub ir_optimized: bool,
+    pub ir_optimized_ast: bool,
     pub ewasm: bool,
     pub function_debug_data: bool,
     pub generated_sources: bool,
@@ -409,12 +477,14 @@ impl ExtraOutputValues {
             devdoc: true,
             method_identifiers: true,
             storage_layout: true,
+            transient_storage_layout: true,
             assembly: true,
+            legacy_assembly: true,
             gas_estimates: true,
-            compact_format: true,
             metadata: true,
             ir: true,
             ir_optimized: true,
+            ir_optimized_ast: true,
             ewasm: true,
             function_debug_data: true,
             generated_sources: true,
@@ -452,6 +522,7 @@ impl ExtraOutputValues {
                 ContractOutputSelection::Evm(evm) => match evm {
                     EvmOutputSelection::All => {
                         config.assembly = true;
+                        config.legacy_assembly = true;
                         config.gas_estimates = true;
                         config.method_identifiers = true;
                         config.generated_sources = true;
@@ -460,6 +531,9 @@ impl ExtraOutputValues {
                     }
                     EvmOutputSelection::Assembly => {
                         config.assembly = true;
+                    }
+                    EvmOutputSelection::LegacyAssembly => {
+                        config.legacy_assembly = true;
                     }
                     EvmOutputSelection::MethodIdentifiers => {
                         config.method_identifiers = true;
@@ -484,7 +558,13 @@ impl ExtraOutputValues {
                 ContractOutputSelection::Ewasm(_) => {
                     config.ewasm = true;
                 }
-                _ => {}
+                ContractOutputSelection::IrOptimizedAst => {
+                    config.ir_optimized_ast = true;
+                }
+                ContractOutputSelection::TransientStorageLayout => {
+                    config.transient_storage_layout = true;
+                }
+                ContractOutputSelection::Abi => {}
             }
         }
 
@@ -492,7 +572,7 @@ impl ExtraOutputValues {
     }
 }
 
-/// Determines what to emit as additional file
+/// Determines what to emit as an additional file
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ExtraOutputFiles {
     pub abi: bool,
@@ -501,6 +581,7 @@ pub struct ExtraOutputFiles {
     pub ir_optimized: bool,
     pub ewasm: bool,
     pub assembly: bool,
+    pub legacy_assembly: bool,
     pub source_map: bool,
     pub generated_sources: bool,
     pub bytecode: bool,
@@ -528,6 +609,7 @@ impl ExtraOutputFiles {
             ir_optimized: true,
             ewasm: true,
             assembly: true,
+            legacy_assembly: true,
             source_map: true,
             generated_sources: true,
             bytecode: true,
@@ -558,6 +640,7 @@ impl ExtraOutputFiles {
                 ContractOutputSelection::Evm(evm) => match evm {
                     EvmOutputSelection::All => {
                         config.assembly = true;
+                        config.legacy_assembly = true;
                         config.generated_sources = true;
                         config.source_map = true;
                         config.bytecode = true;
@@ -565,6 +648,9 @@ impl ExtraOutputFiles {
                     }
                     EvmOutputSelection::Assembly => {
                         config.assembly = true;
+                    }
+                    EvmOutputSelection::LegacyAssembly => {
+                        config.legacy_assembly = true;
                     }
                     EvmOutputSelection::ByteCode(BytecodeOutputSelection::GeneratedSources) => {
                         config.generated_sources = true;
@@ -659,6 +745,20 @@ impl ExtraOutputFiles {
         Ok(())
     }
 
+    fn process_legacy_assembly(
+        &self,
+        asm: Option<serde_json::Value>,
+        file: &Path,
+    ) -> Result<(), SolcError> {
+        if self.legacy_assembly {
+            if let Some(legacy_asm) = asm {
+                let file = file.with_extension("legacyAssembly.json");
+                fs::write(&file, format!("{legacy_asm}")).map_err(|err| SolcError::io(err, file))?
+            }
+        }
+        Ok(())
+    }
+
     fn process_generated_sources(
         &self,
         generated_sources: Option<&Vec<GeneratedSource>>,
@@ -724,6 +824,7 @@ impl ExtraOutputFiles {
 
         let evm = contract.evm.as_ref();
         self.process_assembly(evm.and_then(|evm| evm.assembly.as_deref()), file)?;
+        self.process_legacy_assembly(evm.and_then(|evm| evm.legacy_assembly.clone()), file)?;
 
         let bytecode = evm.and_then(|evm| evm.bytecode.as_ref());
         self.process_generated_sources(bytecode.map(|b| &b.generated_sources), file)?;

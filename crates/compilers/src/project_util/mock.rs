@@ -606,7 +606,7 @@ impl<'a> NodesIter<'a> {
     }
 }
 
-impl<'a> Iterator for NodesIter<'a> {
+impl Iterator for NodesIter<'_> {
     type Item = usize;
     fn next(&mut self) -> Option<Self::Item> {
         let file = self.stack.pop_front()?;

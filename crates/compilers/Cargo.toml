@@ -15,8 +15,12 @@ exclude.workspace = true
 workspace = true
 
 [dependencies]
-foundry-compilers-artifacts.workspace = true
-foundry-compilers-core.workspace = true
+foundry-compilers-artifacts = { workspace = true, features = [
+    "checksum",
+    "walkdir",
+    "rayon",
+] }
+foundry-compilers-core = { workspace = true, features = ["regex"] }
 serde.workspace = true
 semver.workspace = true
 alloy-primitives.workspace = true
@@ -28,18 +32,17 @@ md-5.workspace = true
 thiserror.workspace = true
 path-slash.workspace = true
 yansi.workspace = true
-solang-parser.workspace = true
-once_cell = { workspace = true, optional = true }
+solar-parse.workspace = true
 futures-util = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 
 auto_impl = "1"
-winnow = "0.6"
+winnow = "0.7"
 dyn-clone = "1"
-derivative = "2.2"
+derive_more = { version = "1", features = ["debug"] }
 home = "0.5"
-dirs = "5.0"
-itertools = "0.13"
+dirs = "6.0"
+itertools = ">=0.13, <=0.14"
 
 # project-util
 tempfile = { version = "3.9", optional = true }
@@ -61,6 +64,7 @@ fd-lock = "4.0.0"
 tokio = { version = "1.35", features = ["rt-multi-thread", "macros"] }
 reqwest = "0.12"
 tempfile = "3.9"
+snapbox.workspace = true
 foundry-compilers-core = { workspace = true, features = ["test-utils"] }
 
 [features]
@@ -84,7 +88,6 @@ svm-solc = [
     "dep:svm-builds",
     "dep:sha2",
     "foundry-compilers-core/svm-solc",
-    "dep:once_cell",
 ]
 # Utilities for creating and testing project workspaces.
 project-util = [

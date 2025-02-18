@@ -131,10 +131,11 @@ impl ProjectPathsConfig<SolcLanguage> {
         let mut result = String::new();
 
         for path in ordered_deps.iter() {
-            let node_id = graph.files().get(path).ok_or_else(|| {
+            let node_id = *graph.files().get(path).ok_or_else(|| {
                 SolcError::msg(format!("cannot resolve file at {}", path.display()))
             })?;
-            let node = graph.node(*node_id);
+            let node = graph.node(node_id);
+            node.data.parse_result()?;
             let content = node.content();
 
             // Firstly we strip all licesnses, verson pragmas
@@ -142,25 +143,25 @@ impl ProjectPathsConfig<SolcLanguage> {
             let mut ranges_to_remove = Vec::new();
 
             if let Some(license) = &node.data.license {
-                ranges_to_remove.push(license.loc());
+                ranges_to_remove.push(license.span());
                 if *path == flatten_target {
-                    result.push_str(&content[license.loc()]);
+                    result.push_str(&content[license.span()]);
                     result.push('\n');
                 }
             }
             if let Some(version) = &node.data.version {
-                let content = &content[version.loc()];
-                ranges_to_remove.push(version.loc());
+                let content = &content[version.span()];
+                ranges_to_remove.push(version.span());
                 version_pragmas.push(content);
             }
             if let Some(experimental) = &node.data.experimental {
-                ranges_to_remove.push(experimental.loc());
+                ranges_to_remove.push(experimental.span());
                 if experimental_pragma.is_none() {
-                    experimental_pragma = Some(content[experimental.loc()].to_owned());
+                    experimental_pragma = Some(content[experimental.span()].to_owned());
                 }
             }
             for import in &node.data.imports {
-                ranges_to_remove.push(import.loc());
+                ranges_to_remove.push(import.span());
             }
             ranges_to_remove.sort_by_key(|loc| loc.start);
 
@@ -925,6 +926,9 @@ pub struct SolcConfigBuilder {
 
     /// additionally selected outputs that should be included in the `Contract` that solc creates.
     output_selection: Vec<ContractOutputSelection>,
+
+    /// whether to include the AST in the output
+    ast: bool,
 }
 
 impl SolcConfigBuilder {
@@ -953,14 +957,20 @@ impl SolcConfigBuilder {
         self
     }
 
-    /// Creates the solc config
-    ///
-    /// If no solc version is configured then it will be determined by calling `solc --version`.
-    pub fn build(self) -> SolcConfig {
-        let Self { settings, output_selection } = self;
+    pub fn ast(mut self, yes: bool) -> Self {
+        self.ast = yes;
+        self
+    }
+
+    /// Creates the solc settings
+    pub fn build(self) -> Settings {
+        let Self { settings, output_selection, ast } = self;
         let mut settings = settings.unwrap_or_default();
         settings.push_all(output_selection);
-        SolcConfig { settings }
+        if ast {
+            settings = settings.with_ast();
+        }
+        settings
     }
 }
 

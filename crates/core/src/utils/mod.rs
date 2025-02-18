@@ -3,51 +3,25 @@
 use crate::error::{SolcError, SolcIoError};
 use alloy_primitives::{hex, keccak256};
 use cfg_if::cfg_if;
-use once_cell::sync::Lazy;
-use regex::{Match, Regex};
 use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
-    collections::HashSet,
     fs,
     io::Write,
     ops::Range,
     path::{Component, Path, PathBuf},
+    sync::LazyLock as Lazy,
 };
-use walkdir::WalkDir;
 
-/// A regex that matches the import path and identifier of a solidity import
-/// statement with the named groups "path", "id".
-// Adapted from <https://github.com/nomiclabs/hardhat/blob/cced766c65b25d3d0beb39ef847246ac9618bdd9/packages/hardhat-core/src/internal/solidity/parse.ts#L100>
-pub static RE_SOL_IMPORT: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"import\s+(?:(?:"(?P<p1>.*)"|'(?P<p2>.*)')(?:\s+as\s+\w+)?|(?:(?:\w+(?:\s+as\s+\w+)?|\*\s+as\s+\w+|\{\s*(?:\w+(?:\s+as\s+\w+)?(?:\s*,\s*)?)+\s*\})\s+from\s+(?:"(?P<p3>.*)"|'(?P<p4>.*)')))\s*;"#).unwrap()
-});
+#[cfg(feature = "regex")]
+mod re;
+#[cfg(feature = "regex")]
+pub use re::*;
 
-/// A regex that matches an alias within an import statement
-pub static RE_SOL_IMPORT_ALIAS: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?:(?P<target>\w+)|\*|'|")\s+as\s+(?P<alias>\w+)"#).unwrap());
-
-/// A regex that matches the version part of a solidity pragma
-/// as follows: `pragma solidity ^0.5.2;` => `^0.5.2`
-/// statement with the named group "version".
-// Adapted from <https://github.com/nomiclabs/hardhat/blob/cced766c65b25d3d0beb39ef847246ac9618bdd9/packages/hardhat-core/src/internal/solidity/parse.ts#L119>
-pub static RE_SOL_PRAGMA_VERSION: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"pragma\s+solidity\s+(?P<version>.+?);").unwrap());
-
-/// A regex that matches the SDPX license identifier
-/// statement with the named group "license".
-pub static RE_SOL_SDPX_LICENSE_IDENTIFIER: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"///?\s*SPDX-License-Identifier:\s*(?P<license>.+)").unwrap());
-
-/// A regex used to remove extra lines in flatenned files
-pub static RE_THREE_OR_MORE_NEWLINES: Lazy<Regex> = Lazy::new(|| Regex::new("\n{3,}").unwrap());
-
-/// A regex used to remove extra lines in flatenned files
-pub static RE_TWO_OR_MORE_SPACES: Lazy<Regex> = Lazy::new(|| Regex::new(" {2,}").unwrap());
-
-/// A regex that matches version pragma in a Vyper
-pub static RE_VYPER_VERSION: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"#(?:pragma version|@version)\s+(?P<version>.+)").unwrap());
+#[cfg(feature = "walkdir")]
+mod wd;
+#[cfg(feature = "walkdir")]
+pub use wd::*;
 
 /// Extensions acceptable by solc compiler.
 pub const SOLC_EXTENSIONS: &[&str] = &["sol", "yul"];
@@ -89,8 +63,7 @@ pub const SHANGHAI_SOLC: Version = Version::new(0, 8, 20);
 pub const CANCUN_SOLC: Version = Version::new(0, 8, 24);
 
 /// Prague support
-/// <https://github.com/ethereum/solidity/pull/15152>
-/// Was merged between 0.8.26 and 0.8.27, so we are expecting it to be available in 0.8.27
+/// <https://soliditylang.org/blog/2024/09/04/solidity-0.8.27-release-announcement>
 pub const PRAGUE_SOLC: Version = Version::new(0, 8, 27);
 
 // `--base-path` was introduced in 0.6.9 <https://github.com/ethereum/solidity/releases/tag/v0.6.9>
@@ -101,117 +74,12 @@ pub static SUPPORTS_BASE_PATH: Lazy<VersionReq> =
 pub static SUPPORTS_INCLUDE_PATH: Lazy<VersionReq> =
     Lazy::new(|| VersionReq::parse(">=0.8.8").unwrap());
 
-/// Create a regex that matches any library or contract name inside a file
-pub fn create_contract_or_lib_name_regex(name: &str) -> Regex {
-    Regex::new(&format!(r#"(?:using\s+(?P<n1>{name})\s+|is\s+(?:\w+\s*,\s*)*(?P<n2>{name})(?:\s*,\s*\w+)*|(?:(?P<ignore>(?:function|error|as)\s+|\n[^\n]*(?:"([^"\n]|\\")*|'([^'\n]|\\')*))|\W+)(?P<n3>{name})(?:\.|\(| ))"#)).unwrap()
-}
-
 /// Move a range by a specified offset
 pub fn range_by_offset(range: &Range<usize>, offset: isize) -> Range<usize> {
     Range {
         start: offset.saturating_add(range.start as isize) as usize,
         end: offset.saturating_add(range.end as isize) as usize,
     }
-}
-
-/// Returns all path parts from any solidity import statement in a string,
-/// `import "./contracts/Contract.sol";` -> `"./contracts/Contract.sol"`.
-///
-/// See also <https://docs.soliditylang.org/en/v0.8.9/grammar.html>
-pub fn find_import_paths(contract: &str) -> impl Iterator<Item = Match<'_>> {
-    RE_SOL_IMPORT.captures_iter(contract).filter_map(|cap| {
-        cap.name("p1")
-            .or_else(|| cap.name("p2"))
-            .or_else(|| cap.name("p3"))
-            .or_else(|| cap.name("p4"))
-    })
-}
-
-/// Returns the solidity version pragma from the given input:
-/// `pragma solidity ^0.5.2;` => `^0.5.2`
-pub fn find_version_pragma(contract: &str) -> Option<Match<'_>> {
-    RE_SOL_PRAGMA_VERSION.captures(contract)?.name("version")
-}
-
-/// Returns an iterator that yields all solidity/yul files funder under the given root path or the
-/// `root` itself, if it is a sol/yul file
-///
-/// This also follows symlinks.
-pub fn source_files_iter<'a>(
-    root: &Path,
-    extensions: &'a [&'a str],
-) -> impl Iterator<Item = PathBuf> + 'a {
-    WalkDir::new(root)
-        .follow_links(true)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| {
-            e.path().extension().map(|ext| extensions.iter().any(|e| ext == *e)).unwrap_or_default()
-        })
-        .map(|e| e.path().into())
-}
-
-/// Returns a list of absolute paths to all the solidity files under the root, or the file itself,
-/// if the path is a solidity file.
-///
-/// This also follows symlinks.
-///
-/// NOTE: this does not resolve imports from other locations
-///
-/// # Examples
-///
-/// ```no_run
-/// use foundry_compilers_core::utils;
-/// let sources = utils::source_files("./contracts".as_ref(), &utils::SOLC_EXTENSIONS);
-/// ```
-pub fn source_files(root: &Path, extensions: &[&str]) -> Vec<PathBuf> {
-    source_files_iter(root, extensions).collect()
-}
-
-/// Same as [source_files] but only returns files acceptable by Solc compiler.
-pub fn sol_source_files(root: &Path) -> Vec<PathBuf> {
-    source_files(root, SOLC_EXTENSIONS)
-}
-
-/// Returns a list of _unique_ paths to all folders under `root` that contain at least one solidity
-/// file (`*.sol`).
-///
-/// # Examples
-///
-/// ```no_run
-/// use foundry_compilers_core::utils;
-/// let dirs = utils::solidity_dirs("./lib".as_ref());
-/// ```
-///
-/// for following layout will return
-/// `["lib/ds-token/src", "lib/ds-token/src/test", "lib/ds-token/lib/ds-math/src", ...]`
-///
-/// ```text
-/// lib
-/// └── ds-token
-///     ├── lib
-///     │   ├── ds-math
-///     │   │   └── src/Contract.sol
-///     │   ├── ds-stop
-///     │   │   └── src/Contract.sol
-///     │   ├── ds-test
-///     │       └── src//Contract.sol
-///     └── src
-///         ├── base.sol
-///         ├── test
-///         │   ├── base.t.sol
-///         └── token.sol
-/// ```
-pub fn solidity_dirs(root: &Path) -> Vec<PathBuf> {
-    let sources = sol_source_files(root);
-    sources
-        .iter()
-        .filter_map(|p| p.parent())
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .map(|p| p.to_path_buf())
-        .collect()
 }
 
 /// Returns the source name for the given source path, the ancestors of the root path.
@@ -267,11 +135,18 @@ pub fn normalize_solidity_import_path(
     let cleaned = clean_solidity_path(&original);
 
     // this is to align the behavior with `canonicalize`
-    use path_slash::PathExt;
-    let normalized = PathBuf::from(dunce::simplified(&cleaned).to_slash_lossy().as_ref());
+    let normalized = dunce::simplified(&cleaned);
+    #[cfg(windows)]
+    let normalized = {
+        use path_slash::PathExt;
+        PathBuf::from(normalized.to_slash_lossy().as_ref())
+    };
+    #[cfg(not(windows))]
+    let normalized = PathBuf::from(normalized);
 
     // checks if the path exists without reading its content and obtains an io error if it doesn't.
-    normalized.metadata().map(|_| normalized).map_err(|err| SolcIoError::new(err, original))
+    let _ = normalized.metadata().map_err(|err| SolcIoError::new(err, original))?;
+    Ok(normalized)
 }
 
 // This function lexically cleans the given path.
@@ -403,25 +278,6 @@ pub fn resolve_absolute_library(
     None
 }
 
-/// Reads the list of Solc versions that have been installed in the machine. The version list is
-/// sorted in ascending order.
-/// Checks for installed solc versions under the given path as
-/// `<root>/<major.minor.path>`, (e.g.: `~/.svm/0.8.10`)
-/// and returns them sorted in ascending order
-pub fn installed_versions(root: &Path) -> Result<Vec<Version>, SolcError> {
-    let mut versions: Vec<_> = walkdir::WalkDir::new(root)
-        .max_depth(1)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.file_type().is_dir())
-        .filter_map(|e: walkdir::DirEntry| {
-            e.path().file_name().and_then(|v| Version::parse(v.to_string_lossy().as_ref()).ok())
-        })
-        .collect();
-    versions.sort();
-    Ok(versions)
-}
-
 /// Returns the 36 char (deprecated) fully qualified name placeholder
 ///
 /// If the name is longer than 36 char, then the name gets truncated,
@@ -528,26 +384,6 @@ pub fn find_fave_or_alt_path(root: &Path, fave: &str, alt: &str) -> PathBuf {
     p
 }
 
-/// Attempts to find a file with different case that exists next to the `non_existing` file
-pub fn find_case_sensitive_existing_file(non_existing: &Path) -> Option<PathBuf> {
-    let non_existing_file_name = non_existing.file_name()?;
-    let parent = non_existing.parent()?;
-    WalkDir::new(parent)
-        .max_depth(1)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .find_map(|e| {
-            let existing_file_name = e.path().file_name()?;
-            if existing_file_name.eq_ignore_ascii_case(non_existing_file_name)
-                && existing_file_name != non_existing_file_name
-            {
-                return Some(e.path().to_path_buf());
-            }
-            None
-        })
-}
-
 cfg_if! {
     if #[cfg(any(feature = "async", feature = "svm-solc"))] {
         use tokio::runtime::{Handle, Runtime};
@@ -591,9 +427,8 @@ pub fn tempdir(name: &str) -> Result<tempfile::TempDir, SolcIoError> {
 /// Reads the json file and deserialize it into the provided type.
 pub fn read_json_file<T: DeserializeOwned>(path: &Path) -> Result<T, SolcError> {
     // See: https://github.com/serde-rs/json/issues/160
-    let file = fs::File::open(path).map_err(|err| SolcError::io(err, path))?;
-    let bytes = unsafe { memmap2::Mmap::map(&file).map_err(|err| SolcError::io(err, path))? };
-    serde_json::from_slice(&bytes).map_err(Into::into)
+    let s = fs::read_to_string(path).map_err(|err| SolcError::io(err, path))?;
+    serde_json::from_str(&s).map_err(Into::into)
 }
 
 /// Writes serializes the provided value to JSON and writes it to a file.
@@ -624,27 +459,6 @@ pub fn create_parent_dir_all(file: &Path) -> Result<(), SolcError> {
     Ok(())
 }
 
-/// Given the regex and the target string, find all occurrences
-/// of named groups within the string. This method returns
-/// the tuple of matches `(a, b)` where `a` is the match for the
-/// entire regex and `b` is the match for the first named group.
-///
-/// NOTE: This method will return the match for the first named
-/// group, so the order of passed named groups matters.
-pub fn capture_outer_and_inner<'a>(
-    content: &'a str,
-    regex: &regex::Regex,
-    names: &[&str],
-) -> Vec<(regex::Match<'a>, regex::Match<'a>)> {
-    regex
-        .captures_iter(content)
-        .filter_map(|cap| {
-            let cap_match = names.iter().find_map(|name| cap.name(name));
-            cap_match.and_then(|m| cap.get(0).map(|outer| (outer.to_owned(), m)))
-        })
-        .collect()
-}
-
 #[cfg(any(test, feature = "test-utils"))]
 // <https://doc.rust-lang.org/rust-by-example/std_misc/fs.html>
 pub fn touch(path: &std::path::Path) -> std::io::Result<()> {
@@ -672,24 +486,8 @@ pub fn mkdir_or_touch(tmp: &std::path::Path, paths: &[&str]) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::fs::{create_dir_all, File};
-
-    #[test]
-    fn can_find_different_case() {
-        let tmp_dir = tempdir("out").unwrap();
-        let path = tmp_dir.path().join("forge-std");
-        create_dir_all(&path).unwrap();
-        let existing = path.join("Test.sol");
-        let non_existing = path.join("test.sol");
-        fs::write(&existing, b"").unwrap();
-
-        #[cfg(target_os = "linux")]
-        assert!(!non_existing.exists());
-
-        let found = find_case_sensitive_existing_file(&non_existing).unwrap();
-        assert_eq!(found, existing);
-    }
+    pub use super::*;
+    pub use std::fs::{create_dir_all, File};
 
     #[test]
     fn can_create_parent_dirs_with_ext() {
@@ -722,82 +520,6 @@ mod tests {
         File::create(dir.join("test.sol")).unwrap();
 
         assert!(!is_local_source_name(&[tmp_dir.path()], "ds-test/test.sol"));
-    }
-
-    #[test]
-    fn can_find_solidity_sources() {
-        let tmp_dir = tempdir("contracts").unwrap();
-
-        let file_a = tmp_dir.path().join("a.sol");
-        let file_b = tmp_dir.path().join("a.sol");
-        let nested = tmp_dir.path().join("nested");
-        let file_c = nested.join("c.sol");
-        let nested_deep = nested.join("deep");
-        let file_d = nested_deep.join("d.sol");
-        File::create(&file_a).unwrap();
-        File::create(&file_b).unwrap();
-        create_dir_all(nested_deep).unwrap();
-        File::create(&file_c).unwrap();
-        File::create(&file_d).unwrap();
-
-        let files: HashSet<_> = sol_source_files(tmp_dir.path()).into_iter().collect();
-        let expected: HashSet<_> = [file_a, file_b, file_c, file_d].into();
-        assert_eq!(files, expected);
-    }
-
-    #[test]
-    fn can_parse_curly_bracket_imports() {
-        let s =
-            r#"import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";"#;
-        let imports: Vec<_> = find_import_paths(s).map(|m| m.as_str()).collect();
-        assert_eq!(imports, vec!["@openzeppelin/contracts/utils/ReentrancyGuard.sol"])
-    }
-
-    #[test]
-    fn can_find_single_quote_imports() {
-        let content = r"
-// SPDX-License-Identifier: MIT
-pragma solidity 0.8.6;
-
-import '@openzeppelin/contracts/access/Ownable.sol';
-import '@openzeppelin/contracts/utils/Address.sol';
-
-import './../interfaces/IJBDirectory.sol';
-import './../libraries/JBTokens.sol';
-        ";
-        let imports: Vec<_> = find_import_paths(content).map(|m| m.as_str()).collect();
-
-        assert_eq!(
-            imports,
-            vec![
-                "@openzeppelin/contracts/access/Ownable.sol",
-                "@openzeppelin/contracts/utils/Address.sol",
-                "./../interfaces/IJBDirectory.sol",
-                "./../libraries/JBTokens.sol",
-            ]
-        );
-    }
-
-    #[test]
-    fn can_find_import_paths() {
-        let s = r#"//SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.0;
-import "hardhat/console.sol";
-import "../contract/Contract.sol";
-import { T } from "../Test.sol";
-import { T } from '../Test2.sol';
-"#;
-        assert_eq!(
-            vec!["hardhat/console.sol", "../contract/Contract.sol", "../Test.sol", "../Test2.sol"],
-            find_import_paths(s).map(|m| m.as_str()).collect::<Vec<&str>>()
-        );
-    }
-    #[test]
-    fn can_find_version() {
-        let s = r"//SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.0;
-";
-        assert_eq!(Some("^0.8.0"), find_version_pragma(s).map(|s| s.as_str()));
     }
 
     #[test]
@@ -840,10 +562,10 @@ pragma solidity ^0.8.0;
         //
         // `dir_path`
         // ├── dependency
-        // │   └── Math.sol
+        // │   └── Math.sol
         // └── project
         //     ├── node_modules
-        //     │   └── dependency -> symlink to actual 'dependency' directory
+        //     │   └── dependency -> symlink to actual 'dependency' directory
         //     └── src (`cwd`)
         //         └── Token.sol
 

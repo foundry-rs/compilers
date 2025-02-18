@@ -2,11 +2,12 @@ use self::{input::VyperVersionedInput, parser::VyperParsedSource};
 use super::{Compiler, CompilerOutput, Language};
 pub use crate::artifacts::vyper::{VyperCompilationError, VyperInput, VyperOutput, VyperSettings};
 use core::fmt;
-use foundry_compilers_artifacts::sources::Source;
+use foundry_compilers_artifacts::{sources::Source, Contract};
 use foundry_compilers_core::error::{Result, SolcError};
 use semver::Version;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
+    io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     str::FromStr,
@@ -79,8 +80,11 @@ impl Vyper {
 
     /// Convenience function for compiling all sources under the given path
     pub fn compile_source(&self, path: &Path) -> Result<VyperOutput> {
-        let input =
-            VyperInput::new(Source::read_all_from(path, VYPER_EXTENSIONS)?, Default::default());
+        let input = VyperInput::new(
+            Source::read_all_from(path, VYPER_EXTENSIONS)?,
+            Default::default(),
+            &self.version,
+        );
         self.compile(&input)
     }
 
@@ -114,7 +118,7 @@ impl Vyper {
     /// let vyper = Vyper::new("vyper")?;
     /// let path = Path::new("path/to/sources");
     /// let sources = Source::read_all_from(path, &["vy", "vyi"])?;
-    /// let input = VyperInput::new(sources, VyperSettings::default());
+    /// let input = VyperInput::new(sources, VyperSettings::default(), &vyper.version);
     /// let output = vyper.compile(&input)?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
@@ -149,8 +153,11 @@ impl Vyper {
         let mut child = cmd.spawn().map_err(self.map_io_err())?;
         debug!("spawned");
 
-        let stdin = child.stdin.as_mut().unwrap();
-        serde_json::to_writer(stdin, input)?;
+        {
+            let mut stdin = io::BufWriter::new(child.stdin.take().unwrap());
+            serde_json::to_writer(&mut stdin, input)?;
+            stdin.flush().map_err(self.map_io_err())?;
+        }
         debug!("wrote JSON input to stdin");
 
         let output = child.wait_with_output().map_err(self.map_io_err())?;
@@ -166,7 +173,7 @@ impl Vyper {
     /// Invokes `vyper --version` and parses the output as a SemVer [`Version`].
     #[instrument(level = "debug", skip_all)]
     pub fn version(vyper: impl Into<PathBuf>) -> Result<Version> {
-        crate::cache_version(vyper.into(), |vyper| {
+        crate::cache_version(vyper.into(), &[], |vyper| {
             let mut cmd = Command::new(vyper);
             cmd.arg("--version")
                 .stdin(Stdio::piped())
@@ -177,7 +184,9 @@ impl Vyper {
             trace!(?output);
             if output.status.success() {
                 let stdout = String::from_utf8_lossy(&output.stdout);
-                Ok(Version::from_str(&stdout.trim().replace("rc", "-rc"))?)
+                Ok(Version::from_str(
+                    &stdout.trim().replace("rc", "-rc").replace("b", "-b").replace("a", "-a"),
+                )?)
             } else {
                 Err(SolcError::solc_output(&output))
             }
@@ -195,8 +204,12 @@ impl Compiler for Vyper {
     type ParsedSource = VyperParsedSource;
     type Input = VyperVersionedInput;
     type Language = VyperLanguage;
+    type CompilerContract = Contract;
 
-    fn compile(&self, input: &Self::Input) -> Result<CompilerOutput<VyperCompilationError>> {
+    fn compile(
+        &self,
+        input: &Self::Input,
+    ) -> Result<CompilerOutput<VyperCompilationError, Contract>> {
         self.compile(input).map(Into::into)
     }
 

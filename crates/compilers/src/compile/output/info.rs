@@ -1,6 +1,6 @@
 //! Commonly used identifiers for contracts in the compiled output.
 
-use std::{borrow::Cow, fmt, str::FromStr};
+use std::{borrow::Cow, fmt, path::Path, str::FromStr};
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("{0}")]
@@ -40,15 +40,19 @@ impl ContractInfo {
     pub fn new(info: &str) -> Self {
         info.parse().unwrap_or_else(|_| Self { path: None, name: info.to_string() })
     }
+
+    /// Returns the path to the contract source file if provided.
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_deref().map(Path::new)
+    }
 }
 
 impl fmt::Display for ContractInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(ref path) = self.path {
-            write!(f, "{path}:{}", self.name)
-        } else {
-            write!(f, "{}", self.name)
+        if let Some(path) = &self.path {
+            write!(f, "{path}:")?;
         }
+        f.write_str(&self.name)
     }
 }
 
@@ -88,7 +92,7 @@ pub struct ContractInfoRef<'a> {
     pub name: Cow<'a, str>,
 }
 
-impl<'a> From<ContractInfo> for ContractInfoRef<'a> {
+impl From<ContractInfo> for ContractInfoRef<'_> {
     fn from(info: ContractInfo) -> Self {
         ContractInfoRef { path: info.path.map(Into::into), name: info.name.into() }
     }
@@ -102,7 +106,7 @@ impl<'a> From<&'a ContractInfo> for ContractInfoRef<'a> {
         }
     }
 }
-impl<'a> From<FullContractInfo> for ContractInfoRef<'a> {
+impl From<FullContractInfo> for ContractInfoRef<'_> {
     fn from(info: FullContractInfo) -> Self {
         ContractInfoRef { path: Some(info.path.into()), name: info.name.into() }
     }

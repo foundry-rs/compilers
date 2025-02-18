@@ -17,7 +17,7 @@ use semver::Version;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     borrow::Cow,
-    collections::{btree_map::BTreeMap, HashSet},
+    collections::{btree_map::BTreeMap, HashMap, HashSet},
     ffi::OsString,
     fmt, fs,
     hash::Hash,
@@ -32,12 +32,12 @@ mod hh;
 pub use hh::*;
 
 use crate::{
-    cache::{CachedArtifact, CompilerCache},
+    cache::{CachedArtifacts, CompilerCache},
     output::{
         contracts::VersionedContracts,
         sources::{VersionedSourceFile, VersionedSourceFiles},
     },
-    ProjectPathsConfig,
+    CompilerContract, ProjectPathsConfig,
 };
 
 /// Represents unique artifact metadata for identifying artifacts on output
@@ -52,6 +52,7 @@ pub struct ArtifactId {
     pub version: Version,
     /// `solc` build id
     pub build_id: String,
+    pub profile: String,
 }
 
 impl ArtifactId {
@@ -109,7 +110,7 @@ impl ArtifactId {
     }
 }
 
-/// Represents an artifact file representing a [`crate::Contract`]
+/// Represents an artifact file representing a [`crate::compilers::CompilerContract`]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ArtifactFile<T> {
     /// The Artifact that was written
@@ -119,6 +120,7 @@ pub struct ArtifactFile<T> {
     /// `solc` version that produced this artifact
     pub version: Version,
     pub build_id: String,
+    pub profile: String,
 }
 
 impl<T: Serialize> ArtifactFile<T> {
@@ -298,6 +300,7 @@ impl<T> Artifacts<T> {
                                 source: source.clone(),
                                 version: artifact.version.clone(),
                                 build_id: artifact.build_id.clone(),
+                                profile: artifact.profile.clone(),
                             }
                             .with_slashed_paths(),
                             &artifact.artifact,
@@ -324,6 +327,7 @@ impl<T> Artifacts<T> {
                                 source: source.clone(),
                                 version: artifact.version,
                                 build_id: artifact.build_id.clone(),
+                                profile: artifact.profile.clone(),
                             }
                             .with_slashed_paths(),
                             artifact.artifact,
@@ -377,7 +381,7 @@ impl<T> Artifacts<T> {
         })
     }
 
-    ///  Finds the artifact with matching path and name
+    ///  Finds the artifact with a matching path and name
     pub fn find(&self, contract_path: &Path, contract_name: &str) -> Option<&T> {
         self.0.iter().filter(|(path, _)| path.as_path() == contract_path).find_map(
             |(_file, contracts)| {
@@ -424,7 +428,7 @@ impl<T> Artifacts<T> {
     }
 }
 
-/// A trait representation for a [`crate::Contract`] artifact
+/// A trait representation for a [`crate::compilers::CompilerContract`] artifact
 pub trait Artifact {
     /// Returns the artifact's [`JsonAbi`] and bytecode.
     fn into_inner(self) -> (Option<JsonAbi>, Option<Bytes>);
@@ -592,9 +596,9 @@ where
 
 /// Handler invoked with the output of `solc`
 ///
-/// Implementers of this trait are expected to take care of [`crate::Contract`] to
-/// [`crate::ArtifactOutput::Artifact`] conversion and how that `Artifact` type is stored on disk,
-/// this includes artifact file location and naming.
+/// Implementers of this trait are expected to take care of [`crate::compilers::CompilerContract`]
+/// to [`crate::ArtifactOutput::Artifact`] conversion and how that `Artifact` type is stored on
+/// disk, this includes artifact file location and naming.
 ///
 /// Depending on the [`crate::Project`] contracts and their compatible versions,
 /// The project compiler may invoke different `solc` executables on the same
@@ -605,19 +609,22 @@ where
 pub trait ArtifactOutput {
     /// Represents the artifact that will be stored for a `Contract`
     type Artifact: Artifact + DeserializeOwned + Serialize + fmt::Debug + Send + Sync;
+    type CompilerContract: CompilerContract;
 
     /// Handle the aggregated set of compiled contracts from the solc [`crate::CompilerOutput`].
     ///
     /// This will be invoked with all aggregated contracts from (multiple) solc `CompilerOutput`.
     /// See [`crate::AggregatedCompilerOutput`]
-    fn on_output<C>(
+    fn on_output<L>(
         &self,
-        contracts: &VersionedContracts,
+        contracts: &VersionedContracts<Self::CompilerContract>,
         sources: &VersionedSourceFiles,
-        layout: &ProjectPathsConfig<C>,
+        layout: &ProjectPathsConfig<L>,
         ctx: OutputContext<'_>,
+        primary_profiles: &HashMap<PathBuf, &str>,
     ) -> Result<Artifacts<Self::Artifact>> {
-        let mut artifacts = self.output_to_artifacts(contracts, sources, ctx, layout);
+        let mut artifacts =
+            self.output_to_artifacts(contracts, sources, ctx, layout, primary_profiles);
         fs::create_dir_all(&layout.artifacts).map_err(|err| {
             error!(dir=?layout.artifacts, "Failed to create artifacts folder");
             SolcIoError::new(err, &layout.artifacts)
@@ -634,7 +641,7 @@ pub trait ArtifactOutput {
     /// Invoked after artifacts has been written to disk for additional processing.
     fn handle_artifacts(
         &self,
-        _contracts: &VersionedContracts,
+        _contracts: &VersionedContracts<Self::CompilerContract>,
         _artifacts: &Artifacts<Self::Artifact>,
     ) -> Result<()> {
         Ok(())
@@ -642,14 +649,22 @@ pub trait ArtifactOutput {
 
     /// Returns the file name for the contract's artifact
     /// `Greeter.json`
-    fn output_file_name(name: &str) -> PathBuf {
-        format!("{name}.json").into()
-    }
-
-    /// Returns the file name for the contract's artifact and the given version
-    /// `Greeter.0.8.11.json`
-    fn output_file_name_versioned(name: &str, version: &Version) -> PathBuf {
-        format!("{}.{}.{}.{}.json", name, version.major, version.minor, version.patch).into()
+    fn output_file_name(
+        name: &str,
+        version: &Version,
+        profile: &str,
+        with_version: bool,
+        with_profile: bool,
+    ) -> PathBuf {
+        let mut name = name.to_string();
+        if with_version {
+            name.push_str(&format!(".{}.{}.{}", version.major, version.minor, version.patch));
+        }
+        if with_profile {
+            name.push_str(&format!(".{profile}"));
+        }
+        name.push_str(".json");
+        name.into()
     }
 
     /// Returns the appropriate file name for the conflicting file.
@@ -724,24 +739,23 @@ pub trait ArtifactOutput {
     /// Returns the path to the contract's artifact location based on the contract's file and name
     ///
     /// This returns `contract.sol/contract.json` by default
-    fn output_file(contract_file: &Path, name: &str) -> PathBuf {
+    fn output_file(
+        contract_file: &Path,
+        name: &str,
+        version: &Version,
+        profile: &str,
+        with_version: bool,
+        with_profile: bool,
+    ) -> PathBuf {
         contract_file
             .file_name()
             .map(Path::new)
-            .map(|p| p.join(Self::output_file_name(name)))
-            .unwrap_or_else(|| Self::output_file_name(name))
-    }
-
-    /// Returns the path to the contract's artifact location based on the contract's file, name and
-    /// version
-    ///
-    /// This returns `contract.sol/contract.0.8.11.json` by default
-    fn output_file_versioned(contract_file: &Path, name: &str, version: &Version) -> PathBuf {
-        contract_file
-            .file_name()
-            .map(Path::new)
-            .map(|p| p.join(Self::output_file_name_versioned(name, version)))
-            .unwrap_or_else(|| Self::output_file_name_versioned(name, version))
+            .map(|p| {
+                p.join(Self::output_file_name(name, version, profile, with_version, with_profile))
+            })
+            .unwrap_or_else(|| {
+                Self::output_file_name(name, version, profile, with_version, with_profile)
+            })
     }
 
     /// The inverse of `contract_file_name`
@@ -750,11 +764,6 @@ pub trait ArtifactOutput {
     /// `sources/Greeter.sol` -> `Greeter`
     fn contract_name(file: &Path) -> Option<String> {
         file.file_stem().and_then(|s| s.to_str().map(|s| s.to_string()))
-    }
-
-    /// Whether the corresponding artifact of the given contract file and name exists
-    fn output_exists(contract_file: &Path, name: &str, root: &Path) -> bool {
-        root.join(Self::output_file(contract_file, name)).exists()
     }
 
     /// Read the artifact that's stored at the given path
@@ -794,12 +803,13 @@ pub trait ArtifactOutput {
         &self,
         _file: &Path,
         _name: &str,
-        contract: Contract,
+        contract: Self::CompilerContract,
         source_file: Option<&SourceFile>,
     ) -> Self::Artifact;
 
     /// Generates a path for an artifact based on already taken paths by either cached or compiled
     /// artifacts.
+    #[allow(clippy::too_many_arguments)]
     fn get_artifact_path(
         ctx: &OutputContext<'_>,
         already_taken: &HashSet<String>,
@@ -807,21 +817,19 @@ pub trait ArtifactOutput {
         name: &str,
         artifacts_folder: &Path,
         version: &Version,
-        versioned: bool,
+        profile: &str,
+        with_version: bool,
+        with_profile: bool,
     ) -> PathBuf {
         // if an artifact for the contract already exists (from a previous compile job)
         // we reuse the path, this will make sure that even if there are conflicting
         // files (files for witch `T::output_file()` would return the same path) we use
         // consistent output paths
-        if let Some(existing_artifact) = ctx.existing_artifact(file, name, version) {
+        if let Some(existing_artifact) = ctx.existing_artifact(file, name, version, profile) {
             trace!("use existing artifact file {:?}", existing_artifact,);
             existing_artifact.to_path_buf()
         } else {
-            let path = if versioned {
-                Self::output_file_versioned(file, name, version)
-            } else {
-                Self::output_file(file, name)
-            };
+            let path = Self::output_file(file, name, version, profile, with_version, with_profile);
 
             let path = artifacts_folder.join(path);
 
@@ -840,10 +848,11 @@ pub trait ArtifactOutput {
     /// [`Self::on_output()`]
     fn output_to_artifacts<C>(
         &self,
-        contracts: &VersionedContracts,
+        contracts: &VersionedContracts<Self::CompilerContract>,
         sources: &VersionedSourceFiles,
         ctx: OutputContext<'_>,
         layout: &ProjectPathsConfig<C>,
+        primary_profiles: &HashMap<PathBuf, &str>,
     ) -> Artifacts<Self::Artifact> {
         let mut artifacts = ArtifactsMap::new();
 
@@ -854,24 +863,30 @@ pub trait ArtifactOutput {
         let mut taken_paths_lowercase = ctx
             .existing_artifacts
             .values()
-            .flat_map(|artifacts| artifacts.values().flat_map(|artifacts| artifacts.values()))
+            .flat_map(|artifacts| artifacts.values())
+            .flat_map(|artifacts| artifacts.values())
+            .flat_map(|artifacts| artifacts.values())
             .map(|a| a.path.to_slash_lossy().to_lowercase())
             .collect::<HashSet<_>>();
 
         let mut files = contracts.keys().collect::<Vec<_>>();
         // Iterate starting with top-most files to ensure that they get the shortest paths.
-        files.sort_by(|file1, file2| {
+        files.sort_by(|&file1, &file2| {
             (file1.components().count(), file1).cmp(&(file2.components().count(), file2))
         });
         for file in files {
             for (name, versioned_contracts) in &contracts[file] {
+                let unique_versions =
+                    versioned_contracts.iter().map(|c| &c.version).collect::<HashSet<_>>();
+                let unique_profiles =
+                    versioned_contracts.iter().map(|c| &c.profile).collect::<HashSet<_>>();
+                let primary_profile = primary_profiles.get(file);
+
                 for contract in versioned_contracts {
+                    non_standalone_sources.insert(file);
+
                     // track `SourceFile`s that can be mapped to contracts
                     let source_file = sources.find_file_and_version(file, &contract.version);
-
-                    if let Some(source) = source_file {
-                        non_standalone_sources.insert((source.id, &contract.version));
-                    }
 
                     let artifact_path = Self::get_artifact_path(
                         &ctx,
@@ -880,7 +895,10 @@ pub trait ArtifactOutput {
                         name,
                         layout.artifacts.as_path(),
                         &contract.version,
-                        versioned_contracts.len() > 1,
+                        &contract.profile,
+                        unique_versions.len() > 1,
+                        unique_profiles.len() > 1
+                            && primary_profile.is_none_or(|p| p != &contract.profile),
                     );
 
                     taken_paths_lowercase.insert(artifact_path.to_slash_lossy().to_lowercase());
@@ -904,6 +922,7 @@ pub trait ArtifactOutput {
                         file: artifact_path,
                         version: contract.version.clone(),
                         build_id: contract.build_id.clone(),
+                        profile: contract.profile.clone(),
                     };
 
                     artifacts
@@ -921,8 +940,10 @@ pub trait ArtifactOutput {
         // any contract definition, which are not included in the `CompilerOutput` but we want to
         // create Artifacts for them regardless
         for (file, sources) in sources.as_ref().iter() {
+            let unique_versions = sources.iter().map(|s| &s.version).collect::<HashSet<_>>();
+            let unique_profiles = sources.iter().map(|s| &s.profile).collect::<HashSet<_>>();
             for source in sources {
-                if !non_standalone_sources.contains(&(source.source_file.id, &source.version)) {
+                if !non_standalone_sources.contains(file) {
                     // scan the ast as a safe measure to ensure this file does not include any
                     // source units
                     // there's also no need to create a standalone artifact for source files that
@@ -945,26 +966,26 @@ pub trait ArtifactOutput {
                                 name,
                                 &layout.artifacts,
                                 &source.version,
-                                sources.len() > 1,
+                                &source.profile,
+                                unique_versions.len() > 1,
+                                unique_profiles.len() > 1,
                             );
 
-                            let entries = artifacts
+                            taken_paths_lowercase
+                                .insert(artifact_path.to_slash_lossy().to_lowercase());
+
+                            artifacts
                                 .entry(file.clone())
                                 .or_default()
                                 .entry(name.to_string())
-                                .or_default();
-
-                            if entries.iter().all(|entry| entry.version != source.version) {
-                                taken_paths_lowercase
-                                    .insert(artifact_path.to_slash_lossy().to_lowercase());
-
-                                entries.push(ArtifactFile {
+                                .or_default()
+                                .push(ArtifactFile {
                                     artifact,
                                     file: artifact_path,
                                     version: source.version.clone(),
                                     build_id: source.build_id.clone(),
+                                    profile: source.profile.clone(),
                                 });
-                            }
                         }
                     }
                 }
@@ -1015,8 +1036,7 @@ pub struct OutputContext<'a> {
     /// └── inner
     ///     └── a.sol
     /// ```
-    pub existing_artifacts:
-        BTreeMap<&'a Path, &'a BTreeMap<String, BTreeMap<Version, CachedArtifact>>>,
+    pub existing_artifacts: BTreeMap<&'a Path, &'a CachedArtifacts>,
 }
 
 // === impl OutputContext
@@ -1042,13 +1062,14 @@ impl<'a> OutputContext<'a> {
         file: &Path,
         contract: &str,
         version: &Version,
+        profile: &str,
     ) -> Option<&Path> {
-        self.existing_artifacts.get(file).and_then(|contracts| {
-            contracts
-                .get(contract)
-                .and_then(|versions| versions.get(version))
-                .map(|a| a.path.as_path())
-        })
+        self.existing_artifacts
+            .get(file)
+            .and_then(|contracts| contracts.get(contract))
+            .and_then(|versions| versions.get(version))
+            .and_then(|profiles| profiles.get(profile))
+            .map(|a| a.path.as_path())
     }
 }
 
@@ -1069,6 +1090,7 @@ pub struct MinimalCombinedArtifacts {
 
 impl ArtifactOutput for MinimalCombinedArtifacts {
     type Artifact = CompactContractBytecode;
+    type CompilerContract = Contract;
 
     fn contract_to_artifact(
         &self,
@@ -1098,15 +1120,23 @@ pub struct MinimalCombinedArtifactsHardhatFallback {
 
 impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
     type Artifact = CompactContractBytecode;
+    type CompilerContract = Contract;
 
     fn on_output<C>(
         &self,
-        output: &VersionedContracts,
+        output: &VersionedContracts<Contract>,
         sources: &VersionedSourceFiles,
         layout: &ProjectPathsConfig<C>,
         ctx: OutputContext<'_>,
+        primary_profiles: &HashMap<PathBuf, &str>,
     ) -> Result<Artifacts<Self::Artifact>> {
-        MinimalCombinedArtifacts::default().on_output(output, sources, layout, ctx)
+        MinimalCombinedArtifacts::default().on_output(
+            output,
+            sources,
+            layout,
+            ctx,
+            primary_profiles,
+        )
     }
 
     fn read_cached_artifact(path: &Path) -> Result<Self::Artifact> {

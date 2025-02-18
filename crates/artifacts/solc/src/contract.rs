@@ -32,6 +32,8 @@ pub struct Contract {
     pub ir: Option<String>,
     #[serde(default, skip_serializing_if = "StorageLayout::is_empty")]
     pub storage_layout: StorageLayout,
+    #[serde(default, skip_serializing_if = "StorageLayout::is_empty")]
+    pub transient_storage_layout: StorageLayout,
     /// EVM-related outputs
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evm: Option<Evm>,
@@ -40,11 +42,13 @@ pub struct Contract {
     pub ewasm: Option<Ewasm>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ir_optimized: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ir_optimized_ast: Option<serde_json::Value>,
 }
 
 impl<'a> From<&'a Contract> for CompactContractBytecodeCow<'a> {
     fn from(artifact: &'a Contract) -> Self {
-        let (bytecode, deployed_bytecode) = if let Some(ref evm) = artifact.evm {
+        let (bytecode, deployed_bytecode) = if let Some(evm) = &artifact.evm {
             (
                 evm.bytecode.clone().map(Into::into).map(Cow::Owned),
                 evm.deployed_bytecode.clone().map(Into::into).map(Cow::Owned),
@@ -114,7 +118,7 @@ impl From<Contract> for ContractBytecode {
             (None, None)
         };
 
-        Self { abi: c.abi.map(Into::into), bytecode, deployed_bytecode }
+        Self { abi: c.abi, bytecode, deployed_bytecode }
     }
 }
 
@@ -170,7 +174,7 @@ impl From<Contract> for CompactContractBytecode {
             (None, None)
         };
 
-        Self { abi: c.abi.map(Into::into), bytecode, deployed_bytecode }
+        Self { abi: c.abi, bytecode, deployed_bytecode }
     }
 }
 
@@ -451,7 +455,7 @@ pub struct CompactContractRefSome<'a> {
     pub bin_runtime: &'a BytecodeObject,
 }
 
-impl<'a> CompactContractRefSome<'a> {
+impl CompactContractRefSome<'_> {
     /// Returns the individual parts of this contract.
     ///
     /// If the values are `None`, then `Default` is returned.
@@ -519,7 +523,7 @@ impl<'a> CompactContractRef<'a> {
 
 impl<'a> From<&'a Contract> for CompactContractRef<'a> {
     fn from(c: &'a Contract) -> Self {
-        let (bin, bin_runtime) = if let Some(ref evm) = c.evm {
+        let (bin, bin_runtime) = if let Some(evm) = &c.evm {
             (
                 evm.bytecode.as_ref().map(|c| &c.object),
                 evm.deployed_bytecode

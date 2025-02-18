@@ -82,7 +82,7 @@
 //! provided to solc.
 //! For every file the cache file contains a dedicated [cache entry](crate::cache::CacheEntry),
 //! which represents the state of the file. A solidity file can contain several contracts, for every
-//! contract a separate [artifact](crate::Artifact) is emitted. Therefor the entry also tracks all
+//! contract a separate [artifact](crate::Artifact) is emitted. Therefore the entry also tracks all
 //! artifacts emitted by a file. A solidity file can also be compiled with several solc versions.
 //!
 //! For example in `A(<=0.8.10) imports C(>0.4.0)` and
@@ -108,7 +108,7 @@ use crate::{
     filter::SparseOutputFilter,
     output::{AggregatedCompilerOutput, Builds},
     report,
-    resolver::GraphEdges,
+    resolver::{GraphEdges, ResolvedSources},
     ArtifactOutput, CompilerSettings, Graph, Project, ProjectCompileOutput, ProjectPathsConfig,
     Sources,
 };
@@ -118,7 +118,7 @@ use semver::Version;
 use std::{collections::HashMap, fmt::Debug, path::PathBuf, time::Instant};
 
 /// A set of different Solc installations with their version and the sources to be compiled
-pub(crate) type VersionedSources<L> = HashMap<L, HashMap<Version, Sources>>;
+pub(crate) type VersionedSources<'a, L, S> = HashMap<L, Vec<(Version, Sources, (&'a str, &'a S))>>;
 
 /// Invoked before the actual compiler invocation and can override the input.
 pub trait Preprocessor<C: Compiler>: Debug {
@@ -131,17 +131,25 @@ pub trait Preprocessor<C: Compiler>: Debug {
 }
 
 #[derive(Debug)]
-pub struct ProjectCompiler<'a, T: ArtifactOutput, C: Compiler> {
+pub struct ProjectCompiler<
+    'a,
+    T: ArtifactOutput<CompilerContract = C::CompilerContract>,
+    C: Compiler,
+> {
     /// Contains the relationship of the source files and their imports
     edges: GraphEdges<C::ParsedSource>,
     project: &'a Project<C, T>,
+    /// A mapping from a source file path to the primary profile name selected for it.
+    primary_profiles: HashMap<PathBuf, &'a str>,
     /// how to compile all the sources
-    sources: CompilerSources<C::Language>,
+    sources: CompilerSources<'a, C::Language, C::Settings>,
     /// Optional preprocessor
     preprocessor: Option<Box<dyn Preprocessor<C>>>,
 }
 
-impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
+impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
+    ProjectCompiler<'a, T, C>
+{
     /// Create a new `ProjectCompiler` to bootstrap the compilation process of the project's
     /// sources.
     pub fn new(project: &'a Project<C, T>) -> Result<Self> {
@@ -159,11 +167,8 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
             sources.retain(|f, _| filter.is_match(f))
         }
         let graph = Graph::resolve_sources(&project.paths, sources)?;
-        let (sources, edges) = graph.into_sources_by_version(
-            project.offline,
-            &project.locked_versions,
-            &project.compiler,
-        )?;
+        let ResolvedSources { sources, primary_profiles, edges } =
+            graph.into_sources_by_version(project)?;
 
         // If there are multiple different versions, and we can use multiple jobs we can compile
         // them in parallel.
@@ -173,7 +178,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
             sources,
         };
 
-        Ok(Self { edges, project, sources, preprocessor: None })
+        Ok(Self { edges, primary_profiles, project, sources, preprocessor: None })
     }
 
     pub fn with_preprocessor(self, preprocessor: impl Preprocessor<C> + 'static) -> Self {
@@ -214,7 +219,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
     ///   - check cache
     fn preprocess(self) -> Result<PreprocessedState<'a, T, C>> {
         trace!("preprocessing");
-        let Self { edges, project, mut sources, preprocessor } = self;
+        let Self { edges, project, mut sources, primary_profiles, preprocessor } = self;
 
         // convert paths on windows to ensure consistency with the `CompilerOutput` `solc` emits,
         // which is unix style `/`
@@ -224,7 +229,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
         // retain and compile only dirty sources and all their imports
         sources.filter(&mut cache);
 
-        Ok(PreprocessedState { sources, cache, preprocessor })
+        Ok(PreprocessedState { sources, cache, primary_profiles, preprocessor })
     }
 }
 
@@ -232,22 +237,28 @@ impl<'a, T: ArtifactOutput, C: Compiler> ProjectCompiler<'a, T, C> {
 ///
 /// The main reason is to debug all states individually
 #[derive(Debug)]
-struct PreprocessedState<'a, T: ArtifactOutput, C: Compiler> {
+struct PreprocessedState<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
+{
     /// Contains all the sources to compile.
-    sources: CompilerSources<C::Language>,
+    sources: CompilerSources<'a, C::Language, C::Settings>,
 
     /// Cache that holds `CacheEntry` objects if caching is enabled and the project is recompiled
     cache: ArtifactsCache<'a, T, C>,
+
+    /// A mapping from a source file path to the primary profile name selected for it.
+    primary_profiles: HashMap<PathBuf, &'a str>,
 
     /// Optional preprocessor
     preprocessor: Option<Box<dyn Preprocessor<C>>>,
 }
 
-impl<'a, T: ArtifactOutput, C: Compiler> PreprocessedState<'a, T, C> {
+impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
+    PreprocessedState<'a, T, C>
+{
     /// advance to the next state by compiling all sources
     fn compile(self) -> Result<CompiledState<'a, T, C>> {
         trace!("compiling");
-        let PreprocessedState { sources, mut cache, preprocessor } = self;
+        let PreprocessedState { sources, mut cache, primary_profiles, preprocessor } = self;
 
         let mut output = sources.compile(&mut cache, preprocessor)?;
 
@@ -258,25 +269,28 @@ impl<'a, T: ArtifactOutput, C: Compiler> PreprocessedState<'a, T, C> {
         // contracts again
         output.join_all(cache.project().root());
 
-        Ok(CompiledState { output, cache })
+        Ok(CompiledState { output, cache, primary_profiles })
     }
 }
 
 /// Represents the state after `solc` was successfully invoked
 #[derive(Debug)]
-struct CompiledState<'a, T: ArtifactOutput, C: Compiler> {
+struct CompiledState<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> {
     output: AggregatedCompilerOutput<C>,
     cache: ArtifactsCache<'a, T, C>,
+    primary_profiles: HashMap<PathBuf, &'a str>,
 }
 
-impl<'a, T: ArtifactOutput, C: Compiler> CompiledState<'a, T, C> {
+impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
+    CompiledState<'a, T, C>
+{
     /// advance to the next state by handling all artifacts
     ///
     /// Writes all output contracts to disk if enabled in the `Project` and if the build was
     /// successful
     #[instrument(skip_all, name = "write-artifacts")]
     fn write_artifacts(self) -> Result<ArtifactsState<'a, T, C>> {
-        let CompiledState { output, cache } = self;
+        let CompiledState { output, cache, primary_profiles } = self;
 
         let project = cache.project();
         let ctx = cache.output_ctx();
@@ -288,6 +302,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> CompiledState<'a, T, C> {
                 &output.sources,
                 ctx,
                 &project.paths,
+                &primary_profiles,
             )
         } else if output.has_error(
             &project.ignored_error_codes,
@@ -300,6 +315,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> CompiledState<'a, T, C> {
                 &output.sources,
                 ctx,
                 &project.paths,
+                &primary_profiles,
             )
         } else {
             trace!(
@@ -313,6 +329,7 @@ impl<'a, T: ArtifactOutput, C: Compiler> CompiledState<'a, T, C> {
                 &output.sources,
                 &project.paths,
                 ctx,
+                &primary_profiles,
             )?;
 
             // emits all the build infos, if they exist
@@ -327,13 +344,15 @@ impl<'a, T: ArtifactOutput, C: Compiler> CompiledState<'a, T, C> {
 
 /// Represents the state after all artifacts were written to disk
 #[derive(Debug)]
-struct ArtifactsState<'a, T: ArtifactOutput, C: Compiler> {
+struct ArtifactsState<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> {
     output: AggregatedCompilerOutput<C>,
     cache: ArtifactsCache<'a, T, C>,
     compiled_artifacts: Artifacts<T::Artifact>,
 }
 
-impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
+impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
+    ArtifactsState<'_, T, C>
+{
     /// Writes the cache file
     ///
     /// this concludes the [`Project::compile()`] statemachine
@@ -377,14 +396,14 @@ impl<'a, T: ArtifactOutput, C: Compiler> ArtifactsState<'a, T, C> {
 
 /// Determines how the `solc <-> sources` pairs are executed.
 #[derive(Debug, Clone)]
-struct CompilerSources<L> {
+struct CompilerSources<'a, L, S> {
     /// The sources to compile.
-    sources: VersionedSources<L>,
+    sources: VersionedSources<'a, L, S>,
     /// The number of jobs to use for parallel compilation.
     jobs: Option<usize>,
 }
 
-impl<L: Language> CompilerSources<L> {
+impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
     /// Converts all `\\` separators to `/`.
     ///
     /// This effectively ensures that `solc` can find imported files like `/src/Cheats.sol` in the
@@ -395,7 +414,7 @@ impl<L: Language> CompilerSources<L> {
             use path_slash::PathBufExt;
 
             self.sources.values_mut().for_each(|versioned_sources| {
-                versioned_sources.values_mut().for_each(|sources| {
+                versioned_sources.iter_mut().for_each(|(_, sources, _)| {
                     *sources = std::mem::take(sources)
                         .into_iter()
                         .map(|(path, source)| {
@@ -408,15 +427,18 @@ impl<L: Language> CompilerSources<L> {
     }
 
     /// Filters out all sources that don't need to be compiled, see [`ArtifactsCache::filter`]
-    fn filter<T: ArtifactOutput, C: Compiler<Language = L>>(
+    fn filter<
+        T: ArtifactOutput<CompilerContract = C::CompilerContract>,
+        C: Compiler<Language = L>,
+    >(
         &mut self,
         cache: &mut ArtifactsCache<'_, T, C>,
     ) {
         cache.remove_dirty_sources();
         for versioned_sources in self.sources.values_mut() {
-            for (version, sources) in versioned_sources {
+            for (version, sources, (profile, _)) in versioned_sources {
                 trace!("Filtering {} sources for {}", sources.len(), version);
-                cache.filter(sources, version);
+                cache.filter(sources, version, profile);
                 trace!(
                     "Detected {} sources to compile {:?}",
                     sources.dirty().count(),
@@ -427,7 +449,10 @@ impl<L: Language> CompilerSources<L> {
     }
 
     /// Compiles all the files with `Solc`
-    fn compile<C: Compiler<Language = L>, T: ArtifactOutput>(
+    fn compile<
+        C: Compiler<Language = L, Settings = S>,
+        T: ArtifactOutput<CompilerContract = C::CompilerContract>,
+    >(
         self,
         cache: &mut ArtifactsCache<'_, T, C>,
         preprocessor: Option<Box<dyn Preprocessor<C>>>,
@@ -445,7 +470,8 @@ impl<L: Language> CompilerSources<L> {
 
         let mut jobs = Vec::new();
         for (language, versioned_sources) in self.sources {
-            for (version, sources) in versioned_sources {
+            for (version, sources, (profile, opt_settings)) in versioned_sources {
+                let mut opt_settings = opt_settings.clone();
                 if sources.is_empty() {
                     // nothing to compile
                     trace!("skip {} for empty sources set", version);
@@ -454,7 +480,6 @@ impl<L: Language> CompilerSources<L> {
 
                 // depending on the composition of the filtered sources, the output selection can be
                 // optimized
-                let mut opt_settings = project.settings.clone();
                 let actually_dirty =
                     sparse_output.sparse_sources(&sources, &mut opt_settings, graph);
 
@@ -481,7 +506,7 @@ impl<L: Language> CompilerSources<L> {
                     input = preprocessor.preprocess(&project.compiler, input, &project.paths)?;
                 }
 
-                jobs.push((input, actually_dirty));
+                jobs.push((input, profile, actually_dirty));
             }
         }
 
@@ -493,7 +518,7 @@ impl<L: Language> CompilerSources<L> {
 
         let mut aggregated = AggregatedCompilerOutput::default();
 
-        for (input, mut output, actually_dirty) in results {
+        for (input, mut output, profile, actually_dirty) in results {
             let version = input.version();
 
             // Mark all files as seen by the compiler
@@ -510,22 +535,22 @@ impl<L: Language> CompilerSources<L> {
             );
             output.join_all(project.paths.root.as_path());
 
-            aggregated.extend(version.clone(), build_info, output);
+            aggregated.extend(version.clone(), build_info, profile, output);
         }
 
         Ok(aggregated)
     }
 }
 
-type CompilationResult<I, E> = Result<Vec<(I, CompilerOutput<E>, Vec<PathBuf>)>>;
+type CompilationResult<'a, I, E, C> = Result<Vec<(I, CompilerOutput<E, C>, &'a str, Vec<PathBuf>)>>;
 
 /// Compiles the input set sequentially and returns a [Vec] of outputs.
-fn compile_sequential<C: Compiler>(
+fn compile_sequential<'a, C: Compiler>(
     compiler: &C,
-    jobs: Vec<(C::Input, Vec<PathBuf>)>,
-) -> CompilationResult<C::Input, C::CompilationError> {
+    jobs: Vec<(C::Input, &'a str, Vec<PathBuf>)>,
+) -> CompilationResult<'a, C::Input, C::CompilationError, C::CompilerContract> {
     jobs.into_iter()
-        .map(|(input, actually_dirty)| {
+        .map(|(input, profile, actually_dirty)| {
             let start = Instant::now();
             report::compiler_spawn(
                 &input.compiler_name(),
@@ -535,17 +560,17 @@ fn compile_sequential<C: Compiler>(
             let output = compiler.compile(&input)?;
             report::compiler_success(&input.compiler_name(), input.version(), &start.elapsed());
 
-            Ok((input, output, actually_dirty))
+            Ok((input, output, profile, actually_dirty))
         })
         .collect()
 }
 
 /// compiles the input set using `num_jobs` threads
-fn compile_parallel<C: Compiler>(
+fn compile_parallel<'a, C: Compiler>(
     compiler: &C,
-    jobs: Vec<(C::Input, Vec<PathBuf>)>,
+    jobs: Vec<(C::Input, &'a str, Vec<PathBuf>)>,
     num_jobs: usize,
-) -> CompilationResult<C::Input, C::CompilationError> {
+) -> CompilationResult<'a, C::Input, C::CompilationError, C::CompilerContract> {
     // need to get the currently installed reporter before installing the pool, otherwise each new
     // thread in the pool will get initialized with the default value of the `thread_local!`'s
     // localkey. This way we keep access to the reporter in the rayon pool
@@ -556,7 +581,7 @@ fn compile_parallel<C: Compiler>(
 
     pool.install(move || {
         jobs.into_par_iter()
-            .map(move |(input, actually_dirty)| {
+            .map(move |(input, profile, actually_dirty)| {
                 // set the reporter on this thread
                 let _guard = report::set_scoped(&scoped_report);
 
@@ -572,7 +597,7 @@ fn compile_parallel<C: Compiler>(
                         input.version(),
                         &start.elapsed(),
                     );
-                    (input, output, actually_dirty)
+                    (input, output, profile, actually_dirty)
                 })
             })
             .collect()
@@ -703,7 +728,7 @@ mod tests {
         // single solc
         assert_eq!(len, 1);
 
-        let filtered = &sources.values().next().unwrap().values().next().unwrap();
+        let filtered = &sources.values().next().unwrap()[0].1;
 
         // 3 contracts total
         assert_eq!(filtered.0.len(), 3);
@@ -758,7 +783,7 @@ mod tests {
     fn extra_output_cached() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
         let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
-        let mut project = TempProject::<MultiCompiler>::new(paths.clone()).unwrap();
+        let mut project = TempProject::<MultiCompiler>::new(paths).unwrap();
 
         // Compile once without enabled extra output
         project.compile().unwrap();

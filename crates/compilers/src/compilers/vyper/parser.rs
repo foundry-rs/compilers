@@ -16,7 +16,7 @@ use winnow::{
     ascii::space1,
     combinator::{alt, opt, preceded},
     token::{take_till, take_while},
-    PResult, Parser,
+    ModalResult, Parser,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -50,6 +50,14 @@ impl ParsedSource for VyperParsedSource {
 
     fn version_req(&self) -> Option<&VersionReq> {
         self.version_req.as_ref()
+    }
+
+    fn contract_names(&self) -> &[String] {
+        &[]
+    }
+
+    fn language(&self) -> Self::Language {
+        VyperLanguage
     }
 
     fn resolve_imports<C>(
@@ -137,10 +145,6 @@ impl ParsedSource for VyperParsedSource {
         }
         Ok(imports)
     }
-
-    fn language(&self) -> Self::Language {
-        VyperLanguage
-    }
 }
 
 /// Parses given source trying to find all import directives.
@@ -157,7 +161,7 @@ fn parse_imports(content: &str) -> Vec<VyperImport> {
 }
 
 /// Parses given input, trying to find (import|from) part1.part2.part3 (import part4)?
-fn parse_import(input: &mut &str) -> PResult<VyperImport> {
+fn parse_import(input: &mut &str) -> ModalResult<VyperImport> {
     (
         preceded(
             (alt(["from", "import"]), space1),

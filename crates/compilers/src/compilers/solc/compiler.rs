@@ -9,6 +9,7 @@ use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     collections::BTreeSet,
+    io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Output, Stdio},
     str::FromStr,
@@ -45,8 +46,8 @@ macro_rules! take_solc_installer_lock {
 /// we should download.
 /// The boolean value marks whether there was an error accessing the release list
 #[cfg(feature = "svm-solc")]
-pub static RELEASES: once_cell::sync::Lazy<(svm::Releases, Vec<Version>, bool)> =
-    once_cell::sync::Lazy::new(|| {
+pub static RELEASES: std::sync::LazyLock<(svm::Releases, Vec<Version>, bool)> =
+    std::sync::LazyLock::new(|| {
         match serde_json::from_str::<svm::Releases>(svm_builds::RELEASE_LIST_JSON) {
             Ok(releases) => {
                 let sorted_versions = releases.clone().into_versions();
@@ -92,6 +93,24 @@ impl Solc {
         let path = path.into();
         let version = Self::version(path.clone())?;
         Ok(Self::new_with_version(path, version))
+    }
+
+    /// A new instance which points to `solc` with additional cli arguments. Invokes `solc
+    /// --version` to determine the version.
+    ///
+    /// Returns error if `solc` is not found in the system or if the version cannot be retrieved.
+    pub fn new_with_args(
+        path: impl Into<PathBuf>,
+        extra_args: impl IntoIterator<Item: Into<String>>,
+    ) -> Result<Self> {
+        let args = extra_args.into_iter().map(Into::into).collect::<Vec<_>>();
+        let path = path.into();
+        let version = Self::version_with_args(path.clone(), &args)?;
+
+        let mut solc = Self::new_with_version(path, version);
+        solc.extra_args = args;
+
+        Ok(solc)
     }
 
     /// A new instance which points to `solc` with the given version
@@ -410,8 +429,11 @@ impl Solc {
         let mut child = cmd.spawn().map_err(self.map_io_err())?;
         debug!("spawned");
 
-        let stdin = child.stdin.as_mut().unwrap();
-        serde_json::to_writer(stdin, input)?;
+        {
+            let mut stdin = io::BufWriter::new(child.stdin.take().unwrap());
+            serde_json::to_writer(&mut stdin, input)?;
+            stdin.flush().map_err(self.map_io_err())?;
+        }
         debug!("wrote JSON input to stdin");
 
         let output = child.wait_with_output().map_err(self.map_io_err())?;
@@ -429,9 +451,16 @@ impl Solc {
     /// Invokes `solc --version` and parses the output as a SemVer [`Version`].
     #[instrument(level = "debug", skip_all)]
     pub fn version(solc: impl Into<PathBuf>) -> Result<Version> {
-        crate::cache_version(solc.into(), |solc| {
+        Self::version_with_args(solc, &[])
+    }
+
+    /// Invokes `solc --version` and parses the output as a SemVer [`Version`].
+    #[instrument(level = "debug", skip_all)]
+    pub fn version_with_args(solc: impl Into<PathBuf>, args: &[String]) -> Result<Version> {
+        crate::cache_version(solc.into(), args, |solc| {
             let mut cmd = Command::new(solc);
-            cmd.arg("--version")
+            cmd.args(args)
+                .arg("--version")
                 .stdin(Stdio::piped())
                 .stderr(Stdio::piped())
                 .stdout(Stdio::piped());
@@ -454,6 +483,7 @@ impl Solc {
     pub fn configure_cmd(&self) -> Command {
         let mut cmd = Command::new(&self.solc);
         cmd.stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
+        cmd.args(&self.extra_args);
 
         if !self.allow_paths.is_empty() {
             cmd.arg("--allow-paths");
@@ -478,7 +508,6 @@ impl Solc {
             cmd.current_dir(base_path);
         }
 
-        cmd.args(&self.extra_args);
         cmd.arg("--standard-json");
 
         cmd
@@ -586,7 +615,7 @@ fn version_from_output(output: Output) -> Result<Version> {
         let version = stdout
             .lines()
             .filter(|l| !l.trim().is_empty())
-            .last()
+            .next_back()
             .ok_or_else(|| SolcError::msg("Version not found in Solc output"))?;
         // NOTE: semver doesn't like `+` in g++ in build metadata which is invalid semver
         Ok(Version::from_str(&version.trim_start_matches("Version: ").replace(".g++", ".gcc"))?)

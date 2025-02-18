@@ -142,7 +142,7 @@ impl<'a> SparseOutputFilter<'a> {
             .collect();
 
         // Remove clean sources, those will be read from cache.
-        full_compilation.retain(|file| sources.0.get(file).map_or(false, |s| s.is_dirty()));
+        full_compilation.retain(|file| sources.0.get(file).is_some_and(|s| s.is_dirty()));
 
         settings.update_output_selection(|selection| {
             trace!(
@@ -170,7 +170,7 @@ impl<'a> SparseOutputFilter<'a> {
     }
 }
 
-impl<'a> fmt::Debug for SparseOutputFilter<'a> {
+impl fmt::Debug for SparseOutputFilter<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SparseOutputFilter::Optimized => f.write_str("Optimized"),

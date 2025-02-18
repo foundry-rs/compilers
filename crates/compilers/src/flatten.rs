@@ -2,7 +2,7 @@ use crate::{
     compilers::{Compiler, ParsedSource},
     filter::MaybeSolData,
     resolver::parse::SolData,
-    CompilerSettings, Graph, Project, ProjectPathsConfig,
+    ArtifactOutput, CompilerSettings, Graph, Project, ProjectPathsConfig,
 };
 use foundry_compilers_artifacts::{
     ast::{visitor::Visitor, *},
@@ -116,7 +116,7 @@ impl Visitor for ReferencesCollector {
 pub type Updates = HashMap<PathBuf, BTreeSet<(usize, usize, String)>>;
 
 pub struct FlatteningResult {
-    /// Updated source in the order they shoud be written to the output file.
+    /// Updated source in the order they should be written to the output file.
     sources: Vec<String>,
     /// Pragmas that should be present in the target file.
     pragmas: Vec<String>,
@@ -190,8 +190,8 @@ pub struct Flattener {
 
 impl Flattener {
     /// Compiles the target file and prepares AST and analysis data for flattening.
-    pub fn new<C: Compiler>(
-        mut project: Project<C>,
+    pub fn new<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>>(
+        mut project: Project<C, T>,
         target: &Path,
     ) -> std::result::Result<Self, FlattenerError>
     where
@@ -318,7 +318,7 @@ impl Flattener {
             let mut ids = ids.clone().into_iter().collect::<Vec<_>>();
             if needs_rename {
                 // `loc.path` is expected to be different for each id because there can't be 2
-                // top-level eclarations with the same name in the same file.
+                // top-level declarations with the same name in the same file.
                 //
                 // Sorting by index loc.path in sorted files to make the renaming process
                 // deterministic.
@@ -359,7 +359,7 @@ impl Flattener {
     ///
     /// This approach works by firstly collecting all IDs of import directives, and then looks for
     /// any references of them. Once the reference is found, it's full length is getting removed
-    /// from source + 1 charater ('.')
+    /// from source + 1 character ('.')
     ///
     /// This should work correctly for vast majority of cases, however there are situations for
     /// which such approach won't work, most of which are related to code being formatted in an
@@ -748,7 +748,7 @@ impl Flattener {
             .collect()
     }
 
-    /// Removes all license identifiers from all sources. Returns licesnse identifier from target
+    /// Removes all license identifiers from all sources. Returns license identifier from target
     /// file, if any.
     fn process_licenses(&self, updates: &mut Updates) -> Option<String> {
         let mut target_license = None;
@@ -852,7 +852,24 @@ pub fn collect_ordered_deps<D: ParsedSource + MaybeSolData>(
         paths_with_deps_count.push((path_deps.len(), path));
     }
 
-    paths_with_deps_count.sort();
+    paths_with_deps_count.sort_by(|(count_0, path_0), (count_1, path_1)| {
+        // Compare dependency counts
+        match count_0.cmp(count_1) {
+            o if !o.is_eq() => return o,
+            _ => {}
+        };
+
+        // Try comparing file names
+        if let Some((name_0, name_1)) = path_0.file_name().zip(path_1.file_name()) {
+            match name_0.cmp(name_1) {
+                o if !o.is_eq() => return o,
+                _ => {}
+            }
+        }
+
+        // If both filenames and dependecy counts are equal, fallback to comparing file paths
+        path_0.cmp(path_1)
+    });
 
     let mut ordered_deps =
         paths_with_deps_count.into_iter().map(|(_, path)| path).collect::<Vec<_>>();

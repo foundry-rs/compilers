@@ -1,8 +1,6 @@
 //! The output of a compiled project
 use contracts::{VersionedContract, VersionedContracts};
-use foundry_compilers_artifacts::{
-    CompactContractBytecode, CompactContractRef, Contract, Severity,
-};
+use foundry_compilers_artifacts::{CompactContractBytecode, CompactContractRef, Severity};
 use foundry_compilers_core::error::{SolcError, SolcIoError};
 use info::ContractInfoRef;
 use semver::Version;
@@ -18,7 +16,9 @@ use yansi::Paint;
 
 use crate::{
     buildinfo::{BuildContext, RawBuildInfo},
-    compilers::{multi::MultiCompiler, CompilationError, Compiler, CompilerOutput},
+    compilers::{
+        multi::MultiCompiler, CompilationError, Compiler, CompilerContract, CompilerOutput,
+    },
     Artifact, ArtifactId, ArtifactOutput, Artifacts, ConfigurableArtifacts,
 };
 
@@ -65,7 +65,7 @@ impl<L> IntoIterator for Builds<L> {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProjectCompileOutput<
     C: Compiler = MultiCompiler,
-    T: ArtifactOutput = ConfigurableArtifacts,
+    T: ArtifactOutput<CompilerContract = C::CompilerContract> = ConfigurableArtifacts,
 > {
     /// contains the aggregated `CompilerOutput`
     pub(crate) compiler_output: AggregatedCompilerOutput<C>,
@@ -83,7 +83,9 @@ pub struct ProjectCompileOutput<
     pub(crate) builds: Builds<C::Language>,
 }
 
-impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
+impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
+    ProjectCompileOutput<C, T>
+{
     /// Converts all `\\` separators in _all_ paths to `/`
     pub fn slash_paths(&mut self) {
         self.compiler_output.slash_paths();
@@ -304,7 +306,7 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     /// `Contract`
     pub fn compiled_contracts_by_compiler_version(
         &self,
-    ) -> BTreeMap<Version, Vec<(String, Contract)>> {
+    ) -> BTreeMap<Version, Vec<(String, impl CompilerContract)>> {
         let mut contracts: BTreeMap<_, Vec<_>> = BTreeMap::new();
         let versioned_contracts = &self.compiler_output.contracts;
         for (_, name, contract, version) in versioned_contracts.contracts_with_files_and_version() {
@@ -459,7 +461,9 @@ impl<T: ArtifactOutput, C: Compiler> ProjectCompileOutput<C, T> {
     }
 }
 
-impl<C: Compiler, T: ArtifactOutput> ProjectCompileOutput<C, T> {
+impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>>
+    ProjectCompileOutput<C, T>
+{
     /// Returns whether any errors were emitted by the compiler.
     pub fn has_compiler_errors(&self) -> bool {
         self.compiler_output.has_error(
@@ -488,7 +492,9 @@ impl<C: Compiler, T: ArtifactOutput> ProjectCompileOutput<C, T> {
     }
 }
 
-impl<C: Compiler, T: ArtifactOutput> fmt::Display for ProjectCompileOutput<C, T> {
+impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> fmt::Display
+    for ProjectCompileOutput<C, T>
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.compiler_output.is_unchanged() {
             f.write_str("Nothing to compile")
@@ -514,7 +520,7 @@ pub struct AggregatedCompilerOutput<C: Compiler> {
     /// All source files combined with the solc version used to compile them
     pub sources: VersionedSourceFiles,
     /// All compiled contracts combined with the solc version used to compile them
-    pub contracts: VersionedContracts,
+    pub contracts: VersionedContracts<C::CompilerContract>,
     // All the `BuildInfo`s of solc invocations.
     pub build_infos: Vec<RawBuildInfo<C::Language>>,
 }
@@ -564,12 +570,13 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
         &mut self,
         version: Version,
         build_info: RawBuildInfo<C::Language>,
-        output: CompilerOutput<C::CompilationError>,
+        profile: &str,
+        output: CompilerOutput<C::CompilationError, C::CompilerContract>,
     ) {
         let build_id = build_info.id.clone();
         self.build_infos.push(build_info);
 
-        let CompilerOutput { errors, sources, contracts } = output;
+        let CompilerOutput { errors, sources, contracts, .. } = output;
         self.errors.extend(errors);
 
         for (path, source_file) in sources {
@@ -578,17 +585,19 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
                 source_file,
                 version: version.clone(),
                 build_id: build_id.clone(),
+                profile: profile.to_string(),
             });
         }
 
         for (file_name, new_contracts) in contracts {
-            let contracts = self.contracts.as_mut().entry(file_name).or_default();
+            let contracts = self.contracts.0.entry(file_name).or_default();
             for (contract_name, contract) in new_contracts {
                 let versioned = contracts.entry(contract_name).or_default();
                 versioned.push(VersionedContract {
                     contract,
                     version: version.clone(),
                     build_id: build_id.clone(),
+                    profile: profile.to_string(),
                 });
             }
         }
@@ -642,7 +651,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// let contract = output.remove_first("Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn remove_first(&mut self, contract: &str) -> Option<Contract> {
+    pub fn remove_first(&mut self, contract: &str) -> Option<C::CompilerContract> {
         self.contracts.remove_first(contract)
     }
 
@@ -657,7 +666,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// let contract = output.remove("src/Greeter.sol".as_ref(), "Greeter").unwrap();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn remove(&mut self, path: &Path, contract: &str) -> Option<Contract> {
+    pub fn remove(&mut self, path: &Path, contract: &str) -> Option<C::CompilerContract> {
         self.contracts.remove(path, contract)
     }
 
@@ -680,7 +689,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     pub fn remove_contract<'a>(
         &mut self,
         info: impl Into<ContractInfoRef<'a>>,
-    ) -> Option<Contract> {
+    ) -> Option<C::CompilerContract> {
         let ContractInfoRef { path, name } = info.into();
         if let Some(path) = path {
             self.remove(path[..].as_ref(), &name)
@@ -690,40 +699,40 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     }
 
     /// Iterate over all contracts and their names
-    pub fn contracts_iter(&self) -> impl Iterator<Item = (&String, &Contract)> {
+    pub fn contracts_iter(&self) -> impl Iterator<Item = (&String, &C::CompilerContract)> {
         self.contracts.contracts()
     }
 
     /// Iterate over all contracts and their names
-    pub fn contracts_into_iter(self) -> impl Iterator<Item = (String, Contract)> {
+    pub fn contracts_into_iter(self) -> impl Iterator<Item = (String, C::CompilerContract)> {
         self.contracts.into_contracts()
     }
 
     /// Returns an iterator over (`file`, `name`, `Contract`)
     pub fn contracts_with_files_iter(
         &self,
-    ) -> impl Iterator<Item = (&PathBuf, &String, &Contract)> {
+    ) -> impl Iterator<Item = (&PathBuf, &String, &C::CompilerContract)> {
         self.contracts.contracts_with_files()
     }
 
     /// Returns an iterator over (`file`, `name`, `Contract`)
     pub fn contracts_with_files_into_iter(
         self,
-    ) -> impl Iterator<Item = (PathBuf, String, Contract)> {
+    ) -> impl Iterator<Item = (PathBuf, String, C::CompilerContract)> {
         self.contracts.into_contracts_with_files()
     }
 
     /// Returns an iterator over (`file`, `name`, `Contract`, `Version`)
     pub fn contracts_with_files_and_version_iter(
         &self,
-    ) -> impl Iterator<Item = (&PathBuf, &String, &Contract, &Version)> {
+    ) -> impl Iterator<Item = (&PathBuf, &String, &C::CompilerContract, &Version)> {
         self.contracts.contracts_with_files_and_version()
     }
 
     /// Returns an iterator over (`file`, `name`, `Contract`, `Version`)
     pub fn contracts_with_files_and_version_into_iter(
         self,
-    ) -> impl Iterator<Item = (PathBuf, String, Contract, Version)> {
+    ) -> impl Iterator<Item = (PathBuf, String, C::CompilerContract, Version)> {
         self.contracts.into_contracts_with_files_and_version()
     }
 
@@ -755,7 +764,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     /// let (sources, contracts) = output.split();
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    pub fn split(self) -> (VersionedSourceFiles, VersionedContracts) {
+    pub fn split(self) -> (VersionedSourceFiles, VersionedContracts<C::CompilerContract>) {
         (self.sources, self.contracts)
     }
 
@@ -869,7 +878,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
 
         self.contracts.contracts_with_files().filter(|(path, _, _)| *path == contract_path).any(
             |(_, _, contract)| {
-                contract.abi.as_ref().map_or(false, |abi| abi.functions.contains_key("IS_TEST"))
+                contract.abi_ref().is_some_and(|abi| abi.functions.contains_key("IS_TEST"))
             },
         )
     }
@@ -888,7 +897,7 @@ pub struct OutputDiagnostics<'a, C: Compiler> {
     compiler_severity_filter: Severity,
 }
 
-impl<'a, C: Compiler> OutputDiagnostics<'a, C> {
+impl<C: Compiler> OutputDiagnostics<'_, C> {
     /// Returns true if there is at least one error of high severity
     pub fn has_error(&self) -> bool {
         self.compiler_output.has_error(
@@ -904,17 +913,16 @@ impl<'a, C: Compiler> OutputDiagnostics<'a, C> {
     }
 }
 
-impl<'a, C: Compiler> fmt::Display for OutputDiagnostics<'a, C> {
+impl<C: Compiler> fmt::Display for OutputDiagnostics<'_, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Compiler run ")?;
         if self.has_error() {
-            Paint::red("failed:")
+            write!(f, "{}:", "failed".red())
         } else if self.has_warning() {
-            Paint::yellow("successful with warnings:")
+            write!(f, "{}:", "successful with warnings".yellow())
         } else {
-            Paint::green("successful!")
-        }
-        .fmt(f)?;
+            write!(f, "{}!", "successful".green())
+        }?;
 
         for err in &self.compiler_output.errors {
             if !self.compiler_output.should_ignore(
