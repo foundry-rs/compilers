@@ -1,10 +1,10 @@
 use super::project::Preprocessor;
 use crate::{
-    flatten::{apply_updates, Updates},
+    flatten::apply_updates,
     multi::{MultiCompiler, MultiCompilerInput, MultiCompilerLanguage},
     replace_source_content,
     solc::{SolcCompiler, SolcVersionedInput},
-    Compiler, ProjectPathsConfig, Result, SolcError,
+    Compiler, ProjectPathsConfig, Result, SolcError, Updates,
 };
 use alloy_primitives::hex;
 use foundry_compilers_artifacts::{

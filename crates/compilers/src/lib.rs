@@ -40,6 +40,11 @@ pub use filter::{FileFilter, SparseOutputFilter, TestFileFilter};
 
 pub mod report;
 
+/// Updates to be applied to the sources.
+/// source_path -> (start, end, new_value)
+pub type Update = (usize, usize, String);
+pub type Updates = HashMap<PathBuf, BTreeSet<Update>>;
+
 /// Utilities for creating, mocking and testing of (temporary) projects
 #[cfg(feature = "project-util")]
 pub mod project_util;
@@ -47,7 +52,6 @@ pub mod project_util;
 pub use foundry_compilers_artifacts as artifacts;
 pub use foundry_compilers_core::{error, utils};
 
-use crate::flatten::Update;
 use cache::CompilerCache;
 use compile::output::contracts::VersionedContracts;
 use compilers::multi::MultiCompiler;
@@ -64,7 +68,7 @@ use project::ProjectCompiler;
 use semver::Version;
 use solc::SolcSettings;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
 };
 

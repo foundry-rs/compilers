@@ -3,7 +3,7 @@ use crate::{
     filter::MaybeSolData,
     replace_source_content,
     resolver::parse::SolData,
-    ArtifactOutput, CompilerSettings, Graph, Project, ProjectPathsConfig,
+    ArtifactOutput, CompilerSettings, Graph, Project, ProjectPathsConfig, Updates,
 };
 use foundry_compilers_artifacts::{
     ast::{visitor::Visitor, *},
@@ -18,7 +18,7 @@ use foundry_compilers_core::{
 };
 use itertools::Itertools;
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     hash::Hash,
     path::{Path, PathBuf},
     sync::Arc,
@@ -111,11 +111,6 @@ impl Visitor for ReferencesCollector {
         self.process_referenced_declaration(reference.declaration as isize, &src);
     }
 }
-
-pub type Update = (usize, usize, String);
-/// Updates to be applied to the sources.
-/// source_path -> (start, end, new_value)
-pub type Updates = HashMap<PathBuf, BTreeSet<(usize, usize, String)>>;
 
 pub struct FlatteningResult {
     /// Updated source in the order they should be written to the output file.
