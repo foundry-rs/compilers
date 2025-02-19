@@ -48,31 +48,34 @@ pub(crate) fn interface_representation(
         };
         let Ok(ast) = parser.parse_file().map_err(|e| e.emit()) else { return };
         for item in ast.items {
-            if let ItemKind::Contract(contract) = &item.kind {
-                if contract.kind.is_interface() | contract.kind.is_library() {
-                    continue;
-                }
-                for contract_item in contract.body.iter() {
-                    if let ItemKind::Function(function) = &contract_item.kind {
-                        let is_exposed = match function.kind {
-                            // Function with external or public visibility
-                            FunctionKind::Function => {
-                                function.header.visibility >= Some(Visibility::Public)
-                            }
-                            FunctionKind::Constructor
-                            | FunctionKind::Fallback
-                            | FunctionKind::Receive => true,
-                            FunctionKind::Modifier => false,
-                        };
+            let ItemKind::Contract(contract) = &item.kind else {
+                continue;
+            };
 
-                        // If function is not exposed we remove the entire span (signature and
-                        // body). Otherwise we keep function signature and
-                        // remove only the body.
-                        if !is_exposed {
-                            spans_to_remove.push(contract_item.span);
-                        } else {
-                            spans_to_remove.push(function.body_span);
+            if contract.kind.is_interface() || contract.kind.is_library() {
+                continue;
+            }
+
+            for contract_item in contract.body.iter() {
+                if let ItemKind::Function(function) = &contract_item.kind {
+                    let is_exposed = match function.kind {
+                        // Function with external or public visibility
+                        FunctionKind::Function => {
+                            function.header.visibility >= Some(Visibility::Public)
                         }
+                        FunctionKind::Constructor
+                        | FunctionKind::Fallback
+                        | FunctionKind::Receive => true,
+                        FunctionKind::Modifier => false,
+                    };
+
+                    // If function is not exposed we remove the entire span (signature and
+                    // body). Otherwise we keep function signature and
+                    // remove only the body.
+                    if !is_exposed {
+                        spans_to_remove.push(contract_item.span);
+                    } else {
+                        spans_to_remove.push(function.body_span);
                     }
                 }
             }
