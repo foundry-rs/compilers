@@ -47,6 +47,7 @@ pub mod project_util;
 pub use foundry_compilers_artifacts as artifacts;
 pub use foundry_compilers_core::{error, utils};
 
+use crate::flatten::Update;
 use cache::CompilerCache;
 use compile::output::contracts::VersionedContracts;
 use compilers::multi::MultiCompiler;
@@ -64,7 +65,6 @@ use semver::Version;
 use solc::SolcSettings;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    ops::Range,
     path::{Path, PathBuf},
 };
 
@@ -886,20 +886,18 @@ fn rebase_path(base: &Path, path: &Path) -> PathBuf {
 }
 
 /// Utility function to change source content ranges with provided updates.
-fn replace_source_content<'a>(
-    source: &str,
-    updates: impl Iterator<Item = (Range<usize>, &'a str)>,
-) -> String {
-    let mut updated_content = source.to_string();
+fn replace_source_content(source: &str, updates: impl Iterator<Item = Update>) -> String {
     let mut offset = 0;
-    for (range, update) in updates {
-        let start = range.start - offset;
-        let end = range.end - offset;
+    let mut content = source.as_bytes().to_vec();
+    for (start, end, new_value) in updates {
+        let start = (start as isize + offset) as usize;
+        let end = (end as isize + offset) as usize;
 
-        updated_content.replace_range(start..end, update);
-        offset += end - start;
+        content.splice(start..end, new_value.bytes());
+        offset += new_value.len() as isize - (end - start) as isize;
     }
-    updated_content
+
+    String::from_utf8_lossy(&content).to_string()
 }
 
 #[cfg(test)]
@@ -1071,15 +1069,16 @@ contract A {
         // logic logic logic
     }
 }"#;
+
         let updates = vec![
             // Replace function libFn() visibility to external
-            ((36..44), "external"),
+            (36, 44, "external".to_string()),
             // Replace contract A name to contract B
-            ((88..98), "contract B"),
+            (80, 90, "contract B".to_string()),
             // Remove function c()
-            ((167..230), ""),
+            (159, 222, "".to_string()),
             // Replace function e() logic
-            ((294..314), "// no logic"),
+            (276, 296, "// no logic".to_string()),
         ]
         .into_iter();
 

@@ -1,6 +1,7 @@
 use crate::{
     compilers::{Compiler, ParsedSource},
     filter::MaybeSolData,
+    replace_source_content,
     resolver::parse::SolData,
     ArtifactOutput, CompilerSettings, Graph, Project, ProjectPathsConfig,
 };
@@ -111,6 +112,7 @@ impl Visitor for ReferencesCollector {
     }
 }
 
+pub type Update = (usize, usize, String);
 /// Updates to be applied to the sources.
 /// source_path -> (start, end, new_value)
 pub type Updates = HashMap<PathBuf, BTreeSet<(usize, usize, String)>>;
@@ -906,17 +908,8 @@ pub fn combine_version_pragmas(pragmas: Vec<&str>) -> Option<String> {
 pub fn apply_updates(sources: &mut Sources, mut updates: Updates) {
     for (path, source) in sources {
         if let Some(updates) = updates.remove(path) {
-            let mut offset = 0;
-            let mut content = source.content.as_bytes().to_vec();
-            for (start, end, new_value) in updates {
-                let start = (start as isize + offset) as usize;
-                let end = (end as isize + offset) as usize;
-
-                content.splice(start..end, new_value.bytes());
-                offset += new_value.len() as isize - (end - start) as isize;
-            }
-
-            source.content = Arc::new(String::from_utf8_lossy(&content).to_string());
+            source.content =
+                Arc::new(replace_source_content(source.content.as_str(), updates.into_iter()));
         }
     }
 }
