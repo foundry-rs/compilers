@@ -681,7 +681,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             .collect();
 
         let interface_repr_hash =
-            self.is_source_file(&file).then(|| interface_representation_hash(source));
+            self.is_source_file(&file).then(|| interface_representation_hash(source, &file));
 
         let entry = CacheEntry {
             last_modification_date: CacheEntry::read_last_modification_date(&file)
@@ -949,7 +949,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
                 if let hash_map::Entry::Vacant(entry) =
                     self.interface_repr_hashes.entry(file.clone())
                 {
-                    entry.insert(interface_representation_hash(&source));
+                    entry.insert(interface_representation_hash(&source, file));
                 }
             }
         }

@@ -16,74 +16,100 @@ use foundry_compilers_artifacts::{
 use foundry_compilers_core::utils;
 use itertools::Itertools;
 use md5::Digest;
+use solar_parse::{
+    ast::{Span, Visibility},
+    interface::diagnostics::EmittedDiagnostics,
+};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
 };
-use solar_parse::interface::diagnostics::Diagnostic;
 
 /// Removes parts of the contract which do not alter its interface:
 ///   - Internal functions
 ///   - External functions bodies
 ///
 /// Preserves all libraries and interfaces.
-pub(crate) fn interface_representation(content: &str) -> Result<String, Vec<Diagnostic>> {
-    // let (source_unit, _) = solang_parser::parse(content, 0)?;
-    // let mut locs_to_remove = Vec::new();
-    //
-    // for part in source_unit.0 {
-    //     if let pt::SourceUnitPart::ContractDefinition(contract) = part {
-    //         if matches!(contract.ty, pt::ContractTy::Interface(_) | pt::ContractTy::Library(_)) {
-    //             continue;
-    //         }
-    //         for part in contract.parts {
-    //             if let pt::ContractPart::FunctionDefinition(func) = part {
-    //                 let is_exposed = func.ty == pt::FunctionTy::Function
-    //                     && func.attributes.iter().any(|attr| {
-    //                         matches!(
-    //                             attr,
-    //                             pt::FunctionAttribute::Visibility(
-    //                                 pt::Visibility::External(_) | pt::Visibility::Public(_)
-    //                             )
-    //                         )
-    //                     })
-    //                     || matches!(
-    //                         func.ty,
-    //                         pt::FunctionTy::Constructor
-    //                             | pt::FunctionTy::Fallback
-    //                             | pt::FunctionTy::Receive
-    //                     );
-    //
-    //                 if !is_exposed {
-    //                     locs_to_remove.push(func.loc);
-    //                 }
-    //
-    //                 if let Some(ref body) = func.body {
-    //                     locs_to_remove.push(body.loc());
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-    //
-    // let mut content = content.to_string();
-    // let mut offset = 0;
-    //
-    // for loc in locs_to_remove {
-    //     let start = loc.start() - offset;
-    //     let end = loc.end() - offset;
-    //
-    //     content.replace_range(start..end, "");
-    //     offset += end - start;
-    // }
+pub(crate) fn interface_representation(
+    content: &str,
+    file: &PathBuf,
+) -> Result<String, EmittedDiagnostics> {
+    let mut spans_to_remove: Vec<Span> = Vec::new();
+    let sess =
+        solar_parse::interface::Session::builder().with_buffer_emitter(Default::default()).build();
+    sess.enter(|| {
+        let arena = solar_parse::ast::Arena::new();
+        let filename = solar_parse::interface::source_map::FileName::Real(file.to_path_buf());
+        let Ok(mut parser) =
+            solar_parse::Parser::from_source_code(&sess, &arena, filename, content.to_string())
+        else {
+            return;
+        };
+        let Ok(ast) = parser.parse_file().map_err(|e| e.emit()) else { return };
+        for item in ast.items {
+            if let solar_parse::ast::ItemKind::Contract(contract) = &item.kind {
+                if contract.kind.is_interface() | contract.kind.is_library() {
+                    continue;
+                }
+                for contract_item in contract.body.iter() {
+                    if let solar_parse::ast::ItemKind::Function(function) = &contract_item.kind {
+                        let is_exposed = match function.kind {
+                            // Function with external or public visibility
+                            solar_parse::ast::FunctionKind::Function => {
+                                function.header.visibility.is_some_and(|visibility| {
+                                    visibility == Visibility::External
+                                        || visibility == Visibility::Public
+                                })
+                            }
+                            solar_parse::ast::FunctionKind::Constructor
+                            | solar_parse::ast::FunctionKind::Fallback
+                            | solar_parse::ast::FunctionKind::Receive => true,
+                            // Other (modifiers)
+                            _ => false,
+                        };
+
+                        // If function is not exposed we remove the entire span (signature and
+                        // body). Otherwise we keep function signature and
+                        // remove only the body.
+                        if !is_exposed {
+                            spans_to_remove.push(contract_item.span);
+                        } else {
+                            spans_to_remove.push(function.body_span);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Return original content if errors.
+    if let Err(err) = sess.emitted_errors().unwrap() {
+        let e = err.to_string();
+        trace!("failed parsing {file:?}: {e}");
+        return Err(err);
+    }
+
+    let mut content = content.to_string();
+    let mut offset = 0;
+
+    for span in spans_to_remove {
+        let range = span.to_range();
+        let start = range.start - offset;
+        let end = range.end - offset;
+
+        content.replace_range(start..end, "");
+        offset += end - start;
+    }
 
     let content = content.replace("\n", "");
     Ok(utils::RE_TWO_OR_MORE_SPACES.replace_all(&content, "").to_string())
 }
 
 /// Computes hash of [`interface_representation`] of the source.
-pub(crate) fn interface_representation_hash(source: &Source) -> String {
-    let Ok(repr) = interface_representation(&source.content) else { return source.content_hash() };
+pub(crate) fn interface_representation_hash(source: &Source, file: &PathBuf) -> String {
+    let Ok(repr) = interface_representation(&source.content, file) else {
+        return source.content_hash();
+    };
     let mut hasher = md5::Md5::new();
     hasher.update(&repr);
     let result = hasher.finalize();
@@ -278,7 +304,7 @@ impl ContractData<'_> {
 
         let abi_encode_args =
             params.parameters.iter().map(|param| format!("args.{}", param.name)).join(", ");
-        
+
         let vm_interface_name = format!("VmContractHelper{}", ast_id);
         let vm = format!("{vm_interface_name}(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D)");
 
@@ -477,7 +503,10 @@ impl BytecodeDependencyOptimizer<'_> {
                             updates.insert((
                                 new_loc.start,
                                 new_loc.end,
-                                format!("deployCode{id}(DeployHelper{id}.ConstructorArgs", id = dep.referenced_contract),
+                                format!(
+                                    "deployCode{id}(DeployHelper{id}.ConstructorArgs",
+                                    id = dep.referenced_contract
+                                ),
                             ));
                             updates.insert((dep.loc.end, dep.loc.end, ")".to_string()));
                         }
@@ -605,7 +634,7 @@ contract A {
     }
 }"#;
 
-        let result = interface_representation(content).unwrap();
+        let result = interface_representation(content, &PathBuf::new()).unwrap();
         assert_eq!(
             result,
             r#"library Lib {function libFn() internal {// logic to keep}}contract A {function a() externalfunction b() publicfunction e() external }"#
