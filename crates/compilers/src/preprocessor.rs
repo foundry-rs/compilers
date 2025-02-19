@@ -82,7 +82,7 @@ pub(crate) fn interface_representation(
         }
     });
 
-    // Return original content if errors.
+    // Return if any diagnostics emitted during content parsing.
     if let Err(err) = sess.emitted_errors().unwrap() {
         let e = err.to_string();
         trace!("failed parsing {file:?}: {e}");
@@ -167,12 +167,6 @@ impl BytecodeDependencyCollector<'_> {
 }
 
 impl Visitor for BytecodeDependencyCollector<'_> {
-    fn visit_new_expression(&mut self, expr: &NewExpression) {
-        if let TypeName::UserDefinedTypeName(_) = &expr.type_name {
-            self.total_count += 1;
-        }
-    }
-
     fn visit_function_call(&mut self, call: &FunctionCall) {
         let (new_loc, expr) = match &call.expression {
             Expression::NewExpression(expr) => (expr.src, expr),
@@ -198,6 +192,12 @@ impl Visitor for BytecodeDependencyCollector<'_> {
             loc,
             referenced_contract: type_name.referenced_declaration as usize,
         });
+    }
+
+    fn visit_new_expression(&mut self, expr: &NewExpression) {
+        if let TypeName::UserDefinedTypeName(_) = &expr.type_name {
+            self.total_count += 1;
+        }
     }
 
     fn visit_member_access(&mut self, access: &MemberAccess) {
@@ -305,7 +305,7 @@ impl ContractData<'_> {
         let abi_encode_args =
             params.parameters.iter().map(|param| format!("args.{}", param.name)).join(", ");
 
-        let vm_interface_name = format!("VmContractHelper{}", ast_id);
+        let vm_interface_name = format!("VmContractHelper{ast_id}");
         let vm = format!("{vm_interface_name}(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D)");
 
         let helper = format!(
@@ -380,7 +380,7 @@ impl BytecodeDependencyOptimizer<'_> {
         for (path, ast) in &self.asts {
             let src = self.sources.get(path).unwrap().content.as_str();
 
-            if is_test_or_script(path, &self.paths) {
+            if is_test_or_script(path, self.paths) {
                 continue;
             }
 
@@ -428,7 +428,7 @@ impl BytecodeDependencyOptimizer<'_> {
         let mut new_sources = Sources::new();
         for (id, contract) in contracts {
             if let Some(code) = contract.build_helper()? {
-                let path = format!("foundry-pp/DeployHelper{}.sol", id);
+                let path = format!("foundry-pp/DeployHelper{id}.sol");
                 new_sources.insert(path.into(), Source::new(code));
             }
         }
@@ -444,7 +444,7 @@ impl BytecodeDependencyOptimizer<'_> {
         updates: &mut Updates,
     ) -> Result<()> {
         for (path, ast) in &self.asts {
-            if !is_test_or_script(path, &self.paths) {
+            if !is_test_or_script(path, self.paths) {
                 continue;
             }
             let src = self.sources.get(path).unwrap().content.as_str();

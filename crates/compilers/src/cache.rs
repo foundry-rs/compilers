@@ -918,7 +918,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
                 return true;
             };
 
-            if entry.interface_repr_hash.as_ref().map_or(true, |h| h != interface_hash) {
+            if entry.interface_repr_hash.as_ref() != Some(interface_hash) {
                 trace!("interface hash changed");
                 return true;
             };
@@ -945,11 +945,11 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
                 entry.insert(source.content_hash());
             }
             // Fill interface representation hashes for source files
-            if self.is_source_file(&file) {
+            if self.is_source_file(file) {
                 if let hash_map::Entry::Vacant(entry) =
                     self.interface_repr_hashes.entry(file.clone())
                 {
-                    entry.insert(interface_representation_hash(&source, file));
+                    entry.insert(interface_representation_hash(source, file));
                 }
             }
         }
