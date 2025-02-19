@@ -64,6 +64,7 @@ use semver::Version;
 use solc::SolcSettings;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
+    ops::Range,
     path::{Path, PathBuf},
 };
 
@@ -884,6 +885,23 @@ fn rebase_path(base: &Path, path: &Path) -> PathBuf {
     new_path.to_slash_lossy().into_owned().into()
 }
 
+/// Utility function to change source content ranges with provided updates.
+fn replace_source_content<'a>(
+    source: &str,
+    updates: impl Iterator<Item = (Range<usize>, &'a str)>,
+) -> String {
+    let mut updated_content = source.to_string();
+    let mut offset = 0;
+    for (range, update) in updates {
+        let start = range.start - offset;
+        let end = range.end - offset;
+
+        updated_content.replace_range(start..end, update);
+        offset += end - start;
+    }
+    updated_content
+}
+
 #[cfg(test)]
 #[cfg(feature = "svm-solc")]
 mod tests {
@@ -1032,5 +1050,55 @@ mod tests {
             )
             .unwrap();
         assert!(resolved.exists());
+    }
+
+    #[test]
+    fn test_replace_source_content() {
+        let original_content = r#"
+library Lib {
+    function libFn() internal {
+        // logic to keep
+    }
+}
+contract A {
+    function a() external {}
+    function b() public {}
+    function c() internal {
+        // logic logic logic
+    }
+    function d() private {}
+    function e() external {
+        // logic logic logic
+    }
+}"#;
+        let updates = vec![
+            // Replace function libFn() visibility to external
+            ((36..44), "external"),
+            // Replace contract A name to contract B
+            ((88..98), "contract B"),
+            // Remove function c()
+            ((167..230), ""),
+            // Replace function e() logic
+            ((294..314), "// no logic"),
+        ]
+        .into_iter();
+
+        assert_eq!(
+            replace_source_content(original_content, updates),
+            r#"
+library Lib {
+    function libFn() external {
+        // logic to keep
+    }
+}
+contract B {
+    function a() external {}
+    function b() public {}
+    function d() private {}
+    function e() external {
+        // no logic
+    }
+}"#
+        );
     }
 }

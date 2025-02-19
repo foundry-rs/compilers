@@ -2,6 +2,7 @@ use super::project::Preprocessor;
 use crate::{
     flatten::{apply_updates, Updates},
     multi::{MultiCompiler, MultiCompilerInput, MultiCompilerLanguage},
+    replace_source_content,
     solc::{SolcCompiler, SolcVersionedInput},
     Compiler, ProjectPathsConfig, Result, SolcError,
 };
@@ -10,15 +11,15 @@ use foundry_compilers_artifacts::{
     ast::SourceLocation,
     output_selection::OutputSelection,
     visitor::{Visitor, Walk},
-    ContractDefinitionPart, Expression, FunctionCall, FunctionKind, MemberAccess, NewExpression,
-    ParameterList, SolcLanguage, Source, SourceUnit, SourceUnitPart, Sources, TypeName,
+    ContractDefinitionPart, Expression, FunctionCall, MemberAccess, NewExpression, ParameterList,
+    SolcLanguage, Source, SourceUnit, SourceUnitPart, Sources, TypeName,
 };
 use foundry_compilers_core::utils;
 use itertools::Itertools;
 use md5::Digest;
 use solar_parse::{
-    ast::{Span, Visibility},
-    interface::diagnostics::EmittedDiagnostics,
+    ast::{Arena, FunctionKind, ItemKind, Span, Visibility},
+    interface::{diagnostics::EmittedDiagnostics, source_map::FileName},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -38,8 +39,8 @@ pub(crate) fn interface_representation(
     let sess =
         solar_parse::interface::Session::builder().with_buffer_emitter(Default::default()).build();
     sess.enter(|| {
-        let arena = solar_parse::ast::Arena::new();
-        let filename = solar_parse::interface::source_map::FileName::Real(file.to_path_buf());
+        let arena = Arena::new();
+        let filename = FileName::Real(file.to_path_buf());
         let Ok(mut parser) =
             solar_parse::Parser::from_source_code(&sess, &arena, filename, content.to_string())
         else {
@@ -47,25 +48,21 @@ pub(crate) fn interface_representation(
         };
         let Ok(ast) = parser.parse_file().map_err(|e| e.emit()) else { return };
         for item in ast.items {
-            if let solar_parse::ast::ItemKind::Contract(contract) = &item.kind {
+            if let ItemKind::Contract(contract) = &item.kind {
                 if contract.kind.is_interface() | contract.kind.is_library() {
                     continue;
                 }
                 for contract_item in contract.body.iter() {
-                    if let solar_parse::ast::ItemKind::Function(function) = &contract_item.kind {
+                    if let ItemKind::Function(function) = &contract_item.kind {
                         let is_exposed = match function.kind {
                             // Function with external or public visibility
-                            solar_parse::ast::FunctionKind::Function => {
-                                function.header.visibility.is_some_and(|visibility| {
-                                    visibility == Visibility::External
-                                        || visibility == Visibility::Public
-                                })
+                            FunctionKind::Function => {
+                                function.header.visibility >= Some(Visibility::Public)
                             }
-                            solar_parse::ast::FunctionKind::Constructor
-                            | solar_parse::ast::FunctionKind::Fallback
-                            | solar_parse::ast::FunctionKind::Receive => true,
-                            // Other (modifiers)
-                            _ => false,
+                            FunctionKind::Constructor
+                            | FunctionKind::Fallback
+                            | FunctionKind::Receive => true,
+                            FunctionKind::Modifier => false,
                         };
 
                         // If function is not exposed we remove the entire span (signature and
@@ -84,24 +81,13 @@ pub(crate) fn interface_representation(
 
     // Return if any diagnostics emitted during content parsing.
     if let Err(err) = sess.emitted_errors().unwrap() {
-        let e = err.to_string();
-        trace!("failed parsing {file:?}: {e}");
+        trace!("failed parsing {file:?}: {err}");
         return Err(err);
     }
 
-    let mut content = content.to_string();
-    let mut offset = 0;
-
-    for span in spans_to_remove {
-        let range = span.to_range();
-        let start = range.start - offset;
-        let end = range.end - offset;
-
-        content.replace_range(start..end, "");
-        offset += end - start;
-    }
-
-    let content = content.replace("\n", "");
+    let content =
+        replace_source_content(content, spans_to_remove.iter().map(|span| (span.to_range(), "")))
+            .replace("\n", "");
     Ok(utils::RE_TWO_OR_MORE_SPACES.replace_all(&content, "").to_string())
 }
 
@@ -391,7 +377,7 @@ impl BytecodeDependencyOptimizer<'_> {
                         let ContractDefinitionPart::FunctionDefinition(func) = node else {
                             return None;
                         };
-                        if *func.kind() != FunctionKind::Constructor {
+                        if *func.kind() != foundry_compilers_artifacts::FunctionKind::Constructor {
                             return None;
                         }
 
