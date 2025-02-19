@@ -1076,7 +1076,7 @@ contract A {
             // Replace contract A name to contract B
             (80, 90, "contract B".to_string()),
             // Remove function c()
-            (159, 222, "".to_string()),
+            (159, 222, String::new()),
             // Replace function e() logic
             (276, 296, "// no logic".to_string()),
         ]
