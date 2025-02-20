@@ -42,8 +42,7 @@ pub mod report;
 
 /// Updates to be applied to the sources.
 /// source_path -> (start, end, new_value)
-pub type Update = (usize, usize, String);
-pub type Updates = HashMap<PathBuf, BTreeSet<Update>>;
+pub type Updates = HashMap<PathBuf, BTreeSet<(usize, usize, String)>>;
 
 /// Utilities for creating, mocking and testing of (temporary) projects
 #[cfg(feature = "project-util")]
@@ -69,7 +68,9 @@ use semver::Version;
 use solc::SolcSettings;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    ops::Range,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 /// Represents a project workspace and handles `solc` compiling of all contracts in that workspace.
@@ -889,13 +890,28 @@ fn rebase_path(base: &Path, path: &Path) -> PathBuf {
     new_path.to_slash_lossy().into_owned().into()
 }
 
+/// Utility function to apply a set of updates to provided sources.
+fn apply_updates(sources: &mut Sources, updates: Updates) {
+    for (path, source) in sources {
+        if let Some(updates) = updates.get(path) {
+            source.content = Arc::new(replace_source_content(
+                source.content.as_str(),
+                updates.iter().map(|(start, end, update)| ((*start..*end), update.as_str())),
+            ));
+        }
+    }
+}
+
 /// Utility function to change source content ranges with provided updates.
-fn replace_source_content(source: &str, updates: impl Iterator<Item = Update>) -> String {
+fn replace_source_content<'a>(
+    source: &str,
+    updates: impl IntoIterator<Item = (Range<usize>, &'a str)>,
+) -> String {
     let mut offset = 0;
     let mut content = source.as_bytes().to_vec();
-    for (start, end, new_value) in updates {
-        let start = (start as isize + offset) as usize;
-        let end = (end as isize + offset) as usize;
+    for (range, new_value) in updates {
+        let start = (range.start as isize + offset) as usize;
+        let end = (range.end as isize + offset) as usize;
 
         content.splice(start..end, new_value.bytes());
         offset += new_value.len() as isize - (end - start) as isize;
@@ -1076,15 +1092,14 @@ contract A {
 
         let updates = vec![
             // Replace function libFn() visibility to external
-            (36, 44, "external".to_string()),
+            (36..44, "external"),
             // Replace contract A name to contract B
-            (80, 90, "contract B".to_string()),
+            (80..90, "contract B"),
             // Remove function c()
-            (159, 222, String::new()),
+            (159..222, ""),
             // Replace function e() logic
-            (276, 296, "// no logic".to_string()),
-        ]
-        .into_iter();
+            (276..296, "// no logic"),
+        ];
 
         assert_eq!(
             replace_source_content(original_content, updates),

@@ -1,7 +1,7 @@
 use crate::{
+    apply_updates,
     compilers::{Compiler, ParsedSource},
     filter::MaybeSolData,
-    replace_source_content,
     resolver::parse::SolData,
     ArtifactOutput, CompilerSettings, Graph, Project, ProjectPathsConfig, Updates,
 };
@@ -898,13 +898,4 @@ pub fn combine_version_pragmas(pragmas: Vec<&str>) -> Option<String> {
     }
 
     None
-}
-
-pub fn apply_updates(sources: &mut Sources, mut updates: Updates) {
-    for (path, source) in sources {
-        if let Some(updates) = updates.remove(path) {
-            source.content =
-                Arc::new(replace_source_content(source.content.as_str(), updates.into_iter()));
-        }
-    }
 }

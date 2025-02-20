@@ -1,6 +1,6 @@
 use super::project::Preprocessor;
 use crate::{
-    flatten::apply_updates,
+    apply_updates,
     multi::{MultiCompiler, MultiCompilerInput, MultiCompilerLanguage},
     replace_source_content,
     solc::{SolcCompiler, SolcVersionedInput},
@@ -88,13 +88,9 @@ pub(crate) fn interface_representation(
         return Err(err);
     }
 
-    let content = replace_source_content(
-        content,
-        spans_to_remove
-            .iter()
-            .map(|span| (span.to_range().start, span.to_range().end, String::new())),
-    )
-    .replace("\n", "");
+    let content =
+        replace_source_content(content, spans_to_remove.iter().map(|span| (span.to_range(), "")))
+            .replace("\n", "");
     Ok(utils::RE_TWO_OR_MORE_SPACES.replace_all(&content, "").to_string())
 }
 
