@@ -1,0 +1,23 @@
+import {Counter} from "src/Counter.sol";
+import {Counter as CounterV1} from "src/v1/Counter.sol";
+import "src/CounterB.sol";
+import "src/CounterC.sol";
+
+contract CounterTest {
+    Counter public counter;
+    Counter public counter2 = new Counter();
+    CounterB public counter3 = new CounterB(address(this), 44, true, address(this));
+    CounterV1 public counterv1;
+
+    function setUp() public {
+        counter = new Counter();
+        counterv1 = new CounterV1(     );
+        type(CounterV1).creationCode;
+        CounterB counterB = new CounterB(address(this), 15,           false, address(counter));
+        CounterC counterC = new CounterC(
+            "something",
+            35,
+            address(this)
+        );
+    }
+}
