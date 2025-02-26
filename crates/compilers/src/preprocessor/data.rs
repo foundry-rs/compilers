@@ -38,8 +38,9 @@ pub fn collect_preprocessor_data(
             continue;
         }
 
-        let contract_data = ContractData::new(hir, contract, path, source, sess.source_map());
-        data.insert(contract_data.hir_id, contract_data);
+        let contract_data =
+            ContractData::new(hir, contract_id, contract, path, source, sess.source_map());
+        data.insert(contract_id, contract_data);
     }
     data
 }
@@ -49,9 +50,9 @@ pub fn collect_preprocessor_data(
 /// See [`ContractData::build_helper`] for more details.
 pub fn create_deploy_helpers(data: &BTreeMap<u32, ContractData>) -> Sources {
     let mut deploy_helpers = Sources::new();
-    for (hir_id, contract) in data {
+    for (contract_id, contract) in data {
         if let Some(code) = contract.build_helper() {
-            let path = format!("foundry-pp/DeployHelper{hir_id}.sol");
+            let path = format!("foundry-pp/DeployHelper{contract_id}.sol");
             deploy_helpers.insert(path.into(), Source::new(code));
         }
     }
@@ -71,7 +72,7 @@ pub struct ContractConstructorData {
 #[derive(Debug)]
 pub struct ContractData {
     /// HIR Id of the contract.
-    hir_id: u32,
+    contract_id: u32,
     /// Path of the source file.
     path: PathBuf,
     /// Name of the contract
@@ -85,6 +86,7 @@ pub struct ContractData {
 impl ContractData {
     fn new(
         hir: &Hir<'_>,
+        contract_id: u32,
         contract: &Contract<'_>,
         path: &Path,
         source: &solar_sema::hir::Source<'_>,
@@ -121,7 +123,7 @@ impl ContractData {
             });
 
         Self {
-            hir_id: contract.linearized_bases[0].get(),
+            contract_id,
             path: path.to_path_buf(),
             name: contract.name.to_string(),
             constructor_data,
@@ -173,12 +175,12 @@ impl ContractData {
     /// vm.deployCode("artifact path", encodeArgs335(DeployHelper335.ConstructorArgs({name: name, symbol: symbol})))
     /// ```
     pub fn build_helper(&self) -> Option<String> {
-        let Self { hir_id, path, name, constructor_data, artifact } = self;
+        let Self { contract_id, path, name, constructor_data, artifact } = self;
 
         let Some(constructor_details) = constructor_data else { return None };
         let struct_fields = &constructor_details.struct_fields;
         let abi_encode_args = &constructor_details.abi_encode_args;
-        let vm_interface_name = format!("VmContractHelper{hir_id}");
+        let vm_interface_name = format!("VmContractHelper{contract_id}");
         let vm = format!("{vm_interface_name}(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D)");
 
         let helper = format!(
@@ -187,18 +189,18 @@ pragma solidity >=0.4.0;
 
 import "{path}";
 
-abstract contract DeployHelper{hir_id} is {name} {{
+abstract contract DeployHelper{contract_id} is {name} {{
     struct ConstructorArgs {{
         {struct_fields};
     }}
 }}
 
-function encodeArgs{hir_id}(DeployHelper{hir_id}.ConstructorArgs memory args) pure returns (bytes memory) {{
+function encodeArgs{contract_id}(DeployHelper{contract_id}.ConstructorArgs memory args) pure returns (bytes memory) {{
     return abi.encode({abi_encode_args});
 }}
 
-function deployCode{hir_id}(DeployHelper{hir_id}.ConstructorArgs memory args) returns({name}) {{
-    return {name}(payable({vm}.deployCode("{artifact}", encodeArgs{hir_id}(args))));
+function deployCode{contract_id}(DeployHelper{contract_id}.ConstructorArgs memory args) returns({name}) {{
+    return {name}(payable({vm}.deployCode("{artifact}", encodeArgs{contract_id}(args))));
 }}
 
 interface {vm_interface_name} {{

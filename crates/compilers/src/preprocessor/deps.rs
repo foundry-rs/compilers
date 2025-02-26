@@ -30,7 +30,8 @@ impl PreprocessorDependencies {
     pub fn new(sess: &Session, hir: &Hir<'_>, paths: &[PathBuf]) -> Self {
         let mut inner = BTreeMap::new();
         let mut references = HashSet::default();
-        for contract in Hir::contracts(hir) {
+        for contract_id in Hir::contract_ids(hir) {
+            let contract = Hir::contract(hir, contract_id);
             let source = Hir::source(hir, contract.source);
 
             let FileName::Real(path) = &source.file.name else {
@@ -48,7 +49,7 @@ impl PreprocessorDependencies {
             deps_collector.walk_contract(contract);
             // Ignore empty test contracts declared in source files with other contracts.
             if !deps_collector.dependencies.is_empty() {
-                inner.insert(contract.linearized_bases[0].get(), deps_collector.dependencies);
+                inner.insert(contract_id.get(), deps_collector.dependencies);
             }
             // Record collected referenced contract ids.
             references.extend(deps_collector.referenced_contracts);
