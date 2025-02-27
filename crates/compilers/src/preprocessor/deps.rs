@@ -20,16 +20,16 @@ use std::{
 
 /// Holds data about referenced source contracts and bytecode dependencies.
 pub struct PreprocessorDependencies {
-    // Mapping test contract id -> test contract bytecode dependencies.
-    pub bytecode_deps: BTreeMap<u32, Vec<BytecodeDependency>>,
+    // Mapping contract id to preprocess -> contract bytecode dependencies.
+    pub preprocessed_contracts: BTreeMap<u32, Vec<BytecodeDependency>>,
     // Referenced contract ids.
     pub referenced_contracts: HashSet<u32>,
 }
 
 impl PreprocessorDependencies {
-    pub fn new(sess: &Session, hir: &Hir<'_>, paths: &[PathBuf]) -> Self {
-        let mut inner = BTreeMap::new();
-        let mut references = HashSet::default();
+    pub fn new(sess: &Session, hir: &Hir<'_>, paths: &[PathBuf], src_dir: &PathBuf) -> Self {
+        let mut preprocessed_contracts = BTreeMap::new();
+        let mut referenced_contracts = HashSet::new();
         for contract_id in Hir::contract_ids(hir) {
             let contract = Hir::contract(hir, contract_id);
             let source = Hir::source(hir, contract.source);
@@ -43,18 +43,22 @@ impl PreprocessorDependencies {
                 continue;
             }
 
-            let mut deps_collector =
-                BytecodeDependencyCollector::new(sess.source_map(), hir, source.file.src.as_str());
+            let mut deps_collector = BytecodeDependencyCollector::new(
+                sess.source_map(),
+                hir,
+                source.file.src.as_str(),
+                src_dir,
+            );
             // Analyze current contract.
             deps_collector.walk_contract(contract);
             // Ignore empty test contracts declared in source files with other contracts.
             if !deps_collector.dependencies.is_empty() {
-                inner.insert(contract_id.get(), deps_collector.dependencies);
+                preprocessed_contracts.insert(contract_id.get(), deps_collector.dependencies);
             }
             // Record collected referenced contract ids.
-            references.extend(deps_collector.referenced_contracts);
+            referenced_contracts.extend(deps_collector.referenced_contracts);
         }
-        Self { bytecode_deps: inner, referenced_contracts: references }
+        Self { preprocessed_contracts, referenced_contracts }
     }
 }
 
@@ -86,21 +90,49 @@ struct BytecodeDependencyCollector<'hir> {
     hir: &'hir Hir<'hir>,
     /// Source content of current contract.
     src: &'hir str,
+    /// Project source dir, used to determine if referenced contract is a source contract.
+    src_dir: &'hir PathBuf,
     /// Dependencies collected for current contract.
     dependencies: Vec<BytecodeDependency>,
-    /// HIR ids of contracts referenced from current contract.
+    /// Unique HIR ids of contracts referenced from current contract.
     referenced_contracts: HashSet<u32>,
 }
 
 impl<'hir> BytecodeDependencyCollector<'hir> {
-    fn new(source_map: &'hir SourceMap, hir: &'hir Hir<'hir>, src: &'hir str) -> Self {
+    fn new(
+        source_map: &'hir SourceMap,
+        hir: &'hir Hir<'hir>,
+        src: &'hir str,
+        src_dir: &'hir PathBuf,
+    ) -> Self {
         Self {
             source_map,
             hir,
             src,
+            src_dir,
             dependencies: vec![],
             referenced_contracts: HashSet::default(),
         }
+    }
+
+    /// Collects reference identified as bytecode dependency of analyzed contract.
+    /// Discards any reference that is not in project src directory (e.g. external
+    /// libraries or mock contracts that extend source contracts).
+    fn collect_dependency(&mut self, dependency: BytecodeDependency) {
+        let contract = Hir::contract(self.hir, ContractId::new(dependency.referenced_contract));
+        let source = Hir::source(self.hir, contract.source);
+        let FileName::Real(path) = &source.file.name else {
+            return;
+        };
+
+        if !path.starts_with(self.src_dir) {
+            let path = path.display();
+            trace!("ignore dependency {path}");
+            return;
+        }
+
+        self.referenced_contracts.insert(dependency.referenced_contract);
+        self.dependencies.push(dependency);
     }
 }
 
@@ -121,7 +153,7 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
                         // TODO: check if there's a better way to determine where constructor call
                         // ends.
                         let args_len = self.src[name_loc.end..].split_once(';').unwrap().0.len();
-                        self.dependencies.push(BytecodeDependency {
+                        self.collect_dependency(BytecodeDependency {
                             kind: BytecodeDependencyKind::New(name.to_string(), args_len),
                             loc: SourceMapLocation::from_span(
                                 self.source_map,
@@ -129,7 +161,6 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
                             ),
                             referenced_contract: contract_id.get(),
                         });
-                        self.referenced_contracts.insert(contract_id.get());
                     }
                 }
             }
@@ -138,12 +169,11 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
                     if let ExprKind::TypeCall(ty) = &member_expr.kind {
                         if let TypeKind::Custom(contract_id) = &ty.kind {
                             if let Some(contract_id) = contract_id.as_contract() {
-                                self.dependencies.push(BytecodeDependency {
+                                self.collect_dependency(BytecodeDependency {
                                     kind: BytecodeDependencyKind::CreationCode,
                                     loc: SourceMapLocation::from_span(self.source_map, expr.span),
                                     referenced_contract: contract_id.get(),
                                 });
-                                self.referenced_contracts.insert(contract_id.get());
                             }
                         }
                     }
@@ -163,7 +193,7 @@ pub fn remove_bytecode_dependencies(
     data: &PreprocessorData,
 ) -> Updates {
     let mut updates = Updates::default();
-    for (contract_id, deps) in &deps.bytecode_deps {
+    for (contract_id, deps) in &deps.preprocessed_contracts {
         let contract = Hir::contract(hir, ContractId::new(*contract_id));
         let source = Hir::source(hir, contract.source);
         let FileName::Real(path) = &source.file.name else {

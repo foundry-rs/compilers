@@ -91,14 +91,14 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
 
             let hir = &parsing_context.parse_and_lower_to_hir(&hir_arena)?;
             // Collect tests and scripts dependencies.
-            let deps = PreprocessorDependencies::new(&sess, hir, &preprocessed_paths);
-            // Collect data of source contracts referenced in tests and scripts.
-            let data = collect_preprocessor_data(
+            let deps = PreprocessorDependencies::new(
                 &sess,
                 hir,
-                &paths.libraries,
-                deps.referenced_contracts.clone(),
+                &preprocessed_paths,
+                &paths.paths_relative().sources,
             );
+            // Collect data of source contracts referenced in tests and scripts.
+            let data = collect_preprocessor_data(&sess, hir, deps.referenced_contracts.clone());
 
             // Extend existing sources with preprocessor deploy helper sources.
             sources.extend(create_deploy_helpers(&data));

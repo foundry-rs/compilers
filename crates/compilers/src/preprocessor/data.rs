@@ -19,7 +19,6 @@ pub type PreprocessorData = BTreeMap<u32, ContractData>;
 pub fn collect_preprocessor_data(
     sess: &Session,
     hir: &Hir<'_>,
-    libs: &[PathBuf],
     referenced_contracts: HashSet<u32>,
 ) -> PreprocessorData {
     let mut data = PreprocessorData::default();
@@ -30,13 +29,6 @@ pub fn collect_preprocessor_data(
         let FileName::Real(path) = &source.file.name else {
             continue;
         };
-
-        // Do not include external dependencies / libs.
-        // TODO: better to include only files from project src in order to avoid processing mocks
-        // within test dir.
-        if libs.iter().any(|lib_paths| path.starts_with(lib_paths)) {
-            continue;
-        }
 
         let contract_data =
             ContractData::new(hir, contract_id, contract, path, source, sess.source_map());
