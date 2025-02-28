@@ -12,27 +12,27 @@ use std::{
 };
 
 /// Keeps data about project contracts definitions referenced from tests and scripts.
-/// HIR id -> Contract data definition mapping.
-pub type PreprocessorData = BTreeMap<u32, ContractData>;
+/// Contract id -> Contract data definition mapping.
+pub type PreprocessorData = BTreeMap<ContractId, ContractData>;
 
 /// Collects preprocessor data from referenced contracts.
-pub fn collect_preprocessor_data(
+pub(crate) fn collect_preprocessor_data(
     sess: &Session,
     hir: &Hir<'_>,
-    referenced_contracts: HashSet<u32>,
+    referenced_contracts: &HashSet<ContractId>,
 ) -> PreprocessorData {
     let mut data = PreprocessorData::default();
     for contract_id in referenced_contracts {
-        let contract = Hir::contract(hir, ContractId::new(contract_id));
-        let source = Hir::source(hir, contract.source);
+        let contract = hir.contract(*contract_id);
+        let source = hir.source(contract.source);
 
         let FileName::Real(path) = &source.file.name else {
             continue;
         };
 
         let contract_data =
-            ContractData::new(hir, contract_id, contract, path, source, sess.source_map());
-        data.insert(contract_id, contract_data);
+            ContractData::new(hir, *contract_id, contract, path, source, sess.source_map());
+        data.insert(*contract_id, contract_data);
     }
     data
 }
@@ -40,11 +40,11 @@ pub fn collect_preprocessor_data(
 /// Creates helper libraries for contracts with a non-empty constructor.
 ///
 /// See [`ContractData::build_helper`] for more details.
-pub fn create_deploy_helpers(data: &BTreeMap<u32, ContractData>) -> Sources {
+pub(crate) fn create_deploy_helpers(data: &BTreeMap<ContractId, ContractData>) -> Sources {
     let mut deploy_helpers = Sources::new();
     for (contract_id, contract) in data {
         if let Some(code) = contract.build_helper() {
-            let path = format!("foundry-pp/DeployHelper{contract_id}.sol");
+            let path = format!("foundry-pp/DeployHelper{}.sol", contract_id.get());
             deploy_helpers.insert(path.into(), Source::new(code));
         }
     }
@@ -62,9 +62,9 @@ pub struct ContractConstructorData {
 
 /// Keeps data about a single contract definition.
 #[derive(Debug)]
-pub struct ContractData {
+pub(crate) struct ContractData {
     /// HIR Id of the contract.
-    contract_id: u32,
+    contract_id: ContractId,
     /// Path of the source file.
     path: PathBuf,
     /// Name of the contract
@@ -78,7 +78,7 @@ pub struct ContractData {
 impl ContractData {
     fn new(
         hir: &Hir<'_>,
-        contract_id: u32,
+        contract_id: ContractId,
         contract: &Contract<'_>,
         path: &Path,
         source: &solar_sema::hir::Source<'_>,
@@ -89,25 +89,21 @@ impl ContractData {
         // Process data for contracts with constructor and parameters.
         let constructor_data = contract
             .ctor
-            .map(|ctor_id| Hir::function(hir, ctor_id))
+            .map(|ctor_id| hir.function(ctor_id))
             .filter(|ctor| !ctor.parameters.is_empty())
             .map(|ctor| {
                 let abi_encode_args = ctor
                     .parameters
                     .iter()
-                    .map(|param_id| {
-                        format!("args.{}", Hir::variable(hir, *param_id).name.unwrap().name)
-                    })
+                    .map(|param_id| format!("args.{}", hir.variable(*param_id).name.unwrap().name))
                     .join(", ");
                 let struct_fields = ctor
                     .parameters
                     .iter()
                     .map(|param_id| {
                         let src = source.file.src.as_str();
-                        let loc = SourceMapLocation::from_span(
-                            source_map,
-                            Hir::variable(hir, *param_id).span,
-                        );
+                        let loc =
+                            SourceMapLocation::from_span(source_map, hir.variable(*param_id).span);
                         src[loc.start..loc.end].replace(" memory ", " ").replace(" calldata ", " ")
                     })
                     .join("; ");
@@ -170,6 +166,7 @@ impl ContractData {
         let Self { contract_id, path, name, constructor_data, artifact } = self;
 
         let Some(constructor_details) = constructor_data else { return None };
+        let contract_id = contract_id.get();
         let struct_fields = &constructor_details.struct_fields;
         let abi_encode_args = &constructor_details.abi_encode_args;
         let vm_interface_name = format!("VmContractHelper{contract_id}");

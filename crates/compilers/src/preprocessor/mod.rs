@@ -98,7 +98,7 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
                 &paths.paths_relative().sources,
             );
             // Collect data of source contracts referenced in tests and scripts.
-            let data = collect_preprocessor_data(&sess, hir, deps.referenced_contracts.clone());
+            let data = collect_preprocessor_data(&sess, hir, &deps.referenced_contracts);
 
             // Extend existing sources with preprocessor deploy helper sources.
             sources.extend(create_deploy_helpers(&data));
