@@ -792,7 +792,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         self.missing_extra_files()
     }
 
-    // Walks over all cache entries, detects dirty files and removes them from cache.
+    // Walks over all cache entires, detects dirty files and removes them from cache.
     fn find_and_remove_dirty(&mut self) {
         fn populate_dirty_files<D>(
             file: &Path,
@@ -845,116 +845,73 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             }
         }
 
-        let mut sources = Sources::new();
         // Iterate over existing cache entries.
         let files = self.cache.files.keys().cloned().collect::<HashSet<_>>();
+
+        let mut sources = Sources::new();
+
         // Read all sources, marking entries as dirty on I/O errors.
-        for file in self.cache.files.keys().cloned().collect::<Vec<_>>() {
-            let Ok(source) = Source::read(&file) else {
-                if !self.cache.preprocessed {
-                    self.dirty_sources.insert(file.clone());
-                } else {
-                    self.cache.files.remove(&file);
-                }
+        for file in &files {
+            let Ok(source) = Source::read(file) else {
+                self.dirty_sources.insert(file.clone());
                 continue;
             };
             sources.insert(file.clone(), source);
         }
 
-        if self.cache.preprocessed {
+        // Build a temporary graph for walking imports. We need this because `self.edges`
+        // only contains graph data for in-scope sources but we are operating on cache entries.
+        if let Ok(graph) = Graph::<C::ParsedSource>::resolve_sources(&self.project.paths, sources) {
+            let (sources, edges) = graph.into_sources();
+
             // Calculate content hashes for later comparison.
             self.fill_hashes(&sources);
 
             // Pre-add all sources that are guaranteed to be dirty
-            for file in self.cache.files.keys() {
+            for file in sources.keys() {
                 if self.is_dirty_impl(file, false) {
                     self.dirty_sources.insert(file.clone());
                 }
             }
-        }
 
-        // Build a temporary graph for walking imports or populate cache (if preprocessed).
-        // For non preprocessed caches we need this because `self.edges` only contains graph data
-        // for in-scope sources.
-        // For preprocessed caches we want to ensure that we preserve all just removed entries
-        // with updated data.
-        // We need separate graph for this because `self.edges` only contains graph data for
-        // in-scope sources but we are operating on cache entries.
-        let sources = match Graph::<C::ParsedSource>::resolve_sources(&self.project.paths, sources)
-        {
-            Ok(graph) => {
-                let (sources, edges) = graph.into_sources();
-                if !self.cache.preprocessed {
-                    // Calculate content hashes for later comparison.
-                    self.fill_hashes(&sources);
-
-                    // Pre-add all sources that are guaranteed to be dirty
-                    for file in sources.keys() {
-                        if self.is_dirty_impl(file, false) {
+            if !self.cache.preprocessed {
+                // Perform DFS to find direct/indirect importers of dirty files.
+                for file in self.dirty_sources.clone().iter() {
+                    populate_dirty_files(file, &mut self.dirty_sources, &edges);
+                }
+            } else {
+                // Mark sources as dirty based on their imports
+                for file in sources.keys() {
+                    if self.dirty_sources.contains(file) {
+                        continue;
+                    }
+                    let is_src = self.is_source_file(file);
+                    for import in edges.imports(file) {
+                        // Any source file importing dirty source file is dirty.
+                        if is_src && self.dirty_sources.contains(import) {
+                            self.dirty_sources.insert(file.clone());
+                            break;
+                        // For non-src files we mark them as dirty only if they import dirty
+                        // non-src file or src file for which
+                        // interface representation changed.
+                        } else if !is_src
+                            && self.dirty_sources.contains(import)
+                            && (!self.is_source_file(import) || self.is_dirty_impl(import, true))
+                        {
                             self.dirty_sources.insert(file.clone());
                         }
                     }
-
-                    // Perform DFS to find direct/indirect importers of dirty files.
-                    for file in self.dirty_sources.clone().iter() {
-                        populate_dirty_files(file, &mut self.dirty_sources, &edges);
-                    }
-                    None
-                } else {
-                    // Mark sources as dirty based on their imports
-                    for file in sources.keys() {
-                        if self.dirty_sources.contains(file) {
-                            continue;
-                        }
-                        let is_src = self.is_source_file(file);
-                        for import in edges.imports(file) {
-                            // Any source file importing dirty source file is dirty.
-                            if is_src && self.dirty_sources.contains(import) {
-                                self.dirty_sources.insert(file.clone());
-                                break;
-                            // For non-src files we mark them as dirty only if they import dirty
-                            // non-src file or src file for which
-                            // interface representation changed.
-                            } else if !is_src
-                                && self.dirty_sources.contains(import)
-                                && (!self.is_source_file(import)
-                                    || self.is_dirty_impl(import, true))
-                            {
-                                self.dirty_sources.insert(file.clone());
-                            }
-                        }
-                    }
-                    Some(sources)
                 }
             }
-            Err(_) => {
-                if !self.cache.preprocessed {
-                    // Purge all sources on graph resolution error.
-                    self.dirty_sources.extend(files);
-                } else {
-                    // Purge all sources on graph resolution error and return.
-                    self.cache.files.clear();
-                    return;
-                }
-                None
-            }
-        };
+        } else {
+            // Purge all sources on graph resolution error.
+            self.dirty_sources.extend(files);
+        }
 
         // Remove all dirty files from cache.
         for file in &self.dirty_sources {
             debug!("removing dirty file from cache: {}", file.display());
             self.cache.remove(file);
-        }
-
-        if let Some(sources) = sources {
-            // Create new entries for all source files
-            for (file, source) in sources {
-                if self.cache.files.contains_key(&file) {
-                    continue;
-                }
-
-                self.create_cache_entry(file.clone(), &source);
-            }
         }
     }
 
@@ -997,7 +954,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
                 entry.insert(source.content_hash());
             }
             // Fill interface representation hashes for source files
-            if self.is_source_file(file) {
+            if self.cache.preprocessed && self.is_source_file(file) {
                 if let hash_map::Entry::Vacant(entry) =
                     self.interface_repr_hashes.entry(file.clone())
                 {
