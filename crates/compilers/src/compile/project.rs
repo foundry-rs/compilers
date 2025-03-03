@@ -225,7 +225,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         // which is unix style `/`
         sources.slash_paths();
 
-        let mut cache = ArtifactsCache::new(project, edges)?;
+        let mut cache = ArtifactsCache::new(project, edges, preprocessor.is_some())?;
         // retain and compile only dirty sources and all their imports
         sources.filter(&mut cache);
 
