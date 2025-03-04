@@ -47,6 +47,7 @@ pub struct CompilerCache<S = Settings> {
     pub builds: BTreeSet<String>,
     pub profiles: BTreeMap<String, S>,
     pub preprocessed: bool,
+    pub mocks: HashSet<PathBuf>,
 }
 
 impl<S> CompilerCache<S> {
@@ -58,6 +59,7 @@ impl<S> CompilerCache<S> {
             builds: Default::default(),
             profiles: Default::default(),
             preprocessed,
+            mocks: Default::default(),
         }
     }
 }
@@ -381,6 +383,7 @@ impl<S> Default for CompilerCache<S> {
             paths: Default::default(),
             profiles: Default::default(),
             preprocessed: false,
+            mocks: Default::default(),
         }
     }
 }
@@ -792,7 +795,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         self.missing_extra_files()
     }
 
-    // Walks over all cache entires, detects dirty files and removes them from cache.
+    // Walks over all cache entries, detects dirty files and removes them from cache.
     fn find_and_remove_dirty(&mut self) {
         fn populate_dirty_files<D>(
             file: &Path,
@@ -892,13 +895,21 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
                             self.dirty_sources.insert(file.clone());
                             break;
                         // For non-src files we mark them as dirty only if they import dirty
-                        // non-src file or src file for which
-                        // interface representation changed.
+                        // non-src file or src file for which interface representation changed.
+                        // For identified mock contracts (non-src contracts that extends contracts
+                        // from src file) we mark edges as dirty.
                         } else if !is_src
                             && self.dirty_sources.contains(import)
-                            && (!self.is_source_file(import) || self.is_dirty_impl(import, true))
+                            && (!self.is_source_file(import)
+                                || self.is_dirty_impl(import, true)
+                                || self.cache.mocks.contains(file))
                         {
-                            self.dirty_sources.insert(file.clone());
+                            if self.cache.mocks.contains(file) {
+                                // Mark all mock edges as dirty.
+                                populate_dirty_files(file, &mut self.dirty_sources, &edges);
+                            } else {
+                                self.dirty_sources.insert(file.clone());
+                            }
                         }
                     }
                 }
@@ -1119,6 +1130,16 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         match self {
             ArtifactsCache::Ephemeral(..) => {}
             ArtifactsCache::Cached(cache) => cache.find_and_remove_dirty(),
+        }
+    }
+
+    /// Adds the file's hashes to the set if not set yet
+    pub fn add_mocks(&mut self, mocks: Option<HashSet<PathBuf>>) {
+        if let Some(mocks) = mocks {
+            match self {
+                ArtifactsCache::Ephemeral(..) => {}
+                ArtifactsCache::Cached(cache) => cache.cache.mocks.extend(mocks),
+            }
         }
     }
 

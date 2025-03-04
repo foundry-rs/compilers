@@ -15,7 +15,7 @@ use solar_sema::{
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     ops::ControlFlow,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 /// Holds data about referenced source contracts and bytecode dependencies.
@@ -24,12 +24,21 @@ pub(crate) struct PreprocessorDependencies {
     pub preprocessed_contracts: BTreeMap<ContractId, Vec<BytecodeDependency>>,
     // Referenced contract ids.
     pub referenced_contracts: HashSet<ContractId>,
+    // Mock contract paths (with a base contract from src dir).
+    pub mocks: HashSet<PathBuf>,
 }
 
 impl PreprocessorDependencies {
-    pub fn new(sess: &Session, hir: &Hir<'_>, paths: &[PathBuf], src_dir: &PathBuf) -> Self {
+    pub fn new(
+        sess: &Session,
+        hir: &Hir<'_>,
+        paths: &[PathBuf],
+        src_dir: &PathBuf,
+        root_dir: &Path,
+    ) -> Self {
         let mut preprocessed_contracts = BTreeMap::new();
         let mut referenced_contracts = HashSet::new();
+        let mut mocks = HashSet::new();
         for contract_id in hir.contract_ids() {
             let contract = hir.contract(contract_id);
             let source = hir.source(contract.source);
@@ -40,6 +49,24 @@ impl PreprocessorDependencies {
 
             // Collect dependencies only for tests and scripts.
             if !paths.contains(path) {
+                let path = path.display();
+                trace!("{path} is not test or script");
+                continue;
+            }
+
+            // Do not collect dependencies for mock contracts. Walk through base contracts and
+            // check if they're from src dir.
+            if contract.linearized_bases.iter().any(|base_contract_id| {
+                let base_contract = hir.contract(*base_contract_id);
+                let FileName::Real(path) = &hir.source(base_contract.source).file.name else {
+                    return false;
+                };
+                path.starts_with(src_dir)
+            }) {
+                // Record mock contracts to be evicted from preprocessed cache.
+                mocks.insert(root_dir.join(path));
+                let path = path.display();
+                trace!("found mock contract {path}");
                 continue;
             }
 
@@ -58,7 +85,7 @@ impl PreprocessorDependencies {
             // Record collected referenced contract ids.
             referenced_contracts.extend(deps_collector.referenced_contracts);
         }
-        Self { preprocessed_contracts, referenced_contracts }
+        Self { preprocessed_contracts, referenced_contracts, mocks }
     }
 }
 

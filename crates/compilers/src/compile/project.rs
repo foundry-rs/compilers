@@ -115,19 +115,25 @@ use crate::{
 use foundry_compilers_core::error::Result;
 use rayon::prelude::*;
 use semver::Version;
-use std::{collections::HashMap, fmt::Debug, path::PathBuf, time::Instant};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    path::PathBuf,
+    time::Instant,
+};
 
 /// A set of different Solc installations with their version and the sources to be compiled
 pub(crate) type VersionedSources<'a, L, S> = HashMap<L, Vec<(Version, Sources, (&'a str, &'a S))>>;
 
 /// Invoked before the actual compiler invocation and can override the input.
+/// Returns preprocessed compiler input and identified mocks (if any) to be stored in cache.
 pub trait Preprocessor<C: Compiler>: Debug {
     fn preprocess(
         &self,
         compiler: &C,
         input: C::Input,
         paths: &ProjectPathsConfig<C::Language>,
-    ) -> Result<C::Input>;
+    ) -> Result<(C::Input, Option<HashSet<PathBuf>>)>;
 }
 
 #[derive(Debug)]
@@ -469,6 +475,7 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
         include_paths.extend(graph.include_paths().clone());
 
         let mut jobs = Vec::new();
+        let mut mocks = None;
         for (language, versioned_sources) in self.sources {
             for (version, sources, (profile, opt_settings)) in versioned_sources {
                 let mut opt_settings = opt_settings.clone();
@@ -503,12 +510,15 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
                 input.strip_prefix(project.paths.root.as_path());
 
                 if let Some(preprocessor) = preprocessor.as_ref() {
-                    input = preprocessor.preprocess(&project.compiler, input, &project.paths)?;
+                    (input, mocks) =
+                        preprocessor.preprocess(&project.compiler, input, &project.paths)?;
                 }
 
                 jobs.push((input, profile, actually_dirty));
             }
         }
+
+        cache.add_mocks(mocks);
 
         let results = if let Some(num_jobs) = jobs_cnt {
             compile_parallel(&project.compiler, jobs, num_jobs)

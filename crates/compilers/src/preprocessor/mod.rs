@@ -23,7 +23,10 @@ use solar_parse::{
     Parser,
 };
 use solar_sema::{hir::Arena, ParsingContext};
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 mod data;
 mod deps;
@@ -60,54 +63,58 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
         _solc: &SolcCompiler,
         mut input: SolcVersionedInput,
         paths: &ProjectPathsConfig<SolcLanguage>,
-    ) -> Result<SolcVersionedInput> {
+    ) -> Result<(SolcVersionedInput, Option<HashSet<PathBuf>>)> {
         let sources = &mut input.input.sources;
         // Skip if we are not preprocessing any tests or scripts. Avoids unnecessary AST parsing.
         if sources.iter().all(|(path, _)| !is_test_or_script(path, paths)) {
             trace!("no tests or sources to preprocess");
-            return Ok(input);
+            return Ok((input, None));
         }
 
         let sess = Session::builder().with_buffer_emitter(Default::default()).build();
-        let _ = sess.enter_parallel(|| -> solar_parse::interface::Result<()> {
-            let hir_arena = Arena::new();
-            let mut parsing_context = ParsingContext::new(&sess);
-            // Set remappings into HIR parsing context.
-            for remapping in &paths.remappings {
-                parsing_context
-                    .file_resolver
-                    .add_import_map(PathBuf::from(&remapping.name), PathBuf::from(&remapping.path));
-            }
-            // Load and parse test and script contracts only (dependencies are automatically
-            // resolved).
-            let preprocessed_paths = sources
-                .into_iter()
-                .filter(|(path, source)| {
-                    is_test_or_script(path, paths) && !source.content.is_empty()
-                })
-                .map(|(path, _)| path.clone())
-                .collect_vec();
-            parsing_context.load_files(&preprocessed_paths)?;
+        let mocks = sess
+            .enter_parallel(|| -> solar_parse::interface::Result<Option<HashSet<PathBuf>>> {
+                let hir_arena = Arena::new();
+                let mut parsing_context = ParsingContext::new(&sess);
+                // Set remappings into HIR parsing context.
+                for remapping in &paths.remappings {
+                    parsing_context.file_resolver.add_import_map(
+                        PathBuf::from(&remapping.name),
+                        PathBuf::from(&remapping.path),
+                    );
+                }
+                // Load and parse test and script contracts only (dependencies are automatically
+                // resolved).
+                let preprocessed_paths = sources
+                    .into_iter()
+                    .filter(|(path, source)| {
+                        is_test_or_script(path, paths) && !source.content.is_empty()
+                    })
+                    .map(|(path, _)| path.clone())
+                    .collect_vec();
+                parsing_context.load_files(&preprocessed_paths)?;
 
-            let hir = &parsing_context.parse_and_lower_to_hir(&hir_arena)?;
-            // Collect tests and scripts dependencies.
-            let deps = PreprocessorDependencies::new(
-                &sess,
-                hir,
-                &preprocessed_paths,
-                &paths.paths_relative().sources,
-            );
-            // Collect data of source contracts referenced in tests and scripts.
-            let data = collect_preprocessor_data(&sess, hir, &deps.referenced_contracts);
+                let hir = &parsing_context.parse_and_lower_to_hir(&hir_arena)?;
+                // Collect tests and scripts dependencies and identify mock contracts.
+                let deps = PreprocessorDependencies::new(
+                    &sess,
+                    hir,
+                    &preprocessed_paths,
+                    &paths.paths_relative().sources,
+                    &paths.root,
+                );
+                // Collect data of source contracts referenced in tests and scripts.
+                let data = collect_preprocessor_data(&sess, hir, &deps.referenced_contracts);
 
-            // Extend existing sources with preprocessor deploy helper sources.
-            sources.extend(create_deploy_helpers(&data));
+                // Extend existing sources with preprocessor deploy helper sources.
+                sources.extend(create_deploy_helpers(&data));
 
-            // Generate and apply preprocessor source updates.
-            apply_updates(sources, remove_bytecode_dependencies(hir, &deps, &data));
+                // Generate and apply preprocessor source updates.
+                apply_updates(sources, remove_bytecode_dependencies(hir, &deps, &data));
 
-            Ok(())
-        });
+                Ok(Some(deps.mocks))
+            })
+            .unwrap_or_default();
 
         // Return if any diagnostics emitted during content parsing.
         if let Err(err) = sess.emitted_errors().unwrap() {
@@ -115,7 +122,7 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
             return Err(SolcError::Message(err.to_string()));
         }
 
-        Ok(input)
+        Ok((input, mocks))
     }
 }
 
@@ -125,18 +132,18 @@ impl Preprocessor<MultiCompiler> for TestOptimizerPreprocessor {
         compiler: &MultiCompiler,
         input: <MultiCompiler as Compiler>::Input,
         paths: &ProjectPathsConfig<MultiCompilerLanguage>,
-    ) -> Result<<MultiCompiler as Compiler>::Input> {
+    ) -> Result<(<MultiCompiler as Compiler>::Input, Option<HashSet<PathBuf>>)> {
         match input {
             MultiCompilerInput::Solc(input) => {
                 if let Some(solc) = &compiler.solc {
                     let paths = paths.clone().with_language::<SolcLanguage>();
-                    let input = self.preprocess(solc, input, &paths)?;
-                    Ok(MultiCompilerInput::Solc(input))
+                    let (input, mocks) = self.preprocess(solc, input, &paths)?;
+                    Ok((MultiCompilerInput::Solc(input), mocks))
                 } else {
-                    Ok(MultiCompilerInput::Solc(input))
+                    Ok((MultiCompilerInput::Solc(input), None))
                 }
             }
-            MultiCompilerInput::Vyper(input) => Ok(MultiCompilerInput::Vyper(input)),
+            MultiCompilerInput::Vyper(input) => Ok((MultiCompilerInput::Vyper(input), None)),
         }
     }
 }
