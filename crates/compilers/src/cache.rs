@@ -1133,7 +1133,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         }
     }
 
-    /// Adds the file's hashes to the set if not set yet
+    /// Collects files with mock contracts identified in preprocess phase.
     pub fn add_mocks(&mut self, mocks: Option<HashSet<PathBuf>>) {
         if let Some(mocks) = mocks {
             match self {
