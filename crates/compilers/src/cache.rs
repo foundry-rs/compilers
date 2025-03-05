@@ -1026,8 +1026,8 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 
             if !invalidate_cache && project.cache_path().exists() {
                 if let Ok(cache) = CompilerCache::read_joined(&project.paths) {
-                    if cache.paths == paths {
-                        // unchanged project paths
+                    if cache.paths == paths && preprocessed == cache.preprocessed {
+                        // unchanged project paths and same preprocess cache option
                         return cache;
                     }
                 }
