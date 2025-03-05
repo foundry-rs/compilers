@@ -1133,13 +1133,21 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         }
     }
 
-    /// Collects files with mock contracts identified in preprocess phase.
-    pub fn add_mocks(&mut self, mocks: Option<HashSet<PathBuf>>) {
-        if let Some(mocks) = mocks {
-            match self {
-                ArtifactsCache::Ephemeral(..) => {}
-                ArtifactsCache::Cached(cache) => cache.cache.mocks.extend(mocks),
-            }
+    /// Updates files with mock contracts identified in preprocess phase.
+    pub fn update_mocks(&mut self, mocks: HashSet<PathBuf>) {
+        match self {
+            ArtifactsCache::Ephemeral(..) => {}
+            ArtifactsCache::Cached(cache) => cache.cache.mocks = mocks,
+        }
+    }
+
+    /// Returns the set of files with mock contracts currently in cache.
+    /// This set is passed to preprocessors and updated accordingly.
+    /// Cache is then updated by using `update_mocks` call.
+    pub fn mocks(&self) -> HashSet<PathBuf> {
+        match self {
+            ArtifactsCache::Ephemeral(..) => HashSet::default(),
+            ArtifactsCache::Cached(cache) => cache.cache.mocks.clone(),
         }
     }
 

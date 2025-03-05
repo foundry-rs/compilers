@@ -24,8 +24,6 @@ pub(crate) struct PreprocessorDependencies {
     pub preprocessed_contracts: BTreeMap<ContractId, Vec<BytecodeDependency>>,
     // Referenced contract ids.
     pub referenced_contracts: HashSet<ContractId>,
-    // Mock contract paths (with a base contract from src dir).
-    pub mocks: HashSet<PathBuf>,
 }
 
 impl PreprocessorDependencies {
@@ -35,10 +33,10 @@ impl PreprocessorDependencies {
         paths: &[PathBuf],
         src_dir: &PathBuf,
         root_dir: &Path,
+        mocks: &mut HashSet<PathBuf>,
     ) -> Self {
         let mut preprocessed_contracts = BTreeMap::new();
         let mut referenced_contracts = HashSet::new();
-        let mut mocks = HashSet::new();
         for contract_id in hir.contract_ids() {
             let contract = hir.contract(contract_id);
             let source = hir.source(contract.source);
@@ -68,6 +66,10 @@ impl PreprocessorDependencies {
                 let path = path.display();
                 trace!("found mock contract {path}");
                 continue;
+            } else {
+                // Make sure current contract is not in list of mocks (could happen when a contract
+                // which used to be a mock is refactored to a non-mock implementation).
+                mocks.remove(&root_dir.join(path));
             }
 
             let mut deps_collector = BytecodeDependencyCollector::new(
@@ -85,7 +87,7 @@ impl PreprocessorDependencies {
             // Record collected referenced contract ids.
             referenced_contracts.extend(deps_collector.referenced_contracts);
         }
-        Self { preprocessed_contracts, referenced_contracts, mocks }
+        Self { preprocessed_contracts, referenced_contracts }
     }
 }
 
