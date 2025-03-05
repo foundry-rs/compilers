@@ -1,0 +1,206 @@
+use crate::preprocessor::SourceMapLocation;
+use foundry_compilers_artifacts::{Source, Sources};
+use itertools::Itertools;
+use solar_parse::interface::{Session, SourceMap};
+use solar_sema::{
+    hir::{Contract, ContractId, Hir},
+    interface::source_map::FileName,
+};
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::{Path, PathBuf},
+};
+
+/// Keeps data about project contracts definitions referenced from tests and scripts.
+/// Contract id -> Contract data definition mapping.
+pub type PreprocessorData = BTreeMap<ContractId, ContractData>;
+
+/// Collects preprocessor data from referenced contracts.
+pub(crate) fn collect_preprocessor_data(
+    sess: &Session,
+    hir: &Hir<'_>,
+    referenced_contracts: &HashSet<ContractId>,
+) -> PreprocessorData {
+    let mut data = PreprocessorData::default();
+    for contract_id in referenced_contracts {
+        let contract = hir.contract(*contract_id);
+        let source = hir.source(contract.source);
+
+        let FileName::Real(path) = &source.file.name else {
+            continue;
+        };
+
+        let contract_data =
+            ContractData::new(hir, *contract_id, contract, path, source, sess.source_map());
+        data.insert(*contract_id, contract_data);
+    }
+    data
+}
+
+/// Creates helper libraries for contracts with a non-empty constructor.
+///
+/// See [`ContractData::build_helper`] for more details.
+pub(crate) fn create_deploy_helpers(data: &BTreeMap<ContractId, ContractData>) -> Sources {
+    let mut deploy_helpers = Sources::new();
+    for (contract_id, contract) in data {
+        if let Some(code) = contract.build_helper() {
+            let path = format!("foundry-pp/DeployHelper{}.sol", contract_id.get());
+            deploy_helpers.insert(path.into(), Source::new(code));
+        }
+    }
+    deploy_helpers
+}
+
+/// Keeps data about a contract constructor.
+#[derive(Debug)]
+pub struct ContractConstructorData {
+    /// ABI encoded args.
+    pub abi_encode_args: String,
+    /// Constructor struct fields.
+    pub struct_fields: String,
+}
+
+/// Keeps data about a single contract definition.
+#[derive(Debug)]
+pub(crate) struct ContractData {
+    /// HIR Id of the contract.
+    contract_id: ContractId,
+    /// Path of the source file.
+    path: PathBuf,
+    /// Name of the contract
+    name: String,
+    /// Constructor parameters, if any.
+    pub constructor_data: Option<ContractConstructorData>,
+    /// Artifact string to pass into cheatcodes.
+    pub artifact: String,
+}
+
+impl ContractData {
+    fn new(
+        hir: &Hir<'_>,
+        contract_id: ContractId,
+        contract: &Contract<'_>,
+        path: &Path,
+        source: &solar_sema::hir::Source<'_>,
+        source_map: &SourceMap,
+    ) -> Self {
+        let artifact = format!("{}:{}", path.display(), contract.name);
+
+        // Process data for contracts with constructor and parameters.
+        let constructor_data = contract
+            .ctor
+            .map(|ctor_id| hir.function(ctor_id))
+            .filter(|ctor| !ctor.parameters.is_empty())
+            .map(|ctor| {
+                let abi_encode_args = ctor
+                    .parameters
+                    .iter()
+                    .map(|param_id| format!("args.{}", hir.variable(*param_id).name.unwrap().name))
+                    .join(", ");
+                let struct_fields = ctor
+                    .parameters
+                    .iter()
+                    .map(|param_id| {
+                        let src = source.file.src.as_str();
+                        let loc =
+                            SourceMapLocation::from_span(source_map, hir.variable(*param_id).span);
+                        src[loc.start..loc.end].replace(" memory ", " ").replace(" calldata ", " ")
+                    })
+                    .join("; ");
+                ContractConstructorData { abi_encode_args, struct_fields }
+            });
+
+        Self {
+            contract_id,
+            path: path.to_path_buf(),
+            name: contract.name.to_string(),
+            constructor_data,
+            artifact,
+        }
+    }
+
+    /// If contract has a non-empty constructor, generates a helper source file for it containing a
+    /// helper to encode constructor arguments.
+    ///
+    /// This is needed because current preprocessing wraps the arguments, leaving them unchanged.
+    /// This allows us to handle nested new expressions correctly. However, this requires us to have
+    /// a way to wrap both named and unnamed arguments. i.e you can't do abi.encode({arg: val}).
+    ///
+    /// This function produces a helper struct + a helper function to encode the arguments. The
+    /// struct is defined in scope of an abstract contract inheriting the contract containing the
+    /// constructor. This is done as a hack to allow us to inherit the same scope of definitions.
+    ///
+    /// The resulted helper looks like this:
+    /// ```solidity
+    /// import "lib/openzeppelin-contracts/contracts/token/ERC20.sol";
+    ///
+    /// abstract contract DeployHelper335 is ERC20 {
+    ///     struct ConstructorArgs {
+    ///         string name;
+    ///         string symbol;
+    ///     }
+    /// }
+    ///
+    /// function encodeArgs335(DeployHelper335.ConstructorArgs memory args) pure returns (bytes memory) {
+    ///     return abi.encode(args.name, args.symbol);
+    /// }
+    /// ```
+    ///
+    /// Example usage:
+    /// ```solidity
+    /// new ERC20(name, symbol)
+    /// ```
+    /// becomes
+    /// ```solidity
+    /// vm.deployCode("artifact path", encodeArgs335(DeployHelper335.ConstructorArgs(name, symbol)))
+    /// ```
+    /// With named arguments:
+    /// ```solidity
+    /// new ERC20({name: name, symbol: symbol})
+    /// ```
+    /// becomes
+    /// ```solidity
+    /// vm.deployCode("artifact path", encodeArgs335(DeployHelper335.ConstructorArgs({name: name, symbol: symbol})))
+    /// ```
+    pub fn build_helper(&self) -> Option<String> {
+        let Self { contract_id, path, name, constructor_data, artifact } = self;
+
+        let Some(constructor_details) = constructor_data else { return None };
+        let contract_id = contract_id.get();
+        let struct_fields = &constructor_details.struct_fields;
+        let abi_encode_args = &constructor_details.abi_encode_args;
+        let vm_interface_name = format!("VmContractHelper{contract_id}");
+        let vm = format!("{vm_interface_name}(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D)");
+
+        let helper = format!(
+            r#"
+pragma solidity >=0.4.0;
+
+import "{path}";
+
+abstract contract DeployHelper{contract_id} is {name} {{
+    struct ConstructorArgs {{
+        {struct_fields};
+    }}
+}}
+
+function encodeArgs{contract_id}(DeployHelper{contract_id}.ConstructorArgs memory args) pure returns (bytes memory) {{
+    return abi.encode({abi_encode_args});
+}}
+
+function deployCode{contract_id}(DeployHelper{contract_id}.ConstructorArgs memory args) returns({name}) {{
+    return {name}(payable({vm}.deployCode("{artifact}", encodeArgs{contract_id}(args))));
+}}
+
+interface {vm_interface_name} {{
+    function deployCode(string memory _artifact, bytes memory _data) external returns (address);
+    function deployCode(string memory _artifact) external returns (address);
+    function getCode(string memory _artifact) external returns (bytes memory);
+}}
+        "#,
+            path = path.display(),
+        );
+
+        Some(helper)
+    }
+}
