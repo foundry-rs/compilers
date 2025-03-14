@@ -818,6 +818,7 @@ pub enum EvmVersion {
     #[default]
     Cancun,
     Prague,
+    Osaka,
 }
 
 impl EvmVersion {
@@ -900,6 +901,7 @@ impl EvmVersion {
             Self::Shanghai => "shanghai",
             Self::Cancun => "cancun",
             Self::Prague => "prague",
+            Self::Osaka => "osaka",
         }
     }
 
@@ -969,6 +971,7 @@ impl FromStr for EvmVersion {
             "shanghai" => Ok(Self::Shanghai),
             "cancun" => Ok(Self::Cancun),
             "prague" => Ok(Self::Prague),
+            "osaka" => Ok(Self::Osaka),
             s => Err(format!("Unknown evm version: {s}")),
         }
     }
