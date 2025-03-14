@@ -132,10 +132,10 @@ pub trait Preprocessor<C: Compiler>: Debug {
     fn preprocess(
         &self,
         compiler: &C,
-        input: C::Input,
+        input: &mut C::Input,
         paths: &ProjectPathsConfig<C::Language>,
         mocks: &mut HashSet<PathBuf>,
-    ) -> Result<C::Input>;
+    ) -> Result<()>;
 }
 
 #[derive(Debug)]
@@ -515,8 +515,12 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
                 input.strip_prefix(project.paths.root.as_path());
 
                 if let Some(preprocessor) = preprocessor.as_ref() {
-                    input =
-                        preprocessor.preprocess(&project.compiler, input, &project.paths, mocks)?;
+                    preprocessor.preprocess(
+                        &project.compiler,
+                        &mut input,
+                        &project.paths,
+                        mocks,
+                    )?;
                 }
 
                 jobs.push((input, profile, actually_dirty));

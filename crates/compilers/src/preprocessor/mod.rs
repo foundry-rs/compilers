@@ -61,15 +61,15 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
     fn preprocess(
         &self,
         _solc: &SolcCompiler,
-        mut input: SolcVersionedInput,
+        input: &mut SolcVersionedInput,
         paths: &ProjectPathsConfig<SolcLanguage>,
         mocks: &mut HashSet<PathBuf>,
-    ) -> Result<SolcVersionedInput> {
+    ) -> Result<()> {
         let sources = &mut input.input.sources;
         // Skip if we are not preprocessing any tests or scripts. Avoids unnecessary AST parsing.
         if sources.iter().all(|(path, _)| !is_test_or_script(path, paths)) {
             trace!("no tests or sources to preprocess");
-            return Ok(input);
+            return Ok(());
         }
 
         let sess = Session::builder().with_buffer_emitter(Default::default()).build();
@@ -123,7 +123,7 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
             return Err(SolcError::Message(err.to_string()));
         }
 
-        Ok(input)
+        Ok(())
     }
 }
 
@@ -131,22 +131,17 @@ impl Preprocessor<MultiCompiler> for TestOptimizerPreprocessor {
     fn preprocess(
         &self,
         compiler: &MultiCompiler,
-        input: <MultiCompiler as Compiler>::Input,
+        input: &mut <MultiCompiler as Compiler>::Input,
         paths: &ProjectPathsConfig<MultiCompilerLanguage>,
         mocks: &mut HashSet<PathBuf>,
-    ) -> Result<<MultiCompiler as Compiler>::Input> {
-        match input {
-            MultiCompilerInput::Solc(input) => {
-                if let Some(solc) = &compiler.solc {
-                    let paths = paths.clone().with_language::<SolcLanguage>();
-                    let input = self.preprocess(solc, input, &paths, mocks)?;
-                    Ok(MultiCompilerInput::Solc(input))
-                } else {
-                    Ok(MultiCompilerInput::Solc(input))
-                }
-            }
-            MultiCompilerInput::Vyper(input) => Ok(MultiCompilerInput::Vyper(input)),
-        }
+    ) -> Result<()> {
+        // Preprocess only Solc compilers.
+        let MultiCompilerInput::Solc(input) = input else { return Ok(()) };
+
+        let Some(solc) = &compiler.solc else { return Ok(()) };
+
+        let paths = paths.clone().with_language::<SolcLanguage>();
+        self.preprocess(solc, input, &paths, mocks)
     }
 }
 
