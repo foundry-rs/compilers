@@ -39,7 +39,8 @@ use foundry_compilers_core::{
     error::SolcError,
     utils::{
         strip_prefix_owned, BERLIN_SOLC, BYZANTIUM_SOLC, CANCUN_SOLC, CONSTANTINOPLE_SOLC,
-        ISTANBUL_SOLC, LONDON_SOLC, PARIS_SOLC, PETERSBURG_SOLC, PRAGUE_SOLC, SHANGHAI_SOLC,
+        ISTANBUL_SOLC, LONDON_SOLC, OSAKA_SOLC, PARIS_SOLC, PETERSBURG_SOLC, PRAGUE_SOLC,
+        SHANGHAI_SOLC,
     },
 };
 pub use serde_helpers::{deserialize_bytes, deserialize_opt_bytes};
@@ -856,8 +857,10 @@ impl EvmVersion {
         if *version >= BYZANTIUM_SOLC {
             // If the Solc version is the latest, it supports all EVM versions.
             // For all other cases, cap at the at-the-time highest possible fork.
-            let normalized = if *version >= PRAGUE_SOLC {
+            let normalized = if *version >= OSAKA_SOLC {
                 self
+            } else if *version >= PRAGUE_SOLC {
+                Self::Cancun
             } else if self >= Self::Cancun && *version >= CANCUN_SOLC {
                 Self::Cancun
             } else if self >= Self::Shanghai && *version >= SHANGHAI_SOLC {
