@@ -859,7 +859,7 @@ impl EvmVersion {
             // For all other cases, cap at the at-the-time highest possible fork.
             let normalized = if *version >= OSAKA_SOLC {
                 self
-            } else if *version >= PRAGUE_SOLC {
+            } else if self >= Self::Prague && *version >= PRAGUE_SOLC {
                 Self::Prague
             } else if self >= Self::Cancun && *version >= CANCUN_SOLC {
                 Self::Cancun
