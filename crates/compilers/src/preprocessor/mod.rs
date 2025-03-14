@@ -22,12 +22,11 @@ use solar_parse::{
     },
     Parser,
 };
-use solar_sema::ParsingContext;
+use solar_sema::{thread_local::ThreadLocal, ParsingContext};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
-use solar_sema::thread_local::ThreadLocal;
 
 mod data;
 mod deps;
