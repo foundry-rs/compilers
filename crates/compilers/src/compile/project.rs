@@ -528,12 +528,16 @@ fn compile_sequential<'a, C: Compiler>(
         .map(|(input, profile, actually_dirty)| {
             let start = Instant::now();
             report::compiler_spawn(
-                &input.compiler_name(),
+                &compiler.compiler_name(&input),
                 input.version(),
                 actually_dirty.as_slice(),
             );
             let output = compiler.compile(&input)?;
-            report::compiler_success(&input.compiler_name(), input.version(), &start.elapsed());
+            report::compiler_success(
+                &compiler.compiler_name(&input),
+                input.version(),
+                &start.elapsed(),
+            );
 
             Ok((input, output, profile, actually_dirty))
         })
@@ -562,13 +566,13 @@ fn compile_parallel<'a, C: Compiler>(
 
                 let start = Instant::now();
                 report::compiler_spawn(
-                    &input.compiler_name(),
+                    &compiler.compiler_name(&input),
                     input.version(),
                     actually_dirty.as_slice(),
                 );
                 compiler.compile(&input).map(move |output| {
                     report::compiler_success(
-                        &input.compiler_name(),
+                        &compiler.compiler_name(&input),
                         input.version(),
                         &start.elapsed(),
                     );

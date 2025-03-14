@@ -1,4 +1,5 @@
 use super::{
+    resolc::{Resolc, ResolcVersionedInput},
     restrictions::CompilerSettingsRestrictions,
     solc::{SolcCompiler, SolcSettings, SolcVersionedInput, SOLC_EXTENSIONS},
     vyper::{
@@ -6,7 +7,7 @@ use super::{
         VYPER_EXTENSIONS,
     },
     CompilationError, Compiler, CompilerInput, CompilerOutput, CompilerSettings, CompilerVersion,
-    Language, ParsedSource,
+    Language, ParsedSource, SimpleCompilerName,
 };
 use crate::{
     artifacts::vyper::{VyperCompilationError, VyperSettings},
@@ -34,8 +35,17 @@ use std::{
 /// Compiler capable of compiling both Solidity and Vyper sources.
 #[derive(Clone, Debug)]
 pub struct MultiCompiler {
-    pub solc: Option<SolcCompiler>,
+    pub solidity: SolidityCompiler,
     pub vyper: Option<Vyper>,
+}
+
+#[derive(Clone, Debug, Default)]
+/// Compiler capable of compiling Solidity.
+pub enum SolidityCompiler {
+    Solc(SolcCompiler),
+    Resolc(Resolc),
+    #[default]
+    MissingInstallation,
 }
 
 impl Default for MultiCompiler {
@@ -43,18 +53,23 @@ impl Default for MultiCompiler {
         let vyper = Vyper::new("vyper").ok();
 
         #[cfg(feature = "svm-solc")]
-        let solc = Some(SolcCompiler::AutoDetect);
-        #[cfg(not(feature = "svm-solc"))]
-        let solc = crate::solc::Solc::new("solc").map(SolcCompiler::Specific).ok();
+        let solc = SolidityCompiler::Solc(SolcCompiler::AutoDetect);
 
-        Self { solc, vyper }
+        #[cfg(not(feature = "svm-solc"))]
+        let solc = crate::solc::Solc::new("solc")
+            .map(SolcCompiler::Specific)
+            .ok()
+            .map(SolidityCompiler::Solc)
+            .unwrap_or_default();
+
+        Self { vyper, solidity: solc }
     }
 }
 
 impl MultiCompiler {
-    pub fn new(solc: Option<SolcCompiler>, vyper_path: Option<PathBuf>) -> Result<Self> {
+    pub fn new(solc: Option<SolidityCompiler>, vyper_path: Option<PathBuf>) -> Result<Self> {
         let vyper = vyper_path.map(Vyper::new).transpose()?;
-        Ok(Self { solc, vyper })
+        Ok(Self { solidity: solc.unwrap_or_default(), vyper })
     }
 }
 
@@ -236,13 +251,6 @@ impl CompilerInput for MultiCompilerInput {
         }
     }
 
-    fn compiler_name(&self) -> Cow<'static, str> {
-        match self {
-            Self::Solc(input) => input.compiler_name(),
-            Self::Vyper(input) => input.compiler_name(),
-        }
-    }
-
     fn language(&self) -> Self::Language {
         match self {
             Self::Solc(input) => MultiCompilerLanguage::Solc(input.language()),
@@ -282,18 +290,43 @@ impl Compiler for MultiCompiler {
     type Language = MultiCompilerLanguage;
     type CompilerContract = Contract;
 
+    fn compiler_name(&self, input: &Self::Input) -> Cow<'static, str> {
+        match input {
+            MultiCompilerInput::Solc(_) => match &self.solidity {
+                SolidityCompiler::Solc(_) => SolcCompiler::compiler_name_default(),
+                SolidityCompiler::Resolc(_) => Resolc::compiler_name_default(),
+                SolidityCompiler::MissingInstallation => "No applicablecompilers installed".into(),
+            },
+            MultiCompilerInput::Vyper(_) => Vyper::compiler_name_default(),
+        }
+    }
+
     fn compile(
         &self,
         input: &Self::Input,
     ) -> Result<CompilerOutput<Self::CompilationError, Self::CompilerContract>> {
         match input {
-            MultiCompilerInput::Solc(input) => {
-                if let Some(solc) = &self.solc {
-                    Compiler::compile(solc, input).map(|res| res.map_err(MultiCompilerError::Solc))
-                } else {
-                    Err(SolcError::msg("solc compiler is not available"))
+            MultiCompilerInput::Solc(input) => match &self.solidity {
+                SolidityCompiler::Solc(solc_compiler) => Compiler::compile(solc_compiler, input)
+                    .map(|res| res.map_err(MultiCompilerError::Solc)),
+                SolidityCompiler::Resolc(resolc) => {
+                    let input = input.clone();
+                    let input = ResolcVersionedInput::build(
+                        input.input.sources,
+                        SolcSettings {
+                            settings: input.input.settings,
+                            cli_settings: input.cli_settings,
+                        },
+                        input.input.language,
+                        input.version,
+                    );
+                    Compiler::compile(resolc, &input)
+                        .map(|res| res.map_err(MultiCompilerError::Solc))
                 }
-            }
+                SolidityCompiler::MissingInstallation => {
+                    Err(SolcError::msg("No solidity compiler is available"))
+                }
+            },
             MultiCompilerInput::Vyper(input) => {
                 if let Some(vyper) = &self.vyper {
                     Compiler::compile(vyper, input)
@@ -307,9 +340,11 @@ impl Compiler for MultiCompiler {
 
     fn available_versions(&self, language: &Self::Language) -> Vec<CompilerVersion> {
         match language {
-            MultiCompilerLanguage::Solc(language) => {
-                self.solc.as_ref().map(|s| s.available_versions(language)).unwrap_or_default()
-            }
+            MultiCompilerLanguage::Solc(language) => match &self.solidity {
+                SolidityCompiler::Solc(solc_compiler) => solc_compiler.available_versions(language),
+                SolidityCompiler::Resolc(resolc) => resolc.available_versions(language),
+                SolidityCompiler::MissingInstallation => Default::default(),
+            },
             MultiCompilerLanguage::Vyper(language) => {
                 self.vyper.as_ref().map(|v| v.available_versions(language)).unwrap_or_default()
             }

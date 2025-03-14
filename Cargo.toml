@@ -39,7 +39,9 @@ foundry-compilers = { path = "crates/compilers", version = "0.13.3" }
 foundry-compilers-artifacts = { path = "crates/artifacts/artifacts", version = "0.13.3" }
 foundry-compilers-artifacts-solc = { path = "crates/artifacts/solc", version = "0.13.3" }
 foundry-compilers-artifacts-vyper = { path = "crates/artifacts/vyper", version = "0.13.3" }
+foundry-compilers-artifacts-resolc = { path = "crates/artifacts/resolc", version = "0.13.3" }
 foundry-compilers-core = { path = "crates/core", version = "0.13.3" }
+
 
 alloy-json-abi = { version = "0.8", features = ["serde_json"] }
 alloy-primitives = { version = "0.8", features = ["serde", "rand"] }

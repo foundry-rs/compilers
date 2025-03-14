@@ -1,0 +1,44 @@
+[package]
+name = "foundry-compilers-artifacts-resolc"
+description = "Rust bindings for Revive JSON artifacts"
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+foundry-compilers-core.workspace = true
+foundry-compilers-artifacts-solc.workspace = true
+
+serde.workspace = true
+semver.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+alloy-primitives.workspace = true
+alloy-json-abi.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
+md-5.workspace = true
+yansi.workspace = true
+futures-util = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+walkdir = "2.4"
+
+[target.'cfg(windows)'.dependencies]
+path-slash.workspace = true
+
+[dev-dependencies]
+serde_path_to_error = "0.1"
+similar-asserts.workspace = true
+foundry-compilers-core = { workspace = true, features = ["test-utils"] }
+
+[features]
+async = ["dep:tokio", "futures-util", "tokio/fs"]

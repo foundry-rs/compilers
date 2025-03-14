@@ -3,7 +3,7 @@
 use crate::{
     cache::CompilerCache,
     compilers::{
-        multi::{MultiCompiler, MultiCompilerSettings},
+        multi::{MultiCompiler, MultiCompilerSettings, SolidityCompiler},
         Compiler,
     },
     config::ProjectPathsConfigBuilder,
@@ -62,10 +62,16 @@ impl<
     #[cfg(feature = "svm-solc")]
     pub fn set_solc(&mut self, solc: &str) -> &mut Self {
         use crate::solc::{Solc, SolcCompiler};
-
-        self.inner.compiler.solc =
-            Some(SolcCompiler::Specific(Solc::find_or_install(&solc.parse().unwrap()).unwrap()));
-
+        let solc = SolcCompiler::Specific(Solc::find_or_install(&solc.parse().unwrap()).unwrap());
+        match &mut self.inner.compiler.solidity {
+            SolidityCompiler::Solc(ref mut s) => {
+                *s = solc;
+            }
+            SolidityCompiler::Resolc(resolc) => resolc.solc = solc,
+            SolidityCompiler::MissingInstallation => {
+                self.inner.compiler.solidity = SolidityCompiler::Solc(solc)
+            }
+        };
         self
     }
 }

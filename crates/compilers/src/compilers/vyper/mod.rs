@@ -1,5 +1,5 @@
 use self::{input::VyperVersionedInput, parser::VyperParsedSource};
-use super::{Compiler, CompilerOutput, Language};
+use super::{Compiler, CompilerOutput, Language, SimpleCompilerName};
 pub use crate::artifacts::vyper::{VyperCompilationError, VyperInput, VyperOutput, VyperSettings};
 use core::fmt;
 use foundry_compilers_artifacts::{sources::Source, Contract};
@@ -7,6 +7,7 @@ use foundry_compilers_core::error::{Result, SolcError};
 use semver::Version;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
+    borrow::Cow,
     io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -198,6 +199,12 @@ impl Vyper {
     }
 }
 
+impl SimpleCompilerName for Vyper {
+    fn compiler_name_default() -> Cow<'static, str> {
+        "Vyper".into()
+    }
+}
+
 impl Compiler for Vyper {
     type Settings = VyperSettings;
     type CompilationError = VyperCompilationError;
@@ -205,6 +212,10 @@ impl Compiler for Vyper {
     type Input = VyperVersionedInput;
     type Language = VyperLanguage;
     type CompilerContract = Contract;
+
+    fn compiler_name(&self, _input: &Self::Input) -> Cow<'static, str> {
+        Self::compiler_name_default()
+    }
 
     fn compile(
         &self,

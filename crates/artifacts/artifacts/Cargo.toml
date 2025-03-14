@@ -17,6 +17,7 @@ workspace = true
 [dependencies]
 foundry-compilers-artifacts-solc.workspace = true
 foundry-compilers-artifacts-vyper.workspace = true
+foundry-compilers-artifacts-resolc.workspace = true
 
 [features]
 async = ["foundry-compilers-artifacts-solc/async"]

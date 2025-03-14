@@ -21,6 +21,7 @@ use std::{
 };
 
 pub mod multi;
+pub mod resolc;
 pub mod solc;
 pub mod vyper;
 pub use vyper::*;
@@ -131,9 +132,6 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
     fn version(&self) -> &Version;
 
     fn sources(&self) -> impl Iterator<Item = (&Path, &Source)>;
-
-    /// Returns compiler name used by reporters to display output during compilation.
-    fn compiler_name(&self) -> Cow<'static, str>;
 
     /// Strips given prefix from all paths.
     fn strip_prefix(&mut self, base: &Path);
@@ -337,6 +335,9 @@ pub trait Compiler: Send + Sync + Clone {
     /// Enum of languages supported by the compiler.
     type Language: Language;
 
+    /// Returns compiler name used by reporters to display output during compilation.
+    fn compiler_name(&self, input: &Self::Input) -> Cow<'static, str>;
+
     /// Main entrypoint for the compiler. Compiles given input into [CompilerOutput]. Takes
     /// ownership over the input and returns back version with potential modifications made to it.
     /// Returned input is always the one which was seen by the binary.
@@ -372,4 +373,8 @@ pub(crate) fn cache_version(
     lock.entry(path).or_default().insert(args.to_vec(), version.clone());
 
     Ok(version)
+}
+
+pub(crate) trait SimpleCompilerName {
+    fn compiler_name_default() -> Cow<'static, str>;
 }
