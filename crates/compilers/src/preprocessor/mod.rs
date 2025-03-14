@@ -22,11 +22,12 @@ use solar_parse::{
     },
     Parser,
 };
-use solar_sema::{hir::Arena, ParsingContext};
+use solar_sema::ParsingContext;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
+use solar_sema::thread_local::ThreadLocal;
 
 mod data;
 mod deps;
@@ -74,7 +75,6 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
 
         let sess = Session::builder().with_buffer_emitter(Default::default()).build();
         let _ = sess.enter_parallel(|| -> solar_parse::interface::Result {
-            let hir_arena = Arena::new();
             let mut parsing_context = ParsingContext::new(&sess);
             // Set remappings into HIR parsing context.
             for remapping in &paths.remappings {
@@ -93,24 +93,27 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
                 .collect_vec();
             parsing_context.load_files(&preprocessed_paths)?;
 
-            let hir = &parsing_context.parse_and_lower_to_hir(&hir_arena)?;
-            // Collect tests and scripts dependencies and identify mock contracts.
-            let deps = PreprocessorDependencies::new(
-                &sess,
-                hir,
-                &preprocessed_paths,
-                &paths.paths_relative().sources,
-                &paths.root,
-                mocks,
-            );
-            // Collect data of source contracts referenced in tests and scripts.
-            let data = collect_preprocessor_data(&sess, hir, &deps.referenced_contracts);
+            let hir_arena = ThreadLocal::new();
+            if let Some(gcx) = parsing_context.parse_and_lower(&hir_arena)? {
+                let hir = &gcx.get().hir;
+                // Collect tests and scripts dependencies and identify mock contracts.
+                let deps = PreprocessorDependencies::new(
+                    &sess,
+                    hir,
+                    &preprocessed_paths,
+                    &paths.paths_relative().sources,
+                    &paths.root,
+                    mocks,
+                );
+                // Collect data of source contracts referenced in tests and scripts.
+                let data = collect_preprocessor_data(&sess, hir, &deps.referenced_contracts);
 
-            // Extend existing sources with preprocessor deploy helper sources.
-            sources.extend(create_deploy_helpers(&data));
+                // Extend existing sources with preprocessor deploy helper sources.
+                sources.extend(create_deploy_helpers(&data));
 
-            // Generate and apply preprocessor source updates.
-            apply_updates(sources, remove_bytecode_dependencies(hir, &deps, &data));
+                // Generate and apply preprocessor source updates.
+                apply_updates(sources, remove_bytecode_dependencies(hir, &deps, &data));
+            }
 
             Ok(())
         });

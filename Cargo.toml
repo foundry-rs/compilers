@@ -70,6 +70,6 @@ tokio = { version = "1.35", features = ["rt-multi-thread"] }
 snapbox = "0.6.9"
 
 [patch.crates-io]
-solar-parse  = { git = "https://github.com/paradigmxyz/solar", rev = "964b054" }
-solar-sema  = { git = "https://github.com/paradigmxyz/solar", rev = "964b054" }
+solar-parse  = { git = "https://github.com/paradigmxyz/solar", rev = "77fb82b" }
+solar-sema  = { git = "https://github.com/paradigmxyz/solar", rev = "77fb82b" }
 
