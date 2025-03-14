@@ -860,7 +860,7 @@ impl EvmVersion {
             let normalized = if *version >= OSAKA_SOLC {
                 self
             } else if *version >= PRAGUE_SOLC {
-                Self::Cancun
+                Self::Prague
             } else if self >= Self::Cancun && *version >= CANCUN_SOLC {
                 Self::Cancun
             } else if self >= Self::Shanghai && *version >= SHANGHAI_SOLC {
@@ -2024,6 +2024,7 @@ mod tests {
             ("0.8.26", EvmVersion::Cancun, Some(EvmVersion::Cancun)),
             ("0.8.26", EvmVersion::Prague, Some(EvmVersion::Cancun)),
             ("0.8.27", EvmVersion::Prague, Some(EvmVersion::Prague)),
+            ("0.8.29", EvmVersion::Osaka, Some(EvmVersion::Osaka)),
         ] {
             let version = Version::from_str(solc_version).unwrap();
             assert_eq!(
