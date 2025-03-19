@@ -66,7 +66,7 @@ impl Compiler for Resolc {
 
 impl SimpleCompilerName for Resolc {
     fn compiler_name_default() -> std::borrow::Cow<'static, str> {
-        "resolc and solc".into()
+        "Resolc and Solc".into()
     }
 }
 
