@@ -233,6 +233,7 @@ pub(crate) fn remove_bytecode_dependencies(
         let mut used_helpers = BTreeSet::new();
 
         let vm_interface_name = format!("VmContractHelper{}", contract_id.get());
+        // `address(uint160(uint256(keccak256("hevm cheat code"))))`
         let vm = format!("{vm_interface_name}(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D)");
 
         for dep in deps {
