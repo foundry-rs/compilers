@@ -8,7 +8,6 @@ use crate::{
 use itertools::Itertools;
 use solar_parse::interface::Session;
 use solar_sema::{
-    ast::Span,
     hir::{ContractId, Expr, ExprKind, Hir, TypeKind, Visit},
     interface::{data_structures::Never, source_map::FileName, SourceMap},
 };
@@ -184,10 +183,7 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
                         let args_len = self.src[name_loc.end..].split_once(';').unwrap().0.len();
                         self.collect_dependency(BytecodeDependency {
                             kind: BytecodeDependencyKind::New(name.to_string(), args_len),
-                            loc: SourceMapLocation::from_span(
-                                self.source_map,
-                                expr.span,
-                            ),
+                            loc: SourceMapLocation::from_span(self.source_map, expr.span),
                             referenced_contract: contract_id,
                         });
                     }

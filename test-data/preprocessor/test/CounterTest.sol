@@ -2,6 +2,7 @@ import {Counter} from "src/Counter.sol";
 import {Counter as CounterV1} from "src/v1/Counter.sol";
 import "src/CounterB.sol";
 import "src/CounterC.sol";
+import "src/CounterD.sol";
 
 contract CounterTest {
     Counter public counter;
@@ -19,5 +20,6 @@ contract CounterTest {
             35,
             address(this)
         );
+        CounterD counterD = new CounterD(address(this), 15, 15);
     }
 }

@@ -1,6 +1,5 @@
 use crate::preprocessor::SourceMapLocation;
 use foundry_compilers_artifacts::{Source, Sources};
-use itertools::Itertools;
 use solar_parse::interface::{Session, SourceMap};
 use solar_sema::{
     hir::{Contract, ContractId, Hir},
@@ -92,22 +91,30 @@ impl ContractData {
             .map(|ctor_id| hir.function(ctor_id))
             .filter(|ctor| !ctor.parameters.is_empty())
             .map(|ctor| {
-                let abi_encode_args = ctor
-                    .parameters
-                    .iter()
-                    .map(|param_id| format!("args.{}", hir.variable(*param_id).name.unwrap().name))
-                    .join(", ");
-                let struct_fields = ctor
-                    .parameters
-                    .iter()
-                    .map(|param_id| {
-                        let src = source.file.src.as_str();
-                        let loc =
-                            SourceMapLocation::from_span(source_map, hir.variable(*param_id).span);
-                        src[loc.start..loc.end].replace(" memory ", " ").replace(" calldata ", " ")
-                    })
-                    .join("; ");
-                ContractConstructorData { abi_encode_args, struct_fields }
+                let mut abi_encode_args = vec![];
+                let mut struct_fields = vec![];
+                let mut arg_index = 0;
+                for param_id in ctor.parameters {
+                    let src = source.file.src.as_str();
+                    let loc =
+                        SourceMapLocation::from_span(source_map, hir.variable(*param_id).span);
+                    let mut new_src =
+                        src[loc.start..loc.end].replace(" memory ", " ").replace(" calldata ", " ");
+                    if let Some(ident) = hir.variable(*param_id).name {
+                        abi_encode_args.push(format!("args.{}", ident.name));
+                    } else {
+                        // Generate an unique name if constructor arg doesn't have one.
+                        arg_index += 1;
+                        abi_encode_args.push(format!("args.foundry_pp_ctor_arg{arg_index}"));
+                        new_src.push_str(&format!(" foundry_pp_ctor_arg{arg_index}"));
+                    }
+                    struct_fields.push(new_src);
+                }
+
+                ContractConstructorData {
+                    abi_encode_args: abi_encode_args.join(", "),
+                    struct_fields: struct_fields.join("; "),
+                }
             });
 
         Self {
