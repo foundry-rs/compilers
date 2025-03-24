@@ -918,7 +918,7 @@ fn replace_source_content<'a>(
         offset += new_value.len() as isize - (end - start) as isize;
     }
 
-    String::from_utf8_lossy(&content).to_string()
+    String::from_utf8(content).unwrap()
 }
 
 #[cfg(test)]
