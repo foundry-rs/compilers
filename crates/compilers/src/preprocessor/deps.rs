@@ -79,7 +79,7 @@ impl PreprocessorDependencies {
                 src_dir,
             );
             // Analyze current contract.
-            deps_collector.walk_contract(contract);
+            let _ = deps_collector.walk_contract(contract);
             // Ignore empty test contracts declared in source files with other contracts.
             if !deps_collector.dependencies.is_empty() {
                 preprocessed_contracts.insert(contract_id, deps_collector.dependencies);
