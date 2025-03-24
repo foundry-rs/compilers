@@ -186,7 +186,7 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
                             kind: BytecodeDependencyKind::New(name.to_string(), args_len),
                             loc: SourceMapLocation::from_span(
                                 self.source_map,
-                                Span::new(expr.span.lo(), expr.span.hi()),
+                                expr.span,
                             ),
                             referenced_contract: contract_id,
                         });
