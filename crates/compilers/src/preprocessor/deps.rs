@@ -173,19 +173,23 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
 
     fn visit_expr(&mut self, expr: &'hir Expr<'hir>) -> ControlFlow<Self::BreakValue> {
         match &expr.kind {
-            ExprKind::New(ty) => {
-                if let TypeKind::Custom(item_id) = ty.kind {
-                    if let Some(contract_id) = item_id.as_contract() {
-                        let name_loc = SourceMapLocation::from_span(self.source_map, ty.span);
-                        let name = &self.src[name_loc.start..name_loc.end];
-                        // TODO: check if there's a better way to determine where constructor call
-                        // ends.
-                        let args_len = self.src[name_loc.end..].split_once(';').unwrap().0.len();
-                        self.collect_dependency(BytecodeDependency {
-                            kind: BytecodeDependencyKind::New(name.to_string(), args_len),
-                            loc: SourceMapLocation::from_span(self.source_map, expr.span),
-                            referenced_contract: contract_id,
-                        });
+            ExprKind::Call(ty, _, _) => {
+                if let ExprKind::New(ty_new) = &ty.kind {
+                    if let TypeKind::Custom(item_id) = ty_new.kind {
+                        if let Some(contract_id) = item_id.as_contract() {
+                            let name_loc =
+                                SourceMapLocation::from_span(self.source_map, ty_new.span);
+                            let name = &self.src[name_loc.start..name_loc.end];
+                            let args_len = expr.span.hi() - ty_new.span.hi();
+                            self.collect_dependency(BytecodeDependency {
+                                kind: BytecodeDependencyKind::New(
+                                    name.to_string(),
+                                    args_len.to_usize(),
+                                ),
+                                loc: SourceMapLocation::from_span(self.source_map, ty.span),
+                                referenced_contract: contract_id,
+                            });
+                        }
                     }
                 }
             }
