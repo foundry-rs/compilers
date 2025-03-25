@@ -206,7 +206,7 @@ interface {vm_interface_name} {{
     function getCode(string memory _artifact) external returns (bytes memory);
 }}
         "#,
-            path = path.display(),
+            path = path.to_slash_lossy(),
         );
 
         Some(helper)
