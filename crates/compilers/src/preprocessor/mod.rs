@@ -17,9 +17,7 @@ use itertools::Itertools;
 use md5::Digest;
 use solar_parse::{
     ast::{FunctionKind, ItemKind, Span, Visibility},
-    interface::{
-        diagnostics::EmittedDiagnostics, source_map::FileName, BytePos, Session, SourceMap,
-    },
+    interface::{diagnostics::EmittedDiagnostics, source_map::FileName, Session, SourceMap},
     Parser,
 };
 use solar_sema::{thread_local::ThreadLocal, ParsingContext};
@@ -44,12 +42,9 @@ pub struct SourceMapLocation {
 impl SourceMapLocation {
     /// Creates source map location from an item location within a source file.
     fn from_span(source_map: &SourceMap, span: Span) -> Self {
-        let range = span.to_range();
-        let start_pos = BytePos::from_usize(range.start);
-        let end_pos = BytePos::from_usize(range.end);
         Self {
-            start: source_map.lookup_byte_offset(start_pos).pos.to_usize(),
-            end: source_map.lookup_byte_offset(end_pos).pos.to_usize(),
+            start: source_map.lookup_byte_offset(span.lo()).pos.to_usize(),
+            end: source_map.lookup_byte_offset(span.hi()).pos.to_usize(),
         }
     }
 }
