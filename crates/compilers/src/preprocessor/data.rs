@@ -1,5 +1,6 @@
 use crate::preprocessor::SourceMapLocation;
 use foundry_compilers_artifacts::{Source, Sources};
+use path_slash::PathExt;
 use solar_parse::interface::{Session, SourceMap};
 use solar_sema::{
     hir::{Contract, ContractId, Hir},
@@ -83,7 +84,7 @@ impl ContractData {
         source: &solar_sema::hir::Source<'_>,
         source_map: &SourceMap,
     ) -> Self {
-        let artifact = format!("{}:{}", path.display(), contract.name);
+        let artifact = format!("{}:{}", path.to_slash_lossy(), contract.name);
 
         // Process data for contracts with constructor and parameters.
         let constructor_data = contract
