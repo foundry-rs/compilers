@@ -1851,7 +1851,7 @@ mod tests {
 
     #[test]
     fn can_link_bytecode() {
-        // test cases taken from <https://github.com/ethereum/solc-js/blob/master/test/linker.js>
+        // test cases taken from <https://github.com/ethereum/solc-js/blob/master/test/linker.ts>
 
         #[derive(Serialize, Deserialize)]
         struct Mockject {
