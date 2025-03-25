@@ -96,7 +96,7 @@ enum BytecodeDependencyKind {
     /// `type(Contract).creationCode`
     CreationCode,
     /// `new Contract`. Holds the name of the contract and args length.
-    New(String, usize),
+    New(String, usize, usize),
 }
 
 /// Represents a single bytecode dependency.
@@ -173,18 +173,26 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
 
     fn visit_expr(&mut self, expr: &'hir Expr<'hir>) -> ControlFlow<Self::BreakValue> {
         match &expr.kind {
-            ExprKind::Call(ty, _, _) => {
+            ExprKind::Call(ty, call_args, named_args) => {
                 if let ExprKind::New(ty_new) = &ty.kind {
                     if let TypeKind::Custom(item_id) = ty_new.kind {
                         if let Some(contract_id) = item_id.as_contract() {
                             let name_loc =
                                 SourceMapLocation::from_span(self.source_map, ty_new.span);
                             let name = &self.src[name_loc.start..name_loc.end];
+
+                            let offset = if named_args.is_some() && !call_args.is_empty() {
+                                (call_args.span().lo() - ty_new.span.hi()).to_usize() - 1
+                            } else {
+                                0
+                            };
+
                             let args_len = expr.span.hi() - ty_new.span.hi();
                             self.collect_dependency(BytecodeDependency {
                                 kind: BytecodeDependencyKind::New(
                                     name.to_string(),
                                     args_len.to_usize(),
+                                    offset,
                                 ),
                                 loc: SourceMapLocation::from_span(self.source_map, ty.span),
                                 referenced_contract: contract_id,
@@ -252,7 +260,7 @@ pub(crate) fn remove_bytecode_dependencies(
                         format!("{vm}.getCode(\"{artifact}\")"),
                     ));
                 }
-                BytecodeDependencyKind::New(name, args_length) => {
+                BytecodeDependencyKind::New(name, args_length, offset) => {
                     if constructor_data.is_none() {
                         // if there's no constructor, we can just call deployCode with one
                         // argument
@@ -266,7 +274,7 @@ pub(crate) fn remove_bytecode_dependencies(
                         used_helpers.insert(dep.referenced_contract);
                         updates.insert((
                             dep.loc.start,
-                            dep.loc.end,
+                            dep.loc.end + offset,
                             format!(
                                 "deployCode{id}(DeployHelper{id}.ConstructorArgs",
                                 id = dep.referenced_contract.get()

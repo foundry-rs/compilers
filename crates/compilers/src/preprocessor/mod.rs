@@ -146,7 +146,7 @@ impl Preprocessor<MultiCompiler> for TestOptimizerPreprocessor {
 }
 
 /// Helper function to compute hash of [`interface_representation`] of the source.
-pub(crate) fn interface_representation_hash(source: &Source, file: &PathBuf) -> String {
+pub(crate) fn interface_representation_hash(source: &Source, file: &Path) -> String {
     let Ok(repr) = interface_representation(&source.content, file) else {
         return source.content_hash();
     };
@@ -161,10 +161,9 @@ pub(crate) fn interface_representation_hash(source: &Source, file: &PathBuf) -> 
 ///   - External functions bodies
 ///
 /// Preserves all libraries and interfaces.
-fn interface_representation(content: &str, file: &PathBuf) -> Result<String, EmittedDiagnostics> {
+fn interface_representation(content: &str, file: &Path) -> Result<String, EmittedDiagnostics> {
     let mut spans_to_remove: Vec<Span> = Vec::new();
-    let sess =
-        solar_parse::interface::Session::builder().with_buffer_emitter(Default::default()).build();
+    let sess = Session::builder().with_buffer_emitter(Default::default()).build();
     sess.enter(|| {
         let arena = solar_parse::ast::Arena::new();
         let filename = FileName::Real(file.to_path_buf());

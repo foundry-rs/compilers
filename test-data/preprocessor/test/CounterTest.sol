@@ -8,7 +8,10 @@ contract CounterTest {
     Counter public counter;
     Counter public counter2 = new Counter();
     CounterB public counter3 = new CounterB(address(this), 44, true, address(this));
+    CounterB public counter4 = new CounterB({a:address(this), b: 44, c: true, d:   address(this)});
     CounterV1 public counterv1;
+    Counter public counter5 = new Counter{salt: bytes32("123")}();
+    CounterB public counter6 = new CounterB {salt: bytes32("123")}   (address(this), 44, true, address(this));
 
     function setUp() public {
         counter = new Counter();
