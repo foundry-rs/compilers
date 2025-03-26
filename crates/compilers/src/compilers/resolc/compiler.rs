@@ -6,7 +6,7 @@ use crate::{
 };
 use foundry_compilers_artifacts::{resolc::ResolcCompilerOutput, Contract, Error, SolcLanguage};
 use itertools::Itertools;
-use semver::Version;
+use semver::{Version, VersionReq};
 use serde::Serialize;
 use std::{
     io,
@@ -22,6 +22,7 @@ use super::{ResolcInput, ResolcVersionedInput};
 pub struct Resolc {
     pub resolc: PathBuf,
     pub resolc_version: Version,
+    pub supported_solc_versions: Option<semver::VersionReq>,
     pub solc: SolcCompiler,
 }
 
@@ -45,7 +46,11 @@ impl Compiler for Resolc {
             .into_iter()
             .filter(|version| match version {
                 CompilerVersion::Installed(version) | CompilerVersion::Remote(version) => {
-                    version.minor >= 8 && version.patch <= 28
+                    if let Some(req) = &self.supported_solc_versions {
+                        req.matches(version)
+                    } else {
+                        version.minor >= 8 && version.patch <= 28
+                    }
                 }
             })
             .collect::<Vec<_>>()
@@ -74,7 +79,32 @@ impl Resolc {
     pub fn new(resolc_path: impl Into<PathBuf>, solc_compiler: SolcCompiler) -> Result<Self> {
         let resolc_path = resolc_path.into();
         let resolc_version = Self::get_version_for_path(&resolc_path)?;
-        Ok(Self { resolc_version, resolc: resolc_path, solc: solc_compiler })
+        let supported_solc_versions = Self::supported_solc_versions(&resolc_path);
+        Ok(Self {
+            resolc_version,
+            resolc: resolc_path,
+            solc: solc_compiler,
+            supported_solc_versions,
+        })
+    }
+
+    fn supported_solc_versions(path: &Path) -> Option<semver::VersionReq> {
+        let mut cmd = Command::new(path);
+        cmd.arg("--supported-solc-versions")
+            .stdin(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped());
+        debug!("Getting Resolc supported `solc` versions");
+        let output = cmd.output().ok()?;
+        trace!(?output);
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let version = VersionReq::parse(stdout.trim()).ok()?;
+            debug!(%version);
+            Some(version)
+        } else {
+            None
+        }
     }
 
     fn solc(&self, _input: &ResolcVersionedInput) -> Result<Solc> {
