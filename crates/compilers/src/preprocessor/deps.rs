@@ -1,10 +1,8 @@
-use crate::{
-    preprocessor::{
-        data::{ContractData, PreprocessorData},
-        SourceMapLocation,
-    },
-    Updates,
+use super::{
+    data::{ContractData, PreprocessorData},
+    SourceMapLocation,
 };
+use crate::Updates;
 use itertools::Itertools;
 use solar_parse::interface::Session;
 use solar_sema::{

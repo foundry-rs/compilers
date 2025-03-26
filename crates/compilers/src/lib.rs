@@ -42,7 +42,7 @@ pub mod report;
 
 /// Updates to be applied to the sources.
 /// source_path -> (start, end, new_value)
-pub type Updates = HashMap<PathBuf, BTreeSet<(usize, usize, String)>>;
+pub(crate) type Updates = HashMap<PathBuf, BTreeSet<(usize, usize, String)>>;
 
 /// Utilities for creating, mocking and testing of (temporary) projects
 #[cfg(feature = "project-util")]

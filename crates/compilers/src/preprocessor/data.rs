@@ -1,4 +1,4 @@
-use crate::preprocessor::SourceMapLocation;
+use super::SourceMapLocation;
 use foundry_compilers_artifacts::{Source, Sources};
 use path_slash::PathExt;
 use solar_parse::interface::{Session, SourceMap};

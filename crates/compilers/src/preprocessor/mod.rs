@@ -32,7 +32,7 @@ mod deps;
 /// Represents location of an item in the source map.
 /// Used to generate source code updates.
 #[derive(Debug)]
-pub struct SourceMapLocation {
+struct SourceMapLocation {
     /// Source map location start.
     start: usize,
     /// Source map location end.
