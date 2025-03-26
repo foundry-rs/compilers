@@ -171,14 +171,12 @@ impl ContractData {
     /// vm.deployCode("artifact path", encodeArgs335(DeployHelper335.ConstructorArgs({name: name, symbol: symbol})))
     /// ```
     pub fn build_helper(&self) -> Option<String> {
-        let Self { contract_id, path, name, constructor_data, artifact } = self;
+        let Self { contract_id, path, name, constructor_data, artifact: _ } = self;
 
         let Some(constructor_details) = constructor_data else { return None };
         let contract_id = contract_id.get();
         let struct_fields = &constructor_details.struct_fields;
         let abi_encode_args = &constructor_details.abi_encode_args;
-        let vm_interface_name = format!("VmContractHelper{contract_id}");
-        let vm = format!("{vm_interface_name}(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D)");
 
         let helper = format!(
             r#"
@@ -194,16 +192,6 @@ abstract contract DeployHelper{contract_id} is {name} {{
 
 function encodeArgs{contract_id}(DeployHelper{contract_id}.ConstructorArgs memory args) pure returns (bytes memory) {{
     return abi.encode({abi_encode_args});
-}}
-
-function deployCode{contract_id}(DeployHelper{contract_id}.ConstructorArgs memory args) returns({name}) {{
-    return {name}(payable({vm}.deployCode("{artifact}", encodeArgs{contract_id}(args))));
-}}
-
-interface {vm_interface_name} {{
-    function deployCode(string memory _artifact, bytes memory _data) external returns (address);
-    function deployCode(string memory _artifact) external returns (address);
-    function getCode(string memory _artifact) external returns (bytes memory);
 }}
         "#,
             path = path.to_slash_lossy(),

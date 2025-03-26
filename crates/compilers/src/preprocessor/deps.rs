@@ -8,7 +8,7 @@ use crate::{
 use itertools::Itertools;
 use solar_parse::interface::Session;
 use solar_sema::{
-    hir::{ContractId, Expr, ExprKind, Hir, TypeKind, Visit},
+    hir::{ContractId, Expr, ExprKind, Hir, NamedArg, TypeKind, Visit},
     interface::{data_structures::Never, source_map::FileName, SourceMap},
 };
 use std::{
@@ -95,8 +95,9 @@ impl PreprocessorDependencies {
 enum BytecodeDependencyKind {
     /// `type(Contract).creationCode`
     CreationCode,
-    /// `new Contract`. Holds the name of the contract and args length.
-    New(String, usize, usize),
+    /// `new Contract`. Holds the name of the contract, args length and offset, `msg.value` (if
+    /// any) and salt (if any).
+    New(String, usize, usize, Option<String>, Option<String>),
 }
 
 /// Represents a single bytecode dependency.
@@ -193,6 +194,8 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
                                     name.to_string(),
                                     args_len.to_usize(),
                                     offset,
+                                    named_arg(self.src, named_args, "value", self.source_map),
+                                    named_arg(self.src, named_args, "salt", self.source_map),
                                 ),
                                 loc: SourceMapLocation::from_span(self.source_map, ty.span),
                                 referenced_contract: contract_id,
@@ -220,6 +223,21 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
         }
         self.walk_expr(expr)
     }
+}
+
+/// Helper function to extract value of a given named arg.
+fn named_arg(
+    src: &str,
+    named_args: &Option<&[NamedArg<'_>]>,
+    arg: &str,
+    source_map: &SourceMap,
+) -> Option<String> {
+    named_args.unwrap_or_default().iter().find(|named_arg| named_arg.name.as_str() == arg).map(
+        |named_arg| {
+            let named_arg_loc = SourceMapLocation::from_span(source_map, named_arg.value.span);
+            src[named_arg_loc.start..named_arg_loc.end].to_string()
+        },
+    )
 }
 
 /// Goes over all test/script files and replaces bytecode dependencies with cheatcode
@@ -260,31 +278,38 @@ pub(crate) fn remove_bytecode_dependencies(
                         format!("{vm}.getCode(\"{artifact}\")"),
                     ));
                 }
-                BytecodeDependencyKind::New(name, args_length, offset) => {
-                    if constructor_data.is_none() {
-                        // if there's no constructor, we can just call deployCode with one
-                        // argument
+                BytecodeDependencyKind::New(name, args_length, offset, value, salt) => {
+                    let mut update = format!("{name}(payable({vm}.deployCode({{");
+                    update.push_str(&format!("_artifact: \"{artifact}\""));
+
+                    if let Some(value) = value {
+                        update.push_str(", ");
+                        update.push_str(&format!("_value: {value}"));
+                    }
+
+                    if let Some(salt) = salt {
+                        update.push_str(", ");
+                        update.push_str(&format!("_salt: {salt}"));
+                    }
+
+                    if constructor_data.is_some() {
+                        // Insert our helper
+                        used_helpers.insert(dep.referenced_contract);
+
+                        update.push_str(", ");
+                        update.push_str(&format!(
+                            "_args: encodeArgs{id}(DeployHelper{id}.ConstructorArgs",
+                            id = dep.referenced_contract.get()
+                        ));
+                        updates.insert((dep.loc.start, dep.loc.end + offset, update));
                         updates.insert((
-                            dep.loc.start,
                             dep.loc.end + args_length,
-                            format!("{name}(payable({vm}.deployCode(\"{artifact}\")))"),
+                            dep.loc.end + args_length,
+                            ")})))".to_string(),
                         ));
                     } else {
-                        // if there's a constructor, we use our helper
-                        used_helpers.insert(dep.referenced_contract);
-                        updates.insert((
-                            dep.loc.start,
-                            dep.loc.end + offset,
-                            format!(
-                                "deployCode{id}(DeployHelper{id}.ConstructorArgs",
-                                id = dep.referenced_contract.get()
-                            ),
-                        ));
-                        updates.insert((
-                            dep.loc.end + args_length,
-                            dep.loc.end + args_length,
-                            ")".to_string(),
-                        ));
+                        update.push_str("})))");
+                        updates.insert((dep.loc.start, dep.loc.end + args_length, update));
                     }
                 }
             };
@@ -292,7 +317,7 @@ pub(crate) fn remove_bytecode_dependencies(
         let helper_imports = used_helpers.into_iter().map(|id| {
             let id = id.get();
             format!(
-                "import {{DeployHelper{id}, encodeArgs{id}, deployCode{id}}} from \"foundry-pp/DeployHelper{id}.sol\";",
+                "import {{DeployHelper{id}, encodeArgs{id}}} from \"foundry-pp/DeployHelper{id}.sol\";",
             )
         }).join("\n");
         updates.insert((
@@ -303,8 +328,14 @@ pub(crate) fn remove_bytecode_dependencies(
 {helper_imports}
 
 interface {vm_interface_name} {{
-    function deployCode(string memory _artifact, bytes memory _data) external returns (address);
     function deployCode(string memory _artifact) external returns (address);
+    function deployCode(string memory _artifact, bytes32 _salt) external returns (address);
+    function deployCode(string memory _artifact, bytes memory _args) external returns (address);
+    function deployCode(string memory _artifact, bytes memory _args, bytes32 _salt) external returns (address);
+    function deployCode(string memory _artifact, uint256 _value) external returns (address);
+    function deployCode(string memory _artifact, uint256 _value, bytes32 _salt) external returns (address);
+    function deployCode(string memory _artifact, bytes memory _args, uint256 _value) external returns (address);
+    function deployCode(string memory _artifact, bytes memory _args, uint256 _value, bytes32 _salt) external returns (address);
     function getCode(string memory _artifact) external returns (bytes memory);
 }}"#
             ),

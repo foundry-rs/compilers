@@ -3,6 +3,7 @@ import {Counter as CounterV1} from "src/v1/Counter.sol";
 import "src/CounterB.sol";
 import "src/CounterC.sol";
 import "src/CounterD.sol";
+import "src/CounterE.sol";
 
 contract CounterTest {
     Counter public counter;
@@ -12,6 +13,10 @@ contract CounterTest {
     CounterV1 public counterv1;
     Counter public counter5 = new Counter{salt: bytes32("123")}();
     CounterB public counter6 = new CounterB {salt: bytes32("123")}   (address(this), 44, true, address(this));
+    CounterE public counter7 = new CounterE{  value: 111,   salt: bytes32("123")}();
+    CounterF public counter8 = new CounterF{value: 222, salt: bytes32("123")}(11);
+    CounterG public counter9 = new CounterG      {       value: 333, salt: bytes32("123")         }    (address(this));
+    CounterG public counter10 = new CounterG{  value: 333 }(address(this));
 
     function setUp() public {
         counter = new Counter();
