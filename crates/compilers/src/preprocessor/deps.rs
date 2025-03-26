@@ -93,9 +93,19 @@ impl PreprocessorDependencies {
 enum BytecodeDependencyKind {
     /// `type(Contract).creationCode`
     CreationCode,
-    /// `new Contract`. Holds the name of the contract, args length and call args offset,
-    /// `msg.value` (if any) and salt (if any).
-    New(String, usize, usize, Option<String>, Option<String>),
+    /// `new Contract`.
+    New {
+        /// Contract name.
+        name: String,
+        /// Constructor args length.
+        args_length: usize,
+        /// Constructor call args offset.
+        call_args_offset: usize,
+        /// `msg.value` (if any) used when creating contract.
+        value: Option<String>,
+        /// `salt` (if any) used when creating contract.
+        salt: Option<String>,
+    },
 }
 
 /// Represents a single bytecode dependency.
@@ -191,13 +201,18 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
 
                             let args_len = expr.span.hi() - ty_new.span.hi();
                             self.collect_dependency(BytecodeDependency {
-                                kind: BytecodeDependencyKind::New(
-                                    name.to_string(),
-                                    args_len.to_usize(),
+                                kind: BytecodeDependencyKind::New {
+                                    name: name.to_string(),
+                                    args_length: args_len.to_usize(),
                                     call_args_offset,
-                                    named_arg(self.src, named_args, "value", self.source_map),
-                                    named_arg(self.src, named_args, "salt", self.source_map),
-                                ),
+                                    value: named_arg(
+                                        self.src,
+                                        named_args,
+                                        "value",
+                                        self.source_map,
+                                    ),
+                                    salt: named_arg(self.src, named_args, "salt", self.source_map),
+                                },
                                 loc: span_to_range(self.source_map, ty.span),
                                 referenced_contract: contract_id,
                             });
@@ -279,7 +294,13 @@ pub(crate) fn remove_bytecode_dependencies(
                         format!("{vm}.getCode(\"{artifact}\")"),
                     ));
                 }
-                BytecodeDependencyKind::New(name, args_length, call_args_offset, value, salt) => {
+                BytecodeDependencyKind::New {
+                    name,
+                    args_length,
+                    call_args_offset,
+                    value,
+                    salt,
+                } => {
                     let mut update = format!("{name}(payable({vm}.deployCode({{");
                     update.push_str(&format!("_artifact: \"{artifact}\""));
 
