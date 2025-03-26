@@ -13,7 +13,6 @@ use crate::{
 use alloy_primitives::hex;
 use foundry_compilers_artifacts::{SolcLanguage, Source};
 use foundry_compilers_core::{error::SolcError, utils};
-use itertools::Itertools;
 use md5::Digest;
 use solar_parse::{
     ast::{FunctionKind, ItemKind, Span, Visibility},
@@ -65,14 +64,19 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
             }
             // Load and parse test and script contracts only (dependencies are automatically
             // resolved).
-            let preprocessed_paths = sources
-                .into_iter()
-                .filter(|(path, source)| {
-                    is_test_or_script(path, paths) && !source.content.is_empty()
-                })
-                .map(|(path, _)| path.clone())
-                .collect_vec();
-            parsing_context.load_files(&preprocessed_paths)?;
+
+            let mut preprocessed_paths = vec![];
+            for (path, source) in sources.iter() {
+                if is_test_or_script(path, paths) && !source.content.is_empty() {
+                    if let Ok(src_file) = sess
+                        .source_map()
+                        .new_dummy_source_file(path.clone(), source.content.to_string())
+                    {
+                        parsing_context.add_file(src_file);
+                        preprocessed_paths.push(path.clone());
+                    }
+                }
+            }
 
             let hir_arena = ThreadLocal::new();
             if let Some(gcx) = parsing_context.parse_and_lower(&hir_arena)? {

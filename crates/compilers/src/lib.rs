@@ -911,11 +911,10 @@ fn replace_source_content<'a>(
     let mut offset = 0;
     let mut content = source.as_bytes().to_vec();
     for (range, new_value) in updates {
-        let start = (range.start as isize + offset) as usize;
-        let end = (range.end as isize + offset) as usize;
+        let update_range = utils::range_by_offset(&range, offset);
 
-        content.splice(start..end, new_value.bytes());
-        offset += new_value.len() as isize - (end - start) as isize;
+        content.splice(update_range.start..update_range.end, new_value.bytes());
+        offset += new_value.len() as isize - (update_range.end - update_range.start) as isize;
     }
 
     String::from_utf8(content).unwrap()
