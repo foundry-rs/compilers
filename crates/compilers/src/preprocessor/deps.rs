@@ -95,8 +95,8 @@ impl PreprocessorDependencies {
 enum BytecodeDependencyKind {
     /// `type(Contract).creationCode`
     CreationCode,
-    /// `new Contract`. Holds the name of the contract, args length and offset, `msg.value` (if
-    /// any) and salt (if any).
+    /// `new Contract`. Holds the name of the contract, args length and call args offset,
+    /// `msg.value` (if any) and salt (if any).
     New(String, usize, usize, Option<String>, Option<String>),
 }
 
@@ -182,8 +182,12 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
                                 SourceMapLocation::from_span(self.source_map, ty_new.span);
                             let name = &self.src[name_loc.start..name_loc.end];
 
-                            let offset = if named_args.is_some() && !call_args.is_empty() {
-                                (call_args.span().lo() - ty_new.span.hi()).to_usize() - 1
+                            // Calculate offset to remove named args, e.g. for an expression like
+                            // `new Counter {value: 333} (  address(this))`
+                            // the offset will be used to replace `{value: 333} (  ` with `(`
+                            let call_args_offset = if named_args.is_some() && !call_args.is_empty()
+                            {
+                                (call_args.span().lo() - ty_new.span.hi()).to_usize()
                             } else {
                                 0
                             };
@@ -193,7 +197,7 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
                                 kind: BytecodeDependencyKind::New(
                                     name.to_string(),
                                     args_len.to_usize(),
-                                    offset,
+                                    call_args_offset,
                                     named_arg(self.src, named_args, "value", self.source_map),
                                     named_arg(self.src, named_args, "salt", self.source_map),
                                 ),
@@ -278,7 +282,7 @@ pub(crate) fn remove_bytecode_dependencies(
                         format!("{vm}.getCode(\"{artifact}\")"),
                     ));
                 }
-                BytecodeDependencyKind::New(name, args_length, offset, value, salt) => {
+                BytecodeDependencyKind::New(name, args_length, call_args_offset, value, salt) => {
                     let mut update = format!("{name}(payable({vm}.deployCode({{");
                     update.push_str(&format!("_artifact: \"{artifact}\""));
 
@@ -301,7 +305,10 @@ pub(crate) fn remove_bytecode_dependencies(
                             "_args: encodeArgs{id}(DeployHelper{id}.ConstructorArgs",
                             id = dep.referenced_contract.get()
                         ));
-                        updates.insert((dep.loc.start, dep.loc.end + offset, update));
+                        if *call_args_offset > 0 {
+                            update.push('(');
+                        }
+                        updates.insert((dep.loc.start, dep.loc.end + call_args_offset, update));
                         updates.insert((
                             dep.loc.end + args_length,
                             dep.loc.end + args_length,
