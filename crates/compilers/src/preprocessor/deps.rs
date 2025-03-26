@@ -1,6 +1,6 @@
 use super::{
     data::{ContractData, PreprocessorData},
-    SourceMapLocation,
+    span_to_range,
 };
 use crate::Updates;
 use itertools::Itertools;
@@ -11,7 +11,7 @@ use solar_sema::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
-    ops::ControlFlow,
+    ops::{ControlFlow, Range},
     path::{Path, PathBuf},
 };
 
@@ -104,7 +104,7 @@ pub(crate) struct BytecodeDependency {
     /// Dependency kind.
     kind: BytecodeDependencyKind,
     /// Source map location of this dependency.
-    loc: SourceMapLocation,
+    loc: Range<usize>,
     /// HIR id of referenced contract.
     referenced_contract: ContractId,
 }
@@ -176,9 +176,8 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
                 if let ExprKind::New(ty_new) = &ty.kind {
                     if let TypeKind::Custom(item_id) = ty_new.kind {
                         if let Some(contract_id) = item_id.as_contract() {
-                            let name_loc =
-                                SourceMapLocation::from_span(self.source_map, ty_new.span);
-                            let name = &self.src[name_loc.start..name_loc.end];
+                            let name_loc = span_to_range(self.source_map, ty_new.span);
+                            let name = &self.src[name_loc];
 
                             // Calculate offset to remove named args, e.g. for an expression like
                             // `new Counter {value: 333} (  address(this))`
@@ -199,7 +198,7 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
                                     named_arg(self.src, named_args, "value", self.source_map),
                                     named_arg(self.src, named_args, "salt", self.source_map),
                                 ),
-                                loc: SourceMapLocation::from_span(self.source_map, ty.span),
+                                loc: span_to_range(self.source_map, ty.span),
                                 referenced_contract: contract_id,
                             });
                         }
@@ -213,7 +212,7 @@ impl<'hir> Visit<'hir> for BytecodeDependencyCollector<'hir> {
                             if let Some(contract_id) = contract_id.as_contract() {
                                 self.collect_dependency(BytecodeDependency {
                                     kind: BytecodeDependencyKind::CreationCode,
-                                    loc: SourceMapLocation::from_span(self.source_map, expr.span),
+                                    loc: span_to_range(self.source_map, expr.span),
                                     referenced_contract: contract_id,
                                 });
                             }
@@ -236,8 +235,8 @@ fn named_arg(
 ) -> Option<String> {
     named_args.unwrap_or_default().iter().find(|named_arg| named_arg.name.as_str() == arg).map(
         |named_arg| {
-            let named_arg_loc = SourceMapLocation::from_span(source_map, named_arg.value.span);
-            src[named_arg_loc.start..named_arg_loc.end].to_string()
+            let named_arg_loc = span_to_range(source_map, named_arg.value.span);
+            src[named_arg_loc].to_string()
         },
     )
 }

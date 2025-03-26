@@ -23,30 +23,17 @@ use solar_parse::{
 use solar_sema::{thread_local::ThreadLocal, ParsingContext};
 use std::{
     collections::HashSet,
+    ops::Range,
     path::{Path, PathBuf},
 };
 
 mod data;
 mod deps;
 
-/// Represents location of an item in the source map.
-/// Used to generate source code updates.
-#[derive(Debug)]
-struct SourceMapLocation {
-    /// Source map location start.
-    start: usize,
-    /// Source map location end.
-    end: usize,
-}
-
-impl SourceMapLocation {
-    /// Creates source map location from an item location within a source file.
-    fn from_span(source_map: &SourceMap, span: Span) -> Self {
-        Self {
-            start: source_map.lookup_byte_offset(span.lo()).pos.to_usize(),
-            end: source_map.lookup_byte_offset(span.hi()).pos.to_usize(),
-        }
-    }
+/// Returns the range of the given span in the source map.
+#[track_caller]
+fn span_to_range(source_map: &SourceMap, span: Span) -> Range<usize> {
+    source_map.span_to_source(span).unwrap().1
 }
 
 #[derive(Debug)]

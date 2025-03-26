@@ -1,4 +1,3 @@
-use super::SourceMapLocation;
 use foundry_compilers_artifacts::{Source, Sources};
 use path_slash::PathExt;
 use solar_parse::interface::{Session, SourceMap};
@@ -10,6 +9,8 @@ use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
 };
+
+use super::span_to_range;
 
 /// Keeps data about project contracts definitions referenced from tests and scripts.
 /// Contract id -> Contract data definition mapping.
@@ -97,10 +98,8 @@ impl ContractData {
                 let mut arg_index = 0;
                 for param_id in ctor.parameters {
                     let src = source.file.src.as_str();
-                    let loc =
-                        SourceMapLocation::from_span(source_map, hir.variable(*param_id).span);
-                    let mut new_src =
-                        src[loc.start..loc.end].replace(" memory ", " ").replace(" calldata ", " ");
+                    let loc = span_to_range(source_map, hir.variable(*param_id).span);
+                    let mut new_src = src[loc].replace(" memory ", " ").replace(" calldata ", " ");
                     if let Some(ident) = hir.variable(*param_id).name {
                         abi_encode_args.push(format!("args.{}", ident.name));
                     } else {
