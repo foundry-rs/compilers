@@ -1,3 +1,4 @@
+use super::span_to_range;
 use foundry_compilers_artifacts::{Source, Sources};
 use path_slash::PathExt;
 use solar_parse::interface::{Session, SourceMap};
@@ -9,8 +10,6 @@ use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
 };
-
-use super::span_to_range;
 
 /// Keeps data about project contracts definitions referenced from tests and scripts.
 /// Contract id -> Contract data definition mapping.
