@@ -55,22 +55,24 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
 
         let sess = Session::builder().with_buffer_emitter(Default::default()).build();
         let _ = sess.enter_parallel(|| -> solar_parse::interface::Result {
+            // Set up the parsing context with the project paths.
             let mut parsing_context = ParsingContext::new(&sess);
-            // Set remappings into HIR parsing context.
+            parsing_context.file_resolver.set_current_dir(&paths.root);
             for remapping in &paths.remappings {
                 parsing_context
                     .file_resolver
                     .add_import_map(PathBuf::from(&remapping.name), PathBuf::from(&remapping.path));
             }
-            // Load and parse test and script contracts only (dependencies are automatically
-            // resolved).
+            for include_path in &paths.include_paths {
+                let _ = parsing_context.file_resolver.add_import_path(include_path.clone());
+            }
 
+            // Add the sources into the context.
             let mut preprocessed_paths = vec![];
             for (path, source) in sources.iter() {
-                if is_test_or_script(path, paths) && !source.content.is_empty() {
-                    if let Ok(src_file) = sess
-                        .source_map()
-                        .new_dummy_source_file(path.clone(), source.content.to_string())
+                if is_test_or_script(path, paths) {
+                    if let Ok(src_file) =
+                        sess.source_map().new_source_file(path.clone(), source.content.as_str())
                     {
                         parsing_context.add_file(src_file);
                         preprocessed_paths.push(path.clone());
@@ -78,6 +80,7 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
                 }
             }
 
+            // Parse and preprocess.
             let hir_arena = ThreadLocal::new();
             if let Some(gcx) = parsing_context.parse_and_lower(&hir_arena)? {
                 let hir = &gcx.get().hir;
