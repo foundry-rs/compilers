@@ -15,6 +15,8 @@ use foundry_compilers::{
     flatten::Flattener,
     info::ContractInfo,
     multi::MultiCompilerRestrictions,
+    preprocessor::TestOptimizerPreprocessor,
+    project::ProjectCompiler,
     project_util::*,
     solc::{Restriction, SolcRestrictions, SolcSettings},
     take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
@@ -34,6 +36,7 @@ use semver::Version;
 use similar_asserts::assert_eq;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    env,
     fs::{self},
     io,
     path::{Path, PathBuf, MAIN_SEPARATOR},
@@ -4153,4 +4156,25 @@ contract A { }
 "
         );
     });
+}
+
+#[test]
+fn can_preprocess_constructors_and_creation_code() {
+    let root =
+        canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/preprocessor"))
+            .unwrap();
+
+    let project = TempProject::hardhat().unwrap();
+    project.copy_project_from(&root).unwrap();
+    let r = ProjectCompiler::new(project.project())
+        .unwrap()
+        .with_preprocessor(TestOptimizerPreprocessor)
+        .compile();
+
+    let compiled = match r {
+        Ok(compiled) => compiled,
+        Err(e) => panic!("failed to compile: {e}"),
+    };
+    compiled.assert_success();
+    assert!(!compiled.is_unchanged());
 }
