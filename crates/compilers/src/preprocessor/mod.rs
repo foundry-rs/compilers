@@ -59,13 +59,15 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
             let mut parsing_context = ParsingContext::new(&sess);
             parsing_context.file_resolver.set_current_dir(&paths.root);
             for remapping in &paths.remappings {
-                parsing_context
-                    .file_resolver
-                    .add_import_map(PathBuf::from(&remapping.name), PathBuf::from(&remapping.path));
+                parsing_context.file_resolver.add_import_remapping(
+                    solar_sema::interface::config::ImportRemapping {
+                        context: remapping.context.clone().unwrap_or_default(),
+                        prefix: remapping.name.clone(),
+                        path: remapping.path.clone(),
+                    },
+                );
             }
-            for include_path in &paths.include_paths {
-                let _ = parsing_context.file_resolver.add_import_path(include_path.clone());
-            }
+            parsing_context.file_resolver.add_include_paths(paths.include_paths.iter().cloned());
 
             // Add the sources into the context.
             let mut preprocessed_paths = vec![];
