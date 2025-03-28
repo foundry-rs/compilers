@@ -124,7 +124,7 @@ impl TempProject<MultiCompiler, HardhatArtifacts> {
             .artifacts(HardhatArtifacts::default())
             .paths(paths)
             .build(Default::default())?;
-        Ok(TempProject::create_new(tmp_dir, inner)?)
+        Ok(Self::create_new(tmp_dir, inner)?)
     }
 }
 

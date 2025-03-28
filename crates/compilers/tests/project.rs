@@ -4166,7 +4166,7 @@ fn can_preprocess_constructors_and_creation_code() {
 
     let project = TempProject::hardhat().unwrap();
     project.copy_project_from(&root).unwrap();
-    let r = ProjectCompiler::new(&project.project())
+    let r = ProjectCompiler::new(project.project())
         .unwrap()
         .with_preprocessor(TestOptimizerPreprocessor)
         .compile();
