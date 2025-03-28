@@ -4537,3 +4537,23 @@ contract A { }
         );
     });
 }
+
+#[test]
+fn can_compile_with_right_output() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
+    let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
+    let mut project = TempProject::<MultiCompiler, ConfigurableArtifacts>::new(paths).unwrap();
+
+    project.project_mut().compiler = resolc();
+    let compiled = project.compile().unwrap();
+    let artifact = compiled.find_first("Dapp").unwrap();
+    assert!(artifact
+        .bytecode
+        .clone()
+        .unwrap()
+        .object
+        .as_bytes()
+        .unwrap()
+        .to_string()
+        .starts_with("0x50564d"));
+}

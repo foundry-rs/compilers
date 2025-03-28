@@ -3,6 +3,7 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 pub mod contract;
+use alloy_primitives::{hex::FromHex, Bytes};
 use contract::ResolcContract;
 use foundry_compilers_artifacts_solc::{
     Bytecode, BytecodeObject, DeployedBytecode, Error, FileToContractsMap, SourceFile,
@@ -97,9 +98,10 @@ impl ResolcBytecode {
 
 impl From<ResolcBytecode> for Bytecode {
     fn from(value: ResolcBytecode) -> Self {
+        let object = Bytes::from_hex(value.object).expect("Value wasn't correctly encoded");
         Self {
             function_debug_data: BTreeMap::new(),
-            object: BytecodeObject::Bytecode(value.object.into()),
+            object: BytecodeObject::Bytecode(object),
             opcodes: None,
             source_map: None,
             generated_sources: vec![],
