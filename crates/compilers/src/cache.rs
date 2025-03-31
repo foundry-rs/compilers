@@ -4,9 +4,10 @@ use crate::{
     buildinfo::RawBuildInfo,
     compilers::{Compiler, CompilerSettings, Language},
     output::Builds,
+    preprocessor::interface_repr_hash,
     resolver::GraphEdges,
-    ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, ParsedSource,
-    Project, ProjectPaths, ProjectPathsConfig, SourceCompilationKind,
+    ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
+    ProjectPaths, ProjectPathsConfig, SourceCompilationKind,
 };
 use foundry_compilers_artifacts::{
     sources::{Source, Sources},
@@ -681,11 +682,8 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             .map(|import| strip_prefix(import, self.project.root()).into())
             .collect();
 
-        let interface_repr_hash = if self.cache.preprocessed && self.is_source_file(&file) {
-            self.edges.get_parsed_source(&file).and_then(ParsedSource::interface_repr_hash)
-        } else {
-            None
-        };
+        let interface_repr_hash = (self.cache.preprocessed && self.is_source_file(&file))
+            .then(|| self.interface_repr_hash(source, &file).to_string());
 
         let entry = CacheEntry {
             last_modification_date: CacheEntry::read_last_modification_date(&file)
@@ -701,6 +699,27 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         };
 
         self.cache.files.insert(file, entry);
+    }
+
+    /// Gets or calculates the content hash for the given source file.
+    fn content_hash(&mut self, source: &Source, file: &Path) -> &str {
+        self.content_hashes.entry(file.to_path_buf()).or_insert_with(|| source.content_hash())
+    }
+
+    /// Gets or calculates the interface representation hash for the given source file.
+    fn interface_repr_hash(&mut self, source: &Source, file: &Path) -> &str {
+        self.interface_repr_hashes
+            .entry(file.to_path_buf())
+            .or_insert_with(|| {
+                if let Some(r) = interface_repr_hash(&source.content, file) {
+                    return r;
+                }
+                self.content_hashes
+                    .entry(file.to_path_buf())
+                    .or_insert_with(|| source.content_hash())
+                    .clone()
+            })
+            .as_str()
     }
 
     /// Returns the set of [Source]s that need to be compiled to produce artifacts for requested
@@ -956,17 +975,11 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     /// Adds the file's hashes to the set if not set yet
     fn fill_hashes(&mut self, sources: &Sources) {
         for (file, source) in sources {
-            let content_hash =
-                self.content_hashes.entry(file.clone()).or_insert_with(|| source.content_hash());
+            let _ = self.content_hash(source, file);
 
             // Fill interface representation hashes for source files
             if self.cache.preprocessed && self.project.paths.is_source_file(file) {
-                self.interface_repr_hashes.entry(file.clone()).or_insert_with(|| {
-                    self.edges
-                        .get_parsed_source(file)
-                        .and_then(ParsedSource::interface_repr_hash)
-                        .unwrap_or_else(|| content_hash.clone())
-                });
+                let _ = self.interface_repr_hash(source, file);
             }
         }
     }

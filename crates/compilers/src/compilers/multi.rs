@@ -387,13 +387,6 @@ impl ParsedSource for MultiCompilerParsedSource {
         }
         .into_iter()
     }
-
-    fn interface_repr_hash(&self) -> Option<String> {
-        match self {
-            Self::Solc(parsed) => parsed.interface_repr_hash(),
-            Self::Vyper(parsed) => parsed.interface_repr_hash(),
-        }
-    }
 }
 
 impl CompilationError for MultiCompilerError {

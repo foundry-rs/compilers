@@ -19,7 +19,6 @@ pub struct SolData {
     pub contract_names: Vec<String>,
     pub is_yul: bool,
     pub parse_result: Result<(), String>,
-    pub interface_repr_hash: Option<String>,
 }
 
 impl SolData {
@@ -51,7 +50,6 @@ impl SolData {
         let mut libraries = Vec::new();
         let mut contract_names = Vec::new();
         let mut parse_result = Ok(());
-        let mut interface_repr_hash = None;
 
         let result = crate::preprocessor::parse_one_source(content, file, |ast| {
             for item in ast.items.iter() {
@@ -103,10 +101,6 @@ impl SolData {
 
                     _ => {}
                 }
-
-                interface_repr_hash = Some(foundry_compilers_artifacts::Source::content_hash_of(
-                    &crate::preprocessor::interface_representation_ast(content, &ast),
-                ));
             }
         });
         if let Err(e) = result {
@@ -153,7 +147,6 @@ impl SolData {
             contract_names,
             is_yul,
             parse_result,
-            interface_repr_hash,
         }
     }
 

@@ -134,6 +134,15 @@ impl Preprocessor<MultiCompiler> for TestOptimizerPreprocessor {
     }
 }
 
+pub(crate) fn interface_repr_hash(content: &str, path: &Path) -> Option<String> {
+    let src = interface_repr(content, path).ok()?;
+    Some(foundry_compilers_artifacts::Source::content_hash_of(&src))
+}
+
+pub(crate) fn interface_repr(content: &str, path: &Path) -> Result<String, EmittedDiagnostics> {
+    parse_one_source(content, path, |ast| interface_representation_ast(content, &ast))
+}
+
 pub(crate) fn parse_one_source<R>(
     content: &str,
     path: &Path,
@@ -210,11 +219,6 @@ pub(crate) fn interface_representation_ast(
 mod tests {
     use super::*;
 
-    fn interface_representation(content: &str) -> String {
-        parse_one_source(content, Path::new(""), |ast| interface_representation_ast(content, &ast))
-            .unwrap()
-    }
-
     #[test]
     fn test_interface_representation() {
         let content = r#"
@@ -235,7 +239,7 @@ contract A {
     }
 }"#;
 
-        let result = interface_representation(content);
+        let result = interface_repr(content, Path::new("")).unwrap();
         assert_eq!(
             result,
             r#"library Lib {function libFn() internal {// logic to keep}}contract A {function a() externalfunction b() publicfunction e() external }"#
