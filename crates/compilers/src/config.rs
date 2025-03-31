@@ -250,6 +250,16 @@ impl<L> ProjectPathsConfig<L> {
         Self::dapptools(&std::env::current_dir().map_err(|err| SolcError::io(err, "."))?)
     }
 
+    pub(crate) fn is_test_or_script(&self, path: &Path) -> bool {
+        let test_dir = self.tests.strip_prefix(&self.root).unwrap_or(&self.tests);
+        let script_dir = self.scripts.strip_prefix(&self.root).unwrap_or(&self.scripts);
+        path.starts_with(test_dir) || path.starts_with(script_dir)
+    }
+
+    pub(crate) fn is_source_file(&self, path: &Path) -> bool {
+        !self.is_test_or_script(path)
+    }
+
     /// Returns a new [ProjectPaths] instance that contains all directories configured for this
     /// project
     pub fn paths(&self) -> ProjectPaths {

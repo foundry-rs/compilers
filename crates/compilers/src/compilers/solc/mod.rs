@@ -397,6 +397,10 @@ impl ParsedSource for SolData {
     {
         imported_nodes.filter_map(|(path, node)| (!node.libraries.is_empty()).then_some(path))
     }
+
+    fn interface_repr_hash(&self) -> Option<String> {
+        self.interface_repr_hash.clone()
+    }
 }
 
 impl CompilationError for Error {

@@ -10,10 +10,8 @@ use crate::{
     solc::{SolcCompiler, SolcVersionedInput},
     Compiler, ProjectPathsConfig, Result,
 };
-use alloy_primitives::hex;
-use foundry_compilers_artifacts::{SolcLanguage, Source};
+use foundry_compilers_artifacts::SolcLanguage;
 use foundry_compilers_core::{error::SolcError, utils};
-use md5::Digest;
 use solar_parse::{
     ast::{FunctionKind, ItemKind, Span, Visibility},
     interface::{diagnostics::EmittedDiagnostics, source_map::FileName, Session, SourceMap},
@@ -48,7 +46,7 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
     ) -> Result<()> {
         let sources = &mut input.input.sources;
         // Skip if we are not preprocessing any tests or scripts. Avoids unnecessary AST parsing.
-        if sources.iter().all(|(path, _)| !is_test_or_script(path, paths)) {
+        if sources.iter().all(|(path, _)| !paths.is_test_or_script(path)) {
             trace!("no tests or sources to preprocess");
             return Ok(());
         }
@@ -72,7 +70,7 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
             // Add the sources into the context.
             let mut preprocessed_paths = vec![];
             for (path, source) in sources.iter() {
-                if is_test_or_script(path, paths) {
+                if paths.is_test_or_script(path) {
                     if let Ok(src_file) =
                         sess.source_map().new_source_file(path.clone(), source.content.as_str())
                     {
@@ -136,15 +134,27 @@ impl Preprocessor<MultiCompiler> for TestOptimizerPreprocessor {
     }
 }
 
-/// Helper function to compute hash of [`interface_representation`] of the source.
-pub(crate) fn interface_representation_hash(source: &Source, file: &Path) -> String {
-    let Ok(repr) = interface_representation(&source.content, file) else {
-        return source.content_hash();
-    };
-    let mut hasher = md5::Md5::new();
-    hasher.update(&repr);
-    let result = hasher.finalize();
-    hex::encode(result)
+pub(crate) fn parse_one_source<R>(
+    content: &str,
+    path: &Path,
+    f: impl FnOnce(solar_sema::ast::SourceUnit<'_>) -> R,
+) -> Result<R, EmittedDiagnostics> {
+    let sess = Session::builder().with_buffer_emitter(Default::default()).build();
+    let res = sess.enter(|| -> solar_parse::interface::Result<_> {
+        let arena = solar_parse::ast::Arena::new();
+        let filename = FileName::Real(path.to_path_buf());
+        let mut parser = Parser::from_source_code(&sess, &arena, filename, content.to_string())?;
+        let ast = parser.parse_file().map_err(|e| e.emit())?;
+        Ok(f(ast))
+    });
+
+    // Return if any diagnostics emitted during content parsing.
+    if let Err(err) = sess.emitted_errors().unwrap() {
+        trace!("failed parsing {path:?}:\n{err}");
+        return Err(err);
+    }
+
+    Ok(res.unwrap())
 }
 
 /// Helper function to remove parts of the contract which do not alter its interface:
@@ -152,75 +162,58 @@ pub(crate) fn interface_representation_hash(source: &Source, file: &Path) -> Str
 ///   - External functions bodies
 ///
 /// Preserves all libraries and interfaces.
-fn interface_representation(content: &str, file: &Path) -> Result<String, EmittedDiagnostics> {
+pub(crate) fn interface_representation_ast(
+    content: &str,
+    ast: &solar_parse::ast::SourceUnit<'_>,
+) -> String {
     let mut spans_to_remove: Vec<Span> = Vec::new();
-    let sess = Session::builder().with_buffer_emitter(Default::default()).build();
-    sess.enter(|| {
-        let arena = solar_parse::ast::Arena::new();
-        let filename = FileName::Real(file.to_path_buf());
-        let Ok(mut parser) = Parser::from_source_code(&sess, &arena, filename, content.to_string())
-        else {
-            return;
+    for item in ast.items.iter() {
+        let ItemKind::Contract(contract) = &item.kind else {
+            continue;
         };
-        let Ok(ast) = parser.parse_file().map_err(|e| e.emit()) else { return };
-        for item in ast.items {
-            let ItemKind::Contract(contract) = &item.kind else {
-                continue;
-            };
 
-            if contract.kind.is_interface() || contract.kind.is_library() {
-                continue;
-            }
+        if contract.kind.is_interface() || contract.kind.is_library() {
+            continue;
+        }
 
-            for contract_item in contract.body.iter() {
-                if let ItemKind::Function(function) = &contract_item.kind {
-                    let is_exposed = match function.kind {
-                        // Function with external or public visibility
-                        FunctionKind::Function => {
-                            function.header.visibility >= Some(Visibility::Public)
-                        }
-                        FunctionKind::Constructor
-                        | FunctionKind::Fallback
-                        | FunctionKind::Receive => true,
-                        FunctionKind::Modifier => false,
-                    };
-
-                    // If function is not exposed we remove the entire span (signature and
-                    // body). Otherwise we keep function signature and
-                    // remove only the body.
-                    if !is_exposed {
-                        spans_to_remove.push(contract_item.span);
-                    } else {
-                        spans_to_remove.push(function.body_span);
+        for contract_item in contract.body.iter() {
+            if let ItemKind::Function(function) = &contract_item.kind {
+                let is_exposed = match function.kind {
+                    // Function with external or public visibility
+                    FunctionKind::Function => {
+                        function.header.visibility >= Some(Visibility::Public)
                     }
+                    FunctionKind::Constructor | FunctionKind::Fallback | FunctionKind::Receive => {
+                        true
+                    }
+                    FunctionKind::Modifier => false,
+                };
+
+                // If function is not exposed we remove the entire span (signature and
+                // body). Otherwise we keep function signature and
+                // remove only the body.
+                if !is_exposed {
+                    spans_to_remove.push(contract_item.span);
+                } else {
+                    spans_to_remove.push(function.body_span);
                 }
             }
         }
-    });
-
-    // Return if any diagnostics emitted during content parsing.
-    if let Err(err) = sess.emitted_errors().unwrap() {
-        trace!("failed parsing {file:?}: {err}");
-        return Err(err);
     }
-
     let content =
         replace_source_content(content, spans_to_remove.iter().map(|span| (span.to_range(), "")))
             .replace("\n", "");
-    Ok(utils::RE_TWO_OR_MORE_SPACES.replace_all(&content, "").to_string())
-}
-
-/// Checks if the given path is a test/script file.
-fn is_test_or_script<L>(path: &Path, paths: &ProjectPathsConfig<L>) -> bool {
-    let test_dir = paths.tests.strip_prefix(&paths.root).unwrap_or(&paths.root);
-    let script_dir = paths.scripts.strip_prefix(&paths.root).unwrap_or(&paths.root);
-    path.starts_with(test_dir) || path.starts_with(script_dir)
+    utils::RE_TWO_OR_MORE_SPACES.replace_all(&content, "").into_owned()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+
+    fn interface_representation(content: &str) -> String {
+        parse_one_source(content, Path::new(""), |ast| interface_representation_ast(content, &ast))
+            .unwrap()
+    }
 
     #[test]
     fn test_interface_representation() {
@@ -242,7 +235,7 @@ contract A {
     }
 }"#;
 
-        let result = interface_representation(content, &PathBuf::new()).unwrap();
+        let result = interface_representation(content);
         assert_eq!(
             result,
             r#"library Lib {function libFn() internal {// logic to keep}}contract A {function a() externalfunction b() publicfunction e() external }"#

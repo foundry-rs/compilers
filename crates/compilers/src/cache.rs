@@ -4,10 +4,9 @@ use crate::{
     buildinfo::RawBuildInfo,
     compilers::{Compiler, CompilerSettings, Language},
     output::Builds,
-    preprocessor::interface_representation_hash,
     resolver::GraphEdges,
-    ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
-    ProjectPaths, ProjectPathsConfig, SourceCompilationKind,
+    ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, ParsedSource,
+    Project, ProjectPaths, ProjectPathsConfig, SourceCompilationKind,
 };
 use foundry_compilers_artifacts::{
     sources::{Source, Sources},
@@ -366,10 +365,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     {
         match tokio::task::spawn_blocking(f).await {
             Ok(res) => res,
-            Err(_) => Err(SolcError::io(
-                std::io::Error::new(std::io::ErrorKind::Other, "background task failed"),
-                "",
-            )),
+            Err(_) => Err(SolcError::io(std::io::Error::other("background task failed"), "")),
         }
     }
 }
@@ -673,8 +669,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 {
     /// Whether given file is a source file or a test/script file.
     fn is_source_file(&self, file: &Path) -> bool {
-        !file.starts_with(&self.project.paths.tests)
-            && !file.starts_with(&self.project.paths.scripts)
+        !self.project.paths.is_test_or_script(file)
     }
 
     /// Creates a new cache entry for the file
@@ -686,8 +681,8 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             .map(|import| strip_prefix(import, self.project.root()).into())
             .collect();
 
-        let interface_repr_hash = if self.cache.preprocessed {
-            self.is_source_file(&file).then(|| interface_representation_hash(source, &file))
+        let interface_repr_hash = if self.cache.preprocessed && self.is_source_file(&file) {
+            self.edges.get_parsed_source(&file).and_then(ParsedSource::interface_repr_hash)
         } else {
             None
         };
@@ -961,16 +956,17 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     /// Adds the file's hashes to the set if not set yet
     fn fill_hashes(&mut self, sources: &Sources) {
         for (file, source) in sources {
-            if let hash_map::Entry::Vacant(entry) = self.content_hashes.entry(file.clone()) {
-                entry.insert(source.content_hash());
-            }
+            let content_hash =
+                self.content_hashes.entry(file.clone()).or_insert_with(|| source.content_hash());
+
             // Fill interface representation hashes for source files
-            if self.cache.preprocessed && self.is_source_file(file) {
-                if let hash_map::Entry::Vacant(entry) =
-                    self.interface_repr_hashes.entry(file.clone())
-                {
-                    entry.insert(interface_representation_hash(source, file));
-                }
+            if self.cache.preprocessed && self.project.paths.is_source_file(file) {
+                self.interface_repr_hashes.entry(file.clone()).or_insert_with(|| {
+                    self.edges
+                        .get_parsed_source(file)
+                        .and_then(ParsedSource::interface_repr_hash)
+                        .unwrap_or_else(|| content_hash.clone())
+                });
             }
         }
     }

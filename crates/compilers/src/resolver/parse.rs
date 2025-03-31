@@ -8,6 +8,7 @@ use std::{
 
 /// Represents various information about a Solidity file.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct SolData {
     pub license: Option<Spanned<String>>,
     pub version: Option<Spanned<String>>,
@@ -18,6 +19,7 @@ pub struct SolData {
     pub contract_names: Vec<String>,
     pub is_yul: bool,
     pub parse_result: Result<(), String>,
+    pub interface_repr_hash: Option<String>,
 }
 
 impl SolData {
@@ -49,20 +51,10 @@ impl SolData {
         let mut libraries = Vec::new();
         let mut contract_names = Vec::new();
         let mut parse_result = Ok(());
+        let mut interface_repr_hash = None;
 
-        let sess = solar_parse::interface::Session::builder()
-            .with_buffer_emitter(Default::default())
-            .build();
-        sess.enter(|| {
-            let arena = ast::Arena::new();
-            let filename = solar_parse::interface::source_map::FileName::Real(file.to_path_buf());
-            let Ok(mut parser) =
-                solar_parse::Parser::from_source_code(&sess, &arena, filename, content.to_string())
-            else {
-                return;
-            };
-            let Ok(ast) = parser.parse_file().map_err(|e| e.emit()) else { return };
-            for item in ast.items {
+        let result = crate::preprocessor::parse_one_source(content, file, |ast| {
+            for item in ast.items.iter() {
                 let loc = item.span.lo().to_usize()..item.span.hi().to_usize();
                 match &item.kind {
                     ast::ItemKind::Pragma(pragma) => match &pragma.tokens {
@@ -111,9 +103,13 @@ impl SolData {
 
                     _ => {}
                 }
+
+                interface_repr_hash = Some(foundry_compilers_artifacts::Source::content_hash_of(
+                    &crate::preprocessor::interface_representation_ast(content, &ast),
+                ));
             }
         });
-        if let Err(e) = sess.emitted_errors().unwrap() {
+        if let Err(e) = result {
             let e = e.to_string();
             trace!("failed parsing {file:?}: {e}");
             parse_result = Err(e);
@@ -157,6 +153,7 @@ impl SolData {
             contract_names,
             is_yul,
             parse_result,
+            interface_repr_hash,
         }
     }
 

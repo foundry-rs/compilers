@@ -186,6 +186,11 @@ pub trait ParsedSource: Debug + Sized + Send + Clone {
     {
         vec![].into_iter()
     }
+
+    /// Returns the hash of the interface of the source.
+    fn interface_repr_hash(&self) -> Option<String> {
+        None
+    }
 }
 
 /// Error returned by compiler. Might also represent a warning or informational message.
