@@ -708,18 +708,16 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 
     /// Gets or calculates the interface representation hash for the given source file.
     fn interface_repr_hash(&mut self, source: &Source, file: &Path) -> &str {
-        self.interface_repr_hashes
-            .entry(file.to_path_buf())
-            .or_insert_with(|| {
-                if let Some(r) = interface_repr_hash(&source.content, file) {
-                    return r;
-                }
-                self.content_hashes
-                    .entry(file.to_path_buf())
-                    .or_insert_with(|| source.content_hash())
-                    .clone()
-            })
-            .as_str()
+        self.interface_repr_hashes.entry(file.to_path_buf()).or_insert_with(|| {
+            if let Some(r) = interface_repr_hash(&source.content, file) {
+                return r;
+            }
+            // self.content_hash(source, file).into()
+            self.content_hashes
+                .entry(file.to_path_buf())
+                .or_insert_with(|| source.content_hash())
+                .clone()
+        })
     }
 
     /// Returns the set of [Source]s that need to be compiled to produce artifacts for requested
@@ -742,7 +740,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 
             // If we are missing artifact for file, compile it.
             if self.is_missing_artifacts(file, version, profile) {
-                compile_complete.insert(file.clone());
+                compile_complete.insert(file.to_path_buf());
             }
 
             // Ensure that we have a cache entry for all sources.
@@ -756,15 +754,15 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         for source in &compile_complete {
             for import in self.edges.imports(source) {
                 if !compile_complete.contains(import) {
-                    compile_optimized.insert(import.clone());
+                    compile_optimized.insert(import);
                 }
             }
         }
 
         sources.retain(|file, source| {
-            source.kind = if compile_complete.contains(file) {
+            source.kind = if compile_complete.contains(file.as_path()) {
                 SourceCompilationKind::Complete
-            } else if compile_optimized.contains(file) {
+            } else if compile_optimized.contains(file.as_path()) {
                 SourceCompilationKind::Optimized
             } else {
                 return false;

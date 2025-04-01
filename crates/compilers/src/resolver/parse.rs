@@ -187,11 +187,11 @@ impl SolImport {
         Self { path, aliases: vec![] }
     }
 
-    pub fn path(&self) -> &PathBuf {
+    pub fn path(&self) -> &Path {
         &self.path
     }
 
-    pub fn aliases(&self) -> &Vec<SolImportAlias> {
+    pub fn aliases(&self) -> &[SolImportAlias] {
         &self.aliases
     }
 
