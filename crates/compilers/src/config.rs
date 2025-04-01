@@ -211,7 +211,7 @@ impl ProjectPathsConfig<SolcLanguage> {
             sources.push(content);
         }
 
-        if let Some(version) = combine_version_pragmas(version_pragmas) {
+        if let Some(version) = combine_version_pragmas(&version_pragmas) {
             result.push_str(&version);
             result.push('\n');
         }

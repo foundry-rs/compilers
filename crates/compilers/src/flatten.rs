@@ -17,7 +17,7 @@ use foundry_compilers_core::{
 };
 use itertools::Itertools;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     hash::Hash,
     path::{Path, PathBuf},
 };
@@ -724,7 +724,7 @@ impl Flattener {
 
         let mut pragmas = Vec::new();
 
-        if let Some(version_pragma) = combine_version_pragmas(version_pragmas) {
+        if let Some(version_pragma) = combine_version_pragmas(&version_pragmas) {
             pragmas.push(version_pragma);
         }
 
@@ -881,26 +881,17 @@ pub fn collect_ordered_deps<D: ParsedSource + MaybeSolData>(
     Ok(ordered_deps)
 }
 
-pub fn combine_version_pragmas(pragmas: Vec<&str>) -> Option<String> {
-    let mut versions = pragmas
-        .into_iter()
-        .filter_map(|p| {
-            SolData::parse_version_req(
-                p.replace("pragma", "").replace("solidity", "").replace(';', "").trim(),
-            )
-            .ok()
-        })
+pub fn combine_version_pragmas(pragmas: &[impl AsRef<str>]) -> Option<String> {
+    let versions = pragmas
+        .iter()
+        .map(AsRef::as_ref)
+        .filter_map(SolData::parse_version_pragma)
+        .filter_map(Result::ok)
         .flat_map(|req| req.comparators)
-        .collect::<HashSet<_>>()
-        .into_iter()
         .map(|comp| comp.to_string())
-        .collect::<Vec<_>>();
-
-    versions.sort();
-
-    if !versions.is_empty() {
-        return Some(format!("pragma solidity {};", versions.iter().format(" ")));
+        .collect::<BTreeSet<_>>();
+    if versions.is_empty() {
+        return None;
     }
-
-    None
+    Some(format!("pragma solidity {};", versions.iter().format(" ")))
 }
