@@ -712,7 +712,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             if let Some(r) = interface_repr_hash(&source.content, file) {
                 return r;
             }
-            // self.content_hash(source, file).into()
+            // Equivalent to: self.content_hash(source, file).into()
             self.content_hashes
                 .entry(file.to_path_buf())
                 .or_insert_with(|| source.content_hash())
