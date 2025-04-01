@@ -111,10 +111,36 @@ pub trait Reporter: 'static + std::fmt::Debug {
     ) {
     }
 
+    /// Callback invoked right before [Compiler::compile] is called
+    ///
+    /// This contains the [Compiler] its [Version] and all files that triggered the compile job. The
+    /// dirty files are only provided to give a better feedback what was actually compiled.
+    ///
+    /// [Compiler]: crate::compilers::Compiler
+    /// [Compiler::compile]: crate::compilers::Compiler::compile
+    fn on_multicompiler_spawn(
+        &self,
+        _compiler_name: &str,
+        _versions: &[Version],
+        _dirty_files: &[PathBuf],
+    ) {
+    }
+
     /// Invoked with the `CompilerOutput` if [`Compiler::compile()`] was successful
     ///
     /// [`Compiler::compile()`]: crate::compilers::Compiler::compile
     fn on_compiler_success(&self, _compiler_name: &str, _version: &Version, _duration: &Duration) {}
+
+    /// Invoked with the `CompilerOutput` if [`Compiler::compile()`] was successful
+    ///
+    /// [`Compiler::compile()`]: crate::compilers::Compiler::compile
+    fn on_multicompiler_success(
+        &self,
+        _compiler_name: &str,
+        _versions: &[Version],
+        _duration: &Duration,
+    ) {
+    }
 
     /// Invoked before a new compiler version is installed
     fn on_solc_installation_start(&self, _version: &Version) {}
@@ -172,12 +198,12 @@ impl dyn Reporter {
     }
 }
 
-pub(crate) fn compiler_spawn(compiler_name: &str, version: &Version, dirty_files: &[PathBuf]) {
-    get_default(|r| r.reporter.on_compiler_spawn(compiler_name, version, dirty_files));
+pub(crate) fn compiler_spawn(compiler_name: &str, version: &[Version], dirty_files: &[PathBuf]) {
+    get_default(|r| r.reporter.on_multicompiler_spawn(compiler_name, version, dirty_files));
 }
 
-pub(crate) fn compiler_success(compiler_name: &str, version: &Version, duration: &Duration) {
-    get_default(|r| r.reporter.on_compiler_success(compiler_name, version, duration));
+pub(crate) fn compiler_success(compiler_name: &str, version: &[Version], duration: &Duration) {
+    get_default(|r| r.reporter.on_multicompiler_success(compiler_name, version, duration));
 }
 
 #[allow(dead_code)]
@@ -322,21 +348,52 @@ impl Reporter for BasicStdoutReporter {
     ///
     /// [`Compiler::compile()`]: crate::compilers::Compiler::compile
     fn on_compiler_spawn(&self, compiler_name: &str, version: &Version, dirty_files: &[PathBuf]) {
-        println!(
-            "Compiling {} files with {} {}.{}.{}",
-            dirty_files.len(),
-            compiler_name,
-            version.major,
-            version.minor,
-            version.patch
-        );
+        println!("Compiling {} files with {} {}", dirty_files.len(), compiler_name, version);
+    }
+
+    fn on_multicompiler_spawn(
+        &self,
+        compiler_name: &str,
+        versions: &[Version],
+        dirty_files: &[PathBuf],
+    ) {
+        if let [version] = versions {
+            self.on_compiler_spawn(compiler_name, version, dirty_files);
+        } else {
+            let names = compiler_name
+                .split("and")
+                .filter(|str| !str.is_empty())
+                .map(|x| x.trim())
+                .zip(versions)
+                .map(|(name, version)| format!("{name} v{version}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!("Compiling {} files with {}", dirty_files.len(), names);
+        }
     }
 
     fn on_compiler_success(&self, compiler_name: &str, version: &Version, duration: &Duration) {
-        println!(
-            "{} {}.{}.{} finished in {duration:.2?}",
-            compiler_name, version.major, version.minor, version.patch
-        );
+        println!("{compiler_name} {version} finished in {duration:.2?}");
+    }
+    fn on_multicompiler_success(
+        &self,
+        compiler_name: &str,
+        versions: &[Version],
+        duration: &Duration,
+    ) {
+        if let [version] = versions {
+            self.on_compiler_success(compiler_name, version, duration);
+        } else {
+            let names = compiler_name
+                .split("and")
+                .filter(|str| !str.is_empty())
+                .map(|x| x.trim())
+                .zip(versions)
+                .map(|(name, version)| format!("{name} v{version}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!("{names} Finished in {duration:.2?}");
+        }
     }
 
     /// Invoked before a new compiler is installed

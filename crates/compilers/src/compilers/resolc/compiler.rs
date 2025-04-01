@@ -34,6 +34,10 @@ impl Compiler for Resolc {
     type Settings = SolcSettings;
     type Language = SolcLanguage;
 
+    fn compiler_version(&self, _input: &Self::Input) -> Version {
+        self.resolc_version.clone()
+    }
+
     fn compiler_name(&self, _input: &Self::Input) -> std::borrow::Cow<'static, str> {
         Self::compiler_name_default()
     }

@@ -290,12 +290,39 @@ impl Compiler for MultiCompiler {
     type Language = MultiCompilerLanguage;
     type CompilerContract = Contract;
 
+    fn compiler_version(&self, input: &Self::Input) -> Version {
+        match input {
+            MultiCompilerInput::Solc(sol) => match &self.solidity {
+                SolidityCompiler::Solc(solc) => solc.compiler_version(sol),
+                SolidityCompiler::Resolc(r) => {
+                    let input = sol.clone();
+                    let input = ResolcVersionedInput::build(
+                        input.input.sources,
+                        SolcSettings {
+                            settings: input.input.settings,
+                            cli_settings: input.cli_settings,
+                        },
+                        input.input.language,
+                        input.version,
+                    );
+                    r.compiler_version(&input)
+                }
+                SolidityCompiler::MissingInstallation => sol.version().clone(),
+            },
+            MultiCompilerInput::Vyper(v) => self
+                .vyper
+                .as_ref()
+                .map(|vyper| vyper.compiler_version(v))
+                .unwrap_or_else(|| v.version().clone()),
+        }
+    }
+
     fn compiler_name(&self, input: &Self::Input) -> Cow<'static, str> {
         match input {
             MultiCompilerInput::Solc(_) => match &self.solidity {
                 SolidityCompiler::Solc(_) => SolcCompiler::compiler_name_default(),
                 SolidityCompiler::Resolc(_) => Resolc::compiler_name_default(),
-                SolidityCompiler::MissingInstallation => "No applicablecompilers installed".into(),
+                SolidityCompiler::MissingInstallation => "No applicable compilers installed".into(),
             },
             MultiCompilerInput::Vyper(_) => Vyper::compiler_name_default(),
         }

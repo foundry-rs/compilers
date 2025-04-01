@@ -1,5 +1,5 @@
 use self::{input::VyperVersionedInput, parser::VyperParsedSource};
-use super::{Compiler, CompilerOutput, Language, SimpleCompilerName};
+use super::{Compiler, CompilerInput, CompilerOutput, Language, SimpleCompilerName};
 pub use crate::artifacts::vyper::{VyperCompilationError, VyperInput, VyperOutput, VyperSettings};
 use core::fmt;
 use foundry_compilers_artifacts::{sources::Source, Contract};
@@ -212,6 +212,10 @@ impl Compiler for Vyper {
     type Input = VyperVersionedInput;
     type Language = VyperLanguage;
     type CompilerContract = Contract;
+
+    fn compiler_version(&self, input: &Self::Input) -> Version {
+        input.version().clone()
+    }
 
     fn compiler_name(&self, _input: &Self::Input) -> Cow<'static, str> {
         Self::compiler_name_default()

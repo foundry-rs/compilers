@@ -338,6 +338,9 @@ pub trait Compiler: Send + Sync + Clone {
     /// Returns compiler name used by reporters to display output during compilation.
     fn compiler_name(&self, input: &Self::Input) -> Cow<'static, str>;
 
+    /// Returns compiler version used by reporters to display output during compilation.
+    fn compiler_version(&self, input: &Self::Input) -> Version;
+
     /// Main entrypoint for the compiler. Compiles given input into [CompilerOutput]. Takes
     /// ownership over the input and returns back version with potential modifications made to it.
     /// Returned input is always the one which was seen by the binary.

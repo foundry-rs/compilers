@@ -51,6 +51,10 @@ impl Compiler for SolcCompiler {
     type Language = SolcLanguage;
     type CompilerContract = Contract;
 
+    fn compiler_version(&self, input: &Self::Input) -> Version {
+        input.version().clone()
+    }
+
     fn compiler_name(&self, _input: &Self::Input) -> Cow<'static, str> {
         Self::compiler_name_default()
     }

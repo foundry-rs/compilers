@@ -527,15 +527,23 @@ fn compile_sequential<'a, C: Compiler>(
     jobs.into_iter()
         .map(|(input, profile, actually_dirty)| {
             let start = Instant::now();
+            let versions = {
+                let compiler_ver = compiler.compiler_version(&input);
+                if &compiler_ver == input.version() {
+                    vec![input.version().clone()]
+                } else {
+                    vec![compiler.compiler_version(&input), input.version().clone()]
+                }
+            };
             report::compiler_spawn(
                 &compiler.compiler_name(&input),
-                input.version(),
+                versions.as_ref(),
                 actually_dirty.as_slice(),
             );
             let output = compiler.compile(&input)?;
             report::compiler_success(
                 &compiler.compiler_name(&input),
-                input.version(),
+                versions.as_ref(),
                 &start.elapsed(),
             );
 
@@ -563,17 +571,24 @@ fn compile_parallel<'a, C: Compiler>(
             .map(move |(input, profile, actually_dirty)| {
                 // set the reporter on this thread
                 let _guard = report::set_scoped(&scoped_report);
-
+                let versions = {
+                    let compiler_ver = compiler.compiler_version(&input);
+                    if &compiler_ver == input.version() {
+                        vec![input.version().clone()]
+                    } else {
+                        vec![compiler.compiler_version(&input), input.version().clone()]
+                    }
+                };
                 let start = Instant::now();
                 report::compiler_spawn(
                     &compiler.compiler_name(&input),
-                    input.version(),
+                    versions.as_ref(),
                     actually_dirty.as_slice(),
                 );
                 compiler.compile(&input).map(move |output| {
                     report::compiler_success(
                         &compiler.compiler_name(&input),
-                        input.version(),
+                        versions.as_ref(),
                         &start.elapsed(),
                     );
                     (input, output, profile, actually_dirty)
