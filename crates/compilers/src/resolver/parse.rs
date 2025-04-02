@@ -72,9 +72,9 @@ impl SolData {
                     ast::ItemKind::Import(import) => {
                         let path = import.path.value.to_string();
                         let aliases = match &import.items {
-                            ast::ImportItems::Plain(None) | ast::ImportItems::Glob(None) => &[][..],
+                            ast::ImportItems::Plain(None) => &[][..],
                             ast::ImportItems::Plain(Some(alias))
-                            | ast::ImportItems::Glob(Some(alias)) => &[(*alias, None)][..],
+                            | ast::ImportItems::Glob(alias) => &[(*alias, None)][..],
                             ast::ImportItems::Aliases(aliases) => aliases,
                         };
                         let sol_import = SolImport::new(PathBuf::from(path)).set_aliases(

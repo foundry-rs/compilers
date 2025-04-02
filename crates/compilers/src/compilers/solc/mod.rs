@@ -113,7 +113,7 @@ pub struct SolcVersionedInput {
     #[serde(flatten)]
     pub input: SolcInput,
     #[serde(flatten)]
-    cli_settings: CliSettings,
+    pub cli_settings: CliSettings,
 }
 
 impl CompilerInput for SolcVersionedInput {

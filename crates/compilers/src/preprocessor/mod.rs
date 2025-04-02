@@ -44,36 +44,27 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
         paths: &ProjectPathsConfig<SolcLanguage>,
         mocks: &mut HashSet<PathBuf>,
     ) -> Result<()> {
-        let sources = &mut input.input.sources;
         // Skip if we are not preprocessing any tests or scripts. Avoids unnecessary AST parsing.
-        if sources.iter().all(|(path, _)| !paths.is_test_or_script(path)) {
+        if !input.input.sources.iter().any(|(path, _)| paths.is_test_or_script(path)) {
             trace!("no tests or sources to preprocess");
             return Ok(());
         }
 
-        let sess = Session::builder().with_buffer_emitter(Default::default()).build();
+        let sess = solar_session_from_solc(input);
         let _ = sess.enter_parallel(|| -> solar_parse::interface::Result {
             // Set up the parsing context with the project paths.
-            let mut parsing_context = ParsingContext::new(&sess);
-            parsing_context.file_resolver.set_current_dir(&paths.root);
-            for remapping in &paths.remappings {
-                parsing_context.file_resolver.add_import_remapping(
-                    solar_sema::interface::config::ImportRemapping {
-                        context: remapping.context.clone().unwrap_or_default(),
-                        prefix: remapping.name.clone(),
-                        path: remapping.path.clone(),
-                    },
-                );
-            }
-            parsing_context.file_resolver.add_include_paths(paths.include_paths.iter().cloned());
+            let mut parsing_context = solar_pcx_from_solc_no_sources(&sess, input, paths);
 
             // Add the sources into the context.
+            // Include all sources in the source map so as to not re-load them from disk, but only
+            // parse and preprocess tests and scripts.
             let mut preprocessed_paths = vec![];
+            let sources = &mut input.input.sources;
             for (path, source) in sources.iter() {
-                if paths.is_test_or_script(path) {
-                    if let Ok(src_file) =
-                        sess.source_map().new_source_file(path.clone(), source.content.as_str())
-                    {
+                if let Ok(src_file) =
+                    sess.source_map().new_source_file(path.clone(), source.content.as_str())
+                {
+                    if paths.is_test_or_script(path) {
                         parsing_context.add_file(src_file);
                         preprocessed_paths.push(path.clone());
                     }
@@ -132,6 +123,45 @@ impl Preprocessor<MultiCompiler> for TestOptimizerPreprocessor {
         let paths = paths.clone().with_language::<SolcLanguage>();
         self.preprocess(solc, input, &paths, mocks)
     }
+}
+
+fn solar_session_from_solc(solc: &SolcVersionedInput) -> Session {
+    use solar_parse::interface::config;
+
+    Session::builder()
+        .with_buffer_emitter(Default::default())
+        .opts(config::Opts {
+            language: match solc.input.language {
+                SolcLanguage::Solidity => config::Language::Solidity,
+                SolcLanguage::Yul => config::Language::Yul,
+                _ => unimplemented!(),
+            },
+
+            // TODO: ...
+            /*
+            evm_version: solc.input.settings.evm_version,
+            */
+            ..Default::default()
+        })
+        .build()
+}
+
+fn solar_pcx_from_solc_no_sources<'sess>(
+    sess: &'sess Session,
+    solc: &SolcVersionedInput,
+    paths: &ProjectPathsConfig<impl crate::Language>,
+) -> ParsingContext<'sess> {
+    let mut pcx = ParsingContext::new(sess);
+    pcx.file_resolver.set_current_dir(solc.cli_settings.base_path.as_ref().unwrap_or(&paths.root));
+    for remapping in &paths.remappings {
+        pcx.file_resolver.add_import_remapping(solar_sema::interface::config::ImportRemapping {
+            context: remapping.context.clone().unwrap_or_default(),
+            prefix: remapping.name.clone(),
+            path: remapping.path.clone(),
+        });
+    }
+    pcx.file_resolver.add_include_paths(solc.cli_settings.include_paths.iter().cloned());
+    pcx
 }
 
 pub(crate) fn interface_repr_hash(content: &str, path: &Path) -> Option<String> {
