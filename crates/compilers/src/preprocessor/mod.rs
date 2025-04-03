@@ -11,7 +11,7 @@ use crate::{
     Compiler, ProjectPathsConfig, Result,
 };
 use foundry_compilers_artifacts::SolcLanguage;
-use foundry_compilers_core::{error::SolcError, utils};
+use foundry_compilers_core::utils;
 use solar_parse::{
     ast::{FunctionKind, ItemKind, Span, Visibility},
     interface::{diagnostics::EmittedDiagnostics, source_map::FileName, Session, SourceMap},
@@ -97,10 +97,9 @@ impl Preprocessor<SolcCompiler> for TestOptimizerPreprocessor {
             Ok(())
         });
 
-        // Return if any diagnostics emitted during content parsing.
+        // Warn if any diagnostics emitted during content parsing.
         if let Err(err) = sess.emitted_errors().unwrap() {
-            trace!("failed preprocessing {err}");
-            return Err(SolcError::Message(err.to_string()));
+            warn!("failed preprocessing {err}");
         }
 
         Ok(())
