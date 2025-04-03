@@ -133,7 +133,12 @@ impl<
         T: ArtifactOutput<CompilerContract = C::CompilerContract> + Default,
     > TempProject<C, T>
 {
-    /// Makes sure all resources are created
+    /// Wraps an existing project in a temp dir.
+    pub fn from_project(inner: Project<C, T>) -> std::result::Result<Self, SolcIoError> {
+        Self::create_new(tempdir("tmp_project")?, inner)
+    }
+
+    /// Makes sure all resources are created.
     pub fn create_new(
         root: TempDir,
         inner: Project<C, T>,
@@ -213,6 +218,14 @@ impl<
     /// The configured paths of the project
     pub fn paths_mut(&mut self) -> &mut ProjectPathsConfig<C::Language> {
         &mut self.project_mut().paths
+    }
+
+    /// Deletes the current project and copies it from `source`.
+    pub fn copy_project_from(&self, source: &Path) -> Result<()> {
+        let root = self.root();
+        std::fs::remove_dir_all(root).map_err(|e| SolcIoError::new(e, root))?;
+        std::fs::create_dir_all(root).map_err(|e| SolcIoError::new(e, root))?;
+        copy_dir(source, root)
     }
 
     /// Copies a single file into the projects source

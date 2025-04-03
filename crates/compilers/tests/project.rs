@@ -14,7 +14,8 @@ use foundry_compilers::{
     },
     flatten::Flattener,
     info::ContractInfo,
-    multi::MultiCompilerRestrictions,
+    multi::{MultiCompilerInput, MultiCompilerRestrictions},
+    project::{Preprocessor, ProjectCompiler},
     project_util::*,
     solc::{Restriction, SolcRestrictions, SolcSettings},
     take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
@@ -34,6 +35,7 @@ use semver::Version;
 use similar_asserts::assert_eq;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    env,
     fs::{self},
     io,
     path::{Path, PathBuf, MAIN_SEPARATOR},
@@ -4153,4 +4155,47 @@ contract A { }
 "
         );
     });
+}
+
+#[test]
+fn can_preprocess() {
+    #[derive(Debug)]
+    struct SimplePreprocessor(tempfile::NamedTempFile);
+
+    impl Preprocessor<MultiCompiler> for SimplePreprocessor {
+        fn preprocess(
+            &self,
+            _compiler: &MultiCompiler,
+            input: &mut MultiCompilerInput,
+            _paths: &ProjectPathsConfig<MultiCompilerLanguage>,
+            mocks: &mut HashSet<PathBuf>,
+        ) -> foundry_compilers::error::Result<()> {
+            let MultiCompilerInput::Solc(input) = input else {
+                return Ok(());
+            };
+            for src in input.input.sources.values_mut() {
+                src.content = src.content.replace("++", "--").into();
+            }
+            mocks.insert(self.0.path().to_path_buf());
+            Ok(())
+        }
+    }
+
+    let root =
+        canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/preprocessor"))
+            .unwrap();
+
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
+    project.copy_project_from(&root).unwrap();
+    let r = ProjectCompiler::new(project.project())
+        .unwrap()
+        .with_preprocessor(SimplePreprocessor(tempfile::NamedTempFile::new().unwrap()))
+        .compile();
+
+    let compiled = match r {
+        Ok(compiled) => compiled,
+        Err(e) => panic!("failed to compile: {e}"),
+    };
+    compiled.assert_success();
+    assert!(!compiled.is_unchanged());
 }

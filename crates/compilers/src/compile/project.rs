@@ -109,15 +109,35 @@ use crate::{
     output::{AggregatedCompilerOutput, Builds},
     report,
     resolver::{GraphEdges, ResolvedSources},
-    ArtifactOutput, CompilerSettings, Graph, Project, ProjectCompileOutput, Sources,
+    ArtifactOutput, CompilerSettings, Graph, Project, ProjectCompileOutput, ProjectPathsConfig,
+    Sources,
 };
 use foundry_compilers_core::error::Result;
 use rayon::prelude::*;
 use semver::Version;
-use std::{collections::HashMap, path::PathBuf, time::Instant};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    path::PathBuf,
+    time::Instant,
+};
 
 /// A set of different Solc installations with their version and the sources to be compiled
 pub(crate) type VersionedSources<'a, L, S> = HashMap<L, Vec<(Version, Sources, (&'a str, &'a S))>>;
+
+/// Invoked before the actual compiler invocation and can override the input.
+///
+/// Updates the list of identified cached mocks (if any) to be stored in cache and updates the
+/// compiler input.
+pub trait Preprocessor<C: Compiler>: Debug {
+    fn preprocess(
+        &self,
+        compiler: &C,
+        input: &mut C::Input,
+        paths: &ProjectPathsConfig<C::Language>,
+        mocks: &mut HashSet<PathBuf>,
+    ) -> Result<()>;
+}
 
 #[derive(Debug)]
 pub struct ProjectCompiler<
@@ -132,6 +152,8 @@ pub struct ProjectCompiler<
     primary_profiles: HashMap<PathBuf, &'a str>,
     /// how to compile all the sources
     sources: CompilerSources<'a, C::Language, C::Settings>,
+    /// Optional preprocessor
+    preprocessor: Option<Box<dyn Preprocessor<C>>>,
 }
 
 impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
@@ -165,7 +187,11 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             sources,
         };
 
-        Ok(Self { edges, primary_profiles, project, sources })
+        Ok(Self { edges, primary_profiles, project, sources, preprocessor: None })
+    }
+
+    pub fn with_preprocessor(self, preprocessor: impl Preprocessor<C> + 'static) -> Self {
+        Self { preprocessor: Some(Box::new(preprocessor)), ..self }
     }
 
     /// Compiles all the sources of the `Project` in the appropriate mode
@@ -202,17 +228,17 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///   - check cache
     fn preprocess(self) -> Result<PreprocessedState<'a, T, C>> {
         trace!("preprocessing");
-        let Self { edges, project, mut sources, primary_profiles } = self;
+        let Self { edges, project, mut sources, primary_profiles, preprocessor } = self;
 
         // convert paths on windows to ensure consistency with the `CompilerOutput` `solc` emits,
         // which is unix style `/`
         sources.slash_paths();
 
-        let mut cache = ArtifactsCache::new(project, edges)?;
+        let mut cache = ArtifactsCache::new(project, edges, preprocessor.is_some())?;
         // retain and compile only dirty sources and all their imports
         sources.filter(&mut cache);
 
-        Ok(PreprocessedState { sources, cache, primary_profiles })
+        Ok(PreprocessedState { sources, cache, primary_profiles, preprocessor })
     }
 }
 
@@ -230,6 +256,9 @@ struct PreprocessedState<'a, T: ArtifactOutput<CompilerContract = C::CompilerCon
 
     /// A mapping from a source file path to the primary profile name selected for it.
     primary_profiles: HashMap<PathBuf, &'a str>,
+
+    /// Optional preprocessor
+    preprocessor: Option<Box<dyn Preprocessor<C>>>,
 }
 
 impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
@@ -238,9 +267,9 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     /// advance to the next state by compiling all sources
     fn compile(self) -> Result<CompiledState<'a, T, C>> {
         trace!("compiling");
-        let PreprocessedState { sources, mut cache, primary_profiles } = self;
+        let PreprocessedState { sources, mut cache, primary_profiles, preprocessor } = self;
 
-        let mut output = sources.compile(&mut cache)?;
+        let mut output = sources.compile(&mut cache, preprocessor)?;
 
         // source paths get stripped before handing them over to solc, so solc never uses absolute
         // paths, instead `--base-path <root dir>` is set. this way any metadata that's derived from
@@ -435,6 +464,7 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
     >(
         self,
         cache: &mut ArtifactsCache<'_, T, C>,
+        preprocessor: Option<Box<dyn Preprocessor<C>>>,
     ) -> Result<AggregatedCompilerOutput<C>> {
         let project = cache.project();
         let graph = cache.graph();
@@ -446,6 +476,10 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
         // Include additional paths collected during graph resolution.
         let mut include_paths = project.paths.include_paths.clone();
         include_paths.extend(graph.include_paths().clone());
+
+        // Get current list of mocks from cache. This will be passed to preprocessors and updated
+        // accordingly, then set back in cache.
+        let mut mocks = cache.mocks();
 
         let mut jobs = Vec::new();
         for (language, versioned_sources) in self.sources {
@@ -481,9 +515,21 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
 
                 input.strip_prefix(project.paths.root.as_path());
 
+                if let Some(preprocessor) = preprocessor.as_ref() {
+                    preprocessor.preprocess(
+                        &project.compiler,
+                        &mut input,
+                        &project.paths,
+                        &mut mocks,
+                    )?;
+                }
+
                 jobs.push((input, profile, actually_dirty));
             }
         }
+
+        // Update cache with mocks updated by preprocessors.
+        cache.update_mocks(mocks);
 
         let results = if let Some(num_jobs) = jobs_cnt {
             compile_parallel(&project.compiler, jobs, num_jobs)

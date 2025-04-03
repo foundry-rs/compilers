@@ -169,18 +169,18 @@ impl<D> GraphEdges<D> {
     }
 
     /// Returns all files imported by the given file
-    pub fn imports(&self, file: &Path) -> HashSet<&PathBuf> {
+    pub fn imports(&self, file: &Path) -> HashSet<&Path> {
         if let Some(start) = self.indices.get(file).copied() {
-            NodesIter::new(start, self).skip(1).map(move |idx| &self.rev_indices[&idx]).collect()
+            NodesIter::new(start, self).skip(1).map(move |idx| &*self.rev_indices[&idx]).collect()
         } else {
             HashSet::new()
         }
     }
 
     /// Returns all files that import the given file
-    pub fn importers(&self, file: &Path) -> HashSet<&PathBuf> {
+    pub fn importers(&self, file: &Path) -> HashSet<&Path> {
         if let Some(start) = self.indices.get(file).copied() {
-            self.rev_edges[start].iter().map(move |idx| &self.rev_indices[idx]).collect()
+            self.rev_edges[start].iter().map(move |idx| &*self.rev_indices[idx]).collect()
         } else {
             HashSet::new()
         }
@@ -192,7 +192,7 @@ impl<D> GraphEdges<D> {
     }
 
     /// Returns the path of the given node
-    pub fn node_path(&self, id: usize) -> &PathBuf {
+    pub fn node_path(&self, id: usize) -> &Path {
         &self.rev_indices[&id]
     }
 
@@ -327,7 +327,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     }
 
     /// Returns all files imported by the given file
-    pub fn imports(&self, path: &Path) -> HashSet<&PathBuf> {
+    pub fn imports(&self, path: &Path) -> HashSet<&Path> {
         self.edges.imports(path)
     }
 
@@ -1121,7 +1121,7 @@ impl<D: ParsedSource> Node<D> {
         &self.source.content
     }
 
-    pub fn unpack(&self) -> (&PathBuf, &Source) {
+    pub fn unpack(&self) -> (&Path, &Source) {
         (&self.path, &self.source)
     }
 }
@@ -1199,8 +1199,8 @@ mod tests {
         let dapp_test = graph.node(1);
         assert_eq!(dapp_test.path, paths.sources.join("Dapp.t.sol"));
         assert_eq!(
-            dapp_test.data.imports.iter().map(|i| i.data().path()).collect::<Vec<&PathBuf>>(),
-            vec![&PathBuf::from("ds-test/test.sol"), &PathBuf::from("./Dapp.sol")]
+            dapp_test.data.imports.iter().map(|i| i.data().path()).collect::<Vec<&Path>>(),
+            vec![Path::new("ds-test/test.sol"), Path::new("./Dapp.sol")]
         );
         assert_eq!(graph.imported_nodes(1).to_vec(), vec![2, 0]);
     }

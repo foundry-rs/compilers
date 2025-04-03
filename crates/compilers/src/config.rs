@@ -250,6 +250,26 @@ impl<L> ProjectPathsConfig<L> {
         Self::dapptools(&std::env::current_dir().map_err(|err| SolcError::io(err, "."))?)
     }
 
+    /// Returns true if the given path is a test or script file.
+    pub fn is_test_or_script(&self, path: &Path) -> bool {
+        self.is_test(path) || self.is_script(path)
+    }
+
+    /// Returns true if the given path is a test file.
+    pub fn is_test(&self, path: &Path) -> bool {
+        path_starts_with_rooted(path, &self.tests, &self.root)
+    }
+
+    /// Returns true if the given path is a script file.
+    pub fn is_script(&self, path: &Path) -> bool {
+        path_starts_with_rooted(path, &self.scripts, &self.root)
+    }
+
+    /// Returns true if the given path is a test or script file.
+    pub fn is_source_file(&self, path: &Path) -> bool {
+        !self.is_test_or_script(path)
+    }
+
     /// Returns a new [ProjectPaths] instance that contains all directories configured for this
     /// project
     pub fn paths(&self) -> ProjectPaths {
@@ -683,6 +703,26 @@ impl ProjectPaths {
             .collect();
         self
     }
+
+    /// Returns true if the given path is a test or script file.
+    pub fn is_test_or_script(&self, path: &Path) -> bool {
+        self.is_test(path) || self.is_script(path)
+    }
+
+    /// Returns true if the given path is a test file.
+    pub fn is_test(&self, path: &Path) -> bool {
+        path.starts_with(&self.tests)
+    }
+
+    /// Returns true if the given path is a script file.
+    pub fn is_script(&self, path: &Path) -> bool {
+        path.starts_with(&self.scripts)
+    }
+
+    /// Returns true if the given path is a test or script file.
+    pub fn is_source_file(&self, path: &Path) -> bool {
+        !self.is_test_or_script(path)
+    }
 }
 
 impl Default for ProjectPaths {
@@ -972,6 +1012,17 @@ impl SolcConfigBuilder {
         }
         settings
     }
+}
+
+/// Return true if `a` starts with `b` or `b - root`.
+fn path_starts_with_rooted(a: &Path, b: &Path, root: &Path) -> bool {
+    if a.starts_with(b) {
+        return true;
+    }
+    if let Ok(b) = b.strip_prefix(root) {
+        return a.starts_with(b);
+    }
+    false
 }
 
 #[cfg(test)]

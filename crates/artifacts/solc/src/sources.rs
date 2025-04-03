@@ -198,7 +198,13 @@ impl Source {
     /// Generate a non-cryptographically secure checksum of the file's content.
     #[cfg(feature = "checksum")]
     pub fn content_hash(&self) -> String {
-        alloy_primitives::hex::encode(<md5::Md5 as md5::Digest>::digest(self.content.as_bytes()))
+        Self::content_hash_of(&self.content)
+    }
+
+    /// Generate a non-cryptographically secure checksum of the given source.
+    #[cfg(feature = "checksum")]
+    pub fn content_hash_of(src: &str) -> String {
+        alloy_primitives::hex::encode(<md5::Md5 as md5::Digest>::digest(src))
     }
 }
 
