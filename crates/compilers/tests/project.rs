@@ -4164,7 +4164,7 @@ fn can_preprocess_constructors_and_creation_code() {
         canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/preprocessor"))
             .unwrap();
 
-    let project = TempProject::hardhat().unwrap();
+    let project = TempProject::<MultiCompiler>::dapptools().unwrap();
     project.copy_project_from(&root).unwrap();
     let r = ProjectCompiler::new(project.project())
         .unwrap()
