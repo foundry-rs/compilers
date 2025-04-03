@@ -251,9 +251,8 @@ impl<L> ProjectPathsConfig<L> {
     }
 
     pub(crate) fn is_test_or_script(&self, path: &Path) -> bool {
-        let test_dir = self.tests.strip_prefix(&self.root).unwrap_or(&self.tests);
-        let script_dir = self.scripts.strip_prefix(&self.root).unwrap_or(&self.scripts);
-        path.starts_with(test_dir) || path.starts_with(script_dir)
+        path_starts_with_rooted(path, &self.tests, &self.root)
+            || path_starts_with_rooted(path, &self.scripts, &self.root)
     }
 
     pub(crate) fn is_source_file(&self, path: &Path) -> bool {
@@ -982,6 +981,17 @@ impl SolcConfigBuilder {
         }
         settings
     }
+}
+
+/// Return true if `a` starts with `b` or `b - root`.
+fn path_starts_with_rooted(a: &Path, b: &Path, root: &Path) -> bool {
+    if a.starts_with(b) {
+        return true;
+    }
+    if let Ok(b) = b.strip_prefix(root) {
+        return a.starts_with(b);
+    }
+    false
 }
 
 #[cfg(test)]

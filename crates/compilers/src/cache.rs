@@ -670,7 +670,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 {
     /// Whether given file is a source file or a test/script file.
     fn is_source_file(&self, file: &Path) -> bool {
-        !self.project.paths.is_test_or_script(file)
+        self.project.paths.is_source_file(file)
     }
 
     /// Creates a new cache entry for the file
