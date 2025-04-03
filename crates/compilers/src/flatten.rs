@@ -212,7 +212,7 @@ impl Flattener {
         let sources = Source::read_all_files(vec![target.to_path_buf()])?;
         let graph = Graph::<C::ParsedSource>::resolve_sources(&project.paths, sources)?;
 
-        let ordered_sources = collect_ordered_deps(&target.to_path_buf(), &project.paths, &graph)?;
+        let ordered_sources = collect_ordered_deps(target, &project.paths, &graph)?;
 
         #[cfg(windows)]
         let ordered_sources = {
@@ -244,7 +244,7 @@ impl Flattener {
             sources,
             asts,
             ordered_sources,
-            project_root: project.root().clone(),
+            project_root: project.root().to_path_buf(),
         })
     }
 
@@ -795,12 +795,12 @@ impl Flattener {
 
 /// Performs DFS to collect all dependencies of a target
 fn collect_deps<D: ParsedSource + MaybeSolData>(
-    path: &PathBuf,
+    path: &Path,
     paths: &ProjectPathsConfig<D::Language>,
     graph: &Graph<D>,
     deps: &mut HashSet<PathBuf>,
 ) -> Result<()> {
-    if deps.insert(path.clone()) {
+    if deps.insert(path.to_path_buf()) {
         let target_dir = path.parent().ok_or_else(|| {
             SolcError::msg(format!("failed to get parent directory for \"{}\"", path.display()))
         })?;
@@ -831,7 +831,7 @@ fn collect_deps<D: ParsedSource + MaybeSolData>(
 /// order. If files have the same number of dependencies, we sort them alphabetically.
 /// Target file is always placed last.
 pub fn collect_ordered_deps<D: ParsedSource + MaybeSolData>(
-    path: &PathBuf,
+    path: &Path,
     paths: &ProjectPathsConfig<D::Language>,
     graph: &Graph<D>,
 ) -> Result<Vec<PathBuf>> {
@@ -871,7 +871,7 @@ pub fn collect_ordered_deps<D: ParsedSource + MaybeSolData>(
     let mut ordered_deps =
         paths_with_deps_count.into_iter().map(|(_, path)| path).collect::<Vec<_>>();
 
-    ordered_deps.push(path.clone());
+    ordered_deps.push(path.to_path_buf());
 
     Ok(ordered_deps)
 }

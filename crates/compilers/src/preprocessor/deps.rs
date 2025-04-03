@@ -28,7 +28,7 @@ impl PreprocessorDependencies {
         sess: &Session,
         hir: &Hir<'_>,
         paths: &[PathBuf],
-        src_dir: &PathBuf,
+        src_dir: &Path,
         root_dir: &Path,
         mocks: &mut HashSet<PathBuf>,
     ) -> Self {
@@ -128,7 +128,7 @@ struct BytecodeDependencyCollector<'hir> {
     /// Source content of current contract.
     src: &'hir str,
     /// Project source dir, used to determine if referenced contract is a source contract.
-    src_dir: &'hir PathBuf,
+    src_dir: &'hir Path,
     /// Dependencies collected for current contract.
     dependencies: Vec<BytecodeDependency>,
     /// Unique HIR ids of contracts referenced from current contract.
@@ -140,7 +140,7 @@ impl<'hir> BytecodeDependencyCollector<'hir> {
         source_map: &'hir SourceMap,
         hir: &'hir Hir<'hir>,
         src: &'hir str,
-        src_dir: &'hir PathBuf,
+        src_dir: &'hir Path,
     ) -> Self {
         Self {
             source_map,

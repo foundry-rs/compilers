@@ -22,8 +22,9 @@ manual-string-new = "warn"
 uninlined-format-args = "warn"
 use-self = "warn"
 redundant-clone = "warn"
-# until <https://github.com/rust-lang/rust-clippy/issues/13885> is fixed
-literal-string-with-formatting-args = "allow"
+
+result-large-err = "allow"
+large-enum-variant = "allow"
 
 [workspace.lints.rust]
 rust-2018-idioms = "warn"
