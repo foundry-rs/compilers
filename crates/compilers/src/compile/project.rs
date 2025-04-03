@@ -479,7 +479,7 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
 
         // Get current list of mocks from cache. This will be passed to preprocessors and updated
         // accordingly, then set back in cache.
-        let mocks = &mut cache.mocks();
+        let mut mocks = cache.mocks();
 
         let mut jobs = Vec::new();
         for (language, versioned_sources) in self.sources {
@@ -520,7 +520,7 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
                         &project.compiler,
                         &mut input,
                         &project.paths,
-                        mocks,
+                        &mut mocks,
                     )?;
                 }
 
@@ -529,7 +529,7 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
         }
 
         // Update cache with mocks updated by preprocessors.
-        cache.update_mocks(mocks.clone());
+        cache.update_mocks(mocks);
 
         let results = if let Some(num_jobs) = jobs_cnt {
             compile_parallel(&project.compiler, jobs, num_jobs)
