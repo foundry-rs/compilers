@@ -905,7 +905,7 @@ pub fn apply_updates(sources: &mut Sources, updates: Updates) {
 
 /// Utility function to change source content ranges with provided updates.
 /// Assumes that the updates are sorted.
-pub fn replace_source_content<'a>(
+pub fn replace_source_content(
     source: impl Into<String>,
     updates: impl IntoIterator<Item = (Range<usize>, impl AsRef<str>)>,
 ) -> String {
