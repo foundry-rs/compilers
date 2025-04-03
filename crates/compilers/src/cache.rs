@@ -4,7 +4,6 @@ use crate::{
     buildinfo::RawBuildInfo,
     compilers::{Compiler, CompilerSettings, Language},
     output::Builds,
-    preprocessor::interface_repr_hash,
     resolver::GraphEdges,
     ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
     ProjectPaths, ProjectPathsConfig, SourceCompilationKind,
@@ -25,6 +24,9 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, UNIX_EPOCH},
 };
+
+mod iface;
+use iface::interface_repr_hash;
 
 /// ethers-rs format version
 ///

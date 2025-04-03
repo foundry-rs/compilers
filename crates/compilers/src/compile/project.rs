@@ -126,8 +126,9 @@ use std::{
 pub(crate) type VersionedSources<'a, L, S> = HashMap<L, Vec<(Version, Sources, (&'a str, &'a S))>>;
 
 /// Invoked before the actual compiler invocation and can override the input.
-/// Updates the list of identified cached mocks (if any) to be stored in cache and returns
-/// preprocessed compiler input.
+///
+/// Updates the list of identified cached mocks (if any) to be stored in cache and updates the
+/// compiler input.
 pub trait Preprocessor<C: Compiler>: Debug {
     fn preprocess(
         &self,

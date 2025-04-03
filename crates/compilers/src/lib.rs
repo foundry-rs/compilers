@@ -24,8 +24,6 @@ pub use resolver::Graph;
 pub mod compilers;
 pub use compilers::*;
 
-pub mod preprocessor;
-
 mod compile;
 pub use compile::{
     output::{AggregatedCompilerOutput, ProjectCompileOutput},
@@ -41,8 +39,9 @@ pub use filter::{FileFilter, SparseOutputFilter, TestFileFilter};
 pub mod report;
 
 /// Updates to be applied to the sources.
-/// source_path -> (start, end, new_value)
-pub(crate) type Updates = HashMap<PathBuf, BTreeSet<(usize, usize, String)>>;
+///
+/// `source_path -> (start, end, new_value)`
+pub type Updates = HashMap<PathBuf, BTreeSet<(usize, usize, String)>>;
 
 /// Utilities for creating, mocking and testing of (temporary) projects
 #[cfg(feature = "project-util")]
@@ -65,6 +64,8 @@ use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
 use output::sources::{VersionedSourceFile, VersionedSourceFiles};
 use project::ProjectCompiler;
 use semver::Version;
+use solar_parse::Parser;
+use solar_sema::interface::{diagnostics::EmittedDiagnostics, source_map::FileName, Session};
 use solc::SolcSettings;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
@@ -891,7 +892,7 @@ fn rebase_path(base: &Path, path: &Path) -> PathBuf {
 }
 
 /// Utility function to apply a set of updates to provided sources.
-fn apply_updates(sources: &mut Sources, updates: Updates) {
+pub fn apply_updates(sources: &mut Sources, updates: Updates) {
     for (path, source) in sources {
         if let Some(updates) = updates.get(path) {
             source.content = Arc::new(replace_source_content(
@@ -904,20 +905,42 @@ fn apply_updates(sources: &mut Sources, updates: Updates) {
 
 /// Utility function to change source content ranges with provided updates.
 /// Assumes that the updates are sorted.
-fn replace_source_content<'a>(
-    source: &str,
-    updates: impl IntoIterator<Item = (Range<usize>, &'a str)>,
+pub fn replace_source_content<'a>(
+    source: impl Into<String>,
+    updates: impl IntoIterator<Item = (Range<usize>, impl AsRef<str>)>,
 ) -> String {
     let mut offset = 0;
-    let mut content = source.as_bytes().to_vec();
+    let mut content = source.into();
     for (range, new_value) in updates {
         let update_range = utils::range_by_offset(&range, offset);
-
-        content.splice(update_range.start..update_range.end, new_value.bytes());
+        let new_value = new_value.as_ref();
+        content.replace_range(update_range.clone(), new_value);
         offset += new_value.len() as isize - (update_range.end - update_range.start) as isize;
     }
+    content
+}
 
-    String::from_utf8(content).unwrap()
+pub(crate) fn parse_one_source<R>(
+    content: &str,
+    path: &Path,
+    f: impl FnOnce(solar_sema::ast::SourceUnit<'_>) -> R,
+) -> Result<R, EmittedDiagnostics> {
+    let sess = Session::builder().with_buffer_emitter(Default::default()).build();
+    let res = sess.enter(|| -> solar_parse::interface::Result<_> {
+        let arena = solar_parse::ast::Arena::new();
+        let filename = FileName::Real(path.to_path_buf());
+        let mut parser = Parser::from_source_code(&sess, &arena, filename, content.to_string())?;
+        let ast = parser.parse_file().map_err(|e| e.emit())?;
+        Ok(f(ast))
+    });
+
+    // Return if any diagnostics emitted during content parsing.
+    if let Err(err) = sess.emitted_errors().unwrap() {
+        trace!("failed parsing {path:?}:\n{err}");
+        return Err(err);
+    }
+
+    Ok(res.unwrap())
 }
 
 #[cfg(test)]

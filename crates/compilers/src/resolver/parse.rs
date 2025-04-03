@@ -51,7 +51,7 @@ impl SolData {
         let mut contract_names = Vec::new();
         let mut parse_result = Ok(());
 
-        let result = crate::preprocessor::parse_one_source(content, file, |ast| {
+        let result = crate::parse_one_source(content, file, |ast| {
             for item in ast.items.iter() {
                 let loc = item.span.lo().to_usize()..item.span.hi().to_usize();
                 match &item.kind {

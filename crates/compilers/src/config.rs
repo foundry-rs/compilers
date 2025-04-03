@@ -250,12 +250,23 @@ impl<L> ProjectPathsConfig<L> {
         Self::dapptools(&std::env::current_dir().map_err(|err| SolcError::io(err, "."))?)
     }
 
-    pub(crate) fn is_test_or_script(&self, path: &Path) -> bool {
-        path_starts_with_rooted(path, &self.tests, &self.root)
-            || path_starts_with_rooted(path, &self.scripts, &self.root)
+    /// Returns true if the given path is a test or script file.
+    pub fn is_test_or_script(&self, path: &Path) -> bool {
+        self.is_test(path) || self.is_script(path)
     }
 
-    pub(crate) fn is_source_file(&self, path: &Path) -> bool {
+    /// Returns true if the given path is a test file.
+    pub fn is_test(&self, path: &Path) -> bool {
+        path_starts_with_rooted(path, &self.tests, &self.root)
+    }
+
+    /// Returns true if the given path is a script file.
+    pub fn is_script(&self, path: &Path) -> bool {
+        path_starts_with_rooted(path, &self.scripts, &self.root)
+    }
+
+    /// Returns true if the given path is a test or script file.
+    pub fn is_source_file(&self, path: &Path) -> bool {
         !self.is_test_or_script(path)
     }
 
@@ -691,6 +702,26 @@ impl ProjectPaths {
             .map(|path| strip_prefix_owned(path, base))
             .collect();
         self
+    }
+
+    /// Returns true if the given path is a test or script file.
+    pub fn is_test_or_script(&self, path: &Path) -> bool {
+        self.is_test(path) || self.is_script(path)
+    }
+
+    /// Returns true if the given path is a test file.
+    pub fn is_test(&self, path: &Path) -> bool {
+        path.starts_with(&self.tests)
+    }
+
+    /// Returns true if the given path is a script file.
+    pub fn is_script(&self, path: &Path) -> bool {
+        path.starts_with(&self.scripts)
+    }
+
+    /// Returns true if the given path is a test or script file.
+    pub fn is_source_file(&self, path: &Path) -> bool {
+        !self.is_test_or_script(path)
     }
 }
 
