@@ -150,6 +150,14 @@ impl SolData {
         }
     }
 
+    /// Parses the version pragma and returns the corresponding SemVer version requirement.
+    ///
+    /// See [`parse_version_req`](Self::parse_version_req).
+    pub fn parse_version_pragma(pragma: &str) -> Option<Result<VersionReq, semver::Error>> {
+        let version = utils::find_version_pragma(pragma)?.as_str();
+        Some(Self::parse_version_req(version))
+    }
+
     /// Returns the corresponding SemVer version requirement for the solidity version.
     ///
     /// Note: This is a workaround for the fact that `VersionReq::parse` does not support whitespace
