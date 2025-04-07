@@ -5,11 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0](https://github.com/foundry-rs/compilers/releases/tag/v0.14.0) - 2025-04-07
+
+### Features
+
+- Add support for preprocessing sources ([#252](https://github.com/foundry-rs/compilers/issues/252))
+
+### Miscellaneous Tasks
+
+- Simplify pragma parsing ([#260](https://github.com/foundry-rs/compilers/issues/260))
+
+### Styling
+
+- Update file extension for compatibility ([#258](https://github.com/foundry-rs/compilers/issues/258))
+
 ## [0.13.5](https://github.com/foundry-rs/compilers/releases/tag/v0.13.5) - 2025-03-14
 
 ### Bug Fixes
 
 - Missing check for normalization ([#257](https://github.com/foundry-rs/compilers/issues/257))
+
+### Miscellaneous Tasks
+
+- Release 0.13.5
 
 ## [0.13.4](https://github.com/foundry-rs/compilers/releases/tag/v0.13.4) - 2025-03-14
 
