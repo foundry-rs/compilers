@@ -566,10 +566,10 @@ mod tests {
         //
         // `dir_path`
         // ├── dependency
-        // │   └── Math.sol
+        // │   └── Math.sol
         // └── project
         //     ├── node_modules
-        //     │   └── dependency -> symlink to actual 'dependency' directory
+        //     │   └── dependency -> symlink to actual 'dependency' directory
         //     └── src (`cwd`)
         //         └── Token.sol
 

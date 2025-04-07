@@ -38,6 +38,11 @@ pub use filter::{FileFilter, SparseOutputFilter, TestFileFilter};
 
 pub mod report;
 
+/// Updates to be applied to the sources.
+///
+/// `source_path -> (start, end, new_value)`
+pub type Updates = HashMap<PathBuf, BTreeSet<(usize, usize, String)>>;
+
 /// Utilities for creating, mocking and testing of (temporary) projects
 #[cfg(feature = "project-util")]
 pub mod project_util;
@@ -59,10 +64,14 @@ use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
 use output::sources::{VersionedSourceFile, VersionedSourceFiles};
 use project::ProjectCompiler;
 use semver::Version;
+use solar_parse::Parser;
+use solar_sema::interface::{diagnostics::EmittedDiagnostics, source_map::FileName, Session};
 use solc::SolcSettings;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    ops::Range,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 /// Represents a project workspace and handles `solc` compiling of all contracts in that workspace.
@@ -172,13 +181,13 @@ where
         let mut sources = Vec::new();
         let mut unique_paths = HashSet::new();
         let (path, source) = graph.node(*target_index).unpack();
-        unique_paths.insert(path.clone());
+        unique_paths.insert(path);
         sources.push((path, source));
         sources.extend(
             graph
                 .all_imported_nodes(*target_index)
                 .map(|index| graph.node(index).unpack())
-                .filter(|(p, _)| unique_paths.insert(p.to_path_buf())),
+                .filter(|(p, _)| unique_paths.insert(*p)),
         );
 
         let root = self.root();
@@ -205,27 +214,27 @@ where
 
 impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Project<C, T> {
     /// Returns the path to the artifacts directory
-    pub fn artifacts_path(&self) -> &PathBuf {
+    pub fn artifacts_path(&self) -> &Path {
         &self.paths.artifacts
     }
 
     /// Returns the path to the sources directory
-    pub fn sources_path(&self) -> &PathBuf {
+    pub fn sources_path(&self) -> &Path {
         &self.paths.sources
     }
 
     /// Returns the path to the cache file
-    pub fn cache_path(&self) -> &PathBuf {
+    pub fn cache_path(&self) -> &Path {
         &self.paths.cache
     }
 
     /// Returns the path to the `build-info` directory nested in the artifacts dir
-    pub fn build_info_path(&self) -> &PathBuf {
+    pub fn build_info_path(&self) -> &Path {
         &self.paths.build_infos
     }
 
     /// Returns the root directory of the project
-    pub fn root(&self) -> &PathBuf {
+    pub fn root(&self) -> &Path {
         &self.paths.root
     }
 
@@ -341,7 +350,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Pro
             std::fs::remove_file(self.cache_path())
                 .map_err(|err| SolcIoError::new(err, self.cache_path()))?;
             if let Some(cache_folder) =
-                self.cache_path().parent().filter(|cache_folder| self.root() != cache_folder)
+                self.cache_path().parent().filter(|cache_folder| self.root() != *cache_folder)
             {
                 // remove the cache folder if the cache file was the only file
                 if cache_folder
@@ -360,14 +369,14 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Pro
         // clean the artifacts dir
         if self.artifacts_path().exists() && self.root() != self.artifacts_path() {
             std::fs::remove_dir_all(self.artifacts_path())
-                .map_err(|err| SolcIoError::new(err, self.artifacts_path().clone()))?;
+                .map_err(|err| SolcIoError::new(err, self.artifacts_path()))?;
             trace!("removed artifacts dir \"{}\"", self.artifacts_path().display());
         }
 
         // also clean the build-info dir, in case it's not nested in the artifacts dir
         if self.build_info_path().exists() && self.root() != self.build_info_path() {
             std::fs::remove_dir_all(self.build_info_path())
-                .map_err(|err| SolcIoError::new(err, self.build_info_path().clone()))?;
+                .map_err(|err| SolcIoError::new(err, self.build_info_path()))?;
             tracing::trace!("removed build-info dir \"{}\"", self.build_info_path().display());
         }
 
@@ -882,6 +891,58 @@ fn rebase_path(base: &Path, path: &Path) -> PathBuf {
     new_path.to_slash_lossy().into_owned().into()
 }
 
+/// Utility function to apply a set of updates to provided sources.
+pub fn apply_updates(sources: &mut Sources, updates: Updates) {
+    for (path, source) in sources {
+        if let Some(updates) = updates.get(path) {
+            source.content = Arc::new(replace_source_content(
+                source.content.as_str(),
+                updates.iter().map(|(start, end, update)| ((*start..*end), update.as_str())),
+            ));
+        }
+    }
+}
+
+/// Utility function to change source content ranges with provided updates.
+/// Assumes that the updates are sorted.
+pub fn replace_source_content(
+    source: impl Into<String>,
+    updates: impl IntoIterator<Item = (Range<usize>, impl AsRef<str>)>,
+) -> String {
+    let mut offset = 0;
+    let mut content = source.into();
+    for (range, new_value) in updates {
+        let update_range = utils::range_by_offset(&range, offset);
+        let new_value = new_value.as_ref();
+        content.replace_range(update_range.clone(), new_value);
+        offset += new_value.len() as isize - (update_range.end - update_range.start) as isize;
+    }
+    content
+}
+
+pub(crate) fn parse_one_source<R>(
+    content: &str,
+    path: &Path,
+    f: impl FnOnce(solar_sema::ast::SourceUnit<'_>) -> R,
+) -> Result<R, EmittedDiagnostics> {
+    let sess = Session::builder().with_buffer_emitter(Default::default()).build();
+    let res = sess.enter(|| -> solar_parse::interface::Result<_> {
+        let arena = solar_parse::ast::Arena::new();
+        let filename = FileName::Real(path.to_path_buf());
+        let mut parser = Parser::from_source_code(&sess, &arena, filename, content.to_string())?;
+        let ast = parser.parse_file().map_err(|e| e.emit())?;
+        Ok(f(ast))
+    });
+
+    // Return if any diagnostics emitted during content parsing.
+    if let Err(err) = sess.emitted_errors().unwrap() {
+        trace!("failed parsing {path:?}:\n{err}");
+        return Err(err);
+    }
+
+    Ok(res.unwrap())
+}
+
 #[cfg(test)]
 #[cfg(feature = "svm-solc")]
 mod tests {
@@ -1030,5 +1091,55 @@ mod tests {
             )
             .unwrap();
         assert!(resolved.exists());
+    }
+
+    #[test]
+    fn test_replace_source_content() {
+        let original_content = r#"
+library Lib {
+    function libFn() internal {
+        // logic to keep
+    }
+}
+contract A {
+    function a() external {}
+    function b() public {}
+    function c() internal {
+        // logic logic logic
+    }
+    function d() private {}
+    function e() external {
+        // logic logic logic
+    }
+}"#;
+
+        let updates = vec![
+            // Replace function libFn() visibility to external
+            (36..44, "external"),
+            // Replace contract A name to contract B
+            (80..90, "contract B"),
+            // Remove function c()
+            (159..222, ""),
+            // Replace function e() logic
+            (276..296, "// no logic"),
+        ];
+
+        assert_eq!(
+            replace_source_content(original_content, updates),
+            r#"
+library Lib {
+    function libFn() external {
+        // logic to keep
+    }
+}
+contract B {
+    function a() external {}
+    function b() public {}
+    function d() private {}
+    function e() external {
+        // no logic
+    }
+}"#
+        );
     }
 }

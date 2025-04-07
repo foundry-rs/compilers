@@ -2,7 +2,8 @@
 /target
 /Cargo.lock
 
-cache/
+/cache
+test-data/**/cache/
 
 .vscode
 /.envrc
