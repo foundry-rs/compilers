@@ -23,6 +23,11 @@ serde_json.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 
+# hasher
+xxhash-rust = { version = "0.8", optional = true, default-features = false, features = [
+    "xxh3",
+] }
+
 # regex
 regex = { workspace = true, optional = true }
 
@@ -46,6 +51,7 @@ tempfile.workspace = true
 
 [features]
 async = ["dep:tokio"]
+hasher = ["dep:xxhash-rust"]
 project-util = ["dep:tempfile", "dep:fs_extra"]
 regex = ["dep:regex"]
 svm-solc = ["dep:svm", "dep:tokio"]

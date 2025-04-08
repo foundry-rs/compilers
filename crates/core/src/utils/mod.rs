@@ -78,6 +78,32 @@ pub static SUPPORTS_BASE_PATH: Lazy<VersionReq> =
 pub static SUPPORTS_INCLUDE_PATH: Lazy<VersionReq> =
     Lazy::new(|| VersionReq::parse(">=0.8.8").unwrap());
 
+/// A non-cryptographic hash function for creating unique identifiers.
+///
+/// The exact algorithm being used shouldn't matter.
+// See Hardhat: https://github.com/NomicFoundation/hardhat/blob/e9ab5332a5505a6d1fe9bfbc687f5f46bdff6dd7/packages/hardhat-core/src/internal/util/hash.ts#L1-L16
+#[cfg(feature = "hasher")]
+pub fn unique_hash(input: impl AsRef<[u8]>) -> String {
+    encode_hash(xxhash_rust::xxh3::xxh3_64(input.as_ref()))
+}
+
+/// A non-cryptographic hash function for creating unique identifiers.
+///
+/// See [`unique_hash`] for more details.
+#[cfg(feature = "hasher")]
+pub fn unique_hash_many(inputs: impl IntoIterator<Item = impl AsRef<[u8]>>) -> String {
+    let mut hasher = xxhash_rust::xxh3::Xxh3Default::new();
+    for input in inputs {
+        hasher.update(input.as_ref());
+    }
+    encode_hash(hasher.digest())
+}
+
+#[cfg(feature = "hasher")]
+fn encode_hash(x: u64) -> String {
+    hex::encode(x.to_be_bytes())
+}
+
 /// Move a range by a specified offset
 pub fn range_by_offset(range: &Range<usize>, offset: isize) -> Range<usize> {
     Range {
