@@ -204,7 +204,7 @@ impl Source {
     /// Generate a non-cryptographically secure checksum of the given source.
     #[cfg(feature = "checksum")]
     pub fn content_hash_of(src: &str) -> String {
-        alloy_primitives::hex::encode(<md5::Md5 as md5::Digest>::digest(src))
+        foundry_compilers_core::utils::unique_hash(src)
     }
 }
 

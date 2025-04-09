@@ -46,7 +46,6 @@ alloy-json-abi = { version = "0.8", features = ["serde_json"] }
 alloy-primitives = { version = "0.8", features = ["serde", "rand"] }
 cfg-if = "1.0"
 dunce = "1.0"
-md-5 = "0.10"
 memmap2 = "0.9"
 path-slash = "0.2"
 rayon = "1.8"

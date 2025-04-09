@@ -3,9 +3,7 @@
 use crate::compilers::{
     CompilationError, CompilerContract, CompilerInput, CompilerOutput, Language,
 };
-use alloy_primitives::hex;
 use foundry_compilers_core::{error::Result, utils};
-use md5::Digest;
 use semver::Version;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
@@ -97,22 +95,13 @@ impl<L: Language> RawBuildInfo<L> {
         let version = input.version().clone();
         let build_context = BuildContext::new(input, output)?;
 
-        let mut hasher = md5::Md5::new();
-
-        hasher.update(ETHERS_FORMAT_VERSION);
-
         let solc_short = format!("{}.{}.{}", version.major, version.minor, version.patch);
-        hasher.update(&solc_short);
-        hasher.update(version.to_string());
-
         let input = serde_json::to_value(input)?;
-        hasher.update(&serde_json::to_string(&input)?);
-
-        // create the hash for `{_format,solcVersion,solcLongVersion,input}`
-        // N.B. this is not exactly the same as hashing the json representation of these values but
-        // the must efficient one
-        let result = hasher.finalize();
-        let id = hex::encode(result);
+        let id = utils::unique_hash_many([
+            ETHERS_FORMAT_VERSION,
+            &version.to_string(),
+            &serde_json::to_string(&input)?,
+        ]);
 
         let mut build_info = BTreeMap::new();
 

@@ -607,8 +607,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     ///
     /// There can be multiple `BuildInfo`, since we support multiple versions.
     ///
-    /// The created files have the md5 hash `{_format,solcVersion,solcLongVersion,input}` as their
-    /// file name
+    /// The created files have a unique identifier as their name.
     pub fn write_build_infos(&self, build_info_dir: &Path) -> Result<(), SolcError> {
         if self.build_infos.is_empty() {
             return Ok(());
