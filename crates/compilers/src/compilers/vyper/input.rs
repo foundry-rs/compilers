@@ -6,7 +6,7 @@ use crate::{
 use foundry_compilers_artifacts::sources::{Source, Sources};
 use semver::Version;
 use serde::Serialize;
-use std::{borrow::Cow, path::Path};
+use std::path::Path;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct VyperVersionedInput {
@@ -27,10 +27,6 @@ impl CompilerInput for VyperVersionedInput {
         version: Version,
     ) -> Self {
         Self { input: VyperInput::new(sources, settings, &version), version }
-    }
-
-    fn compiler_name(&self) -> Cow<'static, str> {
-        "Vyper".into()
     }
 
     fn strip_prefix(&mut self, base: &Path) {
