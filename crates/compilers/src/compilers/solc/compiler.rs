@@ -128,9 +128,7 @@ impl Solc {
     /// Parses the given source looking for the `pragma` definition and
     /// returns the corresponding SemVer version requirement.
     pub fn source_version_req(source: &Source) -> Result<VersionReq> {
-        let version =
-            utils::find_version_pragma(&source.content).ok_or(SolcError::PragmaNotFound)?;
-        Ok(SolData::parse_version_req(version.as_str())?)
+        Ok(SolData::parse_version_pragma(&source.content).ok_or(SolcError::PragmaNotFound)??)
     }
 
     /// Given a Solidity source, it detects the latest compiler version which can be used

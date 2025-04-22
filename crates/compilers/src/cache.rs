@@ -25,6 +25,9 @@ use std::{
     time::{Duration, UNIX_EPOCH},
 };
 
+mod iface;
+use iface::interface_repr_hash;
+
 /// ethers-rs format version
 ///
 /// `ethers-solc` uses a different format version id, but the actual format is consistent with
@@ -45,16 +48,20 @@ pub struct CompilerCache<S = Settings> {
     pub files: BTreeMap<PathBuf, CacheEntry>,
     pub builds: BTreeSet<String>,
     pub profiles: BTreeMap<String, S>,
+    pub preprocessed: bool,
+    pub mocks: HashSet<PathBuf>,
 }
 
 impl<S> CompilerCache<S> {
-    pub fn new(format: String, paths: ProjectPaths) -> Self {
+    pub fn new(format: String, paths: ProjectPaths, preprocessed: bool) -> Self {
         Self {
             format,
             paths,
             files: Default::default(),
             builds: Default::default(),
             profiles: Default::default(),
+            preprocessed,
+            mocks: Default::default(),
         }
     }
 }
@@ -361,10 +368,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     {
         match tokio::task::spawn_blocking(f).await {
             Ok(res) => res,
-            Err(_) => Err(SolcError::io(
-                std::io::Error::new(std::io::ErrorKind::Other, "background task failed"),
-                "",
-            )),
+            Err(_) => Err(SolcError::io(std::io::Error::other("background task failed"), "")),
         }
     }
 }
@@ -377,6 +381,8 @@ impl<S> Default for CompilerCache<S> {
             files: Default::default(),
             paths: Default::default(),
             profiles: Default::default(),
+            preprocessed: false,
+            mocks: Default::default(),
         }
     }
 }
@@ -384,7 +390,7 @@ impl<S> Default for CompilerCache<S> {
 impl<'a, S: CompilerSettings> From<&'a ProjectPathsConfig> for CompilerCache<S> {
     fn from(config: &'a ProjectPathsConfig) -> Self {
         let paths = config.paths_relative();
-        Self::new(Default::default(), paths)
+        Self::new(Default::default(), paths, false)
     }
 }
 
@@ -411,6 +417,8 @@ pub struct CacheEntry {
     pub last_modification_date: u64,
     /// hash to identify whether the content of the file changed
     pub content_hash: String,
+    /// hash of the interface representation of the file, if it's a source file
+    pub interface_repr_hash: Option<String>,
     /// identifier name see [`foundry_compilers_core::utils::source_name()`]
     pub source_name: PathBuf,
     /// fully resolved imports of the file
@@ -654,11 +662,19 @@ pub(crate) struct ArtifactsCacheInner<
 
     /// The file hashes.
     pub content_hashes: HashMap<PathBuf, String>,
+
+    /// The interface representations for source files.
+    pub interface_repr_hashes: HashMap<PathBuf, String>,
 }
 
 impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ArtifactsCacheInner<'_, T, C>
 {
+    /// Whether given file is a source file or a test/script file.
+    fn is_source_file(&self, file: &Path) -> bool {
+        self.project.paths.is_source_file(file)
+    }
+
     /// Creates a new cache entry for the file
     fn create_cache_entry(&mut self, file: PathBuf, source: &Source) {
         let imports = self
@@ -668,10 +684,14 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             .map(|import| strip_prefix(import, self.project.root()).into())
             .collect();
 
+        let interface_repr_hash = (self.cache.preprocessed && self.is_source_file(&file))
+            .then(|| self.interface_repr_hash(source, &file).to_string());
+
         let entry = CacheEntry {
             last_modification_date: CacheEntry::read_last_modification_date(&file)
                 .unwrap_or_default(),
             content_hash: source.content_hash(),
+            interface_repr_hash,
             source_name: strip_prefix(&file, self.project.root()).into(),
             imports,
             version_requirement: self.edges.version_requirement(&file).map(|v| v.to_string()),
@@ -681,6 +701,25 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         };
 
         self.cache.files.insert(file, entry);
+    }
+
+    /// Gets or calculates the content hash for the given source file.
+    fn content_hash(&mut self, source: &Source, file: &Path) -> &str {
+        self.content_hashes.entry(file.to_path_buf()).or_insert_with(|| source.content_hash())
+    }
+
+    /// Gets or calculates the interface representation hash for the given source file.
+    fn interface_repr_hash(&mut self, source: &Source, file: &Path) -> &str {
+        self.interface_repr_hashes.entry(file.to_path_buf()).or_insert_with(|| {
+            if let Some(r) = interface_repr_hash(&source.content, file) {
+                return r;
+            }
+            // Equivalent to: self.content_hash(source, file).into()
+            self.content_hashes
+                .entry(file.to_path_buf())
+                .or_insert_with(|| source.content_hash())
+                .clone()
+        })
     }
 
     /// Returns the set of [Source]s that need to be compiled to produce artifacts for requested
@@ -703,7 +742,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 
             // If we are missing artifact for file, compile it.
             if self.is_missing_artifacts(file, version, profile) {
-                compile_complete.insert(file.clone());
+                compile_complete.insert(file.to_path_buf());
             }
 
             // Ensure that we have a cache entry for all sources.
@@ -717,15 +756,15 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         for source in &compile_complete {
             for import in self.edges.imports(source) {
                 if !compile_complete.contains(import) {
-                    compile_optimized.insert(import.clone());
+                    compile_optimized.insert(import);
                 }
             }
         }
 
         sources.retain(|file, source| {
-            source.kind = if compile_complete.contains(file) {
+            source.kind = if compile_complete.contains(file.as_path()) {
                 SourceCompilationKind::Complete
-            } else if compile_optimized.contains(file) {
+            } else if compile_optimized.contains(file.as_path()) {
                 SourceCompilationKind::Optimized
             } else {
                 return false;
@@ -765,10 +804,12 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             return true;
         }
 
-        false
+        // If any requested extra files are missing for any artifact, mark source as dirty to
+        // generate them
+        self.missing_extra_files()
     }
 
-    // Walks over all cache entires, detects dirty files and removes them from cache.
+    // Walks over all cache entries, detects dirty files and removes them from cache.
     fn find_and_remove_dirty(&mut self) {
         fn populate_dirty_files<D>(
             file: &Path,
@@ -845,14 +886,47 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 
             // Pre-add all sources that are guaranteed to be dirty
             for file in sources.keys() {
-                if self.is_dirty_impl(file) {
+                if self.is_dirty_impl(file, false) {
                     self.dirty_sources.insert(file.clone());
                 }
             }
 
-            // Perform DFS to find direct/indirect importers of dirty files.
-            for file in self.dirty_sources.clone().iter() {
-                populate_dirty_files(file, &mut self.dirty_sources, &edges);
+            if !self.cache.preprocessed {
+                // Perform DFS to find direct/indirect importers of dirty files.
+                for file in self.dirty_sources.clone().iter() {
+                    populate_dirty_files(file, &mut self.dirty_sources, &edges);
+                }
+            } else {
+                // Mark sources as dirty based on their imports
+                for file in sources.keys() {
+                    if self.dirty_sources.contains(file) {
+                        continue;
+                    }
+                    let is_src = self.is_source_file(file);
+                    for import in edges.imports(file) {
+                        // Any source file importing dirty source file is dirty.
+                        if is_src && self.dirty_sources.contains(import) {
+                            self.dirty_sources.insert(file.clone());
+                            break;
+                        // For non-src files we mark them as dirty only if they import dirty
+                        // non-src file or src file for which interface representation changed.
+                        // For identified mock contracts (non-src contracts that extends contracts
+                        // from src file) we mark edges as dirty.
+                        } else if !is_src
+                            && self.dirty_sources.contains(import)
+                            && (!self.is_source_file(import)
+                                || self.is_dirty_impl(import, true)
+                                || self.cache.mocks.contains(file))
+                        {
+                            if self.cache.mocks.contains(file) {
+                                // Mark all mock edges as dirty.
+                                populate_dirty_files(file, &mut self.dirty_sources, &edges);
+                            } else {
+                                self.dirty_sources.insert(file.clone());
+                            }
+                        }
+                    }
+                }
             }
         } else {
             // Purge all sources on graph resolution error.
@@ -866,31 +940,31 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         }
     }
 
-    fn is_dirty_impl(&self, file: &Path) -> bool {
-        let Some(hash) = self.content_hashes.get(file) else {
-            trace!("missing content hash");
-            return true;
-        };
-
+    fn is_dirty_impl(&self, file: &Path, use_interface_repr: bool) -> bool {
         let Some(entry) = self.cache.entry(file) else {
             trace!("missing cache entry");
             return true;
         };
 
-        if entry.content_hash != *hash {
-            trace!("content hash changed");
-            return true;
-        }
+        if use_interface_repr && self.cache.preprocessed {
+            let Some(interface_hash) = self.interface_repr_hashes.get(file) else {
+                trace!("missing interface hash");
+                return true;
+            };
 
-        // If any requested extra files are missing for any artifact, mark source as dirty to
-        // generate them
-        for artifacts in self.cached_artifacts.values() {
-            for artifacts in artifacts.values() {
-                for artifact_file in artifacts {
-                    if self.project.artifacts_handler().is_dirty(artifact_file).unwrap_or(true) {
-                        return true;
-                    }
-                }
+            if entry.interface_repr_hash.as_ref() != Some(interface_hash) {
+                trace!("interface hash changed");
+                return true;
+            };
+        } else {
+            let Some(content_hash) = self.content_hashes.get(file) else {
+                trace!("missing content hash");
+                return true;
+            };
+
+            if entry.content_hash != *content_hash {
+                trace!("content hash changed");
+                return true;
             }
         }
 
@@ -901,10 +975,27 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     /// Adds the file's hashes to the set if not set yet
     fn fill_hashes(&mut self, sources: &Sources) {
         for (file, source) in sources {
-            if let hash_map::Entry::Vacant(entry) = self.content_hashes.entry(file.clone()) {
-                entry.insert(source.content_hash());
+            let _ = self.content_hash(source, file);
+
+            // Fill interface representation hashes for source files
+            if self.cache.preprocessed && self.project.paths.is_source_file(file) {
+                let _ = self.interface_repr_hash(source, file);
             }
         }
+    }
+
+    /// Helper function to check if any requested extra files are missing for any artifact.
+    fn missing_extra_files(&self) -> bool {
+        for artifacts in self.cached_artifacts.values() {
+            for artifacts in artifacts.values() {
+                for artifact_file in artifacts {
+                    if self.project.artifacts_handler().is_dirty(artifact_file).unwrap_or(true) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
     }
 }
 
@@ -926,28 +1017,33 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ArtifactsCache<'a, T, C>
 {
     /// Create a new cache instance with the given files
-    pub fn new(project: &'a Project<C, T>, edges: GraphEdges<C::ParsedSource>) -> Result<Self> {
+    pub fn new(
+        project: &'a Project<C, T>,
+        edges: GraphEdges<C::ParsedSource>,
+        preprocessed: bool,
+    ) -> Result<Self> {
         /// Returns the [CompilerCache] to use
         ///
         /// Returns a new empty cache if the cache does not exist or `invalidate_cache` is set.
         fn get_cache<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>(
             project: &Project<C, T>,
             invalidate_cache: bool,
+            preprocessed: bool,
         ) -> CompilerCache<C::Settings> {
             // the currently configured paths
             let paths = project.paths.paths_relative();
 
             if !invalidate_cache && project.cache_path().exists() {
                 if let Ok(cache) = CompilerCache::read_joined(&project.paths) {
-                    if cache.paths == paths {
-                        // unchanged project paths
+                    if cache.paths == paths && preprocessed == cache.preprocessed {
+                        // unchanged project paths and same preprocess cache option
                         return cache;
                     }
                 }
             }
 
             // new empty cache
-            CompilerCache::new(Default::default(), paths)
+            CompilerCache::new(Default::default(), paths, preprocessed)
         }
 
         let cache = if project.cached {
@@ -957,7 +1053,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             let invalidate_cache = !edges.unresolved_imports().is_empty();
 
             // read the cache file if it already exists
-            let mut cache = get_cache(project, invalidate_cache);
+            let mut cache = get_cache(project, invalidate_cache, preprocessed);
 
             cache.remove_missing_files();
 
@@ -993,6 +1089,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
                 dirty_sources: Default::default(),
                 content_hashes: Default::default(),
                 sources_in_scope: Default::default(),
+                interface_repr_hashes: Default::default(),
             };
 
             ArtifactsCache::Cached(cache)
@@ -1042,6 +1139,24 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         match self {
             ArtifactsCache::Ephemeral(..) => {}
             ArtifactsCache::Cached(cache) => cache.find_and_remove_dirty(),
+        }
+    }
+
+    /// Updates files with mock contracts identified in preprocess phase.
+    pub fn update_mocks(&mut self, mocks: HashSet<PathBuf>) {
+        match self {
+            ArtifactsCache::Ephemeral(..) => {}
+            ArtifactsCache::Cached(cache) => cache.cache.mocks = mocks,
+        }
+    }
+
+    /// Returns the set of files with mock contracts currently in cache.
+    /// This set is passed to preprocessors and updated accordingly.
+    /// Cache is then updated by using `update_mocks` call.
+    pub fn mocks(&self) -> HashSet<PathBuf> {
+        match self {
+            ArtifactsCache::Ephemeral(..) => HashSet::default(),
+            ArtifactsCache::Cached(cache) => cache.cache.mocks.clone(),
         }
     }
 

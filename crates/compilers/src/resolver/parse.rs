@@ -8,6 +8,7 @@ use std::{
 
 /// Represents various information about a Solidity file.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct SolData {
     pub license: Option<Spanned<String>>,
     pub version: Option<Spanned<String>>,
@@ -50,19 +51,8 @@ impl SolData {
         let mut contract_names = Vec::new();
         let mut parse_result = Ok(());
 
-        let sess = solar_parse::interface::Session::builder()
-            .with_buffer_emitter(Default::default())
-            .build();
-        sess.enter(|| {
-            let arena = ast::Arena::new();
-            let filename = solar_parse::interface::source_map::FileName::Real(file.to_path_buf());
-            let Ok(mut parser) =
-                solar_parse::Parser::from_source_code(&sess, &arena, filename, content.to_string())
-            else {
-                return;
-            };
-            let Ok(ast) = parser.parse_file().map_err(|e| e.emit()) else { return };
-            for item in ast.items {
+        let result = crate::parse_one_source(content, file, |ast| {
+            for item in ast.items.iter() {
                 let loc = item.span.lo().to_usize()..item.span.hi().to_usize();
                 match &item.kind {
                     ast::ItemKind::Pragma(pragma) => match &pragma.tokens {
@@ -82,9 +72,9 @@ impl SolData {
                     ast::ItemKind::Import(import) => {
                         let path = import.path.value.to_string();
                         let aliases = match &import.items {
-                            ast::ImportItems::Plain(None) | ast::ImportItems::Glob(None) => &[][..],
+                            ast::ImportItems::Plain(None) => &[][..],
                             ast::ImportItems::Plain(Some(alias))
-                            | ast::ImportItems::Glob(Some(alias)) => &[(*alias, None)][..],
+                            | ast::ImportItems::Glob(alias) => &[(*alias, None)][..],
                             ast::ImportItems::Aliases(aliases) => aliases,
                         };
                         let sol_import = SolImport::new(PathBuf::from(path)).set_aliases(
@@ -113,7 +103,7 @@ impl SolData {
                 }
             }
         });
-        if let Err(e) = sess.emitted_errors().unwrap() {
+        if let Err(e) = result {
             let e = e.to_string();
             trace!("failed parsing {file:?}: {e}");
             parse_result = Err(e);
@@ -160,6 +150,14 @@ impl SolData {
         }
     }
 
+    /// Parses the version pragma and returns the corresponding SemVer version requirement.
+    ///
+    /// See [`parse_version_req`](Self::parse_version_req).
+    pub fn parse_version_pragma(pragma: &str) -> Option<Result<VersionReq, semver::Error>> {
+        let version = utils::find_version_pragma(pragma)?.as_str();
+        Some(Self::parse_version_req(version))
+    }
+
     /// Returns the corresponding SemVer version requirement for the solidity version.
     ///
     /// Note: This is a workaround for the fact that `VersionReq::parse` does not support whitespace
@@ -197,11 +195,11 @@ impl SolImport {
         Self { path, aliases: vec![] }
     }
 
-    pub fn path(&self) -> &PathBuf {
+    pub fn path(&self) -> &Path {
         &self.path
     }
 
-    pub fn aliases(&self) -> &Vec<SolImportAlias> {
+    pub fn aliases(&self) -> &[SolImportAlias] {
         &self.aliases
     }
 

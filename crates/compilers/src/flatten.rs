@@ -1,8 +1,9 @@
 use crate::{
+    apply_updates,
     compilers::{Compiler, ParsedSource},
     filter::MaybeSolData,
     resolver::parse::SolData,
-    ArtifactOutput, CompilerSettings, Graph, Project, ProjectPathsConfig,
+    ArtifactOutput, CompilerSettings, Graph, Project, ProjectPathsConfig, Updates,
 };
 use foundry_compilers_artifacts::{
     ast::{visitor::Visitor, *},
@@ -17,9 +18,10 @@ use foundry_compilers_core::{
 };
 use itertools::Itertools;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     hash::Hash,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use visitor::Walk;
 
@@ -95,7 +97,7 @@ impl Visitor for ReferencesCollector {
     }
 
     fn visit_external_assembly_reference(&mut self, reference: &ExternalInlineAssemblyReference) {
-        let mut src = reference.src.clone();
+        let mut src = reference.src;
 
         // If suffix is used in assembly reference (e.g. value.slot), it will be included into src.
         // However, we are only interested in the referenced name, thus we strip .<suffix> part.
@@ -110,49 +112,30 @@ impl Visitor for ReferencesCollector {
     }
 }
 
-/// Updates to be applied to the sources.
-/// source_path -> (start, end, new_value)
-type Updates = HashMap<PathBuf, HashSet<(usize, usize, String)>>;
-
-pub struct FlatteningResult<'a> {
+pub struct FlatteningResult {
     /// Updated source in the order they should be written to the output file.
     sources: Vec<String>,
     /// Pragmas that should be present in the target file.
     pragmas: Vec<String>,
     /// License identifier that should be present in the target file.
-    license: Option<&'a str>,
+    license: Option<String>,
 }
 
-impl<'a> FlatteningResult<'a> {
+impl FlatteningResult {
     fn new(
-        flattener: &Flattener,
-        mut updates: Updates,
+        mut flattener: Flattener,
+        updates: Updates,
         pragmas: Vec<String>,
-        license: Option<&'a str>,
+        license: Option<String>,
     ) -> Self {
-        let mut sources = Vec::new();
+        apply_updates(&mut flattener.sources, updates);
 
-        for path in &flattener.ordered_sources {
-            let mut content = flattener.sources.get(path).unwrap().content.as_bytes().to_vec();
-            let mut offset: isize = 0;
-            if let Some(updates) = updates.remove(path) {
-                let mut updates = updates.iter().collect::<Vec<_>>();
-                updates.sort_by_key(|(start, _, _)| *start);
-                for (start, end, new_value) in updates {
-                    let start = (*start as isize + offset) as usize;
-                    let end = (*end as isize + offset) as usize;
-
-                    content.splice(start..end, new_value.bytes());
-                    offset += new_value.len() as isize - (end - start) as isize;
-                }
-            }
-            let content = format!(
-                "// {}\n{}",
-                path.strip_prefix(&flattener.project_root).unwrap_or(path).display(),
-                String::from_utf8(content).unwrap()
-            );
-            sources.push(content);
-        }
+        let sources = flattener
+            .ordered_sources
+            .iter()
+            .map(|path| flattener.sources.remove(path).unwrap().content)
+            .map(Arc::unwrap_or_clone)
+            .collect();
 
         Self { sources, pragmas, license }
     }
@@ -229,7 +212,7 @@ impl Flattener {
         let sources = Source::read_all_files(vec![target.to_path_buf()])?;
         let graph = Graph::<C::ParsedSource>::resolve_sources(&project.paths, sources)?;
 
-        let ordered_sources = collect_ordered_deps(&target.to_path_buf(), &project.paths, &graph)?;
+        let ordered_sources = collect_ordered_deps(target, &project.paths, &graph)?;
 
         #[cfg(windows)]
         let ordered_sources = {
@@ -261,7 +244,7 @@ impl Flattener {
             sources,
             asts,
             ordered_sources,
-            project_root: project.root().clone(),
+            project_root: project.root().to_path_buf(),
         })
     }
 
@@ -274,9 +257,10 @@ impl Flattener {
     /// 3. Remove all imports.
     /// 4. Remove all pragmas except for the ones in the target file.
     /// 5. Remove all license identifiers except for the one in the target file.
-    pub fn flatten(&self) -> String {
+    pub fn flatten(self) -> String {
         let mut updates = Updates::new();
 
+        self.append_filenames(&mut updates);
         let top_level_names = self.rename_top_level_definitions(&mut updates);
         self.rename_contract_level_types_references(&top_level_names, &mut updates);
         self.remove_qualified_imports(&mut updates);
@@ -289,13 +273,24 @@ impl Flattener {
         self.flatten_result(updates, target_pragmas, target_license).get_flattened_target()
     }
 
-    fn flatten_result<'a>(
-        &'a self,
+    fn flatten_result(
+        self,
         updates: Updates,
         target_pragmas: Vec<String>,
-        target_license: Option<&'a str>,
-    ) -> FlatteningResult<'a> {
+        target_license: Option<String>,
+    ) -> FlatteningResult {
         FlatteningResult::new(self, updates, target_pragmas, target_license)
+    }
+
+    /// Appends a comment with the file name to the beginning of each source.
+    fn append_filenames(&self, updates: &mut Updates) {
+        for path in &self.ordered_sources {
+            updates.entry(path.clone()).or_default().insert((
+                0,
+                0,
+                format!("// {}\n", path.strip_prefix(&self.project_root).unwrap_or(path).display()),
+            ));
+        }
     }
 
     /// Finds and goes over all references to file-level definitions and updates them to match
@@ -724,7 +719,7 @@ impl Flattener {
 
         let mut pragmas = Vec::new();
 
-        if let Some(version_pragma) = combine_version_pragmas(version_pragmas) {
+        if let Some(version_pragma) = combine_version_pragmas(&version_pragmas) {
             pragmas.push(version_pragma);
         }
 
@@ -752,14 +747,14 @@ impl Flattener {
 
     /// Removes all license identifiers from all sources. Returns license identifier from target
     /// file, if any.
-    fn process_licenses(&self, updates: &mut Updates) -> Option<&str> {
+    fn process_licenses(&self, updates: &mut Updates) -> Option<String> {
         let mut target_license = None;
 
         for loc in &self.collect_licenses() {
             if loc.path == self.target {
                 let license_line = self.read_location(loc);
                 let license_start = license_line.find("SPDX-License-Identifier:").unwrap();
-                target_license = Some(license_line[license_start..].trim());
+                target_license = Some(license_line[license_start..].trim().to_string());
             }
             updates.entry(loc.path.clone()).or_default().insert((
                 loc.start,
@@ -800,12 +795,12 @@ impl Flattener {
 
 /// Performs DFS to collect all dependencies of a target
 fn collect_deps<D: ParsedSource + MaybeSolData>(
-    path: &PathBuf,
+    path: &Path,
     paths: &ProjectPathsConfig<D::Language>,
     graph: &Graph<D>,
     deps: &mut HashSet<PathBuf>,
 ) -> Result<()> {
-    if deps.insert(path.clone()) {
+    if deps.insert(path.to_path_buf()) {
         let target_dir = path.parent().ok_or_else(|| {
             SolcError::msg(format!("failed to get parent directory for \"{}\"", path.display()))
         })?;
@@ -836,7 +831,7 @@ fn collect_deps<D: ParsedSource + MaybeSolData>(
 /// order. If files have the same number of dependencies, we sort them alphabetically.
 /// Target file is always placed last.
 pub fn collect_ordered_deps<D: ParsedSource + MaybeSolData>(
-    path: &PathBuf,
+    path: &Path,
     paths: &ProjectPathsConfig<D::Language>,
     graph: &Graph<D>,
 ) -> Result<Vec<PathBuf>> {
@@ -876,31 +871,22 @@ pub fn collect_ordered_deps<D: ParsedSource + MaybeSolData>(
     let mut ordered_deps =
         paths_with_deps_count.into_iter().map(|(_, path)| path).collect::<Vec<_>>();
 
-    ordered_deps.push(path.clone());
+    ordered_deps.push(path.to_path_buf());
 
     Ok(ordered_deps)
 }
 
-pub fn combine_version_pragmas(pragmas: Vec<&str>) -> Option<String> {
-    let mut versions = pragmas
-        .into_iter()
-        .filter_map(|p| {
-            SolData::parse_version_req(
-                p.replace("pragma", "").replace("solidity", "").replace(';', "").trim(),
-            )
-            .ok()
-        })
+pub fn combine_version_pragmas(pragmas: &[impl AsRef<str>]) -> Option<String> {
+    let versions = pragmas
+        .iter()
+        .map(AsRef::as_ref)
+        .filter_map(SolData::parse_version_pragma)
+        .filter_map(Result::ok)
         .flat_map(|req| req.comparators)
-        .collect::<HashSet<_>>()
-        .into_iter()
         .map(|comp| comp.to_string())
-        .collect::<Vec<_>>();
-
-    versions.sort();
-
-    if !versions.is_empty() {
-        return Some(format!("pragma solidity {};", versions.iter().format(" ")));
+        .collect::<BTreeSet<_>>();
+    if versions.is_empty() {
+        return None;
     }
-
-    None
+    Some(format!("pragma solidity {};", versions.iter().format(" ")))
 }

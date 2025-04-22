@@ -27,6 +27,9 @@ pub static RE_SOL_SDPX_LICENSE_IDENTIFIER: Lazy<Regex> =
 /// A regex used to remove extra lines in flatenned files
 pub static RE_THREE_OR_MORE_NEWLINES: Lazy<Regex> = Lazy::new(|| Regex::new("\n{3,}").unwrap());
 
+/// A regex used to remove extra lines in flatenned files
+pub static RE_TWO_OR_MORE_SPACES: Lazy<Regex> = Lazy::new(|| Regex::new(" {2,}").unwrap());
+
 /// A regex that matches version pragma in a Vyper
 pub static RE_VYPER_VERSION: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"#(?:pragma version|@version)\s+(?P<version>.+)").unwrap());

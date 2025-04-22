@@ -121,7 +121,7 @@ impl<'a> SparseOutputFilter<'a> {
                 let mut required_sources = vec![file.clone()];
                 if let Some(data) = graph.get_parsed_source(file) {
                     let imports = graph.imports(file).into_iter().filter_map(|import| {
-                        graph.get_parsed_source(import).map(|data| (import.as_path(), data))
+                        graph.get_parsed_source(import).map(|data| (import, data))
                     });
                     for import in data.compilation_dependencies(imports) {
                         let import = import.to_path_buf();
