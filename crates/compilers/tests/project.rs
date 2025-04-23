@@ -103,9 +103,6 @@ pub static VYPER: LazyLock<Vyper> = LazyLock::new(|| {
 pub static RESOLC: LazyLock<Resolc> = LazyLock::new(|| {
     {
         RuntimeOrHandle::new().block_on(async {
-            #[cfg(target_family = "unix")]
-            use std::{fs::Permissions, os::unix::fs::PermissionsExt};
-
             let solc = SolcCompiler::default();
 
             if let Ok(resolc) = Resolc::new("resolc", solc.clone()) {
@@ -113,77 +110,8 @@ pub static RESOLC: LazyLock<Resolc> = LazyLock::new(|| {
             }
 
             take_solc_installer_lock!(_lock);
-            let path = std::env::temp_dir();
 
-            let bin = format!(
-                "resolc-{}",
-                match platform() {
-                    Platform::MacOsAarch64 => "universal-apple-darwin",
-                    Platform::LinuxAmd64 => "x86_64-unknown-linux-musl",
-                    Platform::WindowsAmd64 => "x86_64-pc-windows-msvc.exe",
-                    platform => panic!("unsupported platform: {platform:?}"),
-                }
-            );
-            let resolc_path = path.join(bin);
-
-            if resolc_path.exists() {
-                return Resolc::new(&resolc_path, solc.clone()).unwrap();
-            }
-
-            let base =
-                "https://github.com/paritytech/revive/releases/download/v0.1.0-dev.12/resolc";
-            let url = format!(
-                "{base}-{}",
-                match platform() {
-                    Platform::MacOsAarch64 => "universal-apple-darwin.tar.gz",
-                    Platform::LinuxAmd64 => "x86_64-unknown-linux-musl.tar.gz",
-                    Platform::WindowsAmd64 => "x86_64-pc-windows-msvc.zip",
-                    platform => panic!("unsupported platform: {platform:?}"),
-                }
-            );
-            let mut retry = 3;
-            let mut res = None;
-            while retry > 0 {
-                match reqwest::get(&url).await.unwrap().error_for_status() {
-                    Ok(res2) => {
-                        res = Some(res2);
-                        break;
-                    }
-                    Err(e) => {
-                        eprintln!("{e}");
-                        retry -= 1;
-                    }
-                }
-            }
-            let res = res.expect("failed to get resolc binary archive");
-
-            let bytes = res.bytes().await.unwrap();
-
-            #[cfg(target_family = "unix")]
-            {
-                use flate2::read::GzDecoder;
-                use tar::Archive;
-
-                let tar = GzDecoder::new(bytes.as_ref());
-                let mut archive = Archive::new(tar);
-                archive.unpack(&path).expect("failed to unpack");
-            }
-
-            #[cfg(target_os = "windows")]
-            {
-                let bytes = std::io::Cursor::new(bytes);
-                zip::ZipArchive::new(bytes)
-                    .expect("failed to unpack")
-                    .extract(&path)
-                    .expect("Failed to extract")
-            }
-
-            #[cfg(target_family = "unix")]
-            {
-                std::fs::set_permissions(&resolc_path, Permissions::from_mode(0o755)).unwrap();
-            }
-
-            Resolc::new(&resolc_path, solc).unwrap()
+            tokio::task::block_in_place(|| Resolc::install(None, solc).unwrap())
         })
     }
 });

@@ -1,5 +1,6 @@
 mod compiler;
 mod input;
+
 pub use compiler::Resolc;
 use foundry_compilers_artifacts::{resolc::ResolcCompilerOutput, solc::error::Error, Contract};
 pub use input::{ResolcInput, ResolcVersionedInput};

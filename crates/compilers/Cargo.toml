@@ -56,6 +56,9 @@ svm-builds = { package = "svm-rs-builds", version = "0.5", default-features = fa
 sha2 = { version = "0.10", default-features = false, optional = true }
 
 
+# rvm
+rvm = { workspace = true, default-features = false }
+
 [dev-dependencies]
 tracing-subscriber = { version = "0.3", default-features = false, features = [
     "env-filter",
