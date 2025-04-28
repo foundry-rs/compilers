@@ -101,19 +101,15 @@ pub static VYPER: LazyLock<Vyper> = LazyLock::new(|| {
 });
 
 pub static RESOLC: LazyLock<Resolc> = LazyLock::new(|| {
-    {
-        RuntimeOrHandle::new().block_on(async {
-            let solc = SolcCompiler::default();
+    let solc = SolcCompiler::default();
 
-            if let Ok(resolc) = Resolc::new("resolc", solc.clone()) {
-                return resolc;
-            }
-
-            take_solc_installer_lock!(_lock);
-
-            tokio::task::block_in_place(|| Resolc::install(None, solc).unwrap())
-        })
+    if let Ok(resolc) = Resolc::new("resolc", solc.clone()) {
+        return resolc;
     }
+
+    take_solc_installer_lock!(_lock);
+
+    Resolc::install(None, solc).unwrap()
 });
 
 #[fixture]
