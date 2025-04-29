@@ -1,6 +1,5 @@
 .DS_Store
 /target
-/Cargo.lock
 
 /cache
 test-data/**/cache/

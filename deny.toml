@@ -40,6 +40,7 @@ exceptions = [
     # so we prefer to not have dependencies using it
     # https://tldrlegal.com/license/creative-commons-cc0-1.0-universal
     { allow = ["CC0-1.0"], name = "tiny-keccak" },
+    { allow = ["CDLA-Permissive-2.0"], name = "webpki-roots" },
 ]
 
 [[licenses.clarify]]
