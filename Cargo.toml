@@ -42,8 +42,8 @@ foundry-compilers-artifacts-solc = { path = "crates/artifacts/solc", version = "
 foundry-compilers-artifacts-vyper = { path = "crates/artifacts/vyper", version = "0.14.1" }
 foundry-compilers-core = { path = "crates/core", version = "0.14.1" }
 
-alloy-json-abi = { version = "0.8", features = ["serde_json"] }
-alloy-primitives = { version = "0.8", features = ["serde", "rand"] }
+alloy-json-abi = { version = "1.0", features = ["serde_json"] }
+alloy-primitives = { version = "1.0", features = ["serde", "rand"] }
 cfg-if = "1.0"
 dunce = "1.0"
 memmap2 = "0.9"
