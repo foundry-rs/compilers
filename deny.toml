@@ -33,6 +33,7 @@ allow = [
     "LicenseRef-ring",
     # https://github.com/briansmith/webpki/issues/148
     "LicenseRef-webpki",
+    "CDLA-Permissive-2.0",
 ]
 
 exceptions = [
