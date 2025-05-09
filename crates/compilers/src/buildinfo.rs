@@ -107,6 +107,7 @@ impl<L: Language> RawBuildInfo<L> {
 
         let input = serde_json::to_value(input)?;
         hasher.update(&serde_json::to_string(&input)?);
+        hasher.update(&serde_json::to_string(&output)?);
 
         // create the hash for `{_format,solcVersion,solcLongVersion,input}`
         // N.B. this is not exactly the same as hashing the json representation of these values but

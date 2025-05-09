@@ -177,6 +177,20 @@ impl<S: CompilerSettings> CompilerCache<S> {
             let path = self.paths.build_infos.join(build_id).with_extension("json");
             let _ = std::fs::remove_file(path);
         }
+
+        if let Ok(dir) = std::fs::read_dir(&self.paths.build_infos) {
+            for build_id in dir
+                .filter_map(|x| x.ok())
+                .filter(|f| f.path().extension().is_some_and(|f| f == "json") && f.path().is_file())
+            {
+                if !self
+                    .builds
+                    .contains(build_id.file_name().to_string_lossy().trim_end_matches(".json"))
+                {
+                    let _ = std::fs::remove_file(build_id.path());
+                }
+            }
+        }
     }
 
     /// Sets the `CacheEntry`'s file paths to `root` adjoined to `self.file`.
