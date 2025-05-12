@@ -3979,7 +3979,6 @@ fn can_add_basic_contract_and_library(#[case] compiler: MultiCompiler) {
 // <https://github.com/foundry-rs/foundry/issues/2706>
 #[rstest]
 #[case::solc(MultiCompiler::default())]
-#[ignore]
 #[case::resolc(resolc())]
 fn can_handle_nested_absolute_imports(#[case] compiler: MultiCompiler) {
     let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
