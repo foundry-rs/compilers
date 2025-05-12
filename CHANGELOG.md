@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0](https://github.com/foundry-rs/compilers/releases/tag/v0.16.0) - 2025-05-12
+
+### Dependencies
+
+- Bump solar version ([#264](https://github.com/foundry-rs/compilers/issues/264))
+
 ## [0.15.0](https://github.com/foundry-rs/compilers/releases/tag/v0.15.0) - 2025-05-07
 
 ### Dependencies
@@ -14,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 - Update CHANGELOG.md
+
+### Miscellaneous Tasks
+
+- Release 0.15.0
 
 ## [0.14.1](https://github.com/foundry-rs/compilers/releases/tag/v0.14.1) - 2025-04-19
 
