@@ -10,8 +10,7 @@ use rvm::Binary;
 use semver::{Comparator, Prerelease, Version, VersionReq};
 use serde::Serialize;
 use std::{
-    io,
-    io::Write,
+    io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Output, Stdio},
     str::FromStr,
@@ -61,8 +60,11 @@ impl Compiler for Resolc {
         &self,
         input: &Self::Input,
     ) -> Result<crate::compilers::CompilerOutput<Error, Self::CompilerContract>, SolcError> {
-        let solc = self.solc(input)?;
-
+        let mut solc = self.solc(input)?;
+        solc.base_path.clone_from(&input.input.settings.cli_settings.base_path);
+        solc.allow_paths.clone_from(&input.input.settings.cli_settings.allow_paths);
+        solc.include_paths.clone_from(&input.input.settings.cli_settings.include_paths);
+        solc.extra_args.extend_from_slice(&input.input.settings.cli_settings.extra_args);
         let results = self.compile_output::<ResolcInput>(&solc, &input.input)?;
         let output = std::str::from_utf8(&results).map_err(|_| SolcError::InvalidUtf8)?;
         let results: ResolcCompilerOutput =
