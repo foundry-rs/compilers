@@ -446,12 +446,8 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
         cache.remove_dirty_sources();
         for (language, versioned_sources) in self.sources.iter_mut() {
             for (version, sources, (profile, settings)) in versioned_sources {
-                let input = C::Input::build(
-                    sources.clone(),
-                    settings.clone(),
-                    language.clone(),
-                    version.clone(),
-                );
+                let input =
+                    C::Input::build(sources.clone(), settings.clone(), *language, version.clone());
                 let version = cache.project().compiler.compiler_version(&input);
                 trace!("Filtering {} sources for {}", sources.len(), version);
                 cache.filter(sources, &version, profile);
@@ -554,7 +550,7 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
                 cache.compiler_seen(file);
             }
 
-            let build_info = RawBuildInfo::new(&input, &output, &version, project.build_info)?;
+            let build_info = RawBuildInfo::new(&input, &output, version, project.build_info)?;
 
             output.retain_files(
                 actually_dirty

@@ -106,7 +106,7 @@ impl<L: Language> RawBuildInfo<L> {
         let input_version_short =
             format!("{}.{}.{}", input_version.major, input_version.minor, input_version.patch);
         hasher.update(&input_version_short);
-        hasher.update(&compiler_version.to_string());
+        hasher.update(compiler_version.to_string());
         hasher.update(input_version.to_string());
 
         let input = serde_json::to_value(input)?;
@@ -125,7 +125,7 @@ impl<L: Language> RawBuildInfo<L> {
         if full_build_info {
             build_info.insert("_format".to_string(), serde_json::to_value(ETHERS_FORMAT_VERSION)?);
             build_info
-                .insert("compilerVersion".to_string(), serde_json::to_value(&compiler_version)?);
+                .insert("compilerVersion".to_string(), serde_json::to_value(compiler_version)?);
             build_info
                 .insert("inputVersion".to_string(), serde_json::to_value(&input_version_short)?);
             build_info

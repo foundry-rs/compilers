@@ -227,7 +227,7 @@ impl Resolc {
                 rvm::VersionManager::new(true).map_err(|e| SolcError::Message(e.to_string()))?;
 
             let versions: Vec<Binary> = version_manager
-                .list_available(_solc_version.clone())
+                .list_available(_solc_version)
                 .map_err(|e| SolcError::Message(e.to_string()))?
                 .into_iter()
                 .filter(|x| _resolc_version.is_none_or(|version| version == x.version()))

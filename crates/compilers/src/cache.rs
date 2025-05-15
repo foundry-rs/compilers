@@ -187,13 +187,8 @@ impl<S: CompilerSettings> CompilerCache<S> {
                     .builds
                     .contains(build_id.file_name().to_string_lossy().trim_end_matches(".json"))
                 {
-                    self.builds.remove(
-                        &build_id
-                            .file_name()
-                            .to_string_lossy()
-                            .trim_end_matches(".json")
-                            .to_owned(),
-                    );
+                    self.builds
+                        .remove(build_id.file_name().to_string_lossy().trim_end_matches(".json"));
                     let _ = std::fs::remove_file(build_id.path());
                 }
             }

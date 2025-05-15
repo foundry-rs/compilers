@@ -482,7 +482,7 @@ mod tests {
             SolcLanguage::Solidity,
             v.clone(),
         );
-        let build_info = RawBuildInfo::new(&input, &out_converted, true).unwrap();
+        let build_info = RawBuildInfo::new(&input, &out_converted, &v, true).unwrap();
         let mut aggregated = AggregatedCompilerOutput::<SolcCompiler>::default();
         aggregated.extend(v, build_info, "default", out_converted);
         assert!(!aggregated.is_unchanged());
