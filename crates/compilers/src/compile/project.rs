@@ -438,16 +438,23 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
     /// Filters out all sources that don't need to be compiled, see [`ArtifactsCache::filter`]
     fn filter<
         T: ArtifactOutput<CompilerContract = C::CompilerContract>,
-        C: Compiler<Language = L>,
+        C: Compiler<Language = L, Settings = S>,
     >(
         &mut self,
         cache: &mut ArtifactsCache<'_, T, C>,
     ) {
         cache.remove_dirty_sources();
-        for versioned_sources in self.sources.values_mut() {
-            for (version, sources, (profile, _)) in versioned_sources {
+        for (language, versioned_sources) in self.sources.iter_mut() {
+            for (version, sources, (profile, settings)) in versioned_sources {
+                let input = C::Input::build(
+                    sources.clone(),
+                    settings.clone(),
+                    language.clone(),
+                    version.clone(),
+                );
+                let version = cache.project().compiler.compiler_version(&input);
                 trace!("Filtering {} sources for {}", sources.len(), version);
-                cache.filter(sources, version, profile);
+                cache.filter(sources, &version, profile);
                 trace!(
                     "Detected {} sources to compile {:?}",
                     sources.dirty().count(),
@@ -540,14 +547,14 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
         let mut aggregated = AggregatedCompilerOutput::default();
 
         for (input, mut output, profile, actually_dirty) in results {
-            let version = input.version();
+            let version = &project.compiler.compiler_version(&input);
 
             // Mark all files as seen by the compiler
             for file in &actually_dirty {
                 cache.compiler_seen(file);
             }
 
-            let build_info = RawBuildInfo::new(&input, &output, project.build_info)?;
+            let build_info = RawBuildInfo::new(&input, &output, &version, project.build_info)?;
 
             output.retain_files(
                 actually_dirty
@@ -573,25 +580,14 @@ fn compile_sequential<'a, C: Compiler>(
     jobs.into_iter()
         .map(|(input, profile, actually_dirty)| {
             let start = Instant::now();
-            let versions = {
-                let compiler_ver = compiler.compiler_version(&input);
-                if &compiler_ver == input.version() {
-                    vec![input.version().clone()]
-                } else {
-                    vec![compiler.compiler_version(&input), input.version().clone()]
-                }
-            };
+            let version = compiler.compiler_version(&input);
             report::compiler_spawn(
                 &compiler.compiler_name(&input),
-                versions.as_ref(),
+                &version,
                 actually_dirty.as_slice(),
             );
             let output = compiler.compile(&input)?;
-            report::compiler_success(
-                &compiler.compiler_name(&input),
-                versions.as_ref(),
-                &start.elapsed(),
-            );
+            report::compiler_success(&compiler.compiler_name(&input), &version, &start.elapsed());
 
             Ok((input, output, profile, actually_dirty))
         })
@@ -617,24 +613,18 @@ fn compile_parallel<'a, C: Compiler>(
             .map(move |(input, profile, actually_dirty)| {
                 // set the reporter on this thread
                 let _guard = report::set_scoped(&scoped_report);
-                let versions = {
-                    let compiler_ver = compiler.compiler_version(&input);
-                    if &compiler_ver == input.version() {
-                        vec![input.version().clone()]
-                    } else {
-                        vec![compiler.compiler_version(&input), input.version().clone()]
-                    }
-                };
+                let version = compiler.compiler_version(&input);
+
                 let start = Instant::now();
                 report::compiler_spawn(
                     &compiler.compiler_name(&input),
-                    versions.as_ref(),
+                    &version,
                     actually_dirty.as_slice(),
                 );
                 compiler.compile(&input).map(move |output| {
                     report::compiler_success(
                         &compiler.compiler_name(&input),
-                        versions.as_ref(),
+                        &version,
                         &start.elapsed(),
                     );
                     (input, output, profile, actually_dirty)

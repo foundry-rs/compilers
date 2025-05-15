@@ -2,7 +2,7 @@ use crate::{
     error::{Result, SolcError},
     resolver::parse::SolData,
     solc::{Solc, SolcCompiler, SolcSettings},
-    Compiler, CompilerVersion, SimpleCompilerName,
+    Compiler, CompilerInput, CompilerVersion, SimpleCompilerName,
 };
 use foundry_compilers_artifacts::{resolc::ResolcCompilerOutput, Contract, Error, SolcLanguage};
 use itertools::Itertools;
@@ -35,7 +35,9 @@ impl Compiler for Resolc {
     type Language = SolcLanguage;
 
     fn compiler_version(&self, _input: &Self::Input) -> Version {
-        self.resolc_version.clone()
+        let mut v = self.resolc_version.clone();
+        v.build = semver::BuildMetadata::new(&format!("Solc.{}", _input.version())).unwrap();
+        v
     }
 
     fn compiler_name(&self, _input: &Self::Input) -> std::borrow::Cow<'static, str> {
@@ -75,7 +77,7 @@ impl Compiler for Resolc {
 
 impl SimpleCompilerName for Resolc {
     fn compiler_name_default() -> std::borrow::Cow<'static, str> {
-        "Resolc and Solc".into()
+        "Resolc".into()
     }
 }
 

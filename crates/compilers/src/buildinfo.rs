@@ -22,8 +22,9 @@ pub struct BuildInfo<I, O> {
     pub id: String,
     #[serde(rename = "_format")]
     pub format: String,
-    pub solc_version: Version,
-    pub solc_long_version: Version,
+    pub input_version: Version,
+    pub input_version_long: Version,
+    pub compiler_version: Version,
     pub input: I,
     pub output: O,
 }
@@ -92,20 +93,24 @@ impl<L: Language> RawBuildInfo<L> {
     pub fn new<I: CompilerInput<Language = L>, E: CompilationError, C: CompilerContract>(
         input: &I,
         output: &CompilerOutput<E, C>,
+        compiler_version: &semver::Version,
         full_build_info: bool,
     ) -> Result<Self> {
-        let version = input.version().clone();
+        let input_version = input.version().clone();
         let build_context = BuildContext::new(input, output)?;
 
         let mut hasher = md5::Md5::new();
 
         hasher.update(ETHERS_FORMAT_VERSION);
 
-        let solc_short = format!("{}.{}.{}", version.major, version.minor, version.patch);
-        hasher.update(&solc_short);
-        hasher.update(version.to_string());
+        let input_version_short =
+            format!("{}.{}.{}", input_version.major, input_version.minor, input_version.patch);
+        hasher.update(&input_version_short);
+        hasher.update(&compiler_version.to_string());
+        hasher.update(input_version.to_string());
 
         let input = serde_json::to_value(input)?;
+
         hasher.update(&serde_json::to_string(&input)?);
         hasher.update(&serde_json::to_string(&output)?);
 
@@ -119,8 +124,12 @@ impl<L: Language> RawBuildInfo<L> {
 
         if full_build_info {
             build_info.insert("_format".to_string(), serde_json::to_value(ETHERS_FORMAT_VERSION)?);
-            build_info.insert("solcVersion".to_string(), serde_json::to_value(&solc_short)?);
-            build_info.insert("solcLongVersion".to_string(), serde_json::to_value(&version)?);
+            build_info
+                .insert("compilerVersion".to_string(), serde_json::to_value(&compiler_version)?);
+            build_info
+                .insert("inputVersion".to_string(), serde_json::to_value(&input_version_short)?);
+            build_info
+                .insert("inputVersionLong".to_string(), serde_json::to_value(&input_version)?);
             build_info.insert("input".to_string(), input);
             build_info.insert("output".to_string(), serde_json::to_value(output)?);
         }
@@ -146,7 +155,8 @@ mod tests {
             v,
         );
         let output = CompilerOutput::<Error, Contract>::default();
-        let raw_info = RawBuildInfo::new(&input, &output, true).unwrap();
+        let raw_info =
+            RawBuildInfo::new(&input, &output, &semver::Version::new(0, 0, 0), true).unwrap();
         let _info: BuildInfo<SolcVersionedInput, CompilerOutput<Error, Contract>> =
             serde_json::from_str(&serde_json::to_string(&raw_info).unwrap()).unwrap();
     }
