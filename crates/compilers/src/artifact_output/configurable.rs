@@ -232,7 +232,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
             ir_optimized_ast,
         } = contract;
 
-        if self.additional_values.metadata {
+        if self.additional_values.metadata || self.additional_files.metadata {
             if let Some(LosslessMetadata { raw_metadata, metadata }) = metadata {
                 artifact_raw_metadata = Some(raw_metadata);
                 artifact_metadata = Some(metadata);
@@ -244,13 +244,13 @@ impl ArtifactOutput for ConfigurableArtifacts {
         if self.additional_values.devdoc {
             artifact_devdoc = Some(devdoc);
         }
-        if self.additional_values.ewasm {
+        if self.additional_values.ewasm || self.additional_files.ewasm {
             artifact_ewasm = ewasm;
         }
-        if self.additional_values.ir {
+        if self.additional_values.ir || self.additional_files.ir {
             artifact_ir = ir;
         }
-        if self.additional_values.ir_optimized {
+        if self.additional_values.ir_optimized || self.additional_files.ir_optimized {
             artifact_ir_optimized = ir_optimized;
         }
         if self.additional_values.ir_optimized_ast {
@@ -293,11 +293,11 @@ impl ArtifactOutput for ConfigurableArtifacts {
             if self.additional_values.gas_estimates {
                 artifact_gas_estimates = gas_estimates;
             }
-            if self.additional_values.assembly {
+            if self.additional_values.assembly || self.additional_files.assembly {
                 artifact_assembly = assembly;
             }
 
-            if self.additional_values.legacy_assembly {
+            if self.additional_values.legacy_assembly || self.additional_files.legacy_assembly {
                 artifact_legacy_assembly = legacy_assembly;
             }
         }

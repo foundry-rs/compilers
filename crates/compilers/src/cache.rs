@@ -989,9 +989,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         for artifacts in self.cached_artifacts.values() {
             for artifacts in artifacts.values() {
                 for artifact_file in artifacts {
-                    if !artifact_file.file.starts_with(&self.project.paths.artifacts)
-                        && self.project.artifacts_handler().is_dirty(artifact_file).unwrap_or(true)
-                    {
+                    if self.project.artifacts_handler().is_dirty(artifact_file).unwrap_or(true) {
                         return true;
                     }
                 }
