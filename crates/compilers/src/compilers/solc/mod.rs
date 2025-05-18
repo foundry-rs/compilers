@@ -1,6 +1,5 @@
 use super::{
-    restrictions::CompilerSettingsRestrictions, Compiler, CompilerInput, CompilerOutput,
-    CompilerSettings, CompilerVersion, Language, ParsedSource, SimpleCompilerName,
+    resolc::ResolcSettings, restrictions::CompilerSettingsRestrictions, Compiler, CompilerInput, CompilerOutput, CompilerSettings, CompilerVersion, Language, ParsedSource, SimpleCompilerName
 };
 use crate::{resolver::parse::SolData, CompilationError};
 pub use foundry_compilers_artifacts::SolcLanguage;
@@ -128,6 +127,8 @@ pub struct SolcVersionedInput {
     pub input: SolcInput,
     #[serde(flatten)]
     pub cli_settings: CliSettings,
+    #[serde(flatten)]
+    pub extra_settings: ResolcSettings,
 }
 
 impl CompilerInput for SolcVersionedInput {
@@ -144,10 +145,10 @@ impl CompilerInput for SolcVersionedInput {
         language: Self::Language,
         version: Version,
     ) -> Self {
-        let SolcSettings { settings, cli_settings } = settings;
+        let SolcSettings { settings, cli_settings, extra_settings } = settings;
         let input = SolcInput::new(language, sources, settings).sanitized(&version);
 
-        Self { version, input, cli_settings }
+        Self { version, input, cli_settings, extra_settings }
     }
 
     fn language(&self) -> Self::Language {
@@ -188,6 +189,10 @@ pub struct SolcSettings {
     /// Additional CLI args configuration
     #[serde(flatten)]
     pub cli_settings: CliSettings,
+    /// Additional custom JSON settings
+    #[serde(flatten)]
+//    #[serde(skip)]
+    pub extra_settings: ResolcSettings,
 }
 
 impl Deref for SolcSettings {

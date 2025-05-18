@@ -301,6 +301,7 @@ impl Compiler for MultiCompiler {
                         SolcSettings {
                             settings: input.input.settings,
                             cli_settings: input.cli_settings,
+                            extra_settings: input.extra_settings,
                         },
                         input.input.language,
                         input.version,
@@ -343,6 +344,7 @@ impl Compiler for MultiCompiler {
                         SolcSettings {
                             settings: input.input.settings,
                             cli_settings: input.cli_settings,
+                            extra_settings: input.extra_settings,
                         },
                         input.input.language,
                         input.version,

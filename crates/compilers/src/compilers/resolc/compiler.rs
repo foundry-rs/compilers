@@ -9,11 +9,9 @@ use itertools::Itertools;
 use rvm::Binary;
 use semver::{Comparator, Prerelease, Version, VersionReq};
 use serde::Serialize;
+//use serde_json::to_string_pretty;
 use std::{
-    io::{self, Write},
-    path::{Path, PathBuf},
-    process::{Command, Output, Stdio},
-    str::FromStr,
+    io::{self, Write}, path::{Path, PathBuf}, process::{Command, Output, Stdio}, str::FromStr
 };
 
 use super::{ResolcInput, ResolcVersionedInput};
@@ -225,7 +223,7 @@ impl Resolc {
                 rvm::VersionManager::new(true).map_err(|e| SolcError::Message(e.to_string()))?;
 
             let versions: Vec<Binary> = version_manager
-                .list_available(_solc_version.clone())
+                .list_available(_solc_version)
                 .map_err(|e| SolcError::Message(e.to_string()))?
                 .into_iter()
                 .filter(|x| _resolc_version.is_none_or(|version| version == x.version()))
@@ -328,6 +326,7 @@ impl Resolc {
         input: &ResolcInput,
     ) -> Result<Vec<u8>> {
         let mut cmd = self.configure_cmd(solc);
+
         if !solc.allow_paths.is_empty() {
             cmd.arg("--allow-paths");
             cmd.arg(solc.allow_paths.iter().map(|p| p.display()).join(","));
@@ -345,8 +344,13 @@ impl Resolc {
             cmd.arg("--solc");
             cmd.arg(&solc.solc);
             cmd.arg("--standard-json");
+            //println!("Command line: xxxxx: {:?} ", cmd);
             let mut child = cmd.spawn().map_err(map_io_err(&self.resolc))?;
             let mut stdin = io::BufWriter::new(child.stdin.take().unwrap());
+
+            //let pretty = to_string_pretty(&input).unwrap();
+            //println!("{}", pretty);
+
             serde_json::to_writer(&mut stdin, &input)?;
             stdin.flush().map_err(map_io_err(&self.resolc))?;
             child

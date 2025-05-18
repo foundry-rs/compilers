@@ -1,13 +1,53 @@
 use foundry_compilers_artifacts::{SolcLanguage, Source, Sources};
 use foundry_compilers_core::utils::strip_prefix_owned;
 use semver::Version;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use std::{collections::HashSet, path::Path};
 
 use crate::{
-    solc::{SolcSettings, SolcVersionedInput},
+    solc::SolcSettings,
     CompilerInput, CompilerSettings,
 };
+
+#[derive(Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResolcOptimizer {
+    #[serde(default)]
+    pub mode: Option<char>
+}
+
+#[derive(Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PolkaVMSettings {
+   // #[serde(skip_serializing_if = "Option::is_none")]
+   #[serde(default)]
+    pub heap_size: Option<u32>,
+   // #[serde(skip_serializing_if = "Option::is_none")]
+   #[serde(default)]
+    pub stack_size: Option<u32>,
+}
+
+#[derive(Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResolcSettings {
+   // #[serde(skip_serializing_if = "should_skip_polkavm")]
+   #[serde(default)]
+    pub polkavm: PolkaVMSettings,
+    //#[serde(skip)]
+    #[serde(default)]
+    pub resolc_optimizer: ResolcOptimizer,
+}
+
+impl ResolcSettings {
+    pub fn new(optimizer_mode: Option<char>, heap_size: Option<u32>, stack_size: Option<u32>) -> Self {
+        Self {
+            resolc_optimizer: ResolcOptimizer {
+                mode: optimizer_mode,
+            },
+            polkavm: PolkaVMSettings {
+                heap_size,
+                stack_size,
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ResolcVersionedInput {
@@ -16,7 +56,7 @@ pub struct ResolcVersionedInput {
     pub solc_version: Version,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ResolcInput {
     pub language: SolcLanguage,
     pub sources: Sources,
@@ -33,16 +73,58 @@ impl Default for ResolcInput {
     }
 }
 
-impl From<SolcVersionedInput> for ResolcVersionedInput {
-    fn from(value: SolcVersionedInput) -> Self {
-        Self::build(
-            value.input.sources,
-            SolcSettings { settings: value.input.settings, cli_settings: value.cli_settings },
-            value.input.language,
-            value.version,
-        )
+impl Serialize for ResolcInput {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        use serde::ser::SerializeMap;
+        use serde_json::{Map, Value};
+
+        let mut map = serializer.serialize_map(None)?;
+
+        // language and sources
+        map.serialize_entry("language", &self.language)?;
+        map.serialize_entry("sources", &self.sources)?;
+
+        // Serialize settings to a JSON object
+        let mut settings_val = serde_json::to_value(&self.settings.settings)
+            .map_err(serde::ser::Error::custom)?;
+
+        let settings_obj = settings_val
+            .as_object_mut()
+            .ok_or_else(|| serde::ser::Error::custom("Expected `settings` to serialize to object"))?;
+
+        // Inject optimizer.mode
+        let optimizer_val = settings_obj
+            .entry("optimizer")
+            .or_insert_with(|| Value::Object(Map::new()));
+
+        let optimizer_obj = optimizer_val
+            .as_object_mut()
+            .ok_or_else(|| serde::ser::Error::custom("Expected `optimizer` to be an object"))?;
+
+        if let Some(mode) = self.settings.extra_settings.resolc_optimizer.mode {
+            optimizer_obj.insert("mode".to_string(), Value::String(mode.to_string()));
+        }
+
+        // Finally insert modified settings under "settings"
+        map.serialize_entry("settings", settings_obj)?;
+
+        map.end()
     }
 }
+
+// impl From<SolcVersionedInput> for ResolcVersionedInput {
+//     fn from(value: SolcVersionedInput) -> Self {
+//         Self::build(
+//             value.input.sources,
+//             SolcSettings { settings: value.input.settings, cli_settings: value.cli_settings, extra_settings: value.extra_settings},
+//             value.input.language,
+//             value.version,
+//         )
+//     }
+// }
 
 impl CompilerInput for ResolcVersionedInput {
     type Settings = SolcSettings;
@@ -72,7 +154,7 @@ impl CompilerInput for ResolcVersionedInput {
         let solc_settings = settings.settings.sanitized(&version, language);
 
         let mut settings =
-            Self::Settings { settings: solc_settings, cli_settings: settings.cli_settings };
+            Self::Settings { settings: solc_settings, cli_settings: settings.cli_settings, extra_settings: settings.extra_settings };
         settings.update_output_selection(|selection| {
             for (_, key) in selection.0.iter_mut() {
                 for (_, value) in key.iter_mut() {
