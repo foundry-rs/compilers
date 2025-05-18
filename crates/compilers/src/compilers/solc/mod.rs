@@ -1,5 +1,6 @@
 use super::{
-    resolc::ResolcSettings, restrictions::CompilerSettingsRestrictions, Compiler, CompilerInput, CompilerOutput, CompilerSettings, CompilerVersion, Language, ParsedSource, SimpleCompilerName
+    resolc::ResolcSettings, restrictions::CompilerSettingsRestrictions, Compiler, CompilerInput,
+    CompilerOutput, CompilerSettings, CompilerVersion, Language, ParsedSource, SimpleCompilerName,
 };
 use crate::{resolver::parse::SolData, CompilationError};
 pub use foundry_compilers_artifacts::SolcLanguage;
@@ -191,7 +192,7 @@ pub struct SolcSettings {
     pub cli_settings: CliSettings,
     /// Additional custom JSON settings
     #[serde(flatten)]
-//    #[serde(skip)]
+    //    #[serde(skip)]
     pub extra_settings: ResolcSettings,
 }
 

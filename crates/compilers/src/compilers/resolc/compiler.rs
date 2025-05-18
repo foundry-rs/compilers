@@ -11,7 +11,10 @@ use semver::{Comparator, Prerelease, Version, VersionReq};
 use serde::Serialize;
 //use serde_json::to_string_pretty;
 use std::{
-    io::{self, Write}, path::{Path, PathBuf}, process::{Command, Output, Stdio}, str::FromStr
+    io::{self, Write},
+    path::{Path, PathBuf},
+    process::{Command, Output, Stdio},
+    str::FromStr,
 };
 
 use super::{ResolcInput, ResolcVersionedInput};
