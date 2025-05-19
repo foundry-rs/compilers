@@ -1,6 +1,6 @@
 use super::{
-    restrictions::CompilerSettingsRestrictions, Compiler, CompilerInput, CompilerOutput,
-    CompilerSettings, CompilerVersion, Language, ParsedSource, SimpleCompilerName,
+    resolc::ResolcSettings, restrictions::CompilerSettingsRestrictions, Compiler, CompilerInput,
+    CompilerOutput, CompilerSettings, CompilerVersion, Language, ParsedSource, SimpleCompilerName,
 };
 use crate::{resolver::parse::SolData, CompilationError};
 pub use foundry_compilers_artifacts::SolcLanguage;
@@ -128,6 +128,8 @@ pub struct SolcVersionedInput {
     pub input: SolcInput,
     #[serde(flatten)]
     pub cli_settings: CliSettings,
+    #[serde(flatten)]
+    pub extra_settings: ResolcSettings,
 }
 
 impl CompilerInput for SolcVersionedInput {
@@ -144,10 +146,10 @@ impl CompilerInput for SolcVersionedInput {
         language: Self::Language,
         version: Version,
     ) -> Self {
-        let SolcSettings { settings, cli_settings } = settings;
+        let SolcSettings { settings, cli_settings, extra_settings } = settings;
         let input = SolcInput::new(language, sources, settings).sanitized(&version);
 
-        Self { version, input, cli_settings }
+        Self { version, input, cli_settings, extra_settings }
     }
 
     fn language(&self) -> Self::Language {
@@ -188,6 +190,9 @@ pub struct SolcSettings {
     /// Additional CLI args configuration
     #[serde(flatten)]
     pub cli_settings: CliSettings,
+    /// Additional custom resolc compiler settings
+    #[serde(flatten)]
+    pub extra_settings: ResolcSettings,
 }
 
 impl Deref for SolcSettings {
@@ -309,6 +314,7 @@ impl CompilerSettings for SolcSettings {
                     libraries,
                     eof_version,
                 },
+            extra_settings,
             ..
         } = self;
 
@@ -323,6 +329,7 @@ impl CompilerSettings for SolcSettings {
             && *libraries == other.settings.libraries
             && *eof_version == other.settings.eof_version
             && output_selection.is_subset_of(&other.settings.output_selection)
+            && *extra_settings == other.extra_settings
     }
 
     fn with_remappings(mut self, remappings: &[Remapping]) -> Self {
