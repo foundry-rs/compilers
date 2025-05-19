@@ -328,7 +328,6 @@ impl Resolc {
         input: &ResolcInput,
     ) -> Result<Vec<u8>> {
         let mut cmd = self.configure_cmd(solc);
-
         if !solc.allow_paths.is_empty() {
             cmd.arg("--allow-paths");
             cmd.arg(solc.allow_paths.iter().map(|p| p.display()).join(","));
@@ -348,7 +347,6 @@ impl Resolc {
             cmd.arg("--standard-json");
             let mut child = cmd.spawn().map_err(map_io_err(&self.resolc))?;
             let mut stdin = io::BufWriter::new(child.stdin.take().unwrap());
-
             serde_json::to_writer(&mut stdin, &input)?;
             stdin.flush().map_err(map_io_err(&self.resolc))?;
             child

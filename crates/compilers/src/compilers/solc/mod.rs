@@ -190,9 +190,8 @@ pub struct SolcSettings {
     /// Additional CLI args configuration
     #[serde(flatten)]
     pub cli_settings: CliSettings,
-    /// Additional custom JSON settings
+    /// Additional custom resolc compiler settings
     #[serde(flatten)]
-    //    #[serde(skip)]
     pub extra_settings: ResolcSettings,
 }
 
