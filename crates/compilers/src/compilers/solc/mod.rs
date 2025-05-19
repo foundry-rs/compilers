@@ -315,6 +315,7 @@ impl CompilerSettings for SolcSettings {
                     libraries,
                     eof_version,
                 },
+            extra_settings,
             ..
         } = self;
 
@@ -329,6 +330,7 @@ impl CompilerSettings for SolcSettings {
             && *libraries == other.settings.libraries
             && *eof_version == other.settings.eof_version
             && output_selection.is_subset_of(&other.settings.output_selection)
+            && *extra_settings == other.extra_settings
     }
 
     fn with_remappings(mut self, remappings: &[Remapping]) -> Self {
