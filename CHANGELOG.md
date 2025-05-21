@@ -5,11 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.2](https://github.com/foundry-rs/compilers/releases/tag/v0.16.2) - 2025-05-21
+
+### Other
+
+- Support `transient` in `StorageLocation` ([#269](https://github.com/foundry-rs/compilers/issues/269))
+
 ## [0.16.1](https://github.com/foundry-rs/compilers/releases/tag/v0.16.1) - 2025-05-16
 
 ### Bug Fixes
 
 - Is_dirty to use additional_files ([#268](https://github.com/foundry-rs/compilers/issues/268))
+
+### Miscellaneous Tasks
+
+- Release 0.16.1
 
 ## [0.16.0](https://github.com/foundry-rs/compilers/releases/tag/v0.16.0) - 2025-05-12
 
