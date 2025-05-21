@@ -92,6 +92,7 @@ pub enum StorageLocation {
     Default,
     Memory,
     Storage,
+    Transient,
 }
 
 /// Visibility specifier.
