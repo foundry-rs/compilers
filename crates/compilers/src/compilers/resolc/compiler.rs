@@ -142,14 +142,31 @@ impl Resolc {
                 let version_manager = rvm::VersionManager::new(false)
                     .map_err(|e| SolcError::Message(e.to_string()))?;
 
-                let versions: Vec<Binary> = version_manager
-                    .list_available(_solc_version.clone())
-                    .map_err(|e| SolcError::Message(e.to_string()))?
-                    .into_iter()
-                    .filter(|x| _resolc_version.is_none_or(|version| version == x.version()))
-                    .collect();
+                let binary = {
+                    if let Some(resolc_version) = _resolc_version {
+                        if version_manager.is_installed(resolc_version) {
+                            version_manager
+                                .get(resolc_version, _solc_version.clone())
+                                .map_err(|e| SolcError::Message(e.to_string()))?
+                        } else {
+                            version_manager
+                                .get_or_install(resolc_version, _solc_version.clone())
+                                .map_err(|e| SolcError::Message(e.to_string()))?
+                        }
+                    } else {
+                        let versions: Vec<Binary> = version_manager
+                            .list_available(_solc_version.clone())
+                            .map_err(|e| SolcError::Message(e.to_string()))?
+                            .into_iter()
+                            .collect();
 
-                let binary = versions.into_iter().next_back().expect("Can't be empty");
+                        let Some(binary) = versions.into_iter().next_back() else {
+                            let message = "No `resolc` versions available.".to_string();
+                            return Err(SolcError::Message(message));
+                        };
+                        binary
+                    }
+                };
 
                 let binary_info = match binary {
                     Binary::Remote(binary_info) => binary_info,
@@ -223,15 +240,21 @@ impl Resolc {
         {
             let version_manager =
                 rvm::VersionManager::new(true).map_err(|e| SolcError::Message(e.to_string()))?;
+            let binary = if let Some(resolc_version) = _resolc_version {
+                if version_manager.is_installed(resolc_version) {
+                    version_manager.get(resolc_version, _solc_version.clone()).ok()
+                } else {
+                    None
+                }
+            } else {
+                let versions: Vec<Binary> = version_manager
+                    .list_available(_solc_version.clone())
+                    .map_err(|e| SolcError::Message(e.to_string()))?
+                    .into_iter()
+                    .collect();
 
-            let versions: Vec<Binary> = version_manager
-                .list_available(_solc_version)
-                .map_err(|e| SolcError::Message(e.to_string()))?
-                .into_iter()
-                .filter(|x| _resolc_version.is_none_or(|version| version == x.version()))
-                .collect();
-
-            let binary = versions.into_iter().next_back();
+                versions.into_iter().next_back()
+            };
 
             if let Some(binary) = binary {
                 match binary {
@@ -346,7 +369,9 @@ impl Resolc {
             cmd.arg(&solc.solc);
             cmd.arg("--standard-json");
             let mut child = cmd.spawn().map_err(map_io_err(&self.resolc))?;
-            let mut stdin = io::BufWriter::new(child.stdin.take().unwrap());
+            let mut stdin = io::BufWriter::new(
+                child.stdin.take().ok_or(SolcError::msg("`resolc` `stdin` closed"))?,
+            );
             serde_json::to_writer(&mut stdin, &input)?;
             stdin.flush().map_err(map_io_err(&self.resolc))?;
             child
@@ -412,5 +437,39 @@ fn compile_output(output: Output) -> Result<Vec<u8>> {
         Ok(output.stdout)
     } else {
         Err(SolcError::solc_output(&output))
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "full")]
+mod test {
+    use super::Resolc;
+    use crate::solc::Solc;
+
+    #[test]
+    fn not_existing_version() {
+        let result = Resolc::install(
+            semver::Version::parse("0.1.0-dev.33").ok().as_ref(),
+            crate::solc::SolcCompiler::AutoDetect,
+        )
+        .expect_err("should fail");
+        assert_eq!(result.to_string(), "Unknown version of Resolc v0.1.0-dev.33.")
+    }
+
+    fn solc_with_version() -> Solc {
+        Solc::blocking_install(&semver::Version::parse("0.4.14").unwrap()).unwrap()
+    }
+
+    #[test]
+    fn not_existing_solc() {
+        let result = Resolc::install(
+            semver::Version::parse("0.1.0-dev.13").ok().as_ref(),
+            crate::solc::SolcCompiler::Specific(solc_with_version()),
+        )
+        .expect_err("should fail");
+        assert_eq!(
+            result.to_string(),
+            "Unsupported version of `solc` - v0.4.14 for Resolc v0.1.0-dev.13. Only versions \">=0.8.0, <=0.8.29\" is supported by this version of Resolc"
+        )
     }
 }
