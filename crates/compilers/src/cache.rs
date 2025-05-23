@@ -20,7 +20,7 @@ use semver::Version;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     collections::{btree_map::BTreeMap, hash_map, BTreeSet, HashMap, HashSet},
-    fs,
+    fs::{self},
     path::{Path, PathBuf},
     time::{Duration, UNIX_EPOCH},
 };
@@ -1051,7 +1051,14 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
                 if let Ok(cache) = CompilerCache::read_joined(&project.paths) {
                     if cache.paths == paths && preprocessed == cache.preprocessed {
                         // unchanged project paths and same preprocess cache option
-                        return cache;
+                        if cache.builds.iter().all(|x| {
+                            project.paths.build_infos.join(x).with_extension("json").exists()
+                        }) {
+                            return cache;
+                        } else {
+                            // clear all artifacts
+                            let _ = std::fs::remove_dir_all(&project.paths.artifacts);
+                        }
                     }
                 }
             }

@@ -4532,6 +4532,7 @@ fn test_output_hash_cache_invalidation() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
     let paths = ProjectPathsConfig::builder().sources(root.join("src")).lib(root.join("lib"));
     let mut project = TempProject::<MultiCompiler, ConfigurableArtifacts>::new(paths).unwrap();
+    project.project_mut().compiler = resolc();
     project.project_mut().build_info = true;
 
     // First compilation - should compile everything since cache is empty.
@@ -4539,10 +4540,27 @@ fn test_output_hash_cache_invalidation() {
     compiled.assert_success();
     assert!(!compiled.is_unchanged(), "First compilation should not be cached");
 
+    project.project_mut().compiler = MultiCompiler {
+        solidity: SolidityCompiler::Resolc(
+            Resolc::find_or_install(
+                &semver::Version::parse("0.1.0-dev.13").unwrap(),
+                SolcCompiler::default(),
+            )
+            .unwrap(),
+        ),
+        ..Default::default()
+    };
+
     // Second compilation - should use cache since nothing changed.
     let compiled = project.compile().unwrap();
     compiled.assert_success();
-    assert!(compiled.is_unchanged(), "Second compilation should use cache");
+    assert!(!compiled.is_unchanged(), "Second compilation should use cache");
+
+    // Second compilation - should use cache since nothing changed.
+    let compiled = project.compile().unwrap();
+    compiled.assert_success();
+
+    assert!(compiled.is_unchanged(), "Third compilation should use cache");
 
     // Adding a file to output directory should NOT invalidate cache
     let artifacts_path = project.project().artifacts_path();

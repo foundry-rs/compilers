@@ -438,16 +438,22 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
     /// Filters out all sources that don't need to be compiled, see [`ArtifactsCache::filter`]
     fn filter<
         T: ArtifactOutput<CompilerContract = C::CompilerContract>,
-        C: Compiler<Language = L>,
+        C: Compiler<Language = L, Settings = S>,
     >(
         &mut self,
         cache: &mut ArtifactsCache<'_, T, C>,
     ) {
         cache.remove_dirty_sources();
-        for versioned_sources in self.sources.values_mut() {
-            for (version, sources, (profile, _)) in versioned_sources {
+        for (language, versioned_sources) in self.sources.iter_mut() {
+            for (version, sources, (profile, settings)) in versioned_sources {
+                let input =
+                    C::Input::build(sources.clone(), settings.clone(), *language, version.clone());
+                let version = compound_version(
+                    cache.project().compiler.compiler_version(&input),
+                    input.version(),
+                );
                 trace!("Filtering {} sources for {}", sources.len(), version);
-                cache.filter(sources, version, profile);
+                cache.filter(sources, &version, profile);
                 trace!(
                     "Detected {} sources to compile {:?}",
                     sources.dirty().count(),
@@ -540,14 +546,16 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
         let mut aggregated = AggregatedCompilerOutput::default();
 
         for (input, mut output, profile, actually_dirty) in results {
-            let version = input.version();
-
+            let version = compound_version(
+                project.compiler.compiler_version(&input).clone(),
+                input.version(),
+            );
             // Mark all files as seen by the compiler
             for file in &actually_dirty {
                 cache.compiler_seen(file);
             }
 
-            let build_info = RawBuildInfo::new(&input, &output, project.build_info)?;
+            let build_info = RawBuildInfo::new(&input, &output, &version, project.build_info)?;
 
             output.retain_files(
                 actually_dirty
@@ -583,15 +591,11 @@ fn compile_sequential<'a, C: Compiler>(
             };
             report::compiler_spawn(
                 &compiler.compiler_name(&input),
-                versions.as_ref(),
+                &versions,
                 actually_dirty.as_slice(),
             );
             let output = compiler.compile(&input)?;
-            report::compiler_success(
-                &compiler.compiler_name(&input),
-                versions.as_ref(),
-                &start.elapsed(),
-            );
+            report::compiler_success(&compiler.compiler_name(&input), &versions, &start.elapsed());
 
             Ok((input, output, profile, actually_dirty))
         })
@@ -628,13 +632,13 @@ fn compile_parallel<'a, C: Compiler>(
                 let start = Instant::now();
                 report::compiler_spawn(
                     &compiler.compiler_name(&input),
-                    versions.as_ref(),
+                    &versions,
                     actually_dirty.as_slice(),
                 );
                 compiler.compile(&input).map(move |output| {
                     report::compiler_success(
                         &compiler.compiler_name(&input),
-                        versions.as_ref(),
+                        &versions,
                         &start.elapsed(),
                     );
                     (input, output, profile, actually_dirty)
@@ -642,6 +646,29 @@ fn compile_parallel<'a, C: Compiler>(
             })
             .collect()
     })
+}
+
+fn compound_version(mut compiler_version: Version, input_version: &Version) -> Version {
+    if compiler_version != *input_version {
+        let build = if compiler_version.build.is_empty() {
+            semver::BuildMetadata::new(&format!(
+                "{}.{}.{}",
+                input_version.major, input_version.minor, input_version.patch,
+            ))
+            .expect("can't fail due to parsing")
+        } else {
+            semver::BuildMetadata::new(&format!(
+                "{}-{}.{}.{}",
+                compiler_version.build.as_str(),
+                input_version.major,
+                input_version.minor,
+                input_version.patch,
+            ))
+            .expect("can't fail due to parsing")
+        };
+        compiler_version.build = build;
+    };
+    compiler_version
 }
 
 #[cfg(test)]
