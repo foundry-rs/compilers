@@ -177,6 +177,8 @@ ast_node!(
         documentation: Option<Documentation>,
         // Not available when "stopAfter": "parsing" is specified.
         fully_implemented: Option<bool>,
+        // Not available when "stopAfter": "parsing" is specified.
+        #[serde(default)]
         linearized_base_contracts: Vec<usize>,
         nodes: Vec<ContractDefinitionPart>,
         // Not available when "stopAfter": "parsing" is specified.
