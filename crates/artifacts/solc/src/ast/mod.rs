@@ -175,9 +175,11 @@ ast_node!(
         #[serde(rename = "contractKind")]
         kind: ContractKind,
         documentation: Option<Documentation>,
-        fully_implemented: bool,
+        // Not available when "stopAfter": "parsing" is specified.
+        fully_implemented: Option<bool>,
         linearized_base_contracts: Vec<usize>,
         nodes: Vec<ContractDefinitionPart>,
+        // Not available when "stopAfter": "parsing" is specified.
         scope: Option<usize>,
         #[serde(default, deserialize_with = "serde_helpers::default_for_null")]
         used_errors: Vec<usize>,
@@ -536,6 +538,7 @@ ast_node!(
         #[serde(default)]
         mutability: Option<Mutability>,
         overrides: Option<OverrideSpecifier>,
+        // Not available when "stopAfter": "parsing" is specified.
         scope: Option<usize>,
         storage_location: StorageLocation,
         type_descriptions: TypeDescriptions,
@@ -713,6 +716,7 @@ ast_node!(
         overrides: Option<OverrideSpecifier>,
         parameters: ParameterList,
         return_parameters: ParameterList,
+        // Not available when "stopAfter": "parsing" is specified.
         scope: Option<usize>,
         visibility: Visibility,
         /// The kind of function this node defines. Only valid for Solidity versions 0.5.x and
@@ -1028,6 +1032,7 @@ ast_node!(
         name_location: Option<SourceLocation>,
         canonical_name: String,
         members: Vec<VariableDeclaration>,
+        // Not available when "stopAfter": "parsing" is specified.
         scope: Option<usize>,
         visibility: Visibility,
     }
@@ -1082,6 +1087,7 @@ ast_node!(
         file: String,
         #[serde(default, with = "serde_helpers::display_from_str_opt")]
         name_location: Option<SourceLocation>,
+        // Not available when "stopAfter": "parsing" is specified.
         scope: Option<usize>,
         source_unit: usize,
         symbol_aliases: Vec<SymbolAlias>,
