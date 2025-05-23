@@ -175,10 +175,14 @@ ast_node!(
         #[serde(rename = "contractKind")]
         kind: ContractKind,
         documentation: Option<Documentation>,
-        fully_implemented: bool,
+        // Not available when "stopAfter": "parsing" is specified.
+        fully_implemented: Option<bool>,
+        // Not available when "stopAfter": "parsing" is specified.
+        #[serde(default)]
         linearized_base_contracts: Vec<usize>,
         nodes: Vec<ContractDefinitionPart>,
-        scope: usize,
+        // Not available when "stopAfter": "parsing" is specified.
+        scope: Option<usize>,
         #[serde(default, deserialize_with = "serde_helpers::default_for_null")]
         used_errors: Vec<usize>,
         #[serde(default, deserialize_with = "serde_helpers::default_for_null")]
@@ -536,7 +540,8 @@ ast_node!(
         #[serde(default)]
         mutability: Option<Mutability>,
         overrides: Option<OverrideSpecifier>,
-        scope: usize,
+        // Not available when "stopAfter": "parsing" is specified.
+        scope: Option<usize>,
         storage_location: StorageLocation,
         type_descriptions: TypeDescriptions,
         type_name: Option<TypeName>,
@@ -713,7 +718,8 @@ ast_node!(
         overrides: Option<OverrideSpecifier>,
         parameters: ParameterList,
         return_parameters: ParameterList,
-        scope: usize,
+        // Not available when "stopAfter": "parsing" is specified.
+        scope: Option<usize>,
         visibility: Visibility,
         /// The kind of function this node defines. Only valid for Solidity versions 0.5.x and
         /// above.
@@ -1028,7 +1034,8 @@ ast_node!(
         name_location: Option<SourceLocation>,
         canonical_name: String,
         members: Vec<VariableDeclaration>,
-        scope: usize,
+        // Not available when "stopAfter": "parsing" is specified.
+        scope: Option<usize>,
         visibility: Visibility,
     }
 );
@@ -1082,7 +1089,8 @@ ast_node!(
         file: String,
         #[serde(default, with = "serde_helpers::display_from_str_opt")]
         name_location: Option<SourceLocation>,
-        scope: usize,
+        // Not available when "stopAfter": "parsing" is specified.
+        scope: Option<usize>,
         source_unit: usize,
         symbol_aliases: Vec<SymbolAlias>,
         unit_alias: String,
