@@ -625,10 +625,8 @@ pub trait ArtifactOutput {
     ) -> Result<Artifacts<Self::Artifact>> {
         let mut artifacts =
             self.output_to_artifacts(contracts, sources, ctx, layout, primary_profiles);
-        fs::create_dir_all(&layout.artifacts).map_err(|err| {
-            error!(dir=?layout.artifacts, "Failed to create artifacts folder");
-            SolcIoError::new(err, &layout.artifacts)
-        })?;
+        fs::create_dir_all(&layout.artifacts)
+            .map_err(|err| SolcIoError::new(err, &layout.artifacts))?;
 
         artifacts.join_all(&layout.artifacts);
         artifacts.write_all()?;
@@ -1140,16 +1138,17 @@ impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
     }
 
     fn read_cached_artifact(path: &Path) -> Result<Self::Artifact> {
-        let content = fs::read_to_string(path).map_err(|err| SolcError::io(err, path))?;
-        if let Ok(a) = serde_json::from_str(&content) {
-            Ok(a)
-        } else {
-            error!("Failed to deserialize compact artifact");
-            trace!("Fallback to hardhat artifact deserialization");
-            let artifact = serde_json::from_str::<HardhatArtifact>(&content)?;
-            trace!("successfully deserialized hardhat artifact");
-            Ok(artifact.into_contract_bytecode())
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Artifact {
+            Compact(CompactContractBytecode),
+            Hardhat(HardhatArtifact),
         }
+
+        Ok(match utils::read_json_file::<Artifact>(path)? {
+            Artifact::Compact(c) => c,
+            Artifact::Hardhat(h) => h.into_contract_bytecode(),
+        })
     }
 
     fn contract_to_artifact(

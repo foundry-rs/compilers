@@ -917,8 +917,9 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
                         .collect(),
                 );
             } else {
-                error!("failed to resolve versions");
-                return Err(SolcError::msg(errors.join("\n")));
+                let s = errors.join("\n");
+                debug!("failed to resolve versions: {s}");
+                return Err(SolcError::msg(s));
             }
         }
 
@@ -960,8 +961,9 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         if errors.is_empty() {
             Ok(resulted_sources)
         } else {
-            error!("failed to resolve settings");
-            Err(SolcError::msg(errors.join("\n")))
+            let s = errors.join("\n");
+            debug!("failed to resolve settings: {s}");
+            return Err(SolcError::msg(s));
         }
     }
 
