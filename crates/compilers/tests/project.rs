@@ -2703,7 +2703,7 @@ fn can_compile_std_json_input() {
     assert!(input.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
 
     // should be installed
-    if let Ok(solc) = Solc::find_or_install(&Version::new(0, 8, 24)) {
+    if let Ok(solc) = Solc::find_or_install(&Version::new(0, 8, 30)) {
         let out = solc.compile(&input).unwrap();
         assert!(out.errors.is_empty());
         assert!(out.sources.contains_key(Path::new("lib/ds-test/src/test.sol")));
