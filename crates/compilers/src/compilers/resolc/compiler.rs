@@ -12,7 +12,7 @@ use serde::Serialize;
 use std::{
     io::{self, Write},
     path::{Path, PathBuf},
-    process::{Command, Output, Stdio},
+    process::{Child, Command, Output, Stdio},
     str::FromStr,
 };
 
@@ -370,11 +370,20 @@ impl Resolc {
             cmd.arg(&solc.solc);
             cmd.arg("--standard-json");
             let mut child = cmd.spawn().map_err(map_io_err(&self.resolc))?;
-            let mut stdin = io::BufWriter::new(
-                child.stdin.take().ok_or(SolcError::msg("`resolc` `stdin` closed"))?,
-            );
-            serde_json::to_writer(&mut stdin, &input)?;
-            stdin.flush().map_err(map_io_err(&self.resolc))?;
+            let Some(stdin) = child.stdin.take() else {
+                let err = SolcError::msg("`resolc` `stdin` closed");
+                return Err(dump_output_to_err(child, err));
+            };
+
+            let mut writer = io::BufWriter::new(stdin);
+
+            if let Err(err) = serde_json::to_writer(&mut writer, &input) {
+                return Err(dump_output_to_err(child, err.into()));
+            }
+
+            if let Err(err) = writer.flush() {
+                return Err(dump_output_to_err(child, map_io_err(&self.resolc)(err)));
+            }
             child
         } else {
             cmd.arg("--yul");
@@ -387,6 +396,7 @@ impl Resolc {
                     .ok_or_else(|| SolcError::msg("No Yul sources available"))?
             ));
             cmd.arg("--bin");
+
             cmd.spawn().map_err(map_io_err(&self.resolc))?
         };
 
@@ -403,6 +413,14 @@ impl Resolc {
         cmd.stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
         cmd.args(&solc.extra_args);
         cmd
+    }
+}
+
+fn dump_output_to_err(child: Child, err: SolcError) -> SolcError {
+    if let Ok(output) = child.wait_with_output() {
+        SolcError::solc_output(&output)
+    } else {
+        err
     }
 }
 
