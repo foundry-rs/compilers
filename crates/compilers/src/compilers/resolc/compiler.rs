@@ -76,7 +76,7 @@ impl Compiler for Resolc {
 impl SimpleCompilerName for Resolc {
     fn compiler_name_default() -> std::borrow::Cow<'static, str> {
         // Single `Resolc` is sufficient because we now add `Solc` to `compiler_version` buildMeta.
-        "Resolc".into()
+        "Resolc and Solc".into()
     }
 }
 
