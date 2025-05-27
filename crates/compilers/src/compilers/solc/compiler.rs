@@ -54,7 +54,7 @@ pub static RELEASES: std::sync::LazyLock<(svm::Releases, Vec<Version>, bool)> =
                 (releases, sorted_versions, true)
             }
             Err(err) => {
-                error!("{:?}", err);
+                error!("failed to deserialize SVM static RELEASES JSON: {err}");
                 Default::default()
             }
         }
