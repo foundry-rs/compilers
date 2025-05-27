@@ -963,7 +963,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         } else {
             let s = errors.join("\n");
             debug!("failed to resolve settings: {s}");
-            return Err(SolcError::msg(s));
+           Err(SolcError::msg(s))
         }
     }
 
