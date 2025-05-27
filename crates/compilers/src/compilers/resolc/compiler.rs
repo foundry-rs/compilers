@@ -434,17 +434,16 @@ fn version_from_output(output: Output) -> Result<Version> {
         let version = stdout
             .lines()
             .filter(|l| !l.trim().is_empty())
-            .find(|l| l.contains("version"))
+            .next_back()
             .ok_or_else(|| SolcError::msg("Version not found in resolc output"))?;
-
+        let version = version.split_terminator("version ");
         version
-            .split_whitespace()
-            .find(|s| s.starts_with("0.") || s.starts_with("v0."))
-            .and_then(|s| {
-                let trimmed = s.trim_start_matches('v').split('+').next().unwrap_or(s);
-                Version::from_str(trimmed).ok()
-            })
+            .last()
             .ok_or_else(|| SolcError::msg("Unable to retrieve version from resolc output"))
+            .and_then(|version| {
+                Version::from_str(version)
+                    .map_err(|_| SolcError::msg("Unable to retrieve version from resolc output"))
+            })
     } else {
         Err(SolcError::solc_output(&output))
     }
