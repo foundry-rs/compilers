@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.3](https://github.com/foundry-rs/compilers/releases/tag/v0.16.3) - 2025-05-28
+
+### Bug Fixes
+
+- Update Tera documentation link in cliff.toml ([#270](https://github.com/foundry-rs/compilers/issues/270))
+
+### Miscellaneous Tasks
+
+- Switch to `Prague` hardfork by default ([#272](https://github.com/foundry-rs/compilers/issues/272))
+- Clean up error! calls ([#273](https://github.com/foundry-rs/compilers/issues/273))
+
+### Other
+
+- Some fields are optional during `"stopAfter":"parsing"` ([#271](https://github.com/foundry-rs/compilers/issues/271))
+
 ## [0.16.2](https://github.com/foundry-rs/compilers/releases/tag/v0.16.2) - 2025-05-21
+
+### Miscellaneous Tasks
+
+- Release 0.16.2
 
 ### Other
 
