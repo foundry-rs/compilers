@@ -793,7 +793,7 @@ impl YulDetails {
 
 /// EVM versions.
 ///
-/// Default is `Cancun`, since 0.8.25
+/// Default is `Prague`, since 0.8.30
 ///
 /// Kept in sync with: <https://github.com/ethereum/solidity/blob/develop/liblangutil/EVMVersion.h>
 // When adding new EVM versions (see a previous attempt at https://github.com/foundry-rs/compilers/pull/51):
@@ -816,8 +816,8 @@ pub enum EvmVersion {
     London,
     Paris,
     Shanghai,
-    #[default]
     Cancun,
+    #[default]
     Prague,
     Osaka,
 }
