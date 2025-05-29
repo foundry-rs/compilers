@@ -20,17 +20,30 @@ pub struct ResolcOptimizer {
 }
 
 #[derive(Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PolkaVMSettings {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub heap_size: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stack_size: Option<u32>,
+pub struct PolkaVM {
+    #[serde(default)]
+    pub memory_config: MemoryConfig,
+    #[serde(default)]
+    pub debug_information: bool,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemoryConfig {
+    #[serde(default)]
+    pub heap_size: u32,
+    #[serde(default)]
+    pub stack_size: u32,
+}
+
+impl Default for MemoryConfig {
+    fn default() -> Self {
+        Self { heap_size: 64 * 1024, stack_size: 32 * 1024 }
+    }
 }
 
 #[derive(Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResolcSettings {
     #[serde(default)]
-    pub polkavm: PolkaVMSettings,
+    pub polkavm: Option<PolkaVM>,
     #[serde(default)]
     pub resolc_optimizer: ResolcOptimizer,
 }
@@ -40,11 +53,33 @@ impl ResolcSettings {
         optimizer_mode: Option<char>,
         heap_size: Option<u32>,
         stack_size: Option<u32>,
+        debug_information: Option<bool>,
     ) -> Self {
-        Self {
-            resolc_optimizer: ResolcOptimizer { mode: optimizer_mode },
-            polkavm: PolkaVMSettings { heap_size, stack_size },
-        }
+        let has_custom_settings =
+            debug_information.is_some() || heap_size.is_some() || stack_size.is_some();
+
+        let polkavm = if has_custom_settings {
+            // Start from defaults and override as needed
+            let mut pvm = PolkaVM::default();
+
+            if let Some(heap_size) = heap_size {
+                pvm.memory_config.heap_size = heap_size
+            }
+
+            if let Some(stack_size) = stack_size {
+                pvm.memory_config.stack_size = stack_size
+            }
+
+            if let Some(debug_information) = debug_information {
+                pvm.debug_information = debug_information
+            }
+
+            Some(pvm)
+        } else {
+            None
+        };
+
+        Self { resolc_optimizer: ResolcOptimizer { mode: optimizer_mode }, polkavm }
     }
 }
 
@@ -199,8 +234,8 @@ pub struct ResolcSettingsInput {
     /// Specify EOF version to produce.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub eof_version: Option<EofVersion>,
-    #[serde(default)]
-    pub polkavm: PolkaVMSettings,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub polkavm: Option<PolkaVM>,
 }
 
 impl From<SolcSettings> for ResolcSettingsInput {
@@ -334,7 +369,7 @@ impl Default for ResolcSettingsInput {
             remappings: Default::default(),
             model_checker: None,
             eof_version: None,
-            polkavm: Default::default(),
+            polkavm: None,
         }
         .with_ast()
     }
