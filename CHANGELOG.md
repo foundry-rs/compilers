@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.16.4
 - Release 0.16.3
 - Switch to `Prague` hardfork by default ([#272](https://github.com/foundry-rs/compilers/issues/272))
 - Clean up error! calls ([#273](https://github.com/foundry-rs/compilers/issues/273))
