@@ -26,7 +26,7 @@ jobs:
         flags: ["", "--all-features"]
         exclude:
           # Skip because some features have higher MSRV.
-          - rust: "1.86" # MSRV
+          - rust: "1.87" # MSRV
             flags: "--all-features"
     steps:
       - uses: actions/checkout@v4
