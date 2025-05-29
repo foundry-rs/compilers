@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Miscellaneous Tasks
 
 - Release 0.17.0
+- Release 0.17.0
 
 ## [0.16.4](https://github.com/foundry-rs/compilers/releases/tag/v0.16.4) - 2025-05-29
 
