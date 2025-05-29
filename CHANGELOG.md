@@ -5,164 +5,80 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.16.3](https://github.com/foundry-rs/compilers/releases/tag/v0.16.3) - 2025-05-28
+## [0.16.4](https://github.com/foundry-rs/compilers/releases/tag/v0.16.4) - 2025-05-29
 
 ### Bug Fixes
 
 - Update Tera documentation link in cliff.toml ([#270](https://github.com/foundry-rs/compilers/issues/270))
-
-### Miscellaneous Tasks
-
-- Switch to `Prague` hardfork by default ([#272](https://github.com/foundry-rs/compilers/issues/272))
-- Clean up error! calls ([#273](https://github.com/foundry-rs/compilers/issues/273))
-
-### Other
-
-- Some fields are optional during `"stopAfter":"parsing"` ([#271](https://github.com/foundry-rs/compilers/issues/271))
-
-## [0.16.2](https://github.com/foundry-rs/compilers/releases/tag/v0.16.2) - 2025-05-21
-
-### Miscellaneous Tasks
-
-- Release 0.16.2
-
-### Other
-
-- Support `transient` in `StorageLocation` ([#269](https://github.com/foundry-rs/compilers/issues/269))
-
-## [0.16.1](https://github.com/foundry-rs/compilers/releases/tag/v0.16.1) - 2025-05-16
-
-### Bug Fixes
-
 - Is_dirty to use additional_files ([#268](https://github.com/foundry-rs/compilers/issues/268))
-
-### Miscellaneous Tasks
-
-- Release 0.16.1
-
-## [0.16.0](https://github.com/foundry-rs/compilers/releases/tag/v0.16.0) - 2025-05-12
+- Fix Update CONTRIBUTING.md ([#261](https://github.com/foundry-rs/compilers/issues/261))
+- Missing check for normalization ([#257](https://github.com/foundry-rs/compilers/issues/257))
+- Update normalization ([#256](https://github.com/foundry-rs/compilers/issues/256))
+- Allow top level event declarations ([#251](https://github.com/foundry-rs/compilers/issues/251))
+- Ordering for flattener ([#247](https://github.com/foundry-rs/compilers/issues/247))
+- Handle displaying multiline errors correctly ([#245](https://github.com/foundry-rs/compilers/issues/245))
 
 ### Dependencies
 
+- Bump solar v0.1.4 ([#275](https://github.com/foundry-rs/compilers/issues/275))
 - Bump solar version ([#264](https://github.com/foundry-rs/compilers/issues/264))
-
-### Miscellaneous Tasks
-
-- Release 0.16.0
-
-## [0.15.0](https://github.com/foundry-rs/compilers/releases/tag/v0.15.0) - 2025-05-07
-
-### Dependencies
-
 - [deps] Bump alloy 1.0 ([#263](https://github.com/foundry-rs/compilers/issues/263))
+- [deps] Bump dirs ([#243](https://github.com/foundry-rs/compilers/issues/243))
 
 ### Documentation
 
 - Update CHANGELOG.md
 
+### Features
+
+- Add support for preprocessing sources ([#252](https://github.com/foundry-rs/compilers/issues/252))
+- Add osaka evm version ([#254](https://github.com/foundry-rs/compilers/issues/254))
+- Impl `.path(&self)` for `ContractInfo` ([#250](https://github.com/foundry-rs/compilers/issues/250))
+
 ### Miscellaneous Tasks
 
+- Release 0.16.3
+- Switch to `Prague` hardfork by default ([#272](https://github.com/foundry-rs/compilers/issues/272))
+- Clean up error! calls ([#273](https://github.com/foundry-rs/compilers/issues/273))
+- Release 0.16.2
+- Release 0.16.1
+- Release 0.16.0
 - Release 0.15.0
-
-## [0.14.1](https://github.com/foundry-rs/compilers/releases/tag/v0.14.1) - 2025-04-19
-
-### Bug Fixes
-
-- Fix Update CONTRIBUTING.md ([#261](https://github.com/foundry-rs/compilers/issues/261))
-
-### Miscellaneous Tasks
-
 - Release 0.14.1
+- Release 0.14.0
+- Simplify pragma parsing ([#260](https://github.com/foundry-rs/compilers/issues/260))
+- Release 0.13.5
+- Release 0.13.4
+- Release 0.13.3
+- Release 0.13.2
+- Fix spelling issues ([#248](https://github.com/foundry-rs/compilers/issues/248))
+- Release 0.13.1
+- Clippy + winnow 0.7 ([#244](https://github.com/foundry-rs/compilers/issues/244))
+- Call shrink_to_fit afte parsing source maps ([#242](https://github.com/foundry-rs/compilers/issues/242))
+
+### Other
+
+- Some fields are optional during `"stopAfter":"parsing"` ([#271](https://github.com/foundry-rs/compilers/issues/271))
+- Support `transient` in `StorageLocation` ([#269](https://github.com/foundry-rs/compilers/issues/269))
+- Allow unmaintained paste ([#255](https://github.com/foundry-rs/compilers/issues/255))
 
 ### Performance
 
 - Switch md5 to xxhash ([#262](https://github.com/foundry-rs/compilers/issues/262))
 
-## [0.14.0](https://github.com/foundry-rs/compilers/releases/tag/v0.14.0) - 2025-04-07
-
-### Features
-
-- Add support for preprocessing sources ([#252](https://github.com/foundry-rs/compilers/issues/252))
-
-### Miscellaneous Tasks
-
-- Release 0.14.0
-- Simplify pragma parsing ([#260](https://github.com/foundry-rs/compilers/issues/260))
-
 ### Styling
 
 - Update file extension for compatibility ([#258](https://github.com/foundry-rs/compilers/issues/258))
 
-## [0.13.5](https://github.com/foundry-rs/compilers/releases/tag/v0.13.5) - 2025-03-14
+## [0.13.0](https://github.com/foundry-rs/compilers/releases/tag/v0.13.0) - 2025-01-21
 
 ### Bug Fixes
 
-- Missing check for normalization ([#257](https://github.com/foundry-rs/compilers/issues/257))
-
-### Miscellaneous Tasks
-
-- Release 0.13.5
-
-## [0.13.4](https://github.com/foundry-rs/compilers/releases/tag/v0.13.4) - 2025-03-14
-
-### Bug Fixes
-
-- Update normalization ([#256](https://github.com/foundry-rs/compilers/issues/256))
-
-### Features
-
-- Add osaka evm version ([#254](https://github.com/foundry-rs/compilers/issues/254))
-
-### Miscellaneous Tasks
-
-- Release 0.13.4
-
-### Other
-
-- Allow unmaintained paste ([#255](https://github.com/foundry-rs/compilers/issues/255))
-
-## [0.13.3](https://github.com/foundry-rs/compilers/releases/tag/v0.13.3) - 2025-02-14
-
-### Bug Fixes
-
-- Allow top level event declarations ([#251](https://github.com/foundry-rs/compilers/issues/251))
-
-### Features
-
-- Impl `.path(&self)` for `ContractInfo` ([#250](https://github.com/foundry-rs/compilers/issues/250))
-
-### Miscellaneous Tasks
-
-- Release 0.13.3
-
-## [0.13.2](https://github.com/foundry-rs/compilers/releases/tag/v0.13.2) - 2025-02-06
-
-### Bug Fixes
-
-- Ordering for flattener ([#247](https://github.com/foundry-rs/compilers/issues/247))
-
-### Miscellaneous Tasks
-
-- Release 0.13.2
-- Fix spelling issues ([#248](https://github.com/foundry-rs/compilers/issues/248))
-
-## [0.13.1](https://github.com/foundry-rs/compilers/releases/tag/v0.13.1) - 2025-02-02
-
-### Bug Fixes
-
-- Handle displaying multiline errors correctly ([#245](https://github.com/foundry-rs/compilers/issues/245))
+- EvmVersion `from_str` ([#235](https://github.com/foundry-rs/compilers/issues/235))
 
 ### Dependencies
 
-- [deps] Bump dirs ([#243](https://github.com/foundry-rs/compilers/issues/243))
-
-### Miscellaneous Tasks
-
-- Release 0.13.1
-- Clippy + winnow 0.7 ([#244](https://github.com/foundry-rs/compilers/issues/244))
-- Call shrink_to_fit afte parsing source maps ([#242](https://github.com/foundry-rs/compilers/issues/242))
-
-## [0.13.0](https://github.com/foundry-rs/compilers/releases/tag/v0.13.0) - 2025-01-21
+- [deps] Bump solar 0.1.1 ([#237](https://github.com/foundry-rs/compilers/issues/237))
 
 ### Features
 
@@ -173,19 +89,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Release 0.13.0
 - More lints ([#238](https://github.com/foundry-rs/compilers/issues/238))
-
-## [0.12.9](https://github.com/foundry-rs/compilers/releases/tag/v0.12.9) - 2025-01-05
-
-### Bug Fixes
-
-- EvmVersion `from_str` ([#235](https://github.com/foundry-rs/compilers/issues/235))
-
-### Dependencies
-
-- [deps] Bump solar 0.1.1 ([#237](https://github.com/foundry-rs/compilers/issues/237))
-
-### Miscellaneous Tasks
-
 - Release 0.12.9
 - Clippy ([#236](https://github.com/foundry-rs/compilers/issues/236))
 
@@ -194,50 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Bug Fixes
 
 - Correctly merge restrictions ([#234](https://github.com/foundry-rs/compilers/issues/234))
-
-### Miscellaneous Tasks
-
-- Release 0.12.8
-
-### Other
-
-- Move deny to ci ([#233](https://github.com/foundry-rs/compilers/issues/233))
-
-## [0.12.7](https://github.com/foundry-rs/compilers/releases/tag/v0.12.7) - 2024-12-05
-
-### Bug Fixes
-
 - Vyper version comparison typo ([#232](https://github.com/foundry-rs/compilers/issues/232))
-
-### Miscellaneous Tasks
-
-- Release 0.12.7
-
-## [0.12.6](https://github.com/foundry-rs/compilers/releases/tag/v0.12.6) - 2024-12-04
-
-### Miscellaneous Tasks
-
-- Release 0.12.6
-
-### Performance
-
-- Don't request unnecessary output ([#231](https://github.com/foundry-rs/compilers/issues/231))
-
-## [0.12.5](https://github.com/foundry-rs/compilers/releases/tag/v0.12.5) - 2024-12-04
-
-### Miscellaneous Tasks
-
-- Release 0.12.5
-- Release 0.12.5
-
-### Refactor
-
-- Make Contract generic for Compiler and add metadata to CompilerOutput ([#224](https://github.com/foundry-rs/compilers/issues/224))
-
-## [0.12.4](https://github.com/foundry-rs/compilers/releases/tag/v0.12.4) - 2024-12-02
-
-### Bug Fixes
-
 - Add fallback parser for contract names ([#229](https://github.com/foundry-rs/compilers/issues/229))
 - Fix minor grammatical issue in project documentation ([#226](https://github.com/foundry-rs/compilers/issues/226))
 
@@ -247,11 +107,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.12.8
+- Release 0.12.7
+- Release 0.12.6
+- Release 0.12.5
+- Release 0.12.5
 - Release 0.12.4
 
 ### Other
 
+- Move deny to ci ([#233](https://github.com/foundry-rs/compilers/issues/233))
 - Add note about grammar,spelling prs ([#228](https://github.com/foundry-rs/compilers/issues/228))
+
+### Performance
+
+- Don't request unnecessary output ([#231](https://github.com/foundry-rs/compilers/issues/231))
+
+### Refactor
+
+- Make Contract generic for Compiler and add metadata to CompilerOutput ([#224](https://github.com/foundry-rs/compilers/issues/224))
 
 ## [0.12.3](https://github.com/foundry-rs/compilers/releases/tag/v0.12.3) - 2024-11-20
 
@@ -291,7 +165,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sanitize `settings.optimizer.details.inliner` ([#216](https://github.com/foundry-rs/compilers/issues/216))
 - [tests] Always try installing pinned solc ([#217](https://github.com/foundry-rs/compilers/issues/217))
 - Outdated merge build error
-- Correctly handle b as pre-release in Vyper version ([#213](https://github.com/foundry-rs/compilers/issues/213))
 
 ### Features
 
@@ -304,6 +177,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove outdated `ref` patterns ([#218](https://github.com/foundry-rs/compilers/issues/218))
 - Inline constants in Settings::sanitize ([#219](https://github.com/foundry-rs/compilers/issues/219))
 - Use Version::new over .parse ([#220](https://github.com/foundry-rs/compilers/issues/220))
+
+## [0.11.6](https://github.com/foundry-rs/compilers/releases/tag/v0.11.6) - 2024-10-16
+
+### Bug Fixes
+
+- Correctly handle b as pre-release in Vyper version ([#213](https://github.com/foundry-rs/compilers/issues/213))
+
+### Miscellaneous Tasks
+
 - Release 0.11.6
 
 ## [0.11.5](https://github.com/foundry-rs/compilers/releases/tag/v0.11.5) - 2024-10-14
