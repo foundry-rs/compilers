@@ -7,7 +7,7 @@ use crate::{
 use foundry_compilers_artifacts::{resolc::ResolcCompilerOutput, Contract, Error, SolcLanguage};
 use itertools::Itertools;
 use rvm::Binary;
-use semver::{Comparator, Prerelease, Version, VersionReq};
+use semver::{BuildMetadata, Comparator, Prerelease, Version, VersionReq};
 use serde::Serialize;
 use std::{
     io::{self, Write},
@@ -442,6 +442,13 @@ fn version_from_output(output: Output) -> Result<Version> {
             .ok_or_else(|| SolcError::msg("Unable to retrieve version from resolc output"))
             .and_then(|version| {
                 Version::from_str(version)
+                    .map(|version| Version {
+                        major: version.major,
+                        minor: version.minor,
+                        patch: version.patch,
+                        pre: version.pre,
+                        build: BuildMetadata::EMPTY,
+                    })
                     .map_err(|_| SolcError::msg("Unable to retrieve version from resolc output"))
             })
     } else {
