@@ -4,6 +4,7 @@ use foundry_compilers_artifacts::{
     SolcLanguage, Source, Sources,
 };
 use foundry_compilers_core::utils::strip_prefix_owned;
+use revive_solc_json_interface::SolcStandardJsonInputSettingsPolkaVMMemory;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, path::Path};
@@ -36,7 +37,8 @@ pub struct MemoryConfig {
 
 impl Default for MemoryConfig {
     fn default() -> Self {
-        Self { heap_size: 64 * 1024, stack_size: 32 * 1024 }
+        let mem = SolcStandardJsonInputSettingsPolkaVMMemory::default();
+        Self { heap_size: mem.heap_size, stack_size: mem.stack_size }
     }
 }
 

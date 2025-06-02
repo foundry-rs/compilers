@@ -58,7 +58,7 @@ sha2 = { version = "0.10", default-features = false, optional = true }
 
 # rvm
 rvm = { workspace = true, default-features = false }
-
+revive-solc-json-interface = { workspace = true, default-features = false }
 
 [dev-dependencies]
 tracing-subscriber = { version = "0.3", default-features = false, features = [

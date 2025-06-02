@@ -178,6 +178,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.98"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
+
+[[package]]
 name = "arbitrary"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1141,6 +1147,7 @@ dependencies = [
  "rand 0.8.5",
  "rayon",
  "reqwest",
+ "revive-solc-json-interface",
  "rstest",
  "rvm-rs",
  "semver 1.0.26",
@@ -2354,6 +2361,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "psm"
+version = "0.1.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e944464ec8536cd1beb0bbfd96987eb5e3b72f2ecdafdc5c769a37f1fa2ae1f"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2643,6 +2659,31 @@ dependencies = [
  "web-sys",
  "webpki-roots",
  "windows-registry",
+]
+
+[[package]]
+name = "revive-common"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d2840de13ec1e2d541d1041009f755c4aaf3c9d1500a1378016d7f7b4d0bb3c"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "serde_stacker",
+]
+
+[[package]]
+name = "revive-solc-json-interface"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f145f4208ac7729ffc1dda7ffced056ac0d772ba9b40d9be3fa8abb350d82ef3"
+dependencies = [
+ "anyhow",
+ "revive-common",
+ "semver 1.0.26",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3067,6 +3108,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_stacker"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69c8defe6c780725cce4ec6ad3bd91e321baf6fa4e255df1f31e345d507ef01a"
+dependencies = [
+ "serde",
+ "stacker",
+]
+
+[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3376,6 +3427,19 @@ name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
+
+[[package]]
+name = "stacker"
+version = "0.1.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cddb07e32ddb770749da91081d8d0ac3a16f1a569a18b20348cd371f5dead06b"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "libc",
+ "psm",
+ "windows-sys 0.59.0",
+]
 
 [[package]]
 name = "static_assertions"
