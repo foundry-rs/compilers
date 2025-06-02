@@ -66,6 +66,16 @@ pub enum MultiCompilerLanguage {
     Vyper(VyperLanguage),
 }
 
+impl MultiCompilerLanguage {
+    pub fn is_vyper(&self) -> bool {
+        matches!(self, Self::Vyper(_))
+    }
+
+    pub fn is_solc(&self) -> bool {
+        matches!(self, Self::Solc(_))
+    }
+}
+
 impl From<SolcLanguage> for MultiCompilerLanguage {
     fn from(language: SolcLanguage) -> Self {
         Self::Solc(language)
