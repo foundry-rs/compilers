@@ -1,4 +1,5 @@
 # Foundry Compilers
+
 | [Docs](https://docs.rs/foundry-compilers/latest/foundry_compilers/) |
 
 Originally part of [`ethers-rs`] as `ethers-solc`, Foundry Compilers is the compilation backend for [Foundry](https://github.com/foundry-rs/foundry).
@@ -24,9 +25,7 @@ When updating this, also update:
 - .github/workflows/ci.yml
 -->
 
-Foundry Compilers will keep a rolling MSRV (minimum supported rust version) policy of **at
-least** 6 months. When increasing the MSRV, the new Rust version must have been
-released at least six months ago. The current MSRV is 1.86.0.
+The current MSRV (minimum supported rust version) is 1.87.
 
 Note that the MSRV is not increased automatically, and only as part of a minor
 release.
@@ -46,7 +45,7 @@ To install, simply add `foundry-compilers` to your cargo dependencies.
 
 ```toml
 [dependencies]
-foundry-compilers = "0.10.1"
+foundry-compilers = "<LATEST_VERSION>"
 ```
 
 Example usage:
