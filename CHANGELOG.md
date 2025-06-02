@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.17.1
 - Add language matcher on `MultiCompilerLanguage` ([#276](https://github.com/foundry-rs/compilers/issues/276))
 
 ## [0.17.0](https://github.com/foundry-rs/compilers/releases/tag/v0.17.0) - 2025-05-29
