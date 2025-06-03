@@ -6,7 +6,7 @@ use crate::{
 };
 use foundry_compilers_artifacts::{resolc::ResolcCompilerOutput, Contract, Error, SolcLanguage};
 use itertools::Itertools;
-use rvm::Binary;
+use rvm::{Binary, VersionManager};
 use semver::{BuildMetadata, Comparator, Prerelease, Version, VersionReq};
 use serde::Serialize;
 use std::{
@@ -105,7 +105,7 @@ impl Resolc {
 
         let version_manager =
             rvm::VersionManager::new(true).map_err(|e| SolcError::Message(e.to_string()))?;
-        let available = match version_manager.list_available(solc_version) {
+        let available = match Self::available_versions(&version_manager, solc_version) {
             ok @ Ok(_) => ok,
             Err(rvm::Error::NoVersionsInstalled) => return Ok(None),
             err => err,
@@ -155,11 +155,9 @@ impl Resolc {
                                 .map_err(|e| SolcError::Message(e.to_string()))?
                         }
                     } else {
-                        let versions: Vec<Binary> = version_manager
-                            .list_available(_solc_version.clone())
-                            .map_err(|e| SolcError::Message(e.to_string()))?
-                            .into_iter()
-                            .collect();
+                        let versions =
+                            Self::available_versions(&version_manager, _solc_version.clone())
+                                .map_err(|e| SolcError::Message(e.to_string()))?;
 
                         let Some(binary) = versions.into_iter().next_back() else {
                             let message = "No `resolc` versions available.".to_string();
@@ -248,11 +246,9 @@ impl Resolc {
                     None
                 }
             } else {
-                let versions: Vec<Binary> = version_manager
-                    .list_available(_solc_version)
-                    .map_err(|e| SolcError::Message(e.to_string()))?
-                    .into_iter()
-                    .collect();
+                let versions: Vec<Binary> =
+                    Self::available_versions(&version_manager, _solc_version)
+                        .map_err(|e| SolcError::Message(e.to_string()))?;
 
                 versions.into_iter().next_back()
             };
@@ -293,6 +289,16 @@ impl Resolc {
 
             Err(SolcError::Message("No resolc versions available".to_owned()))
         }
+    }
+
+    fn available_versions(
+        version_manager: &VersionManager,
+        solc_version: Option<Version>,
+    ) -> Result<Vec<Binary>, rvm::Error> {
+        let mut versions: Vec<Binary> = version_manager.list_available(solc_version)?;
+
+        versions.sort_by_key(|b| b.version().clone());
+        Ok(versions)
     }
 
     fn supported_solc_versions(path: &Path) -> Result<semver::VersionReq> {
