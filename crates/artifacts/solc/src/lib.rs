@@ -9,7 +9,6 @@ extern crate tracing;
 
 use semver::Version;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
-use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::{
     collections::{BTreeMap, HashSet},
     fmt,
