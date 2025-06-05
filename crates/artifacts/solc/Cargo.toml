@@ -21,7 +21,6 @@ alloy-json-abi.workspace = true
 alloy-primitives.workspace = true
 semver.workspace = true
 serde_json.workspace = true
-serde_repr = "0.1"
 serde.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
