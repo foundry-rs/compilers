@@ -340,6 +340,7 @@ impl Resolc {
         }
     }
 
+    #[instrument(level = "debug", skip_all)]
     pub fn get_version_for_path(path: &Path) -> Result<Version> {
         let mut cmd = Command::new(path);
         cmd.arg("--version").stdin(Stdio::piped()).stderr(Stdio::piped()).stdout(Stdio::piped());
@@ -370,6 +371,9 @@ impl Resolc {
             cmd.arg("--base-path").arg(base_path);
             cmd.current_dir(base_path);
         }
+
+        trace!(input=%serde_json::to_string(input).unwrap_or_else(|e| e.to_string()));
+        debug!(?cmd, "compiling");
 
         let child = if matches!(&input.language, SolcLanguage::Solidity) {
             cmd.arg("--solc");
