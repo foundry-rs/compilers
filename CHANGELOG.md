@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.2](https://github.com/foundry-rs/compilers/releases/tag/v0.17.2) - 2025-06-10
+
+### Bug Fixes
+
+- Implement proper serde handling for unknown AST node types ([#280](https://github.com/foundry-rs/compilers/issues/280))
+
+### Other
+
+- Add missing node types ([#282](https://github.com/foundry-rs/compilers/issues/282))
+- Remove EOF version field ([#279](https://github.com/foundry-rs/compilers/issues/279))
+
 ## [0.17.1](https://github.com/foundry-rs/compilers/releases/tag/v0.17.1) - 2025-06-02
 
 ### Dependencies
@@ -14,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.17.1
 - Release 0.17.1
 - Add language matcher on `MultiCompilerLanguage` ([#276](https://github.com/foundry-rs/compilers/issues/276))
 
