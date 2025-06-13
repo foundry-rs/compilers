@@ -289,6 +289,9 @@ impl serde::Serialize for NodeType {
             NodeType::ParameterList => serializer.serialize_str("ParameterList"),
             NodeType::TryCatchClause => serializer.serialize_str("TryCatchClause"),
             NodeType::ModifierInvocation => serializer.serialize_str("ModifierInvocation"),
+            NodeType::UserDefinedTypeName => serializer.serialize_str("UserDefinedTypeName"),
+            NodeType::ArrayTypeName => serializer.serialize_str("ArrayTypeName"),
+            NodeType::Mapping => serializer.serialize_str("Mapping"),
             NodeType::Other(s) => serializer.serialize_str(s),
         }
     }
@@ -368,6 +371,9 @@ impl<'de> serde::Deserialize<'de> for NodeType {
             "ParameterList" => NodeType::ParameterList,
             "TryCatchClause" => NodeType::TryCatchClause,
             "ModifierInvocation" => NodeType::ModifierInvocation,
+            "UserDefinedTypeName" => NodeType::UserDefinedTypeName,
+            "ArrayTypeName" => NodeType::ArrayTypeName,
+            "Mapping" => NodeType::Mapping,
             _ => NodeType::Other(s),
         })
     }
