@@ -13,6 +13,7 @@ pub const VYPER_BERLIN: Version = Version::new(0, 3, 0);
 pub const VYPER_PARIS: Version = Version::new(0, 3, 7);
 pub const VYPER_SHANGHAI: Version = Version::new(0, 3, 8);
 pub const VYPER_CANCUN: Version = Version::new(0, 3, 8);
+pub const VYPER_PRAGUE: Version = Version::new(0, 4, 3);
 
 const VYPER_0_4: Version = Version::new(0, 4, 0);
 
@@ -126,7 +127,9 @@ impl VyperSettings {
     /// Adjusts the EVM version based on the compiler version.
     pub fn normalize_evm_version(&mut self, version: &Version) {
         if let Some(evm_version) = &mut self.evm_version {
-            *evm_version = if *evm_version >= EvmVersion::Cancun && *version >= VYPER_CANCUN {
+            *evm_version = if *evm_version >= EvmVersion::Prague && *version >= VYPER_PRAGUE {
+                EvmVersion::Prague
+            } else if *evm_version >= EvmVersion::Cancun && *version >= VYPER_CANCUN {
                 EvmVersion::Cancun
             } else if *evm_version >= EvmVersion::Shanghai && *version >= VYPER_SHANGHAI {
                 EvmVersion::Shanghai
