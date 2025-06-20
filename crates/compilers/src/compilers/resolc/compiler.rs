@@ -80,6 +80,29 @@ impl SimpleCompilerName for Resolc {
     }
 }
 
+fn binary_compat_info(bin: &Binary) -> VersionReq {
+    match &bin {
+        Binary::Local { info, .. } | Binary::Remote(info) => semver::VersionReq {
+            comparators: vec![
+                Comparator {
+                    op: semver::Op::GreaterEq,
+                    major: info.first_supported_solc_version.major,
+                    minor: Some(info.first_supported_solc_version.minor),
+                    patch: Some(info.first_supported_solc_version.patch),
+                    pre: Prerelease::default(),
+                },
+                Comparator {
+                    op: semver::Op::LessEq,
+                    major: info.last_supported_solc_version.major,
+                    minor: Some(info.last_supported_solc_version.minor),
+                    patch: Some(info.last_supported_solc_version.patch),
+                    pre: Prerelease::default(),
+                },
+            ],
+        },
+    }
+}
+
 impl Resolc {
     pub fn new(resolc_path: impl Into<PathBuf>, solc_compiler: SolcCompiler) -> Result<Self> {
         let resolc_path = resolc_path.into();
@@ -102,197 +125,88 @@ impl Resolc {
             #[cfg(feature = "svm-solc")]
             SolcCompiler::AutoDetect => None,
         };
-
-        let version_manager =
-            rvm::VersionManager::new(true).map_err(|e| SolcError::Message(e.to_string()))?;
-        let available = match version_manager.list_available(solc_version) {
-            ok @ Ok(_) => ok,
-            Err(rvm::Error::NoVersionsInstalled) => return Ok(None),
-            err => err,
-        }
-        .map_err(|e| SolcError::Message(e.to_string()))?;
-
-        available
-            .iter()
-            .filter(|x| x.version() == resolc_version)
-            .filter_map(|x| x.local())
-            .next_back()
-            .map(|path| Self::new(path, solc_compiler))
-            .transpose()
+        rvm::VersionManager::new(true)
+            .and_then(|vm| vm.get(resolc_version, solc_version))
+            .map_err(|e| SolcError::Message(e.to_string()))
+            .and_then(|bin| {
+                bin.local()
+                    .map(|path| {
+                        Ok(Self {
+                            resolc_version: bin.version().to_owned(),
+                            resolc: path.to_owned(),
+                            solc: solc_compiler,
+                            supported_solc_versions: binary_compat_info(&bin),
+                        })
+                    })
+                    .transpose()
+            })
     }
 
     pub fn find_or_install(resolc_version: &Version, solc_compiler: SolcCompiler) -> Result<Self> {
-        if let Some(resolc) = Self::find_installed(resolc_version, solc_compiler.clone())? {
-            Ok(resolc)
-        } else {
+        #[cfg(any(feature = "async", feature = "svm-solc"))]
+        {
             Self::install(Some(resolc_version), solc_compiler)
+        }
+        #[cfg(not(any(feature = "async", feature = "svm-solc")))]
+        {
+            Self::find_installed(resolc_version, solc_compiler).and_then(|opt| {
+                opt.ok_or_else(|| {
+                    SolcError::Message(
+                        rvm::Error::NotInstalled { version: resolc_version.to_owned() }.to_string(),
+                    )
+                })
+            })
         }
     }
 
+    #[cfg(any(feature = "async", feature = "svm-solc"))]
     pub fn install(_resolc_version: Option<&Version>, solc_compiler: SolcCompiler) -> Result<Self> {
         let _solc_version = match &solc_compiler {
             SolcCompiler::Specific(solc) => Some(solc.version_short()),
             #[cfg(feature = "svm-solc")]
             SolcCompiler::AutoDetect => None,
         };
-        #[cfg(any(feature = "async", feature = "svm-solc"))]
-        return foundry_compilers_core::utils::RuntimeOrHandle::new().block_on(async {
+        foundry_compilers_core::utils::RuntimeOrHandle::new().block_on(async {
             // rvm uses reqwest::blocking internally and so it's needed to wrap the calls in
             // tokio::task::block_on or spawn_blocking to avoid panics Refer to: https://github.com/seanmonstar/reqwest/issues/1017
             tokio::task::block_in_place(|| {
                 let version_manager = rvm::VersionManager::new(false)
                     .map_err(|e| SolcError::Message(e.to_string()))?;
 
+                // Always will end up being `Binary::Local { .. }`
                 let binary = {
                     if let Some(resolc_version) = _resolc_version {
-                        if version_manager.is_installed(resolc_version) {
-                            version_manager
-                                .get(resolc_version, _solc_version.clone())
-                                .map_err(|e| SolcError::Message(e.to_string()))?
-                        } else {
-                            version_manager
-                                .get_or_install(resolc_version, _solc_version.clone())
-                                .map_err(|e| SolcError::Message(e.to_string()))?
-                        }
-                    } else {
-                        let versions: Vec<Binary> = version_manager
-                            .list_available(_solc_version.clone())
+                        version_manager
+                            .get_or_install(resolc_version, _solc_version.clone())
                             .map_err(|e| SolcError::Message(e.to_string()))?
-                            .into_iter()
-                            .collect();
+                    } else {
+                        let versions = version_manager
+                            .list_available(_solc_version.clone())
+                            .map_err(|e| SolcError::Message(e.to_string()))?;
 
                         let Some(binary) = versions.into_iter().next_back() else {
                             let message = "No `resolc` versions available.".to_string();
                             return Err(SolcError::Message(message));
                         };
-                        binary
+                        match binary {
+                            bin @ Binary::Local { .. } => bin,
+                            Binary::Remote(binary_info) => version_manager
+                                .get_or_install(&binary_info.version, _solc_version)
+                                .map_err(|e| SolcError::Message(e.to_string()))?,
+                        }
                     }
                 };
 
-                let binary_info = match binary {
-                    Binary::Remote(binary_info) => binary_info,
-                    Binary::Local { path, info } => {
-                        let supported_solc_versions = semver::VersionReq {
-                            comparators: vec![
-                                Comparator {
-                                    op: semver::Op::GreaterEq,
-                                    major: info.first_supported_solc_version.major,
-                                    minor: Some(info.first_supported_solc_version.minor),
-                                    patch: Some(info.first_supported_solc_version.patch),
-                                    pre: Prerelease::default(),
-                                },
-                                Comparator {
-                                    op: semver::Op::LessEq,
-                                    major: info.last_supported_solc_version.major,
-                                    minor: Some(info.last_supported_solc_version.minor),
-                                    patch: Some(info.last_supported_solc_version.patch),
-                                    pre: Prerelease::default(),
-                                },
-                            ],
-                        };
-                        return Ok(Self {
-                            resolc_version: info.version,
-                            resolc: path,
-                            solc: solc_compiler,
-                            supported_solc_versions,
-                        });
-                    }
-                };
-
-                let (path, resolc_version, supported_solc_versions) = {
-                    let (path, binary_info) = {
-                        let bin = version_manager
-                            .get_or_install(&binary_info.version, _solc_version)
-                            .map_err(|e| SolcError::Message(e.to_string()))?;
-                        (bin.local().expect("should be installed").to_path_buf(), binary_info)
-                    };
-                    let supported_solc_versions = semver::VersionReq {
-                        comparators: vec![
-                            Comparator {
-                                op: semver::Op::GreaterEq,
-                                major: binary_info.first_supported_solc_version.major,
-                                minor: Some(binary_info.first_supported_solc_version.minor),
-                                patch: Some(binary_info.first_supported_solc_version.patch),
-                                pre: Prerelease::default(),
-                            },
-                            Comparator {
-                                op: semver::Op::LessEq,
-                                major: binary_info.last_supported_solc_version.major,
-                                minor: Some(binary_info.last_supported_solc_version.minor),
-                                patch: Some(binary_info.last_supported_solc_version.patch),
-                                pre: Prerelease::default(),
-                            },
-                        ],
-                    };
-
-                    (path, binary_info.version, supported_solc_versions)
-                };
+                let path = binary.local().expect("Can't happen to a local install");
 
                 Ok(Self {
-                    resolc_version,
-                    resolc: path,
+                    resolc_version: binary.version().to_owned(),
+                    resolc: path.to_owned(),
                     solc: solc_compiler,
-                    supported_solc_versions,
+                    supported_solc_versions: binary_compat_info(&binary),
                 })
             })
-        });
-
-        #[cfg(not(any(feature = "async", feature = "svm-solc")))]
-        {
-            let version_manager =
-                rvm::VersionManager::new(true).map_err(|e| SolcError::Message(e.to_string()))?;
-            let binary = if let Some(resolc_version) = _resolc_version {
-                if version_manager.is_installed(resolc_version) {
-                    version_manager.get(resolc_version, _solc_version).ok()
-                } else {
-                    None
-                }
-            } else {
-                let versions: Vec<Binary> = version_manager
-                    .list_available(_solc_version)
-                    .map_err(|e| SolcError::Message(e.to_string()))?
-                    .into_iter()
-                    .collect();
-
-                versions.into_iter().next_back()
-            };
-
-            if let Some(binary) = binary {
-                match binary {
-                    Binary::Local { path, info } => {
-                        let supported_solc_versions = semver::VersionReq {
-                            comparators: vec![
-                                Comparator {
-                                    op: semver::Op::GreaterEq,
-                                    major: info.first_supported_solc_version.major,
-                                    minor: Some(info.first_supported_solc_version.minor),
-                                    patch: Some(info.first_supported_solc_version.patch),
-                                    pre: Prerelease::default(),
-                                },
-                                Comparator {
-                                    op: semver::Op::LessEq,
-                                    major: info.last_supported_solc_version.major,
-                                    minor: Some(info.last_supported_solc_version.minor),
-                                    patch: Some(info.last_supported_solc_version.patch),
-                                    pre: Prerelease::default(),
-                                },
-                            ],
-                        };
-                        return Ok(Self {
-                            resolc_version: info.version,
-                            resolc: path,
-                            solc: solc_compiler,
-                            supported_solc_versions,
-                        });
-                    }
-                    Binary::Remote(_) => {
-                        panic!("Can't happen in offline mode")
-                    }
-                };
-            };
-
-            Err(SolcError::Message("No resolc versions available".to_owned()))
-        }
+        })
     }
 
     fn supported_solc_versions(path: &Path) -> Result<semver::VersionReq> {

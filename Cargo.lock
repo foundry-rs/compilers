@@ -2910,9 +2910,9 @@ dependencies = [
 
 [[package]]
 name = "rvm-rs"
-version = "0.0.2"
+version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fddc18d5d859095757aead7729951c38cbaf0acd8a53fdfbbc98fa2d05eae56a"
+checksum = "182d1f864af70df89984364b45e7959fec29ae8feabd164f0848e25a46306cec"
 dependencies = [
  "const-hex",
  "dirs",
