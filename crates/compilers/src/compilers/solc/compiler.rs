@@ -293,7 +293,7 @@ impl Solc {
 
         trace!("blocking installing solc version \"{}\"", version);
         crate::report::solc_installation_start(&version);
-        // The async version `svm::install` is used instead of `svm::blocking_intsall`
+        // The async version `svm::install` is used instead of `svm::blocking_install`
         // because the underlying `reqwest::blocking::Client` does not behave well
         // inside of a Tokio runtime. See: https://github.com/seanmonstar/reqwest/issues/1017
         match RuntimeOrHandle::new().block_on(svm::install(&version)) {
@@ -475,7 +475,7 @@ impl Solc {
         move |err| SolcError::io(err, &self.solc)
     }
 
-    /// Configures [Command] object depeending on settings and solc version used.
+    /// Configures [Command] object depending on settings and solc version used.
     /// Some features are only supported by newer versions of solc, so we have to disable them for
     /// older ones.
     pub fn configure_cmd(&self) -> Command {
