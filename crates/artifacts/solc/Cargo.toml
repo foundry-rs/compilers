@@ -25,6 +25,7 @@ serde.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 yansi.workspace = true
+regex.workspace = true
 
 # async
 tokio = { workspace = true, optional = true, features = ["fs"] }
