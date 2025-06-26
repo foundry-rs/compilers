@@ -201,7 +201,7 @@ impl ContractOutputSelection {
     /// that solc emits.
     ///
     /// These correspond to the fields in `CompactBytecode`, `CompactDeployedBytecode`, ABI, and
-    /// method identfiers.
+    /// method identifiers.
     pub fn basic() -> Vec<Self> {
         // We don't include all the `bytecode` fields because `generatedSources` is a massive JSON
         // object and is not used by Foundry.
@@ -610,7 +610,7 @@ mod tests {
         assert!(!output_selection.is_subset_of(&output_selection_empty));
         assert!(!output_selection_abi.is_subset_of(&output_selection_empty));
 
-        let output_selecttion_specific = OutputSelection::from(BTreeMap::from([(
+        let output_selection_specific = OutputSelection::from(BTreeMap::from([(
             "Contract.sol".to_string(),
             BTreeMap::from([(
                 "Contract".to_string(),
@@ -622,7 +622,7 @@ mod tests {
             )]),
         )]));
 
-        assert!(!output_selecttion_specific.is_subset_of(&output_selection));
+        assert!(!output_selection_specific.is_subset_of(&output_selection));
     }
 
     #[test]
