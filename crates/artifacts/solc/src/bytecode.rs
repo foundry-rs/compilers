@@ -353,6 +353,21 @@ impl BytecodeObject {
     pub fn contains_placeholder(&self, file: &str, library: &str) -> bool {
         self.contains_fully_qualified_placeholder(&format!("{file}:{library}"))
     }
+
+    /// Strips all __$xxx$__ placeholders from the bytecode if it's an unlinked bytecode.
+    /// by replacing them with 20 zero bytes.
+    /// This is useful for matching bytecodes to a contract source, and for the source map,
+    /// in which the actual address of the placeholder isn't important.
+    pub fn strip_bytecode_placeholders(&self) -> Option<Bytes> {
+        match &self {
+            Self::Bytecode(bytes) => Some(bytes.clone()),
+            Self::Unlinked(s) => {
+                // Replace all __$xxx$__ placeholders with 32 zero bytes
+                let bytes = replace_placeholders_and_decode(s).ok()?;
+                Some(bytes.into())
+            }
+        }
+    }
 }
 
 // Returns an empty bytecode object
@@ -386,6 +401,13 @@ where
         BytecodeObject::Bytecode(code) => s.serialize_str(&hex::encode(code)),
         BytecodeObject::Unlinked(code) => s.serialize_str(code.strip_prefix("0x").unwrap_or(code)),
     }
+}
+
+// Replace all __$xxx$__ placeholders with 32 zero bytes
+pub fn replace_placeholders_and_decode(s: &str) -> Result<Vec<u8>, hex::FromHexError> {
+    let re = regex::Regex::new(r"_\$.{34}\$_").expect("invalid regex");
+    let s = re.replace_all(s, "00".repeat(40));
+    hex::decode(s.as_bytes())
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
