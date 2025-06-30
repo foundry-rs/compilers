@@ -11,7 +11,7 @@ use semver::Version;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt,
     path::{Path, PathBuf},
     str::FromStr,
@@ -1419,6 +1419,8 @@ impl FromStr for ModelCheckerSolver {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Compiler {
     pub version: String,
+    #[serde(flatten, skip_serializing_if = "HashMap::is_empty")]
+    pub additional_information: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
