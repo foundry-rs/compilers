@@ -68,3 +68,9 @@ futures-util = "0.3"
 tokio = { version = "1.35", features = ["rt-multi-thread"] }
 
 snapbox = "0.6.9"
+
+[patch.crates-io]
+solar-parse = { git = "https://github.com/0xrusowsky/solar", branch = "rusowsky/fn-header-spans" }
+solar-sema = { git = "https://github.com/0xrusowsky/solar", branch = "rusowsky/fn-header-spans" }
+# solar-ast = { git = "https://github.com/0xrusowsky/solar", branch = "rusowsky/fn-header-spans" }
+# solar-interface = { git = "https://github.com/0xrusowsky/solar", branch = "rusowsky/fn-header-spans" }
