@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.4](https://github.com/foundry-rs/compilers/releases/tag/v0.17.4) - 2025-06-30
+
+### Bug Fixes
+
+- Fix typos in comments and variable names across solc-related modules ([#286](https://github.com/foundry-rs/compilers/issues/286))
+
+### Dependencies
+
+- Bump vyper to 0.4.3 which adds support for `prague` ([#285](https://github.com/foundry-rs/compilers/issues/285))
+
+### Miscellaneous Tasks
+
+- Upstreamed  `strip_bytecode_placeholders` from foundry ([#287](https://github.com/foundry-rs/compilers/issues/287))
+
 ## [0.17.3](https://github.com/foundry-rs/compilers/releases/tag/v0.17.3) - 2025-06-14
+
+### Miscellaneous Tasks
+
+- Release 0.17.3
 
 ### Other
 

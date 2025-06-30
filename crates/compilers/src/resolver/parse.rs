@@ -272,7 +272,7 @@ fn library_is_inlined(contract: &ast::ItemContract<'_>) -> bool {
         })
         .all(|f| {
             !matches!(
-                f.header.visibility,
+                f.header.visibility.map(|v| *v),
                 Some(ast::Visibility::Public | ast::Visibility::External)
             )
         })

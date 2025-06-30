@@ -38,7 +38,7 @@ pub(crate) fn interface_representation_ast(
                 let is_exposed = match function.kind {
                     // Function with external or public visibility
                     ast::FunctionKind::Function => {
-                        function.header.visibility >= Some(ast::Visibility::Public)
+                        function.header.visibility.map(|v| *v) >= Some(ast::Visibility::Public)
                     }
                     ast::FunctionKind::Constructor
                     | ast::FunctionKind::Fallback
