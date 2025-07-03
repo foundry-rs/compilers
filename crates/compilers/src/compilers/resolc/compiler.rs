@@ -125,21 +125,23 @@ impl Resolc {
             #[cfg(feature = "svm-solc")]
             SolcCompiler::AutoDetect => None,
         };
-        rvm::VersionManager::new(true)
-            .and_then(|vm| vm.get(resolc_version, solc_version))
-            .map_err(|e| SolcError::Message(e.to_string()))
-            .and_then(|bin| {
-                bin.local()
-                    .map(|path| {
-                        Ok(Self {
-                            resolc_version: bin.version().to_owned(),
-                            resolc: path.to_owned(),
-                            solc: solc_compiler,
-                            supported_solc_versions: binary_compat_info(&bin),
-                        })
+        let bin =
+            rvm::VersionManager::new(true).and_then(|vm| vm.get(resolc_version, solc_version));
+        match bin {
+            Ok(bin) => bin
+                .local()
+                .map(|path| {
+                    Ok(Self {
+                        resolc_version: bin.version().to_owned(),
+                        resolc: path.to_owned(),
+                        solc: solc_compiler,
+                        supported_solc_versions: binary_compat_info(&bin),
                     })
-                    .transpose()
-            })
+                })
+                .transpose(),
+            Err(rvm::Error::UnknownVersion { .. } | rvm::Error::NotInstalled { .. }) => Ok(None),
+            Err(e) => Err(SolcError::Message(e.to_string())),
+        }
     }
 
     pub fn find_or_install(resolc_version: &Version, solc_compiler: SolcCompiler) -> Result<Self> {
