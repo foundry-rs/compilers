@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update deps ([#290](https://github.com/foundry-rs/compilers/issues/290))
 - Bump solar + MSRV ([#289](https://github.com/foundry-rs/compilers/issues/289))
 
+### Miscellaneous Tasks
+
+- Release 0.18.0
+
 ## [0.17.4](https://github.com/foundry-rs/compilers/releases/tag/v0.17.4) - 2025-06-30
 
 ### Bug Fixes
