@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0](https://github.com/foundry-rs/compilers/releases/tag/v0.18.0) - 2025-07-14
+
+### Dependencies
+
+- Bump to 0.18.0
+- Update deps ([#290](https://github.com/foundry-rs/compilers/issues/290))
+- Bump solar + MSRV ([#289](https://github.com/foundry-rs/compilers/issues/289))
+
 ## [0.17.4](https://github.com/foundry-rs/compilers/releases/tag/v0.17.4) - 2025-06-30
 
 ### Bug Fixes
@@ -17,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.17.4
 - Upstreamed  `strip_bytecode_placeholders` from foundry ([#287](https://github.com/foundry-rs/compilers/issues/287))
 
 ## [0.17.3](https://github.com/foundry-rs/compilers/releases/tag/v0.17.3) - 2025-06-14
