@@ -25,7 +25,7 @@ When updating this, also update:
 - .github/workflows/ci.yml
 -->
 
-The current MSRV (minimum supported rust version) is 1.87.
+The current MSRV (minimum supported rust version) is 1.88.
 
 Note that the MSRV is not increased automatically, and only as part of a minor
 release.
