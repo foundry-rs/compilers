@@ -13,4 +13,6 @@ mod input;
 pub use input::VyperInput;
 
 mod output;
+mod ast;
+
 pub use output::VyperOutput;
