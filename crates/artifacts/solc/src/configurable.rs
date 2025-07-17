@@ -1,7 +1,7 @@
 use crate::{
     Ast, CompactBytecode, CompactContract, CompactContractBytecode, CompactContractBytecodeCow,
-    CompactDeployedBytecode, DevDoc, Extensions, Ewasm, FunctionDebugData, GasEstimates, GeneratedSource,
-    Metadata, Offsets, SourceFile, StorageLayout, UserDoc,
+    CompactDeployedBytecode, DevDoc, Ewasm, Extensions, FunctionDebugData, GasEstimates,
+    GeneratedSource, Metadata, Offsets, SourceFile, StorageLayout, UserDoc,
 };
 use alloy_json_abi::JsonAbi;
 use serde::{Deserialize, Serialize};

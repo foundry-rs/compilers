@@ -93,7 +93,8 @@ impl From<ResolcContract> for foundry_compilers_artifacts_solc::Contract {
             let resolc_extras = foundry_compilers_artifacts_solc::ResolcExtras {
                 factory_dependencies: factory_deps,
             };
-            solc_contract.extensions = foundry_compilers_artifacts_solc::Extensions::Resolc(resolc_extras);
+            solc_contract.extensions =
+                foundry_compilers_artifacts_solc::Extensions::Resolc(resolc_extras);
         }
 
         solc_contract
