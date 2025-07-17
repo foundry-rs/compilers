@@ -1,6 +1,6 @@
 use crate::{
     Ast, CompactBytecode, CompactContract, CompactContractBytecode, CompactContractBytecodeCow,
-    CompactDeployedBytecode, DevDoc, Ewasm, FunctionDebugData, GasEstimates, GeneratedSource,
+    CompactDeployedBytecode, DevDoc, Extensions, Ewasm, FunctionDebugData, GasEstimates, GeneratedSource,
     Metadata, Offsets, SourceFile, StorageLayout, UserDoc,
 };
 use alloy_json_abi::JsonAbi;
@@ -59,6 +59,9 @@ pub struct ConfigurableContractArtifact {
     /// The identifier of the source file
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<u32>,
+    /// Extensions for additional compiler-specific information
+    #[serde(default, skip_serializing_if = "Extensions::is_none")]
+    pub extensions: Extensions,
 }
 
 impl ConfigurableContractArtifact {

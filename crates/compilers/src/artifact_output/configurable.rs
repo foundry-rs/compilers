@@ -230,6 +230,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
             ewasm,
             ir_optimized,
             ir_optimized_ast,
+            extensions,
         } = contract;
 
         if self.additional_values.metadata {
@@ -325,6 +326,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
             id: source_file.as_ref().map(|s| s.id),
             ast: source_file.and_then(|s| s.ast.clone()),
             generated_sources: generated_sources.unwrap_or_default(),
+            extensions,
         }
     }
 
