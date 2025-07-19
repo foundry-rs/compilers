@@ -1,322 +1,441 @@
 use serde::{Deserialize, Serialize};
 
-mod visitor;
+pub mod visitor;
+mod macros;
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "ast_type")]
-pub enum Node {
-    Module(Module),
-    Name(Name),
-    VariableDecl(VariableDecl),
-    AnnAssign(AnnAssign),
-    EventDef(EventDef),
-    FunctionDef(FunctionDef),
-    #[serde(rename = "arguments")]
-    Arguments(Arguments),
-    Assign(Assign),
-    Attribute(Attribute),
-    Assert(Assert),
-    Int(Int),
-    Str(Str),
-    Eq(Eq),
-    Gt(Gt),
-    Log(Log),
-    Return(Return),
+use macros::{vyper_node};
+use crate::ast::macros::node_group;
+
+vyper_node!(
+    struct Module {
+        // Module-specific fields
+        source_sha256sum: String,
+        name: Option<String>,
+        path: String,
+        resolved_path: String,
+        source_id: u64,
+        is_interface: bool,
+        doc_string: Option<DocStr>,
+        settings: Settings,
+
+        // AST content
+        body: Vec<TopLevelItem>,
+    }
+);
+
+node_group!(
+    TopLevelItem;
+
+    // Function definitions
+    FunctionDef,
+
+    // Variable declarations
+    VariableDecl,
+
+    // Type definitions
+    StructDef,
+    EventDef,
+    FlagDef,
+    InterfaceDef,
+
+    // Import statements
+    Import,
+    ImportFrom,
+
+    // Special declarations
+    ImplementsDecl,
+    UsesDecl,
+    InitializesDecl,
+    ExportsDecl,
+
+    // Docstrings at top level
+    DocStr,
+);
+
+vyper_node!(
+    struct FunctionDef {
+        args: Arguments,
+        body: Vec<Statement>,
+        pos: Option<String>,
+        doc_string: Option<String>,
+        decorator_list: Vec<Expression>,
+        name: String,
+        returns: Option<Box<Expression>>,
+    }
+);
+
+vyper_node!(
+    struct VariableDecl {
+        annotation: Box<Expression>,
+        value: Option<String>,
+        is_transient: bool,
+        is_constant: bool,
+        is_reentrant: bool,
+        is_public: bool,
+        target: Box<Expression>,
+        is_immutable: bool,
+        #[serde(rename = "type")]
+        ttype: Type,
+    }
+);
+
+vyper_node!(struct StructDef {});
+
+vyper_node!(
+    struct EventDef {
+        name: String,
+        body: Vec<Statement>,
+        doc_string: Option<String>,
+    }
+);
+
+vyper_node!(struct FlagDef {});
+
+vyper_node!(struct InterfaceDef {});
+
+vyper_node!(struct Import {});
+
+vyper_node!(struct ImportFrom {});
+
+vyper_node!(struct ImplementsDecl {});
+
+vyper_node!(struct UsesDecl {});
+
+vyper_node!(struct InitializesDecl {});
+
+vyper_node!(struct ExportsDecl {});
+
+vyper_node!(struct DocStr {});
+
+node_group!(
+    Statement;
+
+    // Assignment statements
+    Assign,
+    AnnAssign,
+    AugAssign,
+
+    // Control flow statements
+    Return,
+    If,
+    For,
+    Break,
+    Continue,
+    Pass,
+
+    // Exception handling
+    Raise,
+    Assert,
+
+    // Vyper-specific statements
+    Log,
+
+    // Expression statements
+    Expr,
+    NamedExpr,
+);
+
+vyper_node!(
+    struct Assign {
+        value: Box<Expression>,
+        target: Box<Expression>,
+    }
+);
+
+vyper_node!(
+    struct AnnAssign {
+        annotation: Box<Expression>,
+        value: Option<Box<Expression>>,
+        target: Box<Expression>,
+    }
+);
+
+vyper_node!(struct AugAssign {});
+
+vyper_node!(
+    struct Return {
+        value: Option<Box<Expression>>,
+    }
+);
+
+vyper_node!(struct If {});
+
+vyper_node!(struct For {});
+
+vyper_node!(struct Break {});
+
+vyper_node!(struct Continue {});
+
+vyper_node!(struct Pass {});
+
+vyper_node!(struct Raise {});
+
+vyper_node!(
+    struct Assert {
+        msg: Box<Expression>,
+        test: Box<Expression>,
+    }
+);
+
+vyper_node!(
+    struct Log {
+        #[serde(rename = "type")]
+        ttype: Type,
+    }
+);
+
+vyper_node!(struct Expr {});
+
+vyper_node!(struct NamedExpr {});
+
+node_group!(
+    Expression;
+
+    // Literals
+    Constant,
+    Int,
+    Decimal,
+    Hex,
+    Str,
+    Bytes,
+    HexBytes,
+    NameConstant,
+    Ellipsis,
+
+    // Collections
+    List,
+    Tuple,
+    Dict,
+
+    // Names and access
+    Name,
+    Attribute,
+    Subscript,
+
+    // Operations
+    UnaryOp,
+    BinOp,
+    BoolOp,
+    Compare,
+
+    // Function calls
+    Call,
+    ExtCall,
+    StaticCall,
+
+    // Control flow expressions
+    IfExp,
+
+    // Function parameters (special context)
     #[serde(rename = "arg")]
-    Arg(Arg),
-    Compare(Compare),
-    Call(Call),
+    Arg,
+    #[serde(rename = "arguments")]
+    Arguments,
+    #[serde(rename = "keyword")]
+    Keyword,
+);
+
+vyper_node!(struct Constant {}); // TODO
+
+vyper_node!(
+    struct Int {
+        value: u64,
+        #[serde(rename = "type")]
+        ttype: Type,
+    }
+);
+
+vyper_node!(struct Decimal {}); // TODO
+
+vyper_node!(struct Hex {}); // TODO
+
+vyper_node!(
+    struct Str {
+        value: String,
+        #[serde(rename = "type")]
+        ttype: Type,
+    }
+);
+
+vyper_node!(struct Bytes {}); // TODO
+
+vyper_node!(struct HexBytes {}); // TODO
+
+vyper_node!(struct NameConstant {}); // TODO
+
+vyper_node!(struct Ellipsis {}); // TODO
+
+vyper_node!(struct List {}); // TODO
+
+vyper_node!(struct Tuple {}); // TODO
+
+vyper_node!(struct Dict {}); // TODO
+
+vyper_node!(
+    struct Name {
+        id: String,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+        variable_reads: Option<Vec<VariableAccess>>,
+    }
+);
+
+vyper_node!(
+    struct Attribute {
+        value: Box<Expression>,
+        attr: String,
+        #[serde(rename = "type")]
+        ttype: Type,
+        variable_reads: Option<Vec<VariableAccess>>,
+        variable_writes: Option<Vec<VariableAccess>>,
+    }
+);
+
+vyper_node!(struct Subscript {}); // TODO
+
+vyper_node!(struct UnaryOp {}); // TODO
+
+vyper_node!(struct BinOp {}); // TODO
+
+vyper_node!(struct BoolOp {}); // TODO
+
+vyper_node!(
+    struct Compare {
+        left: Box<Expression>,
+        right: Box<Expression>,
+        op: Box<ComparisonOperator>,
+        #[serde(rename = "type")]
+        ttype: Type,
+    }
+);
+
+vyper_node!(
+    struct Call {
+        args: Vec<Expression>,
+        keywords: Vec<Keyword>,
+        func: Box<Expression>,
+        #[serde(rename = "type")]
+        ttype: Type,
+    }
+);
+
+vyper_node!(struct ExtCall {}); // TODO
+
+vyper_node!(struct StaticCall {}); // TODO
+
+vyper_node!(struct IfExp {}); // TODO
+
+vyper_node!(
+    struct Arg {
+        annotation: Box<Expression>,
+        arg: String,
+    }
+);
+
+vyper_node!(
+    struct Arguments {
+        default: Option<String>,
+        args: Vec<Arg>,
+        defaults: Vec<String>,
+    }
+);
+
+vyper_node!(struct Keyword {}); // TODO
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "ast_type")]
+pub enum UnaryOperator {
+    USub(USub),
+    Not(Not),
+    Invert(Invert),
+}
+
+vyper_node!(struct USub {}); // TODO
+vyper_node!(struct Not {}); // TODO
+vyper_node!(struct Invert {}); // TODO
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "ast_type")]
+pub enum BinaryOperator {
+    // Arithmetic
+    Add(Add),
+    Sub(Sub),
+    Mult(Mult),
+    Div(Div),
+    FloorDiv(FloorDiv),
+    Mod(Mod),
+    Pow(Pow),
+
+    // Bitwise
+    BitAnd(BitAnd),
+    BitOr(BitOr),
+    BitXor(BitXor),
+    LShift(LShift),
+    RShift(RShift),
+}
+
+vyper_node!(struct Add {});
+vyper_node!(struct Sub {});
+vyper_node!(struct Mult {});
+vyper_node!(struct Div {});
+vyper_node!(struct FloorDiv {});
+vyper_node!(struct Mod {});
+vyper_node!(struct Pow {});
+vyper_node!(struct BitAnd {});
+vyper_node!(struct BitOr {});
+vyper_node!(struct BitXor {});
+vyper_node!(struct LShift {});
+vyper_node!(struct RShift {});
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "ast_type")]
+pub enum BooleanOperator {
+    And(And),
+    Or(Or),
+}
+
+vyper_node!(struct And {});
+vyper_node!(struct Or {});
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "ast_type")]
+pub enum ComparisonOperator {
+    Eq(Eq),
     NotEq(NotEq),
+    Lt(Lt),
+    LtE(LtE),
+    Gt(Gt),
+    GtE(GtE),
+    In(In),
+    NotIn(NotIn),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Module {
-    source_sha256sum: String,
-    name: Option<String>,
-    path: String,
-    source_id: u64,
-    is_interface: bool,
-    doc_string: Option<String>,
-    src: String,
-    body: Vec<Node>,
-    node_id: u64,
-    end_col_offset: u64,
-    col_offset: u64,
-    settings: Settings,
-    end_lineno: u64,
-    resolved_path: String,
-    lineno: u64,
-    #[serde(rename = "type")]
-    ttype: Type
-}
+vyper_node!(struct Eq {});
+vyper_node!(struct NotEq {});
+vyper_node!(struct Lt {});
+vyper_node!(struct LtE {});
+vyper_node!(struct Gt {});
+vyper_node!(struct GtE {});
+vyper_node!(struct In {});
+vyper_node!(struct NotIn {});
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Settings {}
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Name {
-    end_lineno: u64,
-    lineno: u64,
-    id: String,
-    col_offset: u64,
-    node_id: u64,
-    end_col_offset: u64,
-    src: String,
-    #[serde(rename = "type")]
-    ttype: Option<Type>,
-    variable_reads: Option<Vec<VariableAccess>>
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VariableDecl {
-    end_lineno: u64,
-    annotation: Box<Node>,
-    src: String,
-    value: Option<String>,
-    col_offset: u64,
-    is_transient: bool,
-    is_constant: bool,
-    is_reentrant: bool,
-    is_public: bool,
-    node_id: u64,
-    target: Box<Node>,
-    end_col_offset: u64,
-    is_immutable: bool,
-    lineno: u64,
-    #[serde(rename = "type")]
-    ttype: Type
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct EventDef {
-    end_lineno: u64,
-    src: String,
-    col_offset: u64,
-    body: Vec<Node>,
-    node_id: u64,
-    doc_string: Option<String>,
-    lineno: u64,
-    end_col_offset: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct FunctionDef {
-    end_lineno: u64,
-    src: String,
-    col_offset: u64,
-    args: Box<Node>,
-    body: Vec<Node>,
-    pos: Option<String>,
-    node_id: u64,
-    doc_string: Option<String>,
-    decorator_list: Vec<Node>,
-    name: String,
-    lineno: u64,
-    returns: Option<Box<Node>>,
-    end_col_offset: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AnnAssign {
-    end_lineno: u64,
-    annotation: Box<Node>,
-    src: String,
-    col_offset: u64,
-    value: Option<Box<Node>>,
-    node_id: u64,
-    lineno: u64,
-    target: Box<Node>,
-    end_col_offset: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Arguments {
-    end_lineno: u64,
-    default: Option<String>,
-    src: String,
-    col_offset: u64,
-    args: Vec<Node>,
-    node_id: u64,
-    lineno: u64,
-    defaults: Vec<String>,
-    end_col_offset: u64
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Assign {
-    end_lineno: u64,
-    src: String,
-    col_offset: u64,
-    value: Box<Node>,
-    node_id: u64,
-    lineno: u64,
-    target: Box<Node>,
-    end_col_offset: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Attribute {
-    end_lineno: u64,
-    src: String,
-    col_offset: u64,
-    value: Box<Node>,
-    node_id: u64,
-    attr: String,
-    lineno: u64,
-    end_col_offset: u64,
-    #[serde(rename = "type")]
-    ttype: Type,
-    variable_reads: Option<Vec<VariableAccess>>,
-    variable_writes: Option<Vec<VariableAccess>>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Assert {
-    end_lineno: u64,
-    lineno: u64,
-    col_offset: u64,
-    msg: Box<Node>,
-    node_id: u64,
-    test: Box<Node>,
-    end_col_offset: u64,
-    src: String
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Int {
-    end_lineno: u64,
-    lineno: u64,
-    col_offset: u64,
-    node_id: u64,
-    value: u64,
-    end_col_offset: u64,
-    src: String,
-    #[serde(rename = "type")]
-    ttype: Type
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Str {
-    end_lineno: u64,
-    lineno: u64,
-    col_offset: u64,
-    node_id: u64,
-    value: String,
-    end_col_offset: u64,
-    src: String,
-    #[serde(rename = "type")]
-    ttype: Type
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Eq {
-    end_lineno: u64,
-    lineno: u64,
-    col_offset: u64,
-    node_id: u64,
-    end_col_offset: u64,
-    src: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Gt {
-    end_lineno: u64,
-    lineno: u64,
-    col_offset: u64,
-    node_id: u64,
-    end_col_offset: u64,
-    src: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Log {
-    end_lineno: u64,
-    lineno: u64,
-    col_offset: u64,
-    node_id: u64,
-    end_col_offset: u64,
-    src: String,
-    #[serde(rename = "type")]
-    ttype: Type
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Return {
-    end_lineno: u64,
-    lineno: u64,
-    col_offset: u64,
-    node_id: u64,
-    end_col_offset: u64,
-    src: String,
-    value: Box<Node>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Arg {
-    end_lineno: u64,
-    lineno: u64,
-    col_offset: u64,
-    node_id: u64,
-    end_col_offset: u64,
-    src: String,
-    annotation: Box<Node>,
-    arg: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Compare {
-    left: Box<Node>,
-    right: Box<Node>,
-    op: Box<Node>,
-    end_lineno: u64,
-    lineno: u64,
-    col_offset: u64,
-    node_id: u64,
-    end_col_offset: u64,
-    src: String,
-    #[serde(rename = "type")]
-    ttype: Type
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Call {
-    lineno: u64,
-    node_id: u64,
-    col_offset: u64,
-    args: Vec<Node>,
-    end_col_offset: u64,
-    end_lineno: u64,
-    src: String,
-    keywords: Vec<Node>,
-    func: Box<Node>,
-    #[serde(rename = "type")]
-    ttype: Type,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NotEq {
-    lineno: u64,
-    node_id: u64,
-    col_offset: u64,
-    end_col_offset: u64,
-    end_lineno: u64,
-    src: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VariableAccess {
-    name: String,
-    decl_node: DeclNode,
-    access_path: Vec<String>
+    pub name: String,
+    pub decl_node: DeclNode,
+    pub access_path: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeclNode {
-    node_id: u64,
-    source_id: u64
+    pub node_id: u64,
+    pub source_id: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 // #[serde(rename_all = "snake_case", tag = "typeclass")]
 pub struct Type {
     pub name: Option<String>,
@@ -326,47 +445,17 @@ pub struct Type {
     pub type_t: Option<TypedType>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypedType {
     pub name: String,
     pub type_decl_node: Option<TypeDeclNode>,
-    pub typeclass: Option<String>
+    pub typeclass: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ModuleType {
-    name: String,
-    type_decl_node: TypeDeclNode,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StringType {
-    length: u64,
-    name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BuiltinFunctionType {
-    name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypeDeclNode {
     pub node_id: i64,
     pub source_id: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct IntegerType {
-    is_signed: bool,
-    bits: u32,
-    name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct EventType {
-    name: String,
-    type_decl_node: TypeDeclNode
 }
 
 #[cfg(test)]
@@ -376,24 +465,26 @@ mod tests {
 
     #[test]
     fn can_parse_ast() {
-        fs::read_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../test-data").join("vyper_ast"))
-            .unwrap()
-            .for_each(|path| {
-                let path = path.unwrap().path();
-                let path_str = path.to_string_lossy();
+        fs::read_dir(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../test-data").join("vyper_ast"),
+        )
+        .unwrap()
+        .for_each(|path| {
+            let path = path.unwrap().path();
+            let path_str = path.to_string_lossy();
 
-                let input = fs::read_to_string(&path).unwrap();
-                let deserializer = &mut serde_json::Deserializer::from_str(&input);
-                let result: Result<Module, _> = serde_path_to_error::deserialize(deserializer);
-                match result {
-                    Err(e) => {
-                        println!("... {path_str} fail: {e}");
-                        panic!();
-                    }
-                    Ok(_) => {
-                        println!("... {path_str} ok");
-                    }
+            let input = fs::read_to_string(&path).unwrap();
+            let deserializer = &mut serde_json::Deserializer::from_str(&input);
+            let result: Result<Module, _> = serde_path_to_error::deserialize(deserializer);
+            match result {
+                Err(e) => {
+                    println!("... {path_str} fail: {e}");
+                    panic!();
                 }
-            })
+                Ok(_) => {
+                    println!("... {path_str} ok");
+                }
+            }
+        })
     }
 }
