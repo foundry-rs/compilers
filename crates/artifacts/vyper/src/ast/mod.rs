@@ -342,37 +342,37 @@ vyper_node!(
 
 vyper_node!(struct Keyword {}); // TODO
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(tag = "ast_type")]
-pub enum UnaryOperator {
-    USub(USub),
-    Not(Not),
-    Invert(Invert),
-}
+node_group!(
+    UnaryOperator;
+
+    USub,
+    Not,
+    Invert,
+);
 
 vyper_node!(struct USub {}); // TODO
 vyper_node!(struct Not {}); // TODO
 vyper_node!(struct Invert {}); // TODO
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(tag = "ast_type")]
-pub enum BinaryOperator {
+node_group!(
+    BinaryOperator;
+
     // Arithmetic
-    Add(Add),
-    Sub(Sub),
-    Mult(Mult),
-    Div(Div),
-    FloorDiv(FloorDiv),
-    Mod(Mod),
-    Pow(Pow),
+    Add,
+    Sub,
+    Mult,
+    Div,
+    FloorDiv,
+    Mod,
+    Pow,
 
     // Bitwise
-    BitAnd(BitAnd),
-    BitOr(BitOr),
-    BitXor(BitXor),
-    LShift(LShift),
-    RShift(RShift),
-}
+    BitAnd,
+    BitOr,
+    BitXor,
+    LShift,
+    RShift,
+);
 
 vyper_node!(struct Add {});
 vyper_node!(struct Sub {});
@@ -387,28 +387,28 @@ vyper_node!(struct BitXor {});
 vyper_node!(struct LShift {});
 vyper_node!(struct RShift {});
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(tag = "ast_type")]
-pub enum BooleanOperator {
-    And(And),
-    Or(Or),
-}
+node_group!(
+    BooleanOperator;
+
+    And,
+    Or,
+);
 
 vyper_node!(struct And {});
 vyper_node!(struct Or {});
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "ast_type")]
-pub enum ComparisonOperator {
-    Eq(Eq),
-    NotEq(NotEq),
-    Lt(Lt),
-    LtE(LtE),
-    Gt(Gt),
-    GtE(GtE),
-    In(In),
-    NotIn(NotIn),
-}
+node_group!(
+    ComparisonOperator;
+
+    Eq,
+    NotEq,
+    Lt,
+    LtE,
+    Gt,
+    GtE,
+    In,
+    NotIn,
+);
 
 vyper_node!(struct Eq {});
 vyper_node!(struct NotEq {});
