@@ -71,7 +71,9 @@ impl From<ResolcContract> for foundry_compilers_artifacts_solc::Contract {
             _ => None,
         };
 
-        Self {
+        let factory_deps = contract.factory_dependencies.unwrap_or_default();
+
+        let mut solc_contract = Self {
             abi: contract.abi,
             evm: contract.evm.map(Into::into),
             metadata: meta,
@@ -83,7 +85,19 @@ impl From<ResolcContract> for foundry_compilers_artifacts_solc::Contract {
             ewasm: None,
             ir_optimized: contract.ir_optimized,
             ir_optimized_ast: None,
+            extensions: foundry_compilers_artifacts_solc::Extensions::None,
+        };
+
+        // Populate extensions if we have resolc-specific data
+        if !factory_deps.is_empty() {
+            let resolc_extras = foundry_compilers_artifacts_solc::ResolcExtras {
+                factory_dependencies: factory_deps,
+            };
+            solc_contract.extensions =
+                foundry_compilers_artifacts_solc::Extensions::Resolc(resolc_extras);
         }
+
+        solc_contract
     }
 }
 

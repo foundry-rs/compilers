@@ -11,6 +11,32 @@ use alloy_primitives::Bytes;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::BTreeMap};
 
+/// Extensions for Contract to provide additional compiler-specific information
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
+pub enum Extensions {
+    /// No extensions
+    #[default]
+    None,
+    /// Resolc-specific extensions
+    Resolc(ResolcExtras),
+}
+
+/// Additional Resolc-specific information for solc Contract
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default, Hash)]
+pub struct ResolcExtras {
+    /// Factory dependencies for the contract.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub factory_dependencies: BTreeMap<String, String>,
+    // Future fields can be added here like factory_dependencies_unlinked
+}
+
+impl Extensions {
+    /// Returns true if extensions is None
+    pub fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+}
+
 /// Represents a compiled solidity contract
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +70,9 @@ pub struct Contract {
     pub ir_optimized: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ir_optimized_ast: Option<serde_json::Value>,
+    /// Extensions for additional compiler-specific information
+    #[serde(default, skip_serializing_if = "Extensions::is_none")]
+    pub extensions: Extensions,
 }
 
 impl<'a> From<&'a Contract> for CompactContractBytecodeCow<'a> {
