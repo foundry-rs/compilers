@@ -377,9 +377,6 @@ impl ArtifactOutput for ConfigurableArtifacts {
         if assembly && artifact.assembly.is_none() {
             return Ok(true);
         }
-        if assembly && artifact.assembly.is_none() {
-            return Ok(true);
-        }
         if legacy_assembly && artifact.legacy_assembly.is_none() {
             return Ok(true);
         }
