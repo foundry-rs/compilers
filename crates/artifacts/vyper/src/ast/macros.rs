@@ -11,12 +11,12 @@ macro_rules! vyper_node {
         $(#[$struct_meta])*
         #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
         pub struct $name {
-            pub node_id: u64,
+            pub node_id: i32,
             pub src: String,
-            pub lineno: u64,
-            pub col_offset: u64,
-            pub end_lineno: u64,
-            pub end_col_offset: u64,
+            pub lineno: u32,
+            pub col_offset: u32,
+            pub end_lineno: u32,
+            pub end_col_offset: u32,
             $(
                 $(#[$field_meta])*
                 pub $field: $ty
@@ -45,5 +45,5 @@ macro_rules! node_group {
     };
 }
 
-pub(crate) use vyper_node;
 pub(crate) use node_group;
+pub(crate) use vyper_node;

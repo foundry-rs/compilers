@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-pub mod visitor;
 mod macros;
+pub mod visitor;
 
-use macros::{vyper_node};
 use crate::ast::macros::node_group;
+use macros::vyper_node;
 
 vyper_node!(
     struct Module {
@@ -13,7 +13,7 @@ vyper_node!(
         name: Option<String>,
         path: String,
         resolved_path: String,
-        source_id: u64,
+        source_id: i32,
         is_interface: bool,
         doc_string: Option<DocStr>,
         settings: Settings,
@@ -57,7 +57,7 @@ vyper_node!(
         args: Arguments,
         body: Vec<Statement>,
         pos: Option<String>,
-        doc_string: Option<String>,
+        doc_string: Option<DocStr>,
         decorator_list: Vec<Expression>,
         name: String,
         returns: Option<Box<Expression>>,
@@ -67,45 +67,97 @@ vyper_node!(
 vyper_node!(
     struct VariableDecl {
         annotation: Box<Expression>,
-        value: Option<String>,
+        value: Option<Box<Expression>>,
+        target: Box<Expression>,
         is_transient: bool,
         is_constant: bool,
         is_reentrant: bool,
         is_public: bool,
-        target: Box<Expression>,
         is_immutable: bool,
         #[serde(rename = "type")]
-        ttype: Type,
+        ttype: Option<Type>,
     }
 );
 
-vyper_node!(struct StructDef {});
+vyper_node!(
+    struct StructDef {
+        name: String,
+        doc_string: Option<DocStr>,
+        body: Vec<Statement>,
+    }
+);
 
 vyper_node!(
     struct EventDef {
         name: String,
+        doc_string: Option<DocStr>,
         body: Vec<Statement>,
-        doc_string: Option<String>,
     }
 );
 
-vyper_node!(struct FlagDef {});
+vyper_node!(
+    struct FlagDef {
+        name: String,
+        doc_string: Option<DocStr>,
+        body: Vec<Statement>,
+    }
+);
 
-vyper_node!(struct InterfaceDef {});
+vyper_node!(
+    struct InterfaceDef {
+        name: String,
+        doc_string: Option<DocStr>,
+        body: Vec<FunctionDef>,
+    }
+);
 
-vyper_node!(struct Import {});
+vyper_node!(
+    struct Import {
+        alias: Option<String>,
+        name: String,
+        import_info: ImportInfo
+    }
+);
 
-vyper_node!(struct ImportFrom {});
+vyper_node!(
+    struct ImportFrom {
+        alias: Option<String>,
+        name: String,
+        import_info: ImportInfo,
+        module: Option<String>,
+        level: u32,
+    }
+);
 
-vyper_node!(struct ImplementsDecl {});
+vyper_node!(
+    struct ImplementsDecl {
+        annotation: Box<Expression>,
+    }
+);
 
-vyper_node!(struct UsesDecl {});
+vyper_node!(
+    struct UsesDecl {
+        annotation: Box<Expression>,
+    }
+);
 
-vyper_node!(struct InitializesDecl {});
+vyper_node!(
+    struct InitializesDecl {
+        annotation: Box<Expression>,
+    }
+);
 
-vyper_node!(struct ExportsDecl {});
+vyper_node!(
+    struct ExportsDecl {
+        annotation: Box<Expression>,
+    }
+);
 
-vyper_node!(struct DocStr {});
+vyper_node!(
+    struct DocStr {
+        value: String,
+    }
+);
 
 node_group!(
     Statement;
@@ -150,7 +202,9 @@ vyper_node!(
     }
 );
 
-vyper_node!(struct AugAssign {});
+vyper_node!(
+    struct AugAssign {}
+);
 
 vyper_node!(
     struct Return {
@@ -158,17 +212,39 @@ vyper_node!(
     }
 );
 
-vyper_node!(struct If {});
+vyper_node!(
+    struct If {
+        body: Vec<Statement>,
+        test: Box<Expression>,
+        orelse: Vec<Statement>,
+    }
+);
 
-vyper_node!(struct For {});
+vyper_node!(
+    struct For {
+        iter: Box<Expression>,
+        target: Box<Statement>,
+        body: Vec<Statement>,
+    }
+);
 
-vyper_node!(struct Break {});
+vyper_node!(
+    struct Break {}
+);
 
-vyper_node!(struct Continue {});
+vyper_node!(
+    struct Continue {}
+);
 
-vyper_node!(struct Pass {});
+vyper_node!(
+    struct Pass {}
+);
 
-vyper_node!(struct Raise {});
+vyper_node!(
+    struct Raise {
+        exc: Option<Box<Expression>>,
+    }
+);
 
 vyper_node!(
     struct Assert {
@@ -179,14 +255,24 @@ vyper_node!(
 
 vyper_node!(
     struct Log {
+        value: Call,
         #[serde(rename = "type")]
-        ttype: Type,
+        ttype: Option<Type>,
     }
 );
 
-vyper_node!(struct Expr {});
+vyper_node!(
+    struct Expr {
+        value: Box<Expression>,
+    }
+);
 
-vyper_node!(struct NamedExpr {});
+vyper_node!(
+    struct NamedExpr {
+        target: Box<Expression>,
+        value: Box<Expression>,
+    }
+);
 
 node_group!(
     Expression;
@@ -235,41 +321,91 @@ node_group!(
     Keyword,
 );
 
-vyper_node!(struct Constant {}); // TODO
+vyper_node!(
+    struct Constant {
+        value: serde_json::Value,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
 vyper_node!(
     struct Int {
         value: u64,
         #[serde(rename = "type")]
-        ttype: Type,
+        ttype: Option<Type>,
     }
 );
 
-vyper_node!(struct Decimal {}); // TODO
+vyper_node!(
+    struct Decimal {
+        value: String,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
-vyper_node!(struct Hex {}); // TODO
+vyper_node!(
+    struct Hex {
+        value: String,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
 vyper_node!(
     struct Str {
         value: String,
         #[serde(rename = "type")]
-        ttype: Type,
+        ttype: Option<Type>,
     }
 );
 
-vyper_node!(struct Bytes {}); // TODO
+vyper_node!(
+    struct Bytes {
+        value: String,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
-vyper_node!(struct HexBytes {}); // TODO
+vyper_node!(
+    struct HexBytes {
+        value: String,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
-vyper_node!(struct NameConstant {}); // TODO
+vyper_node!(
+    struct NameConstant {
+        value: serde_json::Value,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
-vyper_node!(struct Ellipsis {}); // TODO
+vyper_node!(
+    struct Ellipsis {}
+); // TODO
 
-vyper_node!(struct List {}); // TODO
+vyper_node!(
+    struct List {
+        elements: Vec<Expression>,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
-vyper_node!(struct Tuple {}); // TODO
+vyper_node!(
+    struct Tuple {
+        elements: Vec<Expression>,
+    }
+);
 
-vyper_node!(struct Dict {}); // TODO
+vyper_node!(
+    struct Dict {}
+); // TODO
 
 vyper_node!(
     struct Name {
@@ -285,19 +421,49 @@ vyper_node!(
         value: Box<Expression>,
         attr: String,
         #[serde(rename = "type")]
-        ttype: Type,
+        ttype: Option<Type>,
         variable_reads: Option<Vec<VariableAccess>>,
         variable_writes: Option<Vec<VariableAccess>>,
     }
 );
 
-vyper_node!(struct Subscript {}); // TODO
+vyper_node!(
+    struct Subscript {
+        slice: Box<Expression>,
+        value: Box<Expression>,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+        variable_reads: Option<Vec<VariableAccess>>,
+        variable_writes: Option<Vec<VariableAccess>>,
+    }
+);
 
-vyper_node!(struct UnaryOp {}); // TODO
+vyper_node!(
+    struct UnaryOp {
+        operand: Box<Expression>,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
-vyper_node!(struct BinOp {}); // TODO
+vyper_node!(
+    struct BinOp {
+        left: Box<Expression>,
+        right: Box<Expression>,
+        op: Box<BinaryOperator>,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
-vyper_node!(struct BoolOp {}); // TODO
+vyper_node!(
+    struct BoolOp {
+        values: Vec<Expression>,
+        op: Box<BooleanOperator>,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
 vyper_node!(
     struct Compare {
@@ -305,7 +471,7 @@ vyper_node!(
         right: Box<Expression>,
         op: Box<ComparisonOperator>,
         #[serde(rename = "type")]
-        ttype: Type,
+        ttype: Option<Type>,
     }
 );
 
@@ -315,15 +481,35 @@ vyper_node!(
         keywords: Vec<Keyword>,
         func: Box<Expression>,
         #[serde(rename = "type")]
-        ttype: Type,
+        ttype: Option<Type>,
     }
 );
 
-vyper_node!(struct ExtCall {}); // TODO
+vyper_node!(
+    struct ExtCall {
+        value: Box<Expression>,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
-vyper_node!(struct StaticCall {}); // TODO
+vyper_node!(
+    struct StaticCall {
+        value: Box<Expression>,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
-vyper_node!(struct IfExp {}); // TODO
+vyper_node!(
+    struct IfExp {
+        test: Box<Expression>,
+        body: Box<Expression>,
+        orelse: Box<Expression>,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
 vyper_node!(
     struct Arg {
@@ -340,7 +526,12 @@ vyper_node!(
     }
 );
 
-vyper_node!(struct Keyword {}); // TODO
+vyper_node!(
+    struct Keyword {
+        arg: String,
+        value: Box<Expression>,
+    }
+);
 
 node_group!(
     UnaryOperator;
@@ -350,9 +541,17 @@ node_group!(
     Invert,
 );
 
-vyper_node!(struct USub {}); // TODO
-vyper_node!(struct Not {}); // TODO
-vyper_node!(struct Invert {}); // TODO
+vyper_node!(
+    struct USub {}
+);
+
+vyper_node!(
+    struct Not {}
+);
+
+vyper_node!(
+    struct Invert {}
+);
 
 node_group!(
     BinaryOperator;
@@ -374,18 +573,42 @@ node_group!(
     RShift,
 );
 
-vyper_node!(struct Add {});
-vyper_node!(struct Sub {});
-vyper_node!(struct Mult {});
-vyper_node!(struct Div {});
-vyper_node!(struct FloorDiv {});
-vyper_node!(struct Mod {});
-vyper_node!(struct Pow {});
-vyper_node!(struct BitAnd {});
-vyper_node!(struct BitOr {});
-vyper_node!(struct BitXor {});
-vyper_node!(struct LShift {});
-vyper_node!(struct RShift {});
+vyper_node!(
+    struct Add {}
+);
+vyper_node!(
+    struct Sub {}
+);
+vyper_node!(
+    struct Mult {}
+);
+vyper_node!(
+    struct Div {}
+);
+vyper_node!(
+    struct FloorDiv {}
+);
+vyper_node!(
+    struct Mod {}
+);
+vyper_node!(
+    struct Pow {}
+);
+vyper_node!(
+    struct BitAnd {}
+);
+vyper_node!(
+    struct BitOr {}
+);
+vyper_node!(
+    struct BitXor {}
+);
+vyper_node!(
+    struct LShift {}
+);
+vyper_node!(
+    struct RShift {}
+);
 
 node_group!(
     BooleanOperator;
@@ -394,8 +617,12 @@ node_group!(
     Or,
 );
 
-vyper_node!(struct And {});
-vyper_node!(struct Or {});
+vyper_node!(
+    struct And {}
+);
+vyper_node!(
+    struct Or {}
+);
 
 node_group!(
     ComparisonOperator;
@@ -410,14 +637,30 @@ node_group!(
     NotIn,
 );
 
-vyper_node!(struct Eq {});
-vyper_node!(struct NotEq {});
-vyper_node!(struct Lt {});
-vyper_node!(struct LtE {});
-vyper_node!(struct Gt {});
-vyper_node!(struct GtE {});
-vyper_node!(struct In {});
-vyper_node!(struct NotIn {});
+vyper_node!(
+    struct Eq {}
+);
+vyper_node!(
+    struct NotEq {}
+);
+vyper_node!(
+    struct Lt {}
+);
+vyper_node!(
+    struct LtE {}
+);
+vyper_node!(
+    struct Gt {}
+);
+vyper_node!(
+    struct GtE {}
+);
+vyper_node!(
+    struct In {}
+);
+vyper_node!(
+    struct NotIn {}
+);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Settings {}
@@ -431,16 +674,19 @@ pub struct VariableAccess {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeclNode {
-    pub node_id: u64,
-    pub source_id: u64,
+    pub node_id: i32,
+    pub source_id: i32,
 }
 
+// TODO these types could probably be converted to an enum because some fields are exclusive.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-// #[serde(rename_all = "snake_case", tag = "typeclass")]
 pub struct Type {
     pub name: Option<String>,
+    pub value_type: Option<Box<Type>>,
+    pub m: Option<u32>,
     pub typeclass: Option<String>,
     pub is_signed: Option<bool>,
+    pub length: Option<u32>,
     pub bits: Option<u32>,
     pub type_t: Option<TypedType>,
 }
@@ -454,8 +700,18 @@ pub struct TypedType {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypeDeclNode {
-    pub node_id: i64,
-    pub source_id: i64,
+    pub node_id: i32,
+    pub source_id: i32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportInfo {
+    alias: Option<String>,
+    qualified_module_name: String,
+    source_id: i32,
+    path: String,
+    resolved_path: String,
+    file_sha256sum: String,
 }
 
 #[cfg(test)]
