@@ -386,8 +386,12 @@ vyper_node!(
 );
 
 vyper_node!(
-    struct Ellipsis {}
-); // TODO
+    struct Ellipsis {
+        value: String,
+        #[serde(rename = "type")]
+        ttype: Option<Type>,
+    }
+);
 
 vyper_node!(
     struct List {
@@ -404,8 +408,11 @@ vyper_node!(
 );
 
 vyper_node!(
-    struct Dict {}
-); // TODO
+    struct Dict {
+        keys: Vec<Expression>,
+        values: Vec<Expression>,
+    }
+);
 
 vyper_node!(
     struct Name {
