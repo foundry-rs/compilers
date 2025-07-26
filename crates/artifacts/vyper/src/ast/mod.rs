@@ -114,7 +114,7 @@ vyper_node!(
     struct Import {
         alias: Option<String>,
         name: String,
-        import_info: ImportInfo,
+        import_info: Option<ImportInfo>,
     }
 );
 
@@ -122,7 +122,7 @@ vyper_node!(
     struct ImportFrom {
         alias: Option<String>,
         name: String,
-        import_info: ImportInfo,
+        import_info: Option<ImportInfo>,
         module: Option<String>,
         level: u32,
     }
@@ -286,6 +286,7 @@ node_group!(
     HexBytes,
     NameConstant,
     Ellipsis,
+    Index,
 
     // Collections
     List,
@@ -389,6 +390,12 @@ vyper_node!(
         value: String,
         #[serde(rename = "type")]
         ttype: Option<Type>,
+    }
+);
+
+vyper_node!(
+    struct Index {
+        value: Box<Expression>,
     }
 );
 
