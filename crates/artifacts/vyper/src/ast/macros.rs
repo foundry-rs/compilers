@@ -25,6 +25,22 @@ macro_rules! vyper_node {
     };
 }
 
+macro_rules! basic_vyper_nodes {
+    (
+        $(
+            $(#[$struct_meta:meta])*
+            $name:ident
+        ),* $(,)?
+    ) => {
+        $(
+            vyper_node! {
+                $(#[$struct_meta])*
+                struct $name {}
+            }
+        )*
+    }
+}
+
 macro_rules! node_group {
     (
         $group:ident;
@@ -45,5 +61,6 @@ macro_rules! node_group {
     };
 }
 
-pub(crate) use node_group;
 pub(crate) use vyper_node;
+pub(crate) use basic_vyper_nodes;
+pub(crate) use node_group;

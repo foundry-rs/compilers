@@ -3,20 +3,20 @@ use serde::{Deserialize, Serialize};
 mod macros;
 pub mod visitor;
 
-use crate::ast::macros::node_group;
+use crate::ast::macros::{basic_vyper_nodes, node_group};
 use macros::vyper_node;
 
 vyper_node!(
     struct Module {
         // Module-specific fields
-        source_sha256sum: String,
+        source_sha256sum: Option<String>,
         name: Option<String>,
-        path: String,
-        resolved_path: String,
-        source_id: i32,
-        is_interface: bool,
+        path: Option<String>,
+        resolved_path: Option<String>,
+        source_id: Option<i32>,
+        is_interface: Option<bool>,
         doc_string: Option<DocStr>,
-        settings: Settings,
+        settings: Option<Settings>,
 
         // AST content
         body: Vec<TopLevelItem>,
@@ -548,16 +548,8 @@ node_group!(
     Invert,
 );
 
-vyper_node!(
-    struct USub {}
-);
-
-vyper_node!(
-    struct Not {}
-);
-
-vyper_node!(
-    struct Invert {}
+basic_vyper_nodes!(
+    USub, Not, Invert
 );
 
 node_group!(
@@ -580,42 +572,7 @@ node_group!(
     RShift,
 );
 
-vyper_node!(
-    struct Add {}
-);
-vyper_node!(
-    struct Sub {}
-);
-vyper_node!(
-    struct Mult {}
-);
-vyper_node!(
-    struct Div {}
-);
-vyper_node!(
-    struct FloorDiv {}
-);
-vyper_node!(
-    struct Mod {}
-);
-vyper_node!(
-    struct Pow {}
-);
-vyper_node!(
-    struct BitAnd {}
-);
-vyper_node!(
-    struct BitOr {}
-);
-vyper_node!(
-    struct BitXor {}
-);
-vyper_node!(
-    struct LShift {}
-);
-vyper_node!(
-    struct RShift {}
-);
+basic_vyper_nodes!(Add, Sub, Mult, Div, FloorDiv, Mod, Pow, BitAnd, BitOr, BitXor, LShift, RShift);
 
 node_group!(
     BooleanOperator;
@@ -624,12 +581,7 @@ node_group!(
     Or,
 );
 
-vyper_node!(
-    struct And {}
-);
-vyper_node!(
-    struct Or {}
-);
+basic_vyper_nodes!(And, Or);
 
 node_group!(
     ComparisonOperator;
@@ -644,30 +596,7 @@ node_group!(
     NotIn,
 );
 
-vyper_node!(
-    struct Eq {}
-);
-vyper_node!(
-    struct NotEq {}
-);
-vyper_node!(
-    struct Lt {}
-);
-vyper_node!(
-    struct LtE {}
-);
-vyper_node!(
-    struct Gt {}
-);
-vyper_node!(
-    struct GtE {}
-);
-vyper_node!(
-    struct In {}
-);
-vyper_node!(
-    struct NotIn {}
-);
+basic_vyper_nodes!(Eq, NotEq, Lt, LtE, Gt, GtE, In, NotIn);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Settings {}
