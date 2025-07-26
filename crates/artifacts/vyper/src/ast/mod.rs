@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 mod macros;
-pub mod visitor;
 
 use crate::ast::macros::{basic_vyper_nodes, node_group};
 use macros::vyper_node;
@@ -115,7 +114,7 @@ vyper_node!(
     struct Import {
         alias: Option<String>,
         name: String,
-        import_info: ImportInfo
+        import_info: ImportInfo,
     }
 );
 
@@ -548,9 +547,7 @@ node_group!(
     Invert,
 );
 
-basic_vyper_nodes!(
-    USub, Not, Invert
-);
+basic_vyper_nodes!(USub, Not, Invert);
 
 node_group!(
     BinaryOperator;

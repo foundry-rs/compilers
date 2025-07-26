@@ -61,6 +61,6 @@ macro_rules! node_group {
     };
 }
 
-pub(crate) use vyper_node;
 pub(crate) use basic_vyper_nodes;
 pub(crate) use node_group;
+pub(crate) use vyper_node;
