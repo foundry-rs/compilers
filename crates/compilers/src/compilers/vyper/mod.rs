@@ -127,6 +127,7 @@ impl Vyper {
     }
 
     /// Compiles with `--standard-json` and deserializes the output as the given `D`.
+    #[instrument(name = "Vyper::compile", skip_all)]
     pub fn compile_as<T: Serialize, D: DeserializeOwned>(&self, input: &T) -> Result<D> {
         let output = self.compile_output(input)?;
 
@@ -139,7 +140,7 @@ impl Vyper {
     }
 
     /// Compiles with `--standard-json` and returns the raw `stdout` output.
-    #[instrument(name = "compile", level = "debug", skip_all)]
+    #[instrument(name = "Vyper::compile_raw", skip_all)]
     pub fn compile_output<T: Serialize>(&self, input: &T) -> Result<Vec<u8>> {
         let mut cmd = Command::new(&self.path);
         cmd.arg("--standard-json")
@@ -171,7 +172,6 @@ impl Vyper {
     }
 
     /// Invokes `vyper --version` and parses the output as a SemVer [`Version`].
-    #[instrument(level = "debug", skip_all)]
     pub fn version(vyper: impl Into<PathBuf>) -> Result<Version> {
         crate::cache_version(vyper.into(), &[], |vyper| {
             let mut cmd = Command::new(vyper);

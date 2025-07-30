@@ -36,6 +36,7 @@ pub struct VyperParsedSource {
 impl ParsedSource for VyperParsedSource {
     type Language = VyperLanguage;
 
+    #[instrument(name = "VyperParsedSource::parse", skip_all)]
     fn parse(content: &str, file: &Path) -> Result<Self> {
         let version_req = capture_outer_and_inner(content, &RE_VYPER_VERSION, &["version"])
             .first()

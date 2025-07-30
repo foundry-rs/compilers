@@ -332,6 +332,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     }
 
     /// Resolves a number of sources within the given config
+    #[instrument(name = "Graph::resolve_sources", skip_all)]
     pub fn resolve_sources(
         paths: &ProjectPathsConfig<D::Language>,
         sources: Sources,

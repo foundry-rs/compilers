@@ -42,6 +42,7 @@ impl SolData {
     ///
     /// This will attempt to parse the solidity AST and extract the imports and version pragma. If
     /// parsing fails, we'll fall back to extract that info via regex
+    #[instrument(name = "SolData::parse", skip_all)]
     pub fn parse(content: &str, file: &Path) -> Self {
         let is_yul = file.extension().is_some_and(|ext| ext == "yul");
         let mut version = None;

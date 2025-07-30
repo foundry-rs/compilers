@@ -89,6 +89,7 @@ impl Solc {
     /// A new instance which points to `solc`. Invokes `solc --version` to determine the version.
     ///
     /// Returns error if `solc` is not found in the system or if the version cannot be retrieved.
+    #[instrument(name = "Solc::new", skip_all)]
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
         let path = path.into();
         let version = Self::version(path.clone())?;
@@ -200,6 +201,7 @@ impl Solc {
     ///
     /// Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[instrument(skip_all)]
     pub fn find_svm_installed_version(version: &Version) -> Result<Option<Self>> {
         let version = format!("{}.{}.{}", version.major, version.minor, version.patch);
         let solc = Self::svm_home()
@@ -266,6 +268,7 @@ impl Solc {
     /// # }
     /// ```
     #[cfg(feature = "svm-solc")]
+    #[instrument(name = "Solc::install", skip_all)]
     pub async fn install(version: &Version) -> std::result::Result<Self, svm::SvmError> {
         trace!("installing solc version \"{}\"", version);
         crate::report::solc_installation_start(version);
@@ -283,6 +286,7 @@ impl Solc {
 
     /// Blocking version of `Self::install`
     #[cfg(feature = "svm-solc")]
+    #[instrument(name = "Solc::blocking_install", skip_all)]
     pub fn blocking_install(version: &Version) -> std::result::Result<Self, svm::SvmError> {
         use foundry_compilers_core::utils::RuntimeOrHandle;
 
@@ -311,6 +315,7 @@ impl Solc {
     /// Verify that the checksum for this version of solc is correct. We check against the SHA256
     /// checksum from the build information published by [binaries.soliditylang.org](https://binaries.soliditylang.org/)
     #[cfg(feature = "svm-solc")]
+    #[instrument(name = "Solc::verify_checksum", skip_all)]
     pub fn verify_checksum(&self) -> Result<()> {
         let version = self.version_short();
         let mut version_path = svm::version_path(version.to_string().as_str());
@@ -407,6 +412,7 @@ impl Solc {
     }
 
     /// Compiles with `--standard-json` and deserializes the output as the given `D`.
+    #[instrument(name = "Solc::compile", skip_all)]
     pub fn compile_as<T: Serialize, D: DeserializeOwned>(&self, input: &T) -> Result<D> {
         let output = self.compile_output(input)?;
 
@@ -417,7 +423,7 @@ impl Solc {
     }
 
     /// Compiles with `--standard-json` and returns the raw `stdout` output.
-    #[instrument(name = "compile", level = "debug", skip_all)]
+    #[instrument(name = "Solc::compile_raw", skip_all)]
     pub fn compile_output<T: Serialize>(&self, input: &T) -> Result<Vec<u8>> {
         let mut cmd = self.configure_cmd();
 
@@ -447,13 +453,11 @@ impl Solc {
     }
 
     /// Invokes `solc --version` and parses the output as a SemVer [`Version`].
-    #[instrument(level = "debug", skip_all)]
     pub fn version(solc: impl Into<PathBuf>) -> Result<Version> {
         Self::version_with_args(solc, &[])
     }
 
     /// Invokes `solc --version` and parses the output as a SemVer [`Version`].
-    #[instrument(level = "debug", skip_all)]
     pub fn version_with_args(solc: impl Into<PathBuf>, args: &[String]) -> Result<Version> {
         crate::cache_version(solc.into(), args, |solc| {
             let mut cmd = Command::new(solc);
