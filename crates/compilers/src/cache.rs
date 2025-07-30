@@ -118,7 +118,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// cache.join_artifacts_files(project.artifacts_path());
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
-    #[instrument(skip_all, name = "sol-files-cache::read")]
+    #[instrument(name = "CompilerCache::read", skip_all)]
     pub fn read(path: &Path) -> Result<Self> {
         trace!("reading solfiles cache at {}", path.display());
         let cache: Self = utils::read_json_file(path)?;
@@ -149,6 +149,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     }
 
     /// Write the cache as json file to the given path
+    #[instrument(name = "CompilerCache::write", skip_all)]
     pub fn write(&self, path: &Path) -> Result<()> {
         trace!("writing cache with {} entries to json file: \"{}\"", self.len(), path.display());
         utils::create_parent_dir_all(path)?;
@@ -158,6 +159,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     }
 
     /// Removes build infos which don't have any artifacts linked to them.
+    #[instrument(skip_all)]
     pub fn remove_outdated_builds(&mut self) {
         let mut outdated = Vec::new();
         for build_id in &self.builds {
@@ -180,6 +182,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     }
 
     /// Sets the `CacheEntry`'s file paths to `root` adjoined to `self.file`.
+    #[instrument(skip_all)]
     pub fn join_entries(&mut self, root: &Path) -> &mut Self {
         self.files = std::mem::take(&mut self.files)
             .into_iter()
@@ -189,6 +192,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     }
 
     /// Removes `base` from all `CacheEntry` paths
+    #[instrument(skip_all)]
     pub fn strip_entries_prefix(&mut self, base: &Path) -> &mut Self {
         self.files = std::mem::take(&mut self.files)
             .into_iter()
@@ -198,12 +202,14 @@ impl<S: CompilerSettings> CompilerCache<S> {
     }
 
     /// Sets the artifact files location to `base` adjoined to the `CachEntries` artifacts.
+    #[instrument(skip_all)]
     pub fn join_artifacts_files(&mut self, base: &Path) -> &mut Self {
         self.files.values_mut().for_each(|entry| entry.join_artifacts_files(base));
         self
     }
 
     /// Removes `base` from all artifact file paths
+    #[instrument(skip_all)]
     pub fn strip_artifact_files_prefixes(&mut self, base: &Path) -> &mut Self {
         self.files.values_mut().for_each(|entry| entry.strip_artifact_files_prefixes(base));
         self
@@ -212,6 +218,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// Removes all `CacheEntry` which source files don't exist on disk
     ///
     /// **NOTE:** this assumes the `files` are absolute
+    #[instrument(skip_all)]
     pub fn remove_missing_files(&mut self) {
         trace!("remove non existing files from cache");
         self.files.retain(|file, _| {
@@ -292,6 +299,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     ///
     /// **NOTE**: unless the cache's `files` keys were modified `contract_file` is expected to be
     /// absolute.
+    #[instrument(skip_all)]
     pub fn read_artifact<Artifact: DeserializeOwned>(
         &self,
         contract_file: &Path,
@@ -318,6 +326,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// let artifacts = cache.read_artifacts::<CompactContractBytecode>()?;
     /// # Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
+    #[instrument(skip_all)]
     pub fn read_artifacts<Artifact: DeserializeOwned + Send + Sync>(
         &self,
     ) -> Result<Artifacts<Artifact>> {
@@ -335,6 +344,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// objects, so we are basically just partially deserializing build infos here.
     ///
     /// [BuildContext]: crate::buildinfo::BuildContext
+    #[instrument(skip_all)]
     pub fn read_builds<L: Language>(&self, build_info_dir: &Path) -> Result<Builds<L>> {
         use rayon::prelude::*;
 
@@ -491,6 +501,7 @@ impl CacheEntry {
     /// Reads all artifact files associated with the `CacheEntry`
     ///
     /// **Note:** all artifact file paths should be absolute.
+    #[instrument(skip_all)]
     fn read_artifact_files<Artifact: DeserializeOwned>(
         &self,
     ) -> Result<BTreeMap<String, Vec<ArtifactFile<Artifact>>>> {
@@ -514,6 +525,7 @@ impl CacheEntry {
         Ok(artifacts)
     }
 
+    #[instrument(skip_all)]
     pub(crate) fn merge_artifacts<'a, A, I, T: 'a>(&mut self, artifacts: I)
     where
         I: IntoIterator<Item = (&'a String, A)>,
@@ -1017,6 +1029,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ArtifactsCache<'a, T, C>
 {
     /// Create a new cache instance with the given files
+    #[instrument(name = "ArtifactsCache::new", skip(project, edges))]
     pub fn new(
         project: &'a Project<C, T>,
         edges: GraphEdges<C::ParsedSource>,
@@ -1041,6 +1054,8 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
                     }
                 }
             }
+
+            trace!(invalidate_cache, "cache invalidated");
 
             // new empty cache
             CompilerCache::new(Default::default(), paths, preprocessed)
@@ -1135,6 +1150,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     }
 
     /// Adds the file's hashes to the set if not set yet
+    #[instrument(skip_all)]
     pub fn remove_dirty_sources(&mut self) {
         match self {
             ArtifactsCache::Ephemeral(..) => {}
@@ -1161,6 +1177,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     }
 
     /// Filters out those sources that don't need to be compiled
+    #[instrument(name = "ArtifactsCache::filter", skip_all)]
     pub fn filter(&mut self, sources: &mut Sources, version: &Version, profile: &str) {
         match self {
             ArtifactsCache::Ephemeral(..) => {}
@@ -1173,6 +1190,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     /// compiled and written to disk `written_artifacts`.
     ///
     /// Returns all the _cached_ artifacts.
+    #[instrument(name = "ArtifactsCache::consume", skip_all)]
     pub fn consume<A>(
         self,
         written_artifacts: &Artifacts<A>,

@@ -171,6 +171,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// Multiple (`Solc` -> `Sources`) pairs can be compiled in parallel if the `Project` allows
     /// multiple `jobs`, see [`crate::Project::set_solc_jobs()`].
+    #[instrument(name = "ProjectCompiler::new", skip_all)]
     pub fn with_sources(project: &'a Project<C, T>, mut sources: Sources) -> Result<Self> {
         if let Some(filter) = &project.sparse_output {
             sources.retain(|f, _| filter.is_match(f))
@@ -209,6 +210,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     /// let output = project.compile()?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
+    #[instrument(name = "compile_project", skip_all)]
     pub fn compile(self) -> Result<ProjectCompileOutput<C, T>> {
         let slash_paths = self.project.slash_paths;
 
@@ -226,6 +228,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     /// Does basic preprocessing
     ///   - sets proper source unit names
     ///   - check cache
+    #[instrument(skip_all)]
     fn preprocess(self) -> Result<PreprocessedState<'a, T, C>> {
         trace!("preprocessing");
         let Self { edges, project, mut sources, primary_profiles, preprocessor } = self;
@@ -265,6 +268,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     PreprocessedState<'a, T, C>
 {
     /// advance to the next state by compiling all sources
+    #[instrument(skip_all)]
     fn compile(self) -> Result<CompiledState<'a, T, C>> {
         trace!("compiling");
         let PreprocessedState { sources, mut cache, primary_profiles, preprocessor } = self;
@@ -297,7 +301,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// Writes all output contracts to disk if enabled in the `Project` and if the build was
     /// successful
-    #[instrument(skip_all, name = "write-artifacts")]
+    #[instrument(skip_all)]
     fn write_artifacts(self) -> Result<ArtifactsState<'a, T, C>> {
         let CompiledState { output, cache, primary_profiles } = self;
 
@@ -365,6 +369,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     /// Writes the cache file
     ///
     /// this concludes the [`Project::compile()`] statemachine
+    #[instrument(skip_all)]
     fn write_cache(self) -> Result<ProjectCompileOutput<C, T>> {
         let ArtifactsState { output, cache, compiled_artifacts } = self;
         let project = cache.project();
@@ -436,6 +441,7 @@ impl<L: Language, S: CompilerSettings> CompilerSources<'_, L, S> {
     }
 
     /// Filters out all sources that don't need to be compiled, see [`ArtifactsCache::filter`]
+    #[instrument(name = "CompilerSources::filter", skip_all)]
     fn filter<
         T: ArtifactOutput<CompilerContract = C::CompilerContract>,
         C: Compiler<Language = L>,

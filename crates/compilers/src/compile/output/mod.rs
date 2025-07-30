@@ -87,6 +87,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ProjectCompileOutput<C, T>
 {
     /// Converts all `\\` separators in _all_ paths to `/`
+    #[instrument(skip_all)]
     pub fn slash_paths(&mut self) {
         self.compiler_output.slash_paths();
         self.compiled_artifacts.slash_paths();
