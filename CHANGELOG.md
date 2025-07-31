@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.1](https://github.com/foundry-rs/compilers/releases/tag/v0.18.1) - 2025-07-31
+
+### Bug Fixes
+
+- Consistent handle of unresolved imports ([#294](https://github.com/foundry-rs/compilers/issues/294))
+
+### Miscellaneous Tasks
+
+- Add more instrumentation ([#293](https://github.com/foundry-rs/compilers/issues/293))
+
+### Other
+
+- Remove duplicate assembly check in is_dirty ([#292](https://github.com/foundry-rs/compilers/issues/292))
+
 ## [0.18.0](https://github.com/foundry-rs/compilers/releases/tag/v0.18.0) - 2025-07-14
 
 ### Dependencies
@@ -15,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.18.0
 - Release 0.18.0
 
 ## [0.17.4](https://github.com/foundry-rs/compilers/releases/tag/v0.17.4) - 2025-06-30
