@@ -401,38 +401,19 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             };
 
             for import_path in node.data.resolve_imports(paths, &mut resolved_solc_include_paths)? {
-                match paths.resolve_import_and_include_paths(
+                if let Some(err) = match paths.resolve_import_and_include_paths(
                     cwd,
                     &import_path,
                     &mut resolved_solc_include_paths,
                 ) {
                     Ok(import) => {
-                        add_node(&mut unresolved, &mut index, &mut resolved_imports, import)
-                            .map_err(|err| {
-                                match err {
-                                    SolcError::ResolveCaseSensitiveFileName { .. }
-                                    | SolcError::Resolve(_) => {
-                                        // make the error more helpful by providing additional
-                                        // context
-                                        SolcError::FailedResolveImport(
-                                            Box::new(err),
-                                            node.path.clone(),
-                                            import_path.clone(),
-                                        )
-                                    }
-                                    _ => err,
-                                }
-                            })?
+                        add_node(&mut unresolved, &mut index, &mut resolved_imports, import).err()
                     }
-                    Err(err) => {
-                        unresolved_imports.insert((import_path.to_path_buf(), node.path.clone()));
-                        trace!(
-                            "failed to resolve import component \"{:?}\" for {:?}",
-                            err,
-                            node.path
-                        )
-                    }
-                };
+                    Err(err) => Some(err),
+                } {
+                    unresolved_imports.insert((import_path.to_path_buf(), node.path.clone()));
+                    trace!("failed to resolve import component \"{:?}\" for {:?}", err, node.path)
+                }
             }
 
             nodes.push(node);
