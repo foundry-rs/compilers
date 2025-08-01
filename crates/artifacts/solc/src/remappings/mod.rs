@@ -138,8 +138,11 @@ impl fmt::Display for Remapping {
             }
             s.push(':');
         }
-        let name =
-            if !self.name.ends_with('/') { format!("{}/", self.name) } else { self.name.clone() };
+        let name = if !self.name.ends_with('/') && !self.name.ends_with(".sol") {
+            format!("{}/", self.name)
+        } else {
+            self.name.clone()
+        };
         s.push_str(&{
             #[cfg(target_os = "windows")]
             {
@@ -153,7 +156,7 @@ impl fmt::Display for Remapping {
             }
         });
 
-        if !s.ends_with('/') {
+        if !s.ends_with('/') && !s.ends_with(".sol") {
             s.push('/');
         }
         f.write_str(&s)
@@ -241,7 +244,7 @@ impl fmt::Display for RelativeRemapping {
             }
         });
 
-        if !s.ends_with('/') {
+        if !s.ends_with('/') && !s.ends_with(".sol") {
             s.push('/');
         }
         f.write_str(&s)
@@ -252,10 +255,10 @@ impl From<RelativeRemapping> for Remapping {
     fn from(r: RelativeRemapping) -> Self {
         let RelativeRemapping { context, mut name, path } = r;
         let mut path = path.relative().display().to_string();
-        if !path.ends_with('/') {
+        if !path.ends_with('/') && !path.ends_with(".sol") {
             path.push('/');
         }
-        if !name.ends_with('/') {
+        if !name.ends_with('/') && !name.ends_with(".sol") {
             name.push('/');
         }
         Self { context, name, path }
@@ -422,5 +425,22 @@ mod tests {
             Remapping { context: None, name: "oz".to_string(), path: "a/b/c/d/".to_string() }
         );
         assert_eq!(remapping.to_string(), "oz/=a/b/c/d/".to_string());
+    }
+
+    // <https://github.com/foundry-rs/foundry/issues/6706#issuecomment-3141270852>
+    #[test]
+    fn can_preserve_single_sol_file_remapping() {
+        let remapping = "@my-lib/B.sol=lib/my-lib/B.sol";
+        let remapping = Remapping::from_str(remapping).unwrap();
+
+        assert_eq!(
+            remapping,
+            Remapping {
+                context: None,
+                name: "@my-lib/B.sol".to_string(),
+                path: "lib/my-lib/B.sol".to_string()
+            }
+        );
+        assert_eq!(remapping.to_string(), "@my-lib/B.sol=lib/my-lib/B.sol".to_string());
     }
 }
