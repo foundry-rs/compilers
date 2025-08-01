@@ -138,7 +138,7 @@ impl fmt::Display for Remapping {
             }
             s.push(':');
         }
-        let name = if !self.name.ends_with('/') && !self.name.ends_with(".sol") {
+        let name = if needs_trailing_slash(&self.name) {
             format!("{}/", self.name)
         } else {
             self.name.clone()
@@ -156,7 +156,7 @@ impl fmt::Display for Remapping {
             }
         });
 
-        if !s.ends_with('/') && !s.ends_with(".sol") {
+        if needs_trailing_slash(&s) {
             s.push('/');
         }
         f.write_str(&s)
@@ -244,7 +244,7 @@ impl fmt::Display for RelativeRemapping {
             }
         });
 
-        if !s.ends_with('/') && !s.ends_with(".sol") {
+        if needs_trailing_slash(&s) {
             s.push('/');
         }
         f.write_str(&s)
@@ -255,10 +255,10 @@ impl From<RelativeRemapping> for Remapping {
     fn from(r: RelativeRemapping) -> Self {
         let RelativeRemapping { context, mut name, path } = r;
         let mut path = path.relative().display().to_string();
-        if !path.ends_with('/') && !path.ends_with(".sol") {
+        if needs_trailing_slash(&path) {
             path.push('/');
         }
-        if !name.ends_with('/') && !name.ends_with(".sol") {
+        if needs_trailing_slash(&name) {
             name.push('/');
         }
         Self { context, name, path }
@@ -342,6 +342,15 @@ impl<'de> Deserialize<'de> for RelativeRemapping {
         let remapping = Remapping::from_str(&remapping).map_err(serde::de::Error::custom)?;
         Ok(Self { context: remapping.context, name: remapping.name, path: remapping.path.into() })
     }
+}
+
+/// Helper to determine if name or path of a remapping needs trailing slash.
+/// Returns false if it already ends with a slash or if remapping is a solidity file.
+/// Used to preserve name and path of single file remapping, see
+/// <https://github.com/foundry-rs/foundry/issues/6706>
+/// <https://github.com/foundry-rs/foundry/issues/8499>
+fn needs_trailing_slash(name_or_path: &str) -> bool {
+    !name_or_path.ends_with('/') && !name_or_path.ends_with(".sol")
 }
 
 #[cfg(test)]
