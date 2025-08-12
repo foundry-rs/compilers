@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, HashSet};
 
 use alloy_json_abi::JsonAbi;
-use foundry_compilers_artifacts_solc::{DevDoc, LosslessMetadata, StorageLayout, UserDoc};
+use foundry_compilers_artifacts_solc::{
+    DevDoc, LosslessMetadata, ResolcExtras, StorageLayout, UserDoc,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::ResolcEVM;
@@ -71,9 +73,7 @@ impl From<ResolcContract> for foundry_compilers_artifacts_solc::Contract {
             _ => None,
         };
 
-        let factory_deps = contract.factory_dependencies.unwrap_or_default();
-
-        let mut solc_contract = Self {
+        Self {
             abi: contract.abi,
             evm: contract.evm.map(Into::into),
             metadata: meta,
@@ -85,19 +85,11 @@ impl From<ResolcContract> for foundry_compilers_artifacts_solc::Contract {
             ewasm: None,
             ir_optimized: contract.ir_optimized,
             ir_optimized_ast: None,
-            extensions: foundry_compilers_artifacts_solc::Extensions::None,
-        };
-
-        // Populate extensions if we have resolc-specific data
-        if !factory_deps.is_empty() {
-            let resolc_extras = foundry_compilers_artifacts_solc::ResolcExtras {
-                factory_dependencies: factory_deps,
-            };
-            solc_contract.extensions =
-                foundry_compilers_artifacts_solc::Extensions::Resolc(resolc_extras);
+            extensions: foundry_compilers_artifacts_solc::ArtifactExtras::Resolc(ResolcExtras {
+                hash: contract.hash,
+                factory_dependencies: contract.factory_dependencies,
+            }),
         }
-
-        solc_contract
     }
 }
 

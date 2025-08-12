@@ -1844,6 +1844,37 @@ impl SourceFiles {
     }
 }
 
+// Resolc extensions, i don't like that they are here
+#[derive(Default, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct ResolcExtras {
+    /// The contract PolkaVM bytecode hash.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash: Option<String>,
+    /// The contract factory dependencies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub factory_dependencies: Option<BTreeMap<String, String>>,
+}
+
+#[derive(Default, Clone, Debug, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
+pub enum ArtifactExtras {
+    #[default]
+    None,
+    Resolc(ResolcExtras),
+}
+
+impl ArtifactExtras {
+    fn is_default(&self) -> bool {
+        *self == Self::None
+    }
+
+    pub fn resolc_extras(&self) -> Option<ResolcExtras> {
+        match self {
+            Self::None => None,
+            Self::Resolc(resolc_extras) => Some(resolc_extras.clone()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

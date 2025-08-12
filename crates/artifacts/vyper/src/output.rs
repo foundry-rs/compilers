@@ -84,7 +84,7 @@ impl From<VyperContract> for solc_artifacts::Contract {
             ewasm: None,
             ir_optimized: None,
             ir_optimized_ast: None,
-            extensions: solc_artifacts::Extensions::None,
+            extensions: Default::default(),
         }
     }
 }

@@ -1,7 +1,7 @@
 use crate::{
     Ast, CompactBytecode, CompactContract, CompactContractBytecode, CompactContractBytecodeCow,
-    CompactDeployedBytecode, DevDoc, Ewasm, Extensions, FunctionDebugData, GasEstimates,
-    GeneratedSource, Metadata, Offsets, SourceFile, StorageLayout, UserDoc,
+    CompactDeployedBytecode, DevDoc, Ewasm, FunctionDebugData, GasEstimates, GeneratedSource,
+    Metadata, Offsets, SourceFile, StorageLayout, UserDoc,
 };
 use alloy_json_abi::JsonAbi;
 use serde::{Deserialize, Serialize};
@@ -60,8 +60,8 @@ pub struct ConfigurableContractArtifact {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<u32>,
     /// Extensions for additional compiler-specific information
-    #[serde(default, skip_serializing_if = "Extensions::is_none")]
-    pub extensions: Extensions,
+    #[serde(default, skip_serializing_if = "crate::ArtifactExtras::is_default")]
+    pub extensions: crate::ArtifactExtras,
 }
 
 impl ConfigurableContractArtifact {
