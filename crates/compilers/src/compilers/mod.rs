@@ -139,12 +139,24 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
     fn strip_prefix(&mut self, base: &Path);
 }
 
+/// [`ParsedSource`] container.
+pub trait ParsedSources: Default + Debug + Send + Sync {
+    type ParsedSource: ParsedSource;
+
+    fn parse<'a, 'b>(
+        &mut self,
+        sources: impl IntoIterator<Item = (&'a str, &'b Path)>,
+    ) -> Result<()>;
+    fn sources(&self) -> &[Self::ParsedSource];
+    fn push(&mut self, source: Self::ParsedSource);
+}
+
 /// Parser of the source files which is used to identify imports and version requirements of the
 /// given source.
 ///
 /// Used by path resolver to resolve imports or determine compiler versions needed to compiler given
 /// sources.
-pub trait ParsedSource: Debug + Sized + Send + Clone {
+pub trait ParsedSource: Debug + Sized + Send {
     type Language: Language;
 
     /// Parses the content of the source file.
@@ -331,7 +343,7 @@ pub trait Compiler: Send + Sync + Clone {
     /// Output data for each contract
     type CompilerContract: CompilerContract;
     /// Source parser used for resolving imports and version requirements.
-    type ParsedSource: ParsedSource<Language = Self::Language>;
+    type ParsedSources: ParsedSources<ParsedSource: ParsedSource<Language = Self::Language>>;
     /// Compiler settings.
     type Settings: CompilerSettings;
     /// Enum of languages supported by the compiler.

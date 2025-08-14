@@ -46,9 +46,10 @@
 //! which is defined on a per source file basis.
 
 use crate::{
-    compilers::{Compiler, CompilerVersion, Language, ParsedSource},
+    compilers::{Compiler, CompilerVersion, ParsedSource},
     project::VersionedSources,
-    ArtifactOutput, CompilerSettings, Project, ProjectPathsConfig,
+    resolver::parse::SolParsedSources,
+    ArtifactOutput, CompilerSettings, ParsedSources, Project, ProjectPathsConfig,
 };
 use core::fmt;
 use foundry_compilers_artifacts::sources::{Source, Sources};
@@ -56,7 +57,6 @@ use foundry_compilers_core::{
     error::{Result, SolcError},
     utils::{self, find_case_sensitive_existing_file},
 };
-use parse::SolData;
 use rayon::prelude::*;
 use semver::{Version, VersionReq};
 use std::{
@@ -89,15 +89,15 @@ pub struct ResolvedSources<'a, C: Compiler> {
     /// a profile suffix.
     pub primary_profiles: HashMap<PathBuf, &'a str>,
     /// Graph edges.
-    pub edges: GraphEdges<C::ParsedSource>,
+    pub edges: GraphEdges<C::ParsedSources>,
 }
 
 /// The underlying edges of the graph which only contains the raw relationship data.
 ///
 /// This is kept separate from the `Graph` as the `Node`s get consumed when the `Solc` to `Sources`
 /// set is determined.
-#[derive(Debug)]
-pub struct GraphEdges<D> {
+#[derive(Clone, Debug, Default)]
+pub struct GraphEdges<S> {
     /// The indices of `edges` correspond to the `nodes`. That is, `edges[0]`
     /// is the set of outgoing edges for `nodes[0]`.
     edges: Vec<Vec<usize>>,
@@ -109,8 +109,8 @@ pub struct GraphEdges<D> {
     rev_indices: HashMap<usize, PathBuf>,
     /// the identified version requirement of a file
     versions: HashMap<usize, Option<VersionReq>>,
-    /// the extracted data from the source file
-    data: HashMap<usize, D>,
+    /// the extracted data from the source files
+    data: S,
     /// with how many input files we started with, corresponds to `let input_files =
     /// nodes[..num_input_files]`.
     ///
@@ -127,7 +127,7 @@ pub struct GraphEdges<D> {
     resolved_solc_include_paths: BTreeSet<PathBuf>,
 }
 
-impl<D> GraphEdges<D> {
+impl<S> GraphEdges<S> {
     /// How many files are source files
     pub fn num_source_files(&self) -> usize {
         self.num_input_files
@@ -212,8 +212,11 @@ impl<D> GraphEdges<D> {
     }
 
     /// Returns the parsed source data for the given file
-    pub fn get_parsed_source(&self, file: &Path) -> Option<&D> {
-        self.indices.get(file).and_then(|idx| self.data.get(idx))
+    pub fn get_parsed_source(&self, file: &Path) -> Option<&S::ParsedSource>
+    where
+        S: ParsedSources,
+    {
+        self.indices.get(file).and_then(|idx| self.data.sources().get(*idx))
     }
 }
 
@@ -223,16 +226,18 @@ impl<D> GraphEdges<D> {
 ///
 /// See also <https://docs.soliditylang.org/en/latest/layout-of-source-files.html?highlight=import#importing-other-source-files>
 #[derive(Debug)]
-pub struct Graph<D = SolData> {
+pub struct Graph<S: ParsedSources = SolParsedSources> {
     /// all nodes in the project, a `Node` represents a single file
-    pub nodes: Vec<Node<D>>,
+    pub nodes: Vec<Node<S::ParsedSource>>,
     /// relationship of the nodes
-    edges: GraphEdges<D>,
+    edges: GraphEdges<S>,
     /// the root of the project this graph represents
     root: PathBuf,
 }
 
-impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
+type L<S> = <<S as ParsedSources>::ParsedSource as ParsedSource>::Language;
+
+impl<S: ParsedSources> Graph<S> {
     /// Print the graph to `StdOut`
     pub fn print(&self) {
         self.print_with_options(Default::default())
@@ -275,11 +280,11 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     /// # Panics
     ///
     /// if the `index` node id is not included in the graph
-    pub fn node(&self, index: usize) -> &Node<D> {
+    pub fn node(&self, index: usize) -> &Node<S::ParsedSource> {
         &self.nodes[index]
     }
 
-    pub(crate) fn display_node(&self, index: usize) -> DisplayNode<'_, D> {
+    pub(crate) fn display_node(&self, index: usize) -> DisplayNode<'_, S::ParsedSource> {
         DisplayNode { node: self.node(index), root: &self.root }
     }
 
@@ -294,11 +299,11 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     }
 
     /// Same as `Self::node_ids` but returns the actual `Node`
-    pub fn nodes(&self, start: usize) -> impl Iterator<Item = &Node<D>> + '_ {
+    pub fn nodes(&self, start: usize) -> impl Iterator<Item = &Node<S::ParsedSource>> + '_ {
         self.node_ids(start).map(move |idx| self.node(idx))
     }
 
-    fn split(self) -> (Vec<(PathBuf, Source)>, GraphEdges<D>) {
+    fn split(self) -> (Vec<(PathBuf, Source)>, GraphEdges<S>) {
         let Self { nodes, mut edges, .. } = self;
         // need to move the extracted data to the edges, essentially splitting the node so we have
         // access to the data at a later stage in the compile pipeline
@@ -306,7 +311,8 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         for (idx, node) in nodes.into_iter().enumerate() {
             let Node { path, source, data } = node;
             sources.push((path, source));
-            edges.data.insert(idx, data);
+            assert_eq!(edges.data.sources().len(), idx);
+            edges.data.push(data);
         }
 
         (sources, edges)
@@ -314,7 +320,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
 
     /// Consumes the `Graph`, effectively splitting the `nodes` and the `GraphEdges` off and
     /// returning the `nodes` converted to `Sources`
-    pub fn into_sources(self) -> (Sources, GraphEdges<D>) {
+    pub fn into_sources(self) -> (Sources, GraphEdges<S>) {
         let (sources, edges) = self.split();
         (sources.into_iter().collect(), edges)
     }
@@ -322,7 +328,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     /// Returns an iterator that yields only those nodes that represent input files.
     /// See `Self::resolve_sources`
     /// This won't yield any resolved library nodes
-    pub fn input_nodes(&self) -> impl Iterator<Item = &Node<D>> {
+    pub fn input_nodes(&self) -> impl Iterator<Item = &Node<S::ParsedSource>> {
         self.nodes.iter().take(self.edges.num_input_files)
     }
 
@@ -334,7 +340,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     /// Resolves a number of sources within the given config
     #[instrument(name = "Graph::resolve_sources", skip_all)]
     pub fn resolve_sources(
-        paths: &ProjectPathsConfig<D::Language>,
+        paths: &ProjectPathsConfig<<S::ParsedSource as ParsedSource>::Language>,
         sources: Sources,
     ) -> Result<Self> {
         /// checks if the given target path was already resolved, if so it adds its id to the list
@@ -365,7 +371,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
             .0
             .into_par_iter()
             .map(|(path, source)| {
-                let data = D::parse(source.as_ref(), &path)?;
+                let data = S::ParsedSource::parse(source.as_ref(), &path)?;
                 Ok((path.clone(), Node { path, source, data }))
             })
             .collect::<Result<_>>()?;
@@ -459,12 +465,12 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     }
 
     /// Resolves the dependencies of a project's source contracts
-    pub fn resolve(paths: &ProjectPathsConfig<D::Language>) -> Result<Self> {
+    pub fn resolve(
+        paths: &ProjectPathsConfig<<S::ParsedSource as ParsedSource>::Language>,
+    ) -> Result<Self> {
         Self::resolve_sources(paths, paths.read_input_files()?)
     }
-}
 
-impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     /// Consumes the nodes of the graph and returns all input files together with their appropriate
     /// version and the edges of the graph
     ///
@@ -476,7 +482,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     ) -> Result<ResolvedSources<'_, C>>
     where
         T: ArtifactOutput<CompilerContract = C::CompilerContract>,
-        C: Compiler<ParsedSource = D, Language = L>,
+        C: Compiler<ParsedSources = S, Language = <S::ParsedSource as ParsedSource>::Language>,
     {
         /// insert the imports of the given node into the sources map
         /// There can be following graph:
@@ -788,7 +794,7 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
         Err(msg)
     }
 
-    fn input_nodes_by_language(&self) -> HashMap<D::Language, Vec<usize>> {
+    fn input_nodes_by_language(&self) -> HashMap<L<S>, Vec<usize>> {
         let mut nodes = HashMap::new();
 
         for idx in 0..self.edges.num_input_files {
@@ -809,12 +815,12 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
     /// This also attempts to prefer local installations over remote available.
     /// If `offline` is set to `true` then only already installed.
     fn get_input_node_versions<
-        C: Compiler<Language = L>,
+        C: Compiler<Language = L<S>>,
         T: ArtifactOutput<CompilerContract = C::CompilerContract>,
     >(
         &self,
         project: &Project<C, T>,
-    ) -> Result<HashMap<L, HashMap<Version, Vec<usize>>>> {
+    ) -> Result<HashMap<L<S>, HashMap<Version, Vec<usize>>>> {
         trace!("resolving input node versions");
 
         let mut resulted_nodes = HashMap::new();
@@ -910,13 +916,13 @@ impl<L: Language, D: ParsedSource<Language = L>> Graph<D> {
 
     #[allow(clippy::complexity)]
     fn resolve_settings<
-        C: Compiler<Language = L>,
+        C: Compiler<Language = L<S>>,
         T: ArtifactOutput<CompilerContract = C::CompilerContract>,
     >(
         &self,
         project: &Project<C, T>,
-        input_nodes_versions: HashMap<L, HashMap<Version, Vec<usize>>>,
-    ) -> Result<HashMap<L, HashMap<Version, HashMap<usize, Vec<usize>>>>> {
+        input_nodes_versions: HashMap<L<S>, HashMap<Version, Vec<usize>>>,
+    ) -> Result<HashMap<L<S>, HashMap<Version, HashMap<usize, Vec<usize>>>>> {
         let mut resulted_sources = HashMap::new();
         let mut errors = Vec::new();
         for (language, versions) in input_nodes_versions {
@@ -1148,7 +1154,7 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
         let paths = ProjectPathsConfig::hardhat(&root).unwrap();
 
-        let graph = Graph::<SolData>::resolve(&paths).unwrap();
+        let graph = Graph::<SolParsedSources>::resolve(&paths).unwrap();
 
         assert_eq!(graph.edges.num_input_files, 1);
         assert_eq!(graph.files().len(), 2);
@@ -1167,7 +1173,7 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
         let paths = ProjectPathsConfig::dapptools(&root).unwrap();
 
-        let graph = Graph::<SolData>::resolve(&paths).unwrap();
+        let graph = Graph::<SolParsedSources>::resolve(&paths).unwrap();
 
         assert_eq!(graph.edges.num_input_files, 2);
         assert_eq!(graph.files().len(), 3);
@@ -1194,7 +1200,7 @@ mod tests {
     fn can_print_dapp_sample_graph() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
         let paths = ProjectPathsConfig::dapptools(&root).unwrap();
-        let graph = Graph::<SolData>::resolve(&paths).unwrap();
+        let graph = Graph::<SolParsedSources>::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();
         tree::print(&graph, &Default::default(), &mut out).unwrap();
 
@@ -1217,7 +1223,7 @@ src/Dapp.t.sol >=0.6.6
     fn can_print_hardhat_sample_graph() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
         let paths = ProjectPathsConfig::hardhat(&root).unwrap();
-        let graph = Graph::<SolData>::resolve(&paths).unwrap();
+        let graph = Graph::<SolParsedSources>::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();
         tree::print(&graph, &Default::default(), &mut out).unwrap();
         assert_eq!(
@@ -1236,7 +1242,7 @@ src/Dapp.t.sol >=0.6.6
         let root =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/incompatible-pragmas");
         let paths = ProjectPathsConfig::dapptools(&root).unwrap();
-        let graph = Graph::<SolData>::resolve(&paths).unwrap();
+        let graph = Graph::<SolParsedSources>::resolve(&paths).unwrap();
         let Err(SolcError::Message(err)) = graph.get_input_node_versions(
             &ProjectBuilder::<SolcCompiler>::default()
                 .paths(paths)

@@ -2,7 +2,7 @@ use crate::{
     cache::SOLIDITY_FILES_CACHE_FILENAME,
     compilers::{multi::MultiCompilerLanguage, Language},
     flatten::{collect_ordered_deps, combine_version_pragmas},
-    resolver::{parse::SolData, SolImportAlias},
+    resolver::{parse::SolParsedSources, SolImportAlias},
     Graph,
 };
 use foundry_compilers_artifacts::{
@@ -110,7 +110,7 @@ impl ProjectPathsConfig<SolcLanguage> {
         }
 
         let sources = Source::read_all_files(input_files)?;
-        let graph = Graph::<SolData>::resolve_sources(self, sources)?;
+        let graph = Graph::<SolParsedSources>::resolve_sources(self, sources)?;
         let ordered_deps = collect_ordered_deps(&flatten_target, self, &graph)?;
 
         #[cfg(windows)]

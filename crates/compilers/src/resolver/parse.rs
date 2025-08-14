@@ -6,6 +6,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[derive(Default, Debug)]
+pub struct SolParsedSources {
+    pub sources: Vec<SolData>,
+}
+
 /// Represents various information about a Solidity file.
 #[derive(Clone, Debug)]
 #[non_exhaustive]

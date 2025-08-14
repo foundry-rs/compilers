@@ -13,6 +13,7 @@ use crate::{
     resolver::parse::SolData,
     settings::VyperRestrictions,
     solc::SolcRestrictions,
+    ParsedSources,
 };
 use foundry_compilers_artifacts::{
     error::SourceLocation,
@@ -99,6 +100,12 @@ impl fmt::Display for MultiCompilerLanguage {
             Self::Vyper(lang) => lang.fmt(f),
         }
     }
+}
+
+/// Source parser for the [MultiCompiler]. Recognizes Solc and Vyper sources.
+#[derive(Clone, Debug, Default)]
+pub struct MultiCompilerParsedSources {
+    sources: Vec<MultiCompilerParsedSource>,
 }
 
 /// Source parser for the [MultiCompiler]. Recognizes Solc and Vyper sources.
@@ -287,7 +294,7 @@ impl CompilerInput for MultiCompilerInput {
 impl Compiler for MultiCompiler {
     type Input = MultiCompilerInput;
     type CompilationError = MultiCompilerError;
-    type ParsedSource = MultiCompilerParsedSource;
+    type ParsedSources = MultiCompilerParsedSources;
     type Settings = MultiCompilerSettings;
     type Language = MultiCompilerLanguage;
     type CompilerContract = Contract;
@@ -324,6 +331,28 @@ impl Compiler for MultiCompiler {
                 self.vyper.as_ref().map(|v| v.available_versions(language)).unwrap_or_default()
             }
         }
+    }
+}
+
+impl ParsedSources for MultiCompilerParsedSources {
+    type ParsedSource = MultiCompilerParsedSource;
+
+    fn parse<'a, 'b>(
+        &mut self,
+        sources: impl IntoIterator<Item = (&'a str, &'b Path)>,
+    ) -> Result<()> {
+        for (contents, path) in sources {
+            self.sources.push(MultiCompilerParsedSource::parse(contents, path)?);
+        }
+        Ok(())
+    }
+
+    fn sources(&self) -> &[Self::ParsedSource] {
+        &self.sources
+    }
+
+    fn push(&mut self, source: Self::ParsedSource) {
+        self.sources.push(source);
     }
 }
 

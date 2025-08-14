@@ -2,7 +2,10 @@ use super::{
     restrictions::CompilerSettingsRestrictions, CompilationError, Compiler, CompilerInput,
     CompilerOutput, CompilerSettings, CompilerVersion, Language, ParsedSource,
 };
-use crate::resolver::parse::SolData;
+use crate::{
+    resolver::parse::{SolData, SolParsedSources},
+    ParsedSources,
+};
 pub use foundry_compilers_artifacts::SolcLanguage;
 use foundry_compilers_artifacts::{
     error::SourceLocation,
@@ -40,7 +43,7 @@ impl Language for SolcLanguage {
 impl Compiler for SolcCompiler {
     type Input = SolcVersionedInput;
     type CompilationError = Error;
-    type ParsedSource = SolData;
+    type ParsedSources = SolParsedSources;
     type Settings = SolcSettings;
     type Language = SolcLanguage;
     type CompilerContract = Contract;
@@ -352,6 +355,28 @@ impl CompilerSettings for SolcSettings {
             .is_none_or(|min| min == 0 || self.optimizer.enabled.unwrap_or_default());
 
         satisfies
+    }
+}
+
+impl ParsedSources for SolParsedSources {
+    type ParsedSource = SolData;
+
+    fn parse<'a, 'b>(
+        &mut self,
+        sources: impl IntoIterator<Item = (&'a str, &'b Path)>,
+    ) -> Result<()> {
+        for (content, path) in sources {
+            self.sources.push(SolData::parse(content, path));
+        }
+        Ok(())
+    }
+
+    fn sources(&self) -> &[Self::ParsedSource] {
+        &self.sources
+    }
+
+    fn push(&mut self, source: Self::ParsedSource) {
+        self.sources.push(source);
     }
 }
 

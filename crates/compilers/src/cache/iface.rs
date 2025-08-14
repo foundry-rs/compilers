@@ -1,5 +1,5 @@
 use crate::{parse_one_source, replace_source_content};
-use solar_sema::{
+use solar_parse::{
     ast::{self, Span},
     interface::diagnostics::EmittedDiagnostics,
 };

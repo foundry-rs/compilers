@@ -1,6 +1,7 @@
-use self::{input::VyperVersionedInput, parser::VyperParsedSource};
+use self::input::VyperVersionedInput;
 use super::{Compiler, CompilerOutput, Language};
 pub use crate::artifacts::vyper::{VyperCompilationError, VyperInput, VyperOutput, VyperSettings};
+use crate::parser::VyperParsedSources;
 use core::fmt;
 use foundry_compilers_artifacts::{sources::Source, Contract};
 use foundry_compilers_core::error::{Result, SolcError};
@@ -201,7 +202,7 @@ impl Vyper {
 impl Compiler for Vyper {
     type Settings = VyperSettings;
     type CompilationError = VyperCompilationError;
-    type ParsedSource = VyperParsedSource;
+    type ParsedSources = VyperParsedSources;
     type Input = VyperVersionedInput;
     type Language = VyperLanguage;
     type CompilerContract = Contract;
