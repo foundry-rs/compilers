@@ -53,10 +53,10 @@ fn prepare_contracts(root: &Path, num: usize) -> Vec<PathBuf> {
         let f = File::create(&path).unwrap();
         let mut writer = BufWriter::new(f);
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // let's assume a solidity file is between 2kb and 16kb
-        let n: usize = rng.gen_range(4..17);
+        let n: usize = rng.random_range(4..17);
         let s: String = rng.sample_iter(&Alphanumeric).take(n * 1024).map(char::from).collect();
         writer.write_all(s.as_bytes()).unwrap();
         writer.flush().unwrap();

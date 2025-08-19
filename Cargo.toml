@@ -42,13 +42,13 @@ foundry-compilers-artifacts-solc = { path = "crates/artifacts/solc", version = "
 foundry-compilers-artifacts-vyper = { path = "crates/artifacts/vyper", version = "0.18.2" }
 foundry-compilers-core = { path = "crates/core", version = "0.18.2" }
 
-alloy-json-abi = { version = "1.2", features = ["serde_json"] }
-alloy-primitives = { version = "1.2", features = ["serde", "rand"] }
+alloy-json-abi = { version = "1.3", features = ["serde_json"] }
+alloy-primitives = { version = "1.3", features = ["serde", "rand"] }
 cfg-if = "1.0"
 dunce = "1.0"
 memmap2 = "0.9"
 path-slash = "0.2"
-rayon = "1.10"
+rayon = "1.11"
 regex = "1.11"
 semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1", features = ["derive", "rc"] }
@@ -65,7 +65,7 @@ yansi = "1.0"
 
 # async
 futures-util = "0.3"
-tokio = { version = "1.46", features = ["rt-multi-thread"] }
+tokio = { version = "1.47", features = ["rt-multi-thread"] }
 
 snapbox = "0.6.21"
 
