@@ -70,11 +70,11 @@ impl MockProjectGenerator {
         }
 
         let graph = Graph::<MultiCompilerParsedSource>::resolve(paths)?;
-        let mut gen = Self::default();
+        let mut generated = Self::default();
         let (_, edges) = graph.into_sources();
 
         // add all files as source files
-        gen.add_sources(edges.files().count());
+        generated.add_sources(edges.files().count());
 
         // stores libs and their files
         let libs = get_libs(
@@ -85,25 +85,25 @@ impl MockProjectGenerator {
 
         // mark all files as libs
         for (lib_id, lib_files) in libs.into_values().enumerate() {
-            let lib_name = gen.name_strategy.new_lib_name(lib_id);
-            let offset = gen.inner.files.len();
+            let lib_name = generated.name_strategy.new_lib_name(lib_id);
+            let offset = generated.inner.files.len();
             let lib = MockLib { name: lib_name, id: lib_id, num_files: lib_files.len(), offset };
             for lib_file in lib_files {
-                let file = &mut gen.inner.files[lib_file];
+                let file = &mut generated.inner.files[lib_file];
                 file.lib_id = Some(lib_id);
-                file.name = gen.name_strategy.new_lib_name(file.id);
+                file.name = generated.name_strategy.new_lib_name(file.id);
             }
-            gen.inner.libraries.push(lib);
+            generated.inner.libraries.push(lib);
         }
 
         for id in edges.files() {
             for import in edges.imported_nodes(id).iter().copied() {
-                let import = gen.get_import(import);
-                gen.inner.files[id].imports.insert(import);
+                let import = generated.get_import(import);
+                generated.inner.files[id].imports.insert(import);
             }
         }
 
-        Ok(gen)
+        Ok(generated)
     }
 
     /// Consumes the type and returns the underlying skeleton
@@ -437,11 +437,16 @@ impl MockFile {
 
     pub fn target_path<L: Language>(
         &self,
-        gen: &MockProjectGenerator,
+        generated: &MockProjectGenerator,
         paths: &ProjectPathsConfig<L>,
     ) -> PathBuf {
         let mut target = if let Some(lib) = self.lib_id {
-            paths.root.join("lib").join(&gen.inner.libraries[lib].name).join("src").join(&self.name)
+            paths
+                .root
+                .join("lib")
+                .join(&generated.inner.libraries[lib].name)
+                .join("src")
+                .join(&self.name)
         } else {
             paths.sources.join(&self.name)
         };
