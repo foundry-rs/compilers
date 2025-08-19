@@ -2,11 +2,7 @@
 
 use foundry_compilers_artifacts::Remapping;
 use foundry_compilers_core::error::{Result, SolcError};
-use rand::{
-    distributions::{Distribution, Uniform},
-    seq::SliceRandom,
-    Rng,
-};
+use rand::{seq::SliceRandom, Rng};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeSet, HashMap, HashSet, VecDeque},
@@ -243,34 +239,36 @@ impl MockProjectGenerator {
         self
     }
 
-    /// randomly assign empty file status so that mocked files don't emit artifacts
+    /// Randomly assign empty file status so that mocked files don't emit artifacts.
     pub fn assign_empty_files(&mut self) -> &mut Self {
-        let mut rng = rand::thread_rng();
-        let die = Uniform::from(0..self.inner.files.len());
+        let mut rng = rand::rng();
+        let n = self.inner.files.len();
+
         for file in self.inner.files.iter_mut() {
-            let throw = die.sample(&mut rng);
+            let throw = rng.random_range(0..n);
             if throw == 0 {
-                // give it a 1 in num(files) chance that the file will be empty
+                // 1 in n chance that the file will be empty
                 file.emit_artifacts = false;
             }
         }
+
         self
     }
 
     /// Populates the imports of the project
     pub fn populate_imports(&mut self, settings: &MockProjectSettings) -> &mut Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // populate imports
         for id in 0..self.inner.files.len() {
             let imports = if let Some(lib) = self.inner.files[id].lib_id {
                 let num_imports = rng
-                    .gen_range(settings.min_imports..=settings.max_imports)
+                    .random_range(settings.min_imports..=settings.max_imports)
                     .min(self.inner.libraries[lib].num_files.saturating_sub(1));
                 self.unique_imports_for_lib(&mut rng, lib, id, num_imports)
             } else {
                 let num_imports = rng
-                    .gen_range(settings.min_imports..=settings.max_imports)
+                    .random_range(settings.min_imports..=settings.max_imports)
                     .min(self.inner.files.len().saturating_sub(1));
                 self.unique_imports_for_source(&mut rng, id, num_imports)
             };
@@ -557,14 +555,14 @@ pub struct MockProjectSettings {
 impl MockProjectSettings {
     /// Generates a new instance with random settings within an arbitrary range
     pub fn random() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         // arbitrary thresholds
         Self {
-            num_sources: rng.gen_range(2..25),
-            num_libs: rng.gen_range(0..5),
-            num_lib_files: rng.gen_range(1..10),
-            min_imports: rng.gen_range(0..3),
-            max_imports: rng.gen_range(4..10),
+            num_sources: rng.random_range(2..25),
+            num_libs: rng.random_range(0..5),
+            num_lib_files: rng.random_range(1..10),
+            min_imports: rng.random_range(0..3),
+            max_imports: rng.random_range(4..10),
             allow_no_artifacts_files: true,
         }
     }
