@@ -14,7 +14,7 @@ pub struct SolParser {
 
 impl Clone for SolParser {
     fn clone(&self) -> Self {
-        todo!()
+        Self::default()
     }
 }
 
@@ -65,8 +65,8 @@ impl SolData {
     /// parsing fails, we'll fall back to extract that info via regex
     #[instrument(name = "SolData::parse", skip_all)]
     pub fn parse(content: &str, file: &Path) -> Self {
-        match crate::parse_one_source(content, file, |ast| {
-            SolDataBuilder::parse(content, file, Ok(ast))
+        match crate::parse_one_source(content, file, |sess, ast| {
+            SolDataBuilder::parse(content, file, Ok((sess, ast)))
         }) {
             Ok(data) => data,
             Err(e) => {
@@ -77,10 +77,13 @@ impl SolData {
         }
     }
 
-    pub(crate) fn parse_from(s: &solar_sema::Source<'_>) -> Self {
+    pub(crate) fn parse_from(
+        sess: &solar_sema::interface::Session,
+        s: &solar_sema::Source<'_>,
+    ) -> Self {
         let content = s.file.src.as_str();
         let file = s.file.name.as_real().unwrap();
-        let ast = s.ast.as_ref().ok_or(None);
+        let ast = s.ast.as_ref().map(|ast| (sess, ast)).ok_or(None);
         SolDataBuilder::parse(content, file, ast)
     }
 
@@ -126,11 +129,14 @@ impl SolDataBuilder {
     fn parse(
         content: &str,
         file: &Path,
-        ast: Result<&solar_parse::ast::SourceUnit<'_>, Option<String>>,
+        ast: Result<
+            (&solar_sema::interface::Session, &solar_parse::ast::SourceUnit<'_>),
+            Option<String>,
+        >,
     ) -> SolData {
         let mut builder = Self::default();
         match ast {
-            Ok(ast) => builder.parse_from_ast(ast),
+            Ok((sess, ast)) => builder.parse_from_ast(sess, ast),
             Err(err) => {
                 builder.parse_from_regex(content);
                 if let Some(err) = err {
@@ -141,9 +147,13 @@ impl SolDataBuilder {
         builder.build(content, file)
     }
 
-    fn parse_from_ast(&mut self, ast: &solar_parse::ast::SourceUnit<'_>) {
+    fn parse_from_ast(
+        &mut self,
+        sess: &solar_sema::interface::Session,
+        ast: &solar_parse::ast::SourceUnit<'_>,
+    ) {
         for item in ast.items.iter() {
-            let loc = item.span.lo().to_usize()..item.span.hi().to_usize();
+            let loc = sess.source_map().span_to_source(item.span).unwrap().1;
             match &item.kind {
                 ast::ItemKind::Pragma(pragma) => match &pragma.tokens {
                     ast::PragmaTokens::Version(name, req) if name.name == sym::solidity => {

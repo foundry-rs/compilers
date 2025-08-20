@@ -723,6 +723,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     /// Gets or calculates the interface representation hash for the given source file.
     fn interface_repr_hash(&mut self, source: &Source, file: &Path) -> &str {
         self.interface_repr_hashes.entry(file.to_path_buf()).or_insert_with(|| {
+            // TODO: use `interface_representation_ast` directly with `edges.parser()`.
             if let Some(r) = interface_repr_hash(&source.content, file) {
                 return r;
             }

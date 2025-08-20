@@ -11,7 +11,7 @@ pub(crate) fn interface_repr_hash(content: &str, path: &Path) -> Option<String> 
 }
 
 pub(crate) fn interface_repr(content: &str, path: &Path) -> Result<String, EmittedDiagnostics> {
-    parse_one_source(content, path, |ast| interface_representation_ast(content, ast))
+    parse_one_source(content, path, |sess, ast| interface_representation_ast(content, sess, ast))
 }
 
 /// Helper function to remove parts of the contract which do not alter its interface:
@@ -21,6 +21,7 @@ pub(crate) fn interface_repr(content: &str, path: &Path) -> Result<String, Emitt
 /// Preserves all libraries and interfaces.
 pub(crate) fn interface_representation_ast(
     content: &str,
+    sess: &solar_sema::interface::Session,
     ast: &solar_parse::ast::SourceUnit<'_>,
 ) -> String {
     let mut spans_to_remove: Vec<Span> = Vec::new();
@@ -57,9 +58,9 @@ pub(crate) fn interface_representation_ast(
             }
         }
     }
-    let content =
-        replace_source_content(content, spans_to_remove.iter().map(|span| (span.to_range(), "")))
-            .replace("\n", "");
+    let updates =
+        spans_to_remove.iter().map(|&span| (sess.source_map().span_to_source(span).unwrap().1, ""));
+    let content = replace_source_content(content, updates).replace("\n", "");
     crate::utils::RE_TWO_OR_MORE_SPACES.replace_all(&content, "").into_owned()
 }
 
