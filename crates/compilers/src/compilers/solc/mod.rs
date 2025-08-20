@@ -390,9 +390,19 @@ impl SourceParser for SolParser {
             let parsed = compiler.gcx().sources.as_raw_slice()[old..].iter().map(|s| {
                 let path = s.file.name.as_real().unwrap().to_path_buf();
                 let source = sources[&path].clone();
-                (path.clone(), Node::new(path, source, SolData::parse_from(s)))
+                (path.clone(), Node::new(path, source, SolData::parse_from(compiler.gcx().sess, s)))
             });
-            Ok(parsed.collect())
+            let mut parsed = parsed.collect::<Vec<_>>();
+
+            // Set error on the first source if any. This doesn't really have to be exact, as long
+            // as at least one source has an error set it should be enough.
+            if let Some(Err(diag)) = compiler.gcx().sess.emitted_errors() {
+                if let Some(first) = parsed.first_mut() {
+                    first.1.data.parse_result = Err(diag.to_string());
+                }
+            }
+
+            Ok(parsed)
         })
     }
 }

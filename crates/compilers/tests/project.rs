@@ -766,7 +766,6 @@ contract Contract {
         .unwrap();
 
     let result = project.paths().clone().with_language::<SolcLanguage>().flatten(target.as_path());
-    assert!(result.is_err());
     println!("{}", result.unwrap_err());
 }
 
