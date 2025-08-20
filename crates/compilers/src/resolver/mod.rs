@@ -855,6 +855,7 @@ impl<P: SourceParser> Graph<P> {
     ///
     /// This also attempts to prefer local installations over remote available.
     /// If `offline` is set to `true` then only already installed.
+    #[allow(clippy::type_complexity)]
     fn get_input_node_versions<
         C: Compiler<Language = L<P>>,
         T: ArtifactOutput<CompilerContract = C::CompilerContract>,

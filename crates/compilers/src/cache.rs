@@ -1192,6 +1192,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// Returns all the _cached_ artifacts.
     #[instrument(name = "ArtifactsCache::consume", skip_all)]
+    #[allow(clippy::type_complexity)]
     pub fn consume<A>(
         self,
         written_artifacts: &Artifacts<A>,

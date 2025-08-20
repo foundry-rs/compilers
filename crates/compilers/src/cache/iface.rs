@@ -11,7 +11,7 @@ pub(crate) fn interface_repr_hash(content: &str, path: &Path) -> Option<String> 
 }
 
 pub(crate) fn interface_repr(content: &str, path: &Path) -> Result<String, EmittedDiagnostics> {
-    parse_one_source(content, path, |ast| interface_representation_ast(content, &ast))
+    parse_one_source(content, path, |ast| interface_representation_ast(content, ast))
 }
 
 /// Helper function to remove parts of the contract which do not alter its interface:
