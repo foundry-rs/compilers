@@ -386,7 +386,7 @@ impl<P: SourceParser> Graph<P> {
         /// of resolved imports. If it hasn't been resolved yet, it queues in the file for
         /// processing
         fn add_node<P: SourceParser>(
-            ps: &mut P,
+            parser: &mut P,
             unresolved: &mut VecDeque<(PathBuf, Node<P::ParsedSource>)>,
             index: &mut HashMap<PathBuf, usize>,
             resolved_imports: &mut Vec<usize>,
@@ -396,7 +396,7 @@ impl<P: SourceParser> Graph<P> {
                 resolved_imports.push(idx);
             } else {
                 // imported file is not part of the input files
-                let node = ps.read(&target)?;
+                let node = parser.read(&target)?;
                 unresolved.push_back((target.clone(), node));
                 let idx = index.len();
                 index.insert(target, idx);
@@ -405,11 +405,11 @@ impl<P: SourceParser> Graph<P> {
             Ok(())
         }
 
-        let mut ps = P::default();
+        let mut parser = P::default();
 
         // we start off by reading all input files, which includes all solidity files from the
         // source and test folder
-        let mut unresolved: VecDeque<_> = ps.parse_sources(&mut sources)?.into();
+        let mut unresolved: VecDeque<_> = parser.parse_sources(&mut sources)?.into();
 
         // identifiers of all resolved files
         let mut index: HashMap<_, _> =
@@ -448,7 +448,7 @@ impl<P: SourceParser> Graph<P> {
                     &mut resolved_solc_include_paths,
                 ) {
                     Ok(import) => add_node(
-                        &mut ps,
+                        &mut parser,
                         &mut unresolved,
                         &mut index,
                         &mut resolved_imports,
@@ -498,7 +498,7 @@ impl<P: SourceParser> Graph<P> {
                 .map(|(idx, node)| (idx, node.data.version_req().cloned()))
                 .collect(),
             data: Default::default(),
-            parser: ps,
+            parser,
             unresolved_imports,
             resolved_solc_include_paths,
         };
