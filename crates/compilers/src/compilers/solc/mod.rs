@@ -3,8 +3,11 @@ use super::{
     CompilerOutput, CompilerSettings, CompilerVersion, Language, ParsedSource,
 };
 use crate::{
-    resolver::parse::{SolData, SolParsedSources},
-    ParsedSources,
+    resolver::{
+        parse::{SolData, SolParsedSources},
+        Node,
+    },
+    SourceParser,
 };
 pub use foundry_compilers_artifacts::SolcLanguage;
 use foundry_compilers_artifacts::{
@@ -358,25 +361,39 @@ impl CompilerSettings for SolcSettings {
     }
 }
 
-impl ParsedSources for SolParsedSources {
+impl SourceParser for SolParsedSources {
     type ParsedSource = SolData;
 
-    fn parse<'a, 'b>(
+    fn read(&mut self, path: &Path) -> Result<Node<Self::ParsedSource>> {
+        let mut sources = Sources::from_iter([(path.to_path_buf(), Source::read_(path)?)]);
+        let nodes = self.parse_sources(&mut sources)?;
+        Ok(nodes.into_iter().next().unwrap().1)
+    }
+
+    fn parse_sources(
         &mut self,
-        sources: impl IntoIterator<Item = (&'a str, &'b Path)>,
-    ) -> Result<()> {
-        for (content, path) in sources {
-            self.sources.push(SolData::parse(content, path));
-        }
-        Ok(())
-    }
-
-    fn sources(&self) -> &[Self::ParsedSource] {
-        &self.sources
-    }
-
-    fn push(&mut self, source: Self::ParsedSource) {
-        self.sources.push(source);
+        sources: &mut Sources,
+    ) -> Result<Vec<(PathBuf, Node<Self::ParsedSource>)>> {
+        self.compiler.enter_mut(|compiler| {
+            let old = compiler.gcx().sources.len();
+            let mut pcx = compiler.parse();
+            pcx.set_resolve_imports(false);
+            for (path, source) in sources.iter() {
+                if let Ok(file) = pcx.sess.source_map().new_source_file(
+                    solar_sema::interface::source_map::FileName::Real(path.clone()),
+                    source.content.as_str(),
+                ) {
+                    pcx.add_file(file);
+                }
+            }
+            pcx.parse();
+            let parsed = compiler.gcx().sources.as_raw_slice()[old..].iter().map(|s| {
+                let path = s.file.name.as_real().unwrap().to_path_buf();
+                let source = sources[&path].clone();
+                (path.clone(), Node::new(path, source, SolData::parse_from(s)))
+            });
+            Ok(parsed.collect())
+        })
     }
 }
 

@@ -49,15 +49,14 @@ use crate::{
     compilers::{Compiler, CompilerVersion, ParsedSource},
     project::VersionedSources,
     resolver::parse::SolParsedSources,
-    ArtifactOutput, CompilerSettings, ParsedSources, Project, ProjectPathsConfig,
+    ArtifactOutput, CompilerSettings, Project, ProjectPathsConfig, SourceParser,
 };
 use core::fmt;
 use foundry_compilers_artifacts::sources::{Source, Sources};
 use foundry_compilers_core::{
     error::{Result, SolcError},
-    utils::{self, find_case_sensitive_existing_file},
+    utils,
 };
-use rayon::prelude::*;
 use semver::{Version, VersionReq};
 use std::{
     collections::{BTreeSet, HashMap, HashSet, VecDeque},
@@ -96,8 +95,8 @@ pub struct ResolvedSources<'a, C: Compiler> {
 ///
 /// This is kept separate from the `Graph` as the `Node`s get consumed when the `Solc` to `Sources`
 /// set is determined.
-#[derive(Clone, Debug, Default)]
-pub struct GraphEdges<S> {
+#[derive(Clone, Debug)]
+pub struct GraphEdges<P: SourceParser> {
     /// The indices of `edges` correspond to the `nodes`. That is, `edges[0]`
     /// is the set of outgoing edges for `nodes[0]`.
     edges: Vec<Vec<usize>>,
@@ -110,7 +109,9 @@ pub struct GraphEdges<S> {
     /// the identified version requirement of a file
     versions: HashMap<usize, Option<VersionReq>>,
     /// the extracted data from the source files
-    data: S,
+    data: Vec<P::ParsedSource>,
+    /// The parser which parsed `data`.
+    parser: P,
     /// with how many input files we started with, corresponds to `let input_files =
     /// nodes[..num_input_files]`.
     ///
@@ -127,7 +128,24 @@ pub struct GraphEdges<S> {
     resolved_solc_include_paths: BTreeSet<PathBuf>,
 }
 
-impl<S> GraphEdges<S> {
+impl<P: SourceParser> Default for GraphEdges<P> {
+    fn default() -> Self {
+        Self {
+            edges: Default::default(),
+            rev_edges: Default::default(),
+            indices: Default::default(),
+            rev_indices: Default::default(),
+            versions: Default::default(),
+            data: Default::default(),
+            parser: Default::default(),
+            num_input_files: Default::default(),
+            unresolved_imports: Default::default(),
+            resolved_solc_include_paths: Default::default(),
+        }
+    }
+}
+
+impl<P: SourceParser> GraphEdges<P> {
     /// How many files are source files
     pub fn num_source_files(&self) -> usize {
         self.num_input_files
@@ -212,11 +230,16 @@ impl<S> GraphEdges<S> {
     }
 
     /// Returns the parsed source data for the given file
-    pub fn get_parsed_source(&self, file: &Path) -> Option<&S::ParsedSource>
+    pub fn get_parsed_source(&self, file: &Path) -> Option<&P::ParsedSource>
     where
-        S: ParsedSources,
+        P: SourceParser,
     {
-        self.indices.get(file).and_then(|idx| self.data.sources().get(*idx))
+        self.indices.get(file).and_then(|idx| self.data.get(*idx))
+    }
+
+    /// Returns the parser used to parse the sources
+    pub fn get_sources(&self) -> &P {
+        &self.parser
     }
 }
 
@@ -226,18 +249,18 @@ impl<S> GraphEdges<S> {
 ///
 /// See also <https://docs.soliditylang.org/en/latest/layout-of-source-files.html?highlight=import#importing-other-source-files>
 #[derive(Debug)]
-pub struct Graph<S: ParsedSources = SolParsedSources> {
+pub struct Graph<P: SourceParser = SolParsedSources> {
     /// all nodes in the project, a `Node` represents a single file
-    pub nodes: Vec<Node<S::ParsedSource>>,
+    pub nodes: Vec<Node<P::ParsedSource>>,
     /// relationship of the nodes
-    edges: GraphEdges<S>,
+    edges: GraphEdges<P>,
     /// the root of the project this graph represents
     root: PathBuf,
 }
 
-type L<S> = <<S as ParsedSources>::ParsedSource as ParsedSource>::Language;
+type L<P> = <<P as SourceParser>::ParsedSource as ParsedSource>::Language;
 
-impl<S: ParsedSources> Graph<S> {
+impl<P: SourceParser> Graph<P> {
     /// Print the graph to `StdOut`
     pub fn print(&self) {
         self.print_with_options(Default::default())
@@ -280,11 +303,11 @@ impl<S: ParsedSources> Graph<S> {
     /// # Panics
     ///
     /// if the `index` node id is not included in the graph
-    pub fn node(&self, index: usize) -> &Node<S::ParsedSource> {
+    pub fn node(&self, index: usize) -> &Node<P::ParsedSource> {
         &self.nodes[index]
     }
 
-    pub(crate) fn display_node(&self, index: usize) -> DisplayNode<'_, S::ParsedSource> {
+    pub(crate) fn display_node(&self, index: usize) -> DisplayNode<'_, P::ParsedSource> {
         DisplayNode { node: self.node(index), root: &self.root }
     }
 
@@ -299,11 +322,11 @@ impl<S: ParsedSources> Graph<S> {
     }
 
     /// Same as `Self::node_ids` but returns the actual `Node`
-    pub fn nodes(&self, start: usize) -> impl Iterator<Item = &Node<S::ParsedSource>> + '_ {
+    pub fn nodes(&self, start: usize) -> impl Iterator<Item = &Node<P::ParsedSource>> + '_ {
         self.node_ids(start).map(move |idx| self.node(idx))
     }
 
-    fn split(self) -> (Vec<(PathBuf, Source)>, GraphEdges<S>) {
+    fn split(self) -> (Vec<(PathBuf, Source)>, GraphEdges<P>) {
         let Self { nodes, mut edges, .. } = self;
         // need to move the extracted data to the edges, essentially splitting the node so we have
         // access to the data at a later stage in the compile pipeline
@@ -311,8 +334,9 @@ impl<S: ParsedSources> Graph<S> {
         for (idx, node) in nodes.into_iter().enumerate() {
             let Node { path, source, data } = node;
             sources.push((path, source));
-            assert_eq!(edges.data.sources().len(), idx);
+            let idx2 = edges.data.len();
             edges.data.push(data);
+            assert_eq!(idx, idx2);
         }
 
         (sources, edges)
@@ -320,7 +344,7 @@ impl<S: ParsedSources> Graph<S> {
 
     /// Consumes the `Graph`, effectively splitting the `nodes` and the `GraphEdges` off and
     /// returning the `nodes` converted to `Sources`
-    pub fn into_sources(self) -> (Sources, GraphEdges<S>) {
+    pub fn into_sources(self) -> (Sources, GraphEdges<P>) {
         let (sources, edges) = self.split();
         (sources.into_iter().collect(), edges)
     }
@@ -328,7 +352,7 @@ impl<S: ParsedSources> Graph<S> {
     /// Returns an iterator that yields only those nodes that represent input files.
     /// See `Self::resolve_sources`
     /// This won't yield any resolved library nodes
-    pub fn input_nodes(&self) -> impl Iterator<Item = &Node<S::ParsedSource>> {
+    pub fn input_nodes(&self) -> impl Iterator<Item = &Node<P::ParsedSource>> {
         self.nodes.iter().take(self.edges.num_input_files)
     }
 
@@ -340,14 +364,15 @@ impl<S: ParsedSources> Graph<S> {
     /// Resolves a number of sources within the given config
     #[instrument(name = "Graph::resolve_sources", skip_all)]
     pub fn resolve_sources(
-        paths: &ProjectPathsConfig<<S::ParsedSource as ParsedSource>::Language>,
-        sources: Sources,
+        paths: &ProjectPathsConfig<<P::ParsedSource as ParsedSource>::Language>,
+        mut sources: Sources,
     ) -> Result<Self> {
         /// checks if the given target path was already resolved, if so it adds its id to the list
         /// of resolved imports. If it hasn't been resolved yet, it queues in the file for
         /// processing
-        fn add_node<D: ParsedSource>(
-            unresolved: &mut VecDeque<(PathBuf, Node<D>)>,
+        fn add_node<P: SourceParser>(
+            ps: &mut P,
+            unresolved: &mut VecDeque<(PathBuf, Node<P::ParsedSource>)>,
             index: &mut HashMap<PathBuf, usize>,
             resolved_imports: &mut Vec<usize>,
             target: PathBuf,
@@ -356,7 +381,7 @@ impl<S: ParsedSources> Graph<S> {
                 resolved_imports.push(idx);
             } else {
                 // imported file is not part of the input files
-                let node = Node::read(&target)?;
+                let node = ps.read(&target)?;
                 unresolved.push_back((target.clone(), node));
                 let idx = index.len();
                 index.insert(target, idx);
@@ -365,16 +390,11 @@ impl<S: ParsedSources> Graph<S> {
             Ok(())
         }
 
+        let mut ps = P::default();
+
         // we start off by reading all input files, which includes all solidity files from the
         // source and test folder
-        let mut unresolved: VecDeque<_> = sources
-            .0
-            .into_par_iter()
-            .map(|(path, source)| {
-                let data = S::ParsedSource::parse(source.as_ref(), &path)?;
-                Ok((path.clone(), Node { path, source, data }))
-            })
-            .collect::<Result<_>>()?;
+        let mut unresolved: VecDeque<_> = ps.parse_sources(&mut sources)?.into();
 
         // identifiers of all resolved files
         let mut index: HashMap<_, _> =
@@ -412,9 +432,14 @@ impl<S: ParsedSources> Graph<S> {
                     &import_path,
                     &mut resolved_solc_include_paths,
                 ) {
-                    Ok(import) => {
-                        add_node(&mut unresolved, &mut index, &mut resolved_imports, import).err()
-                    }
+                    Ok(import) => add_node(
+                        &mut ps,
+                        &mut unresolved,
+                        &mut index,
+                        &mut resolved_imports,
+                        import,
+                    )
+                    .err(),
                     Err(err) => Some(err),
                 } {
                     unresolved_imports.insert((import_path.to_path_buf(), node.path.clone()));
@@ -458,6 +483,7 @@ impl<S: ParsedSources> Graph<S> {
                 .map(|(idx, node)| (idx, node.data.version_req().cloned()))
                 .collect(),
             data: Default::default(),
+            parser: ps,
             unresolved_imports,
             resolved_solc_include_paths,
         };
@@ -466,7 +492,7 @@ impl<S: ParsedSources> Graph<S> {
 
     /// Resolves the dependencies of a project's source contracts
     pub fn resolve(
-        paths: &ProjectPathsConfig<<S::ParsedSource as ParsedSource>::Language>,
+        paths: &ProjectPathsConfig<<P::ParsedSource as ParsedSource>::Language>,
     ) -> Result<Self> {
         Self::resolve_sources(paths, paths.read_input_files()?)
     }
@@ -482,7 +508,7 @@ impl<S: ParsedSources> Graph<S> {
     ) -> Result<ResolvedSources<'_, C>>
     where
         T: ArtifactOutput<CompilerContract = C::CompilerContract>,
-        C: Compiler<ParsedSources = S, Language = <S::ParsedSource as ParsedSource>::Language>,
+        C: Compiler<ParsedSources = P, Language = <P::ParsedSource as ParsedSource>::Language>,
     {
         /// insert the imports of the given node into the sources map
         /// There can be following graph:
@@ -794,7 +820,7 @@ impl<S: ParsedSources> Graph<S> {
         Err(msg)
     }
 
-    fn input_nodes_by_language(&self) -> HashMap<L<S>, Vec<usize>> {
+    fn input_nodes_by_language(&self) -> HashMap<L<P>, Vec<usize>> {
         let mut nodes = HashMap::new();
 
         for idx in 0..self.edges.num_input_files {
@@ -815,12 +841,12 @@ impl<S: ParsedSources> Graph<S> {
     /// This also attempts to prefer local installations over remote available.
     /// If `offline` is set to `true` then only already installed.
     fn get_input_node_versions<
-        C: Compiler<Language = L<S>>,
+        C: Compiler<Language = L<P>>,
         T: ArtifactOutput<CompilerContract = C::CompilerContract>,
     >(
         &self,
         project: &Project<C, T>,
-    ) -> Result<HashMap<L<S>, HashMap<Version, Vec<usize>>>> {
+    ) -> Result<HashMap<L<P>, HashMap<Version, Vec<usize>>>> {
         trace!("resolving input node versions");
 
         let mut resulted_nodes = HashMap::new();
@@ -916,13 +942,13 @@ impl<S: ParsedSources> Graph<S> {
 
     #[allow(clippy::complexity)]
     fn resolve_settings<
-        C: Compiler<Language = L<S>>,
+        C: Compiler<Language = L<P>>,
         T: ArtifactOutput<CompilerContract = C::CompilerContract>,
     >(
         &self,
         project: &Project<C, T>,
-        input_nodes_versions: HashMap<L<S>, HashMap<Version, Vec<usize>>>,
-    ) -> Result<HashMap<L<S>, HashMap<Version, HashMap<usize, Vec<usize>>>>> {
+        input_nodes_versions: HashMap<L<P>, HashMap<Version, Vec<usize>>>,
+    ) -> Result<HashMap<L<P>, HashMap<Version, HashMap<usize, Vec<usize>>>>> {
         let mut resulted_sources = HashMap::new();
         let mut errors = Vec::new();
         for (language, versions) in input_nodes_versions {
@@ -1040,20 +1066,20 @@ impl<S: ParsedSources> Graph<S> {
 
 /// An iterator over a node and its dependencies
 #[derive(Debug)]
-pub struct NodesIter<'a, D> {
+pub struct NodesIter<'a, P: SourceParser> {
     /// stack of nodes
     stack: VecDeque<usize>,
     visited: HashSet<usize>,
-    graph: &'a GraphEdges<D>,
+    graph: &'a GraphEdges<P>,
 }
 
-impl<'a, D> NodesIter<'a, D> {
-    fn new(start: usize, graph: &'a GraphEdges<D>) -> Self {
+impl<'a, P: SourceParser> NodesIter<'a, P> {
+    fn new(start: usize, graph: &'a GraphEdges<P>) -> Self {
         Self { stack: VecDeque::from([start]), visited: HashSet::new(), graph }
     }
 }
 
-impl<D> Iterator for NodesIter<'_, D> {
+impl<P: SourceParser> Iterator for NodesIter<'_, P> {
     type Item = usize;
     fn next(&mut self) -> Option<Self::Item> {
         let node = self.stack.pop_front()?;
@@ -1067,38 +1093,35 @@ impl<D> Iterator for NodesIter<'_, D> {
 }
 
 #[derive(Debug)]
-pub struct Node<D> {
+pub struct Node<S> {
     /// path of the solidity  file
     path: PathBuf,
     /// content of the solidity file
     source: Source,
     /// parsed data
-    pub data: D,
+    pub data: S,
 }
 
-impl<D: ParsedSource> Node<D> {
+impl<S> Node<S> {
+    pub fn new(path: PathBuf, source: Source, data: S) -> Self {
+        Self { path, source, data }
+    }
+
+    pub fn map_data<T>(self, f: impl FnOnce(S) -> T) -> Node<T> {
+        Node::new(self.path, self.source, f(self.data))
+    }
+}
+
+impl<S: ParsedSource> Node<S> {
     /// Reads the content of the file and returns a [Node] containing relevant information
     pub fn read(file: &Path) -> Result<Self> {
-        let source = Source::read(file).map_err(|err| {
-            let exists = err.path().exists();
-            if !exists && err.path().is_symlink() {
-                SolcError::ResolveBadSymlink(err)
-            } else {
-                // This is an additional check useful on OS that have case-sensitive paths, See also <https://docs.soliditylang.org/en/v0.8.17/path-resolution.html#import-callback>
-                if !exists {
-                    // check if there exists a file with different case
-                    if let Some(existing_file) = find_case_sensitive_existing_file(file) {
-                        SolcError::ResolveCaseSensitiveFileName { error: err, existing_file }
-                    } else {
-                        SolcError::Resolve(err)
-                    }
-                } else {
-                    SolcError::Resolve(err)
-                }
-            }
-        })?;
-        let data = D::parse(source.as_ref(), file)?;
-        Ok(Self { path: file.to_path_buf(), source, data })
+        let source = Source::read_(file)?;
+        Self::parse(file, source)
+    }
+
+    pub fn parse(file: &Path, source: Source) -> Result<Self> {
+        let data = S::parse(source.as_ref(), file)?;
+        Ok(Self::new(file.to_path_buf(), source, data))
     }
 
     /// Returns the path of the file.
@@ -1117,12 +1140,12 @@ impl<D: ParsedSource> Node<D> {
 }
 
 /// Helper type for formatting a node
-pub(crate) struct DisplayNode<'a, D> {
-    node: &'a Node<D>,
+pub(crate) struct DisplayNode<'a, S> {
+    node: &'a Node<S>,
     root: &'a PathBuf,
 }
 
-impl<D: ParsedSource> fmt::Display for DisplayNode<'_, D> {
+impl<S: ParsedSource> fmt::Display for DisplayNode<'_, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let path = utils::source_name(&self.node.path, self.root);
         write!(f, "{}", path.display())?;

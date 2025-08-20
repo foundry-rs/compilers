@@ -3,7 +3,7 @@ use crate::{
     compilers::{Compiler, ParsedSource},
     filter::MaybeSolData,
     resolver::parse::SolData,
-    ArtifactOutput, CompilerSettings, Graph, ParsedSources, Project, ProjectPathsConfig, Updates,
+    ArtifactOutput, CompilerSettings, Graph, Project, ProjectPathsConfig, SourceParser, Updates,
 };
 use foundry_compilers_artifacts::{
     ast::{visitor::Visitor, *},
@@ -192,7 +192,7 @@ impl Flattener {
         target: &Path,
     ) -> std::result::Result<Self, FlattenerError>
     where
-        C::ParsedSources: ParsedSources<ParsedSource: MaybeSolData>,
+        C::ParsedSources: SourceParser<ParsedSource: MaybeSolData>,
     {
         // Configure project to compile the target file and only request AST for target file.
         project.cached = false;
@@ -794,10 +794,10 @@ impl Flattener {
 }
 
 /// Performs DFS to collect all dependencies of a target
-fn collect_deps<S: ParsedSources<ParsedSource: MaybeSolData>>(
+fn collect_deps<P: SourceParser<ParsedSource: MaybeSolData>>(
     path: &Path,
-    paths: &ProjectPathsConfig<<S::ParsedSource as ParsedSource>::Language>,
-    graph: &Graph<S>,
+    paths: &ProjectPathsConfig<<P::ParsedSource as ParsedSource>::Language>,
+    graph: &Graph<P>,
     deps: &mut HashSet<PathBuf>,
 ) -> Result<()> {
     if deps.insert(path.to_path_buf()) {
@@ -830,10 +830,10 @@ fn collect_deps<S: ParsedSources<ParsedSource: MaybeSolData>>(
 /// Instead, we sort files by the number of their dependencies (imports of any depth) in ascending
 /// order. If files have the same number of dependencies, we sort them alphabetically.
 /// Target file is always placed last.
-pub fn collect_ordered_deps<S: ParsedSources<ParsedSource: MaybeSolData>>(
+pub fn collect_ordered_deps<P: SourceParser<ParsedSource: MaybeSolData>>(
     path: &Path,
-    paths: &ProjectPathsConfig<<S::ParsedSource as ParsedSource>::Language>,
-    graph: &Graph<S>,
+    paths: &ProjectPathsConfig<<P::ParsedSource as ParsedSource>::Language>,
+    graph: &Graph<P>,
 ) -> Result<Vec<PathBuf>> {
     let mut deps = HashSet::new();
     collect_deps(path, paths, graph, &mut deps)?;

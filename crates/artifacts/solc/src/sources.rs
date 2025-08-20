@@ -1,4 +1,7 @@
-use foundry_compilers_core::error::SolcIoError;
+use foundry_compilers_core::{
+    error::{SolcError, SolcIoError},
+    utils::find_case_sensitive_existing_file,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -135,6 +138,28 @@ impl Source {
         }
 
         Ok(Self::new(content))
+    }
+
+    /// [`read`](Self::read) + mapping error to [`SolcError`].
+    pub fn read_(file: &Path) -> Result<Self, SolcError> {
+        Self::read(file).map_err(|err| {
+            let exists = err.path().exists();
+            if !exists && err.path().is_symlink() {
+                SolcError::ResolveBadSymlink(err)
+            } else {
+                // This is an additional check useful on OS that have case-sensitive paths, See also <https://docs.soliditylang.org/en/v0.8.17/path-resolution.html#import-callback>
+                if !exists {
+                    // check if there exists a file with different case
+                    if let Some(existing_file) = find_case_sensitive_existing_file(file) {
+                        SolcError::ResolveCaseSensitiveFileName { error: err, existing_file }
+                    } else {
+                        SolcError::Resolve(err)
+                    }
+                } else {
+                    SolcError::Resolve(err)
+                }
+            }
+        })
     }
 
     /// Returns `true` if the source should be compiled with full output selection.

@@ -6,7 +6,7 @@ use crate::{
     output::Builds,
     resolver::GraphEdges,
     ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
-    ProjectPaths, ProjectPathsConfig, SourceCompilationKind,
+    ProjectPaths, ProjectPathsConfig, SourceCompilationKind, SourceParser,
 };
 use foundry_compilers_artifacts::{
     sources::{Source, Sources},
@@ -823,10 +823,10 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 
     // Walks over all cache entries, detects dirty files and removes them from cache.
     fn find_and_remove_dirty(&mut self) {
-        fn populate_dirty_files<D>(
+        fn populate_dirty_files<P: SourceParser>(
             file: &Path,
             dirty_files: &mut HashSet<PathBuf>,
-            edges: &GraphEdges<D>,
+            edges: &GraphEdges<P>,
         ) {
             for file in edges.importers(file) {
                 // If file is marked as dirty we either have already visited it or it was marked as

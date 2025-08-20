@@ -27,7 +27,7 @@ pub const VYPER_EXTENSIONS: &[&str] = &["vy", "vyi"];
 pub const VYPER_INTERFACE_EXTENSION: &str = "vyi";
 
 /// Vyper language, used as [Compiler::Language] for the Vyper compiler.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct VyperLanguage;
 

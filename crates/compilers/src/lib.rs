@@ -925,7 +925,7 @@ pub fn replace_source_content(
 pub(crate) fn parse_one_source<R>(
     content: &str,
     path: &Path,
-    f: impl FnOnce(solar_parse::ast::SourceUnit<'_>) -> R,
+    f: impl FnOnce(&solar_parse::ast::SourceUnit<'_>) -> R,
 ) -> Result<R, EmittedDiagnostics> {
     let sess = Session::builder().with_buffer_emitter(Default::default()).build();
     let res = sess.enter_sequential(|| -> solar_parse::interface::Result<_> {
@@ -933,7 +933,7 @@ pub(crate) fn parse_one_source<R>(
         let filename = FileName::Real(path.to_path_buf());
         let mut parser = Parser::from_source_code(&sess, &arena, filename, content.to_string())?;
         let ast = parser.parse_file().map_err(|e| e.emit())?;
-        Ok(f(ast))
+        Ok(f(&ast))
     });
 
     // Return if any diagnostics emitted during content parsing.

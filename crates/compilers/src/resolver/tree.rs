@@ -1,4 +1,4 @@
-use crate::{Graph, ParsedSources};
+use crate::{Graph, SourceParser};
 use std::{collections::HashSet, io, io::Write, str::FromStr};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -46,8 +46,8 @@ static UTF8_SYMBOLS: Symbols = Symbols { down: "│", tee: "├", ell: "└", ri
 
 static ASCII_SYMBOLS: Symbols = Symbols { down: "|", tee: "|", ell: "`", right: "-" };
 
-pub fn print<S: ParsedSources>(
-    graph: &Graph<S>,
+pub fn print<P: SourceParser>(
+    graph: &Graph<P>,
     opts: &TreeOptions,
     out: &mut dyn Write,
 ) -> io::Result<()> {
@@ -83,8 +83,8 @@ pub fn print<S: ParsedSources>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn print_node<S: ParsedSources>(
-    graph: &Graph<S>,
+fn print_node<P: SourceParser>(
+    graph: &Graph<P>,
     node_index: usize,
     symbols: &Symbols,
     no_dedupe: bool,
@@ -137,7 +137,7 @@ fn print_node<S: ParsedSources>(
 
 /// Prints all the imports of a node
 #[allow(clippy::too_many_arguments)]
-fn print_imports<S: ParsedSources>(
+fn print_imports<S: SourceParser>(
     graph: &Graph<S>,
     node_index: usize,
     symbols: &Symbols,

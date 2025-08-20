@@ -1,7 +1,7 @@
 use super::VyperLanguage;
 use crate::{
     compilers::{vyper::VYPER_EXTENSIONS, ParsedSource},
-    ParsedSources, ProjectPathsConfig,
+    SourceParser, ProjectPathsConfig,
 };
 use foundry_compilers_core::{
     error::{Result, SolcError},
@@ -28,29 +28,11 @@ pub struct VyperImport {
 
 #[derive(Clone, Debug, Default)]
 pub struct VyperParsedSources {
-    sources: Vec<VyperParsedSource>,
+    _inner: (),
 }
 
-impl ParsedSources for VyperParsedSources {
+impl SourceParser for VyperParsedSources {
     type ParsedSource = VyperParsedSource;
-
-    fn parse<'a, 'b>(
-        &mut self,
-        sources: impl IntoIterator<Item = (&'a str, &'b Path)>,
-    ) -> Result<()> {
-        for (content, path) in sources {
-            self.sources.push(VyperParsedSource::parse(content, path)?);
-        }
-        Ok(())
-    }
-
-    fn sources(&self) -> &[Self::ParsedSource] {
-        &self.sources
-    }
-
-    fn push(&mut self, source: Self::ParsedSource) {
-        self.sources.push(source);
-    }
 }
 
 #[derive(Clone, Debug)]

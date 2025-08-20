@@ -1,4 +1,4 @@
-use crate::ProjectPathsConfig;
+use crate::{resolver::Node, ProjectPathsConfig};
 use alloy_json_abi::JsonAbi;
 use core::fmt;
 use foundry_compilers_artifacts::{
@@ -9,6 +9,7 @@ use foundry_compilers_artifacts::{
     BytecodeObject, CompactContractRef, Contract, FileToContractsMap, Severity, SourceFile,
 };
 use foundry_compilers_core::error::Result;
+use rayon::prelude::*;
 use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
@@ -139,16 +140,27 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
     fn strip_prefix(&mut self, base: &Path);
 }
 
-/// [`ParsedSource`] container.
-pub trait ParsedSources: Default + Debug + Send + Sync {
+/// [`ParsedSource`] parser.
+pub trait SourceParser: Clone + Default + Debug + Send + Sync {
     type ParsedSource: ParsedSource;
 
-    fn parse<'a, 'b>(
+    fn read(&mut self, path: &Path) -> Result<Node<Self::ParsedSource>> {
+        Node::read(path)
+    }
+
+    fn parse_sources(
         &mut self,
-        sources: impl IntoIterator<Item = (&'a str, &'b Path)>,
-    ) -> Result<()>;
-    fn sources(&self) -> &[Self::ParsedSource];
-    fn push(&mut self, source: Self::ParsedSource);
+        sources: &mut Sources,
+    ) -> Result<Vec<(PathBuf, Node<Self::ParsedSource>)>> {
+        sources
+            .0
+            .par_iter()
+            .map(|(path, source)| {
+                let data = Self::ParsedSource::parse(source.as_ref(), path)?;
+                Ok((path.clone(), Node::new(path.clone(), source.clone(), data)))
+            })
+            .collect::<Result<_>>()
+    }
 }
 
 /// Parser of the source files which is used to identify imports and version requirements of the
@@ -156,7 +168,7 @@ pub trait ParsedSources: Default + Debug + Send + Sync {
 ///
 /// Used by path resolver to resolve imports or determine compiler versions needed to compiler given
 /// sources.
-pub trait ParsedSource: Debug + Sized + Send {
+pub trait ParsedSource: Clone + Debug + Sized + Send {
     type Language: Language;
 
     /// Parses the content of the source file.
@@ -343,7 +355,7 @@ pub trait Compiler: Send + Sync + Clone {
     /// Output data for each contract
     type CompilerContract: CompilerContract;
     /// Source parser used for resolving imports and version requirements.
-    type ParsedSources: ParsedSources<ParsedSource: ParsedSource<Language = Self::Language>>;
+    type ParsedSources: SourceParser<ParsedSource: ParsedSource<Language = Self::Language>>;
     /// Compiler settings.
     type Settings: CompilerSettings;
     /// Enum of languages supported by the compiler.

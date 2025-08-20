@@ -15,7 +15,7 @@ use std::{
 
 use crate::{
     compilers::Language, multi::MultiCompilerParsedSources, resolver::GraphEdges, Graph,
-    ParsedSources, ProjectPathsConfig,
+    ProjectPathsConfig, SourceParser,
 };
 
 /// Represents the layout of a project
@@ -54,9 +54,9 @@ impl MockProjectGenerator {
     }
 
     /// Create a skeleton of a real project
-    pub fn create<S: ParsedSources>(paths: &ProjectPathsConfig) -> Result<Self> {
-        fn get_libs<S: ParsedSources>(
-            edges: &GraphEdges<S>,
+    pub fn create<P: SourceParser>(paths: &ProjectPathsConfig) -> Result<Self> {
+        fn get_libs<P: SourceParser>(
+            edges: &GraphEdges<P>,
             lib_folder: &Path,
         ) -> Option<HashMap<PathBuf, Vec<usize>>> {
             let mut libs: HashMap<_, Vec<_>> = HashMap::new();
