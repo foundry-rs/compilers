@@ -88,7 +88,7 @@ pub struct ResolvedSources<'a, C: Compiler> {
     /// a profile suffix.
     pub primary_profiles: HashMap<PathBuf, &'a str>,
     /// Graph edges.
-    pub edges: GraphEdges<C::ParsedSources>,
+    pub edges: GraphEdges<C::Parser>,
 }
 
 /// The underlying edges of the graph which only contains the raw relationship data.
@@ -523,7 +523,7 @@ impl<P: SourceParser> Graph<P> {
     ) -> Result<ResolvedSources<'_, C>>
     where
         T: ArtifactOutput<CompilerContract = C::CompilerContract>,
-        C: Compiler<ParsedSources = P, Language = <P::ParsedSource as ParsedSource>::Language>,
+        C: Compiler<Parser = P, Language = <P::ParsedSource as ParsedSource>::Language>,
     {
         /// insert the imports of the given node into the sources map
         /// There can be following graph:

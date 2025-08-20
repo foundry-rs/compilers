@@ -46,7 +46,7 @@ impl Language for SolcLanguage {
 impl Compiler for SolcCompiler {
     type Input = SolcVersionedInput;
     type CompilationError = Error;
-    type ParsedSources = SolParser;
+    type Parser = SolParser;
     type Settings = SolcSettings;
     type Language = SolcLanguage;
     type CompilerContract = Contract;

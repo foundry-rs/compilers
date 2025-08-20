@@ -146,7 +146,7 @@ pub struct ProjectCompiler<
     C: Compiler,
 > {
     /// Contains the relationship of the source files and their imports
-    edges: GraphEdges<C::ParsedSources>,
+    edges: GraphEdges<C::Parser>,
     project: &'a Project<C, T>,
     /// A mapping from a source file path to the primary profile name selected for it.
     primary_profiles: HashMap<PathBuf, &'a str>,

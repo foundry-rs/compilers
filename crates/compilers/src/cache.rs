@@ -658,7 +658,7 @@ pub(crate) struct ArtifactsCacheInner<
     pub cached_builds: Builds<C::Language>,
 
     /// Relationship between all the files.
-    pub edges: GraphEdges<C::ParsedSources>,
+    pub edges: GraphEdges<C::Parser>,
 
     /// The project.
     pub project: &'a Project<C, T>,
@@ -891,8 +891,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 
         // Build a temporary graph for walking imports. We need this because `self.edges`
         // only contains graph data for in-scope sources but we are operating on cache entries.
-        if let Ok(graph) = Graph::<C::ParsedSources>::resolve_sources(&self.project.paths, sources)
-        {
+        if let Ok(graph) = Graph::<C::Parser>::resolve_sources(&self.project.paths, sources) {
             let (sources, edges) = graph.into_sources();
 
             // Calculate content hashes for later comparison.
@@ -1022,7 +1021,7 @@ pub(crate) enum ArtifactsCache<
     C: Compiler,
 > {
     /// Cache nothing on disk
-    Ephemeral(GraphEdges<C::ParsedSources>, &'a Project<C, T>),
+    Ephemeral(GraphEdges<C::Parser>, &'a Project<C, T>),
     /// Handles the actual cached artifacts, detects artifacts that can be reused
     Cached(ArtifactsCacheInner<'a, T, C>),
 }
@@ -1034,7 +1033,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     #[instrument(name = "ArtifactsCache::new", skip(project, edges))]
     pub fn new(
         project: &'a Project<C, T>,
-        edges: GraphEdges<C::ParsedSources>,
+        edges: GraphEdges<C::Parser>,
         preprocessed: bool,
     ) -> Result<Self> {
         /// Returns the [CompilerCache] to use
@@ -1119,7 +1118,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     }
 
     /// Returns the graph data for this project
-    pub fn graph(&self) -> &GraphEdges<C::ParsedSources> {
+    pub fn graph(&self) -> &GraphEdges<C::Parser> {
         match self {
             ArtifactsCache::Ephemeral(graph, _) => graph,
             ArtifactsCache::Cached(inner) => &inner.edges,
@@ -1199,7 +1198,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         written_artifacts: &Artifacts<A>,
         written_build_infos: &Vec<RawBuildInfo<C::Language>>,
         write_to_disk: bool,
-    ) -> Result<(Artifacts<A>, Builds<C::Language>, GraphEdges<C::ParsedSources>)>
+    ) -> Result<(Artifacts<A>, Builds<C::Language>, GraphEdges<C::Parser>)>
     where
         T: ArtifactOutput<Artifact = A>,
     {

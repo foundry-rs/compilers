@@ -202,7 +202,7 @@ impl Vyper {
 impl Compiler for Vyper {
     type Settings = VyperSettings;
     type CompilationError = VyperCompilationError;
-    type ParsedSources = VyperParser;
+    type Parser = VyperParser;
     type Input = VyperVersionedInput;
     type Language = VyperLanguage;
     type CompilerContract = Contract;

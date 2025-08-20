@@ -318,7 +318,7 @@ impl CompilerInput for MultiCompilerInput {
 impl Compiler for MultiCompiler {
     type Input = MultiCompilerInput;
     type CompilationError = MultiCompilerError;
-    type ParsedSources = MultiCompilerParser;
+    type Parser = MultiCompilerParser;
     type Settings = MultiCompilerSettings;
     type Language = MultiCompilerLanguage;
     type CompilerContract = Contract;

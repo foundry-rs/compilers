@@ -355,7 +355,7 @@ pub trait Compiler: Send + Sync + Clone {
     /// Output data for each contract
     type CompilerContract: CompilerContract;
     /// Source parser used for resolving imports and version requirements.
-    type ParsedSources: SourceParser<ParsedSource: ParsedSource<Language = Self::Language>>;
+    type Parser: SourceParser<ParsedSource: ParsedSource<Language = Self::Language>>;
     /// Compiler settings.
     type Settings: CompilerSettings;
     /// Enum of languages supported by the compiler.

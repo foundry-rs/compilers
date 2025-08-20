@@ -175,7 +175,7 @@ where
     /// Returns standard-json-input to compile the target contract
     pub fn standard_json_input(&self, target: &Path) -> Result<StandardJsonCompilerInput> {
         trace!(?target, "Building standard-json-input");
-        let graph = Graph::<C::ParsedSources>::resolve(&self.paths)?;
+        let graph = Graph::<C::Parser>::resolve(&self.paths)?;
         let target_index = graph.files().get(target).ok_or_else(|| {
             SolcError::msg(format!("cannot resolve file at {:?}", target.display()))
         })?;
@@ -391,7 +391,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Pro
         T: Clone,
         C: Clone,
     {
-        let graph = Graph::<C::ParsedSources>::resolve(&self.paths)?;
+        let graph = Graph::<C::Parser>::resolve(&self.paths)?;
         let mut contracts: HashMap<String, Vec<PathBuf>> = HashMap::new();
         if !graph.is_empty() {
             for node in &graph.nodes {

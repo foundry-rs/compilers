@@ -83,19 +83,19 @@ pub struct ProjectCompileOutput<
     /// all build infos that were just compiled
     pub(crate) builds: Builds<C::Language>,
     /// The relationship between the source files and their imports
-    pub(crate) edges: GraphEdges<C::ParsedSources>,
+    pub(crate) edges: GraphEdges<C::Parser>,
 }
 
 impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ProjectCompileOutput<C, T>
 {
     /// Returns the parser used to parse the sources.
-    pub fn parser(&self) -> &C::ParsedSources {
+    pub fn parser(&self) -> &C::Parser {
         self.edges.parser()
     }
 
     /// Returns the parser used to parse the sources.
-    pub fn parser_mut(&mut self) -> &mut C::ParsedSources {
+    pub fn parser_mut(&mut self) -> &mut C::Parser {
         self.edges.parser_mut()
     }
 
@@ -475,7 +475,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     }
 
     /// Returns the source graph of the project.
-    pub fn graph(&self) -> &GraphEdges<C::ParsedSources> {
+    pub fn graph(&self) -> &GraphEdges<C::Parser> {
         &self.edges
     }
 }

@@ -192,7 +192,7 @@ impl Flattener {
         target: &Path,
     ) -> std::result::Result<Self, FlattenerError>
     where
-        C::ParsedSources: SourceParser<ParsedSource: MaybeSolData>,
+        C::Parser: SourceParser<ParsedSource: MaybeSolData>,
     {
         // Configure project to compile the target file and only request AST for target file.
         project.cached = false;
@@ -210,7 +210,7 @@ impl Flattener {
         let output = output.compiler_output;
 
         let sources = Source::read_all_files(vec![target.to_path_buf()])?;
-        let graph = Graph::<C::ParsedSources>::resolve_sources(&project.paths, sources)?;
+        let graph = Graph::<C::Parser>::resolve_sources(&project.paths, sources)?;
 
         let ordered_sources = collect_ordered_deps(target, &project.paths, &graph)?;
 
