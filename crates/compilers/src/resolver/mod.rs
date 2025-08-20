@@ -246,11 +246,6 @@ impl<P: SourceParser> GraphEdges<P> {
     {
         self.indices.get(file).and_then(|idx| self.data.get(*idx))
     }
-
-    /// Returns the parser used to parse the sources
-    pub fn get_sources(&self) -> &P {
-        &self.parser
-    }
 }
 
 /// Represents a fully-resolved solidity dependency graph.
