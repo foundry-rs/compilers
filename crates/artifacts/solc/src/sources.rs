@@ -1,7 +1,4 @@
-use foundry_compilers_core::{
-    error::{SolcError, SolcIoError},
-    utils::find_case_sensitive_existing_file,
-};
+use foundry_compilers_core::error::{SolcError, SolcIoError};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -145,20 +142,22 @@ impl Source {
         Self::read(file).map_err(|err| {
             let exists = err.path().exists();
             if !exists && err.path().is_symlink() {
-                SolcError::ResolveBadSymlink(err)
-            } else {
-                // This is an additional check useful on OS that have case-sensitive paths, See also <https://docs.soliditylang.org/en/v0.8.17/path-resolution.html#import-callback>
-                if !exists {
-                    // check if there exists a file with different case
-                    if let Some(existing_file) = find_case_sensitive_existing_file(file) {
-                        SolcError::ResolveCaseSensitiveFileName { error: err, existing_file }
-                    } else {
-                        SolcError::Resolve(err)
-                    }
-                } else {
-                    SolcError::Resolve(err)
+                return SolcError::ResolveBadSymlink(err);
+            }
+
+            // This is an additional check useful on OS that have case-sensitive paths,
+            // see also <https://docs.soliditylang.org/en/v0.8.17/path-resolution.html#import-callback>
+            // check if there exists a file with different case
+            #[cfg(feature = "walkdir")]
+            if !exists {
+                if let Some(existing_file) =
+                    foundry_compilers_core::utils::find_case_sensitive_existing_file(file)
+                {
+                    return SolcError::ResolveCaseSensitiveFileName { error: err, existing_file };
                 }
             }
+
+            SolcError::Resolve(err)
         })
     }
 
