@@ -89,6 +89,16 @@ pub struct ProjectCompileOutput<
 impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ProjectCompileOutput<C, T>
 {
+    /// Returns the parser used to parse the sources.
+    pub fn parser(&self) -> &C::ParsedSources {
+        self.edges.parser()
+    }
+
+    /// Returns the parser used to parse the sources.
+    pub fn parser_mut(&mut self) -> &mut C::ParsedSources {
+        self.edges.parser_mut()
+    }
+
     /// Converts all `\\` separators in _all_ paths to `/`
     #[instrument(skip_all)]
     pub fn slash_paths(&mut self) {
@@ -464,7 +474,8 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         self.builds.iter()
     }
 
-    pub fn edges(&self) -> &GraphEdges<C::ParsedSources> {
+    /// Returns the source graph of the project.
+    pub fn graph(&self) -> &GraphEdges<C::ParsedSources> {
         &self.edges
     }
 }

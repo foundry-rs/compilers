@@ -12,7 +12,7 @@ use foundry_compilers::{
     },
     flatten::Flattener,
     info::ContractInfo,
-    multi::{MultiCompilerInput, MultiCompilerParsedSources, MultiCompilerRestrictions},
+    multi::{MultiCompilerInput, MultiCompilerParser, MultiCompilerRestrictions},
     project::{Preprocessor, ProjectCompiler},
     project_util::*,
     solc::{Restriction, SolcRestrictions, SolcSettings},
@@ -262,7 +262,7 @@ fn can_compile_dapp_detect_changes_in_libs() {
         )
         .unwrap();
 
-    let graph = Graph::<MultiCompilerParsedSources>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParser>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
     assert_eq!(graph.files().clone(), HashMap::from([(src, 0), (lib, 1),]));
 
@@ -292,7 +292,7 @@ fn can_compile_dapp_detect_changes_in_libs() {
         )
         .unwrap();
 
-    let graph = Graph::<MultiCompilerParsedSources>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParser>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
 
     let compiled = project.compile().unwrap();
@@ -334,7 +334,7 @@ fn can_compile_dapp_detect_changes_in_sources() {
         )
         .unwrap();
 
-    let graph = Graph::<MultiCompilerParsedSources>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParser>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
     assert_eq!(graph.files().clone(), HashMap::from([(base, 0), (src, 1),]));
     assert_eq!(graph.imported_nodes(1).to_vec(), vec![0]);
@@ -371,7 +371,7 @@ fn can_compile_dapp_detect_changes_in_sources() {
    ",
         )
         .unwrap();
-    let graph = Graph::<MultiCompilerParsedSources>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParser>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
 
     let compiled = project.compile().unwrap();
@@ -3677,7 +3677,7 @@ fn can_add_basic_contract_and_library() {
 
     let lib = project.add_basic_source("Bar", "^0.8.0").unwrap();
 
-    let graph = Graph::<MultiCompilerParsedSources>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParser>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
     assert!(graph.files().contains_key(&src));
     assert!(graph.files().contains_key(&lib));

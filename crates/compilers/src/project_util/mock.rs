@@ -14,7 +14,7 @@ use std::{
 };
 
 use crate::{
-    compilers::Language, multi::MultiCompilerParsedSources, resolver::GraphEdges, Graph,
+    compilers::Language, multi::MultiCompilerParser, resolver::GraphEdges, Graph,
     ProjectPathsConfig, SourceParser,
 };
 
@@ -68,7 +68,7 @@ impl MockProjectGenerator {
             Some(libs)
         }
 
-        let graph = Graph::<MultiCompilerParsedSources>::resolve(paths)?;
+        let graph = Graph::<MultiCompilerParser>::resolve(paths)?;
         let mut gen = Self::default();
         let (_, edges) = graph.into_sources();
 

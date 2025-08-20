@@ -48,7 +48,7 @@
 use crate::{
     compilers::{Compiler, CompilerVersion, ParsedSource},
     project::VersionedSources,
-    resolver::parse::SolParsedSources,
+    resolver::parse::SolParser,
     ArtifactOutput, CompilerSettings, Project, ProjectPathsConfig, SourceParser,
 };
 use core::fmt;
@@ -146,6 +146,16 @@ impl<P: SourceParser> Default for GraphEdges<P> {
 }
 
 impl<P: SourceParser> GraphEdges<P> {
+    /// Returns the parser used to parse the sources.
+    pub fn parser(&self) -> &P {
+        &self.parser
+    }
+
+    /// Returns the parser used to parse the sources.
+    pub fn parser_mut(&mut self) -> &mut P {
+        &mut self.parser
+    }
+
     /// How many files are source files
     pub fn num_source_files(&self) -> usize {
         self.num_input_files
@@ -249,7 +259,7 @@ impl<P: SourceParser> GraphEdges<P> {
 ///
 /// See also <https://docs.soliditylang.org/en/latest/layout-of-source-files.html?highlight=import#importing-other-source-files>
 #[derive(Debug)]
-pub struct Graph<P: SourceParser = SolParsedSources> {
+pub struct Graph<P: SourceParser = SolParser> {
     /// all nodes in the project, a `Node` represents a single file
     pub nodes: Vec<Node<P::ParsedSource>>,
     /// relationship of the nodes
@@ -261,6 +271,11 @@ pub struct Graph<P: SourceParser = SolParsedSources> {
 type L<P> = <<P as SourceParser>::ParsedSource as ParsedSource>::Language;
 
 impl<P: SourceParser> Graph<P> {
+    /// Returns the parser used to parse the sources.
+    pub fn parser(&self) -> &P {
+        self.edges.parser()
+    }
+
     /// Print the graph to `StdOut`
     pub fn print(&self) {
         self.print_with_options(Default::default())
@@ -1177,7 +1192,7 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
         let paths = ProjectPathsConfig::hardhat(&root).unwrap();
 
-        let graph = Graph::<SolParsedSources>::resolve(&paths).unwrap();
+        let graph = Graph::<SolParser>::resolve(&paths).unwrap();
 
         assert_eq!(graph.edges.num_input_files, 1);
         assert_eq!(graph.files().len(), 2);
@@ -1196,7 +1211,7 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
         let paths = ProjectPathsConfig::dapptools(&root).unwrap();
 
-        let graph = Graph::<SolParsedSources>::resolve(&paths).unwrap();
+        let graph = Graph::<SolParser>::resolve(&paths).unwrap();
 
         assert_eq!(graph.edges.num_input_files, 2);
         assert_eq!(graph.files().len(), 3);
@@ -1219,26 +1234,31 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(target_os = "windows"))]
     fn can_print_dapp_sample_graph() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/dapp-sample");
         let paths = ProjectPathsConfig::dapptools(&root).unwrap();
-        let graph = Graph::<SolParsedSources>::resolve(&paths).unwrap();
+        let graph = Graph::<SolParser>::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();
         tree::print(&graph, &Default::default(), &mut out).unwrap();
 
-        assert_eq!(
-            "
+        if !cfg!(windows) {
+            assert_eq!(
+                "
 src/Dapp.sol >=0.6.6
 src/Dapp.t.sol >=0.6.6
 ├── lib/ds-test/src/test.sol >=0.4.23
 └── src/Dapp.sol >=0.6.6
 "
-            .trim_start()
-            .as_bytes()
-            .to_vec(),
-            out
-        );
+                .trim_start()
+                .as_bytes()
+                .to_vec(),
+                out
+            );
+        }
+
+        graph.edges.parser.compiler.enter(|c| {
+            assert_eq!(c.gcx().sources.len(), 3);
+        });
     }
 
     #[test]
@@ -1246,7 +1266,7 @@ src/Dapp.t.sol >=0.6.6
     fn can_print_hardhat_sample_graph() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/hardhat-sample");
         let paths = ProjectPathsConfig::hardhat(&root).unwrap();
-        let graph = Graph::<SolParsedSources>::resolve(&paths).unwrap();
+        let graph = Graph::<SolParser>::resolve(&paths).unwrap();
         let mut out = Vec::<u8>::new();
         tree::print(&graph, &Default::default(), &mut out).unwrap();
         assert_eq!(
@@ -1265,7 +1285,7 @@ src/Dapp.t.sol >=0.6.6
         let root =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/incompatible-pragmas");
         let paths = ProjectPathsConfig::dapptools(&root).unwrap();
-        let graph = Graph::<SolParsedSources>::resolve(&paths).unwrap();
+        let graph = Graph::<SolParser>::resolve(&paths).unwrap();
         let Err(SolcError::Message(err)) = graph.get_input_node_versions(
             &ProjectBuilder::<SolcCompiler>::default()
                 .paths(paths)

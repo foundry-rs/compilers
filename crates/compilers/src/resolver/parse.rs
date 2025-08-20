@@ -7,18 +7,18 @@ use std::{
 };
 
 #[derive(derive_more::Debug)]
-pub struct SolParsedSources {
+pub struct SolParser {
     #[debug(ignore)]
     pub compiler: solar_sema::Compiler,
 }
 
-impl Clone for SolParsedSources {
+impl Clone for SolParser {
     fn clone(&self) -> Self {
         todo!()
     }
 }
 
-impl Default for SolParsedSources {
+impl Default for SolParser {
     fn default() -> Self {
         let sess = solar_sema::interface::Session::builder()
             .with_buffer_emitter(Default::default())

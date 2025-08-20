@@ -10,8 +10,8 @@ use super::{
 };
 use crate::{
     artifacts::vyper::{VyperCompilationError, VyperSettings},
-    parser::VyperParsedSources,
-    resolver::parse::{SolData, SolParsedSources},
+    parser::VyperParser,
+    resolver::parse::{SolData, SolParser},
     settings::VyperRestrictions,
     solc::SolcRestrictions,
     SourceParser,
@@ -105,9 +105,31 @@ impl fmt::Display for MultiCompilerLanguage {
 
 /// Source parser for the [MultiCompiler]. Recognizes Solc and Vyper sources.
 #[derive(Clone, Debug, Default)]
-pub struct MultiCompilerParsedSources {
-    solc: SolParsedSources,
-    vyper: VyperParsedSources,
+pub struct MultiCompilerParser {
+    solc: SolParser,
+    vyper: VyperParser,
+}
+
+impl MultiCompilerParser {
+    /// Returns the parser used to parse Solc sources.
+    pub fn solc(&self) -> &SolParser {
+        &self.solc
+    }
+
+    /// Returns the parser used to parse Solc sources.
+    pub fn solc_mut(&mut self) -> &mut SolParser {
+        &mut self.solc
+    }
+
+    /// Returns the parser used to parse Vyper sources.
+    pub fn vyper(&self) -> &VyperParser {
+        &self.vyper
+    }
+
+    /// Returns the parser used to parse Vyper sources.
+    pub fn vyper_mut(&mut self) -> &mut VyperParser {
+        &mut self.vyper
+    }
 }
 
 /// Source parser for the [MultiCompiler]. Recognizes Solc and Vyper sources.
@@ -296,7 +318,7 @@ impl CompilerInput for MultiCompilerInput {
 impl Compiler for MultiCompiler {
     type Input = MultiCompilerInput;
     type CompilationError = MultiCompilerError;
-    type ParsedSources = MultiCompilerParsedSources;
+    type ParsedSources = MultiCompilerParser;
     type Settings = MultiCompilerSettings;
     type Language = MultiCompilerLanguage;
     type CompilerContract = Contract;
@@ -336,7 +358,7 @@ impl Compiler for MultiCompiler {
     }
 }
 
-impl SourceParser for MultiCompilerParsedSources {
+impl SourceParser for MultiCompilerParser {
     type ParsedSource = MultiCompilerParsedSource;
 
     fn read(&mut self, path: &Path) -> Result<crate::resolver::Node<Self::ParsedSource>> {

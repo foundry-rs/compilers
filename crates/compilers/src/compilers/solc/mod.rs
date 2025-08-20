@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     resolver::{
-        parse::{SolData, SolParsedSources},
+        parse::{SolData, SolParser},
         Node,
     },
     SourceParser,
@@ -46,7 +46,7 @@ impl Language for SolcLanguage {
 impl Compiler for SolcCompiler {
     type Input = SolcVersionedInput;
     type CompilationError = Error;
-    type ParsedSources = SolParsedSources;
+    type ParsedSources = SolParser;
     type Settings = SolcSettings;
     type Language = SolcLanguage;
     type CompilerContract = Contract;
@@ -361,7 +361,7 @@ impl CompilerSettings for SolcSettings {
     }
 }
 
-impl SourceParser for SolParsedSources {
+impl SourceParser for SolParser {
     type ParsedSource = SolData;
 
     fn read(&mut self, path: &Path) -> Result<Node<Self::ParsedSource>> {
