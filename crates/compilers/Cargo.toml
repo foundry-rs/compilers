@@ -39,7 +39,7 @@ tokio = { workspace = true, optional = true }
 auto_impl = "1"
 winnow = "0.7"
 dyn-clone = "1"
-derive_more = { version = "1", features = ["debug"] }
+derive_more = { version = "2", features = ["debug"] }
 home = "0.5"
 dirs = "6.0"
 itertools = ">=0.13, <=0.14"
@@ -47,7 +47,7 @@ itertools = ">=0.13, <=0.14"
 # project-util
 tempfile = { version = "3.20", optional = true }
 fs_extra = { version = "1.3", optional = true }
-rand = { version = "0.8", optional = true }
+rand = { version = "0.9", optional = true }
 
 # svm
 svm = { workspace = true, optional = true }
@@ -61,7 +61,7 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
 ] }
 similar-asserts.workspace = true
 fd-lock = "4.0.4"
-tokio = { version = "1.46", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.47", features = ["rt-multi-thread", "macros"] }
 reqwest = "0.12"
 tempfile = "3.20"
 snapbox.workspace = true
