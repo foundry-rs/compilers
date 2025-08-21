@@ -6,6 +6,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Solidity parser.
+///
+/// Holds a [`solar_sema::Compiler`] that is used to parse sources incrementally.
+/// After project compilation ([`Graph::resolve`]), this will contain all sources parsed by
+/// [`Graph`].
+///
+/// This state is currently lost on `Clone`.
+///
+/// [`Graph`]: crate::Graph
+/// [`Graph::resolve`]: crate::Graph::resolve
 #[derive(derive_more::Debug)]
 pub struct SolParser {
     #[debug(ignore)]
