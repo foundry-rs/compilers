@@ -91,9 +91,7 @@ impl Solc {
     /// Returns error if `solc` is not found in the system or if the version cannot be retrieved.
     #[instrument(name = "Solc::new", skip_all)]
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
-        let path = path.into();
-        let version = Self::version(path.clone())?;
-        Ok(Self::new_with_version(path, version))
+        Self::new_with_args(path, Vec::<String>::new())
     }
 
     /// A new instance which points to `solc` with additional cli arguments. Invokes `solc
@@ -104,25 +102,37 @@ impl Solc {
         path: impl Into<PathBuf>,
         extra_args: impl IntoIterator<Item: Into<String>>,
     ) -> Result<Self> {
-        let args = extra_args.into_iter().map(Into::into).collect::<Vec<_>>();
         let path = path.into();
-        let version = Self::version_with_args(path.clone(), &args)?;
-
-        let mut solc = Self::new_with_version(path, version);
-        solc.extra_args = args;
-
-        Ok(solc)
+        let extra_args = extra_args.into_iter().map(Into::into).collect::<Vec<_>>();
+        let version = Self::version_with_args(path.clone(), &extra_args)?;
+        Ok(Self::_new(path, version, extra_args))
     }
 
     /// A new instance which points to `solc` with the given version
     pub fn new_with_version(path: impl Into<PathBuf>, version: Version) -> Self {
-        Self {
-            solc: path.into(),
+        Self::_new(path.into(), version, Default::default())
+    }
+
+    fn _new(path: PathBuf, version: Version, extra_args: Vec<String>) -> Self {
+        let this = Self {
+            solc: path,
             version,
             base_path: None,
             allow_paths: Default::default(),
             include_paths: Default::default(),
-            extra_args: Default::default(),
+            extra_args,
+        };
+        this.debug_assert();
+        this
+    }
+
+    fn debug_assert(&self) {
+        if !cfg!(debug_assertions) {
+            return;
+        }
+        assert_eq!(self.version_short(), self.version);
+        if let Ok(v) = Self::version_with_args(&self.solc, &self.extra_args) {
+            assert_eq!(v, self.version);
         }
     }
 
@@ -204,12 +214,12 @@ impl Solc {
     #[instrument(skip_all)]
     #[cfg(feature = "svm-solc")]
     pub fn find_svm_installed_version(version: &Version) -> Result<Option<Self>> {
-        let version = format!("{}.{}.{}", version.major, version.minor, version.patch);
-        let solc = svm::version_binary(&version);
+        let version = Version::new(version.major, version.minor, version.patch);
+        let solc = svm::version_binary(&version.to_string());
         if !solc.is_file() {
             return Ok(None);
         }
-        Self::new(&solc).map(Some)
+        Ok(Some(Self::new_with_version(&solc, version)))
     }
 
     /// Returns the directory in which [svm](https://github.com/roynalnaruto/svm-rs) stores all versions
@@ -436,8 +446,7 @@ impl Solc {
         compile_output(output)
     }
 
-    /// Invokes `solc --version` and parses the output as a SemVer [`Version`], stripping the
-    /// pre-release and build metadata.
+    /// Returns the SemVer [`Version`], stripping the pre-release and build metadata.
     pub fn version_short(&self) -> Version {
         Version::new(self.version.major, self.version.minor, self.version.patch)
     }
