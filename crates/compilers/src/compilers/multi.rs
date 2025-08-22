@@ -103,7 +103,7 @@ impl fmt::Display for MultiCompilerLanguage {
     }
 }
 
-/// Source parser for the [MultiCompiler]. Recognizes Solc and Vyper sources.
+/// Source parser for the [`MultiCompiler`]. Recognizes Solc and Vyper sources.
 #[derive(Clone, Debug, Default)]
 pub struct MultiCompilerParser {
     solc: SolParser,
