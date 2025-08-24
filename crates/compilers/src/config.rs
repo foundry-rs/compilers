@@ -549,36 +549,14 @@ impl<L> ProjectPathsConfig<L> {
         }
     }
 
-    pub fn with_language<Lang>(self) -> ProjectPathsConfig<Lang> {
-        let Self {
-            root,
-            cache,
-            artifacts,
-            build_infos,
-            sources,
-            tests,
-            scripts,
-            libraries,
-            remappings,
-            include_paths,
-            allowed_paths,
-            _l,
-        } = self;
+    pub fn with_language_ref<Lang>(&self) -> &ProjectPathsConfig<Lang> {
+        // SAFETY: `Lang` is `PhantomData`.
+        unsafe { std::mem::transmute(self) }
+    }
 
-        ProjectPathsConfig {
-            root,
-            cache,
-            artifacts,
-            build_infos,
-            sources,
-            tests,
-            scripts,
-            libraries,
-            remappings,
-            include_paths,
-            allowed_paths,
-            _l: PhantomData,
-        }
+    pub fn with_language<Lang>(self) -> ProjectPathsConfig<Lang> {
+        // SAFETY: `Lang` is `PhantomData`.
+        unsafe { std::mem::transmute(self) }
     }
 
     pub fn apply_lib_remappings(&self, mut libraries: Libraries) -> Libraries {

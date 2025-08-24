@@ -33,6 +33,10 @@ pub struct VyperParser {
 
 impl SourceParser for VyperParser {
     type ParsedSource = VyperParsedSource;
+
+    fn new(_config: &ProjectPathsConfig) -> Self {
+        Self { _inner: () }
+    }
 }
 
 #[derive(Clone, Debug)]

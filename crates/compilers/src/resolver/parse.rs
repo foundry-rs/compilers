@@ -24,16 +24,22 @@ pub struct SolParser {
 
 impl Clone for SolParser {
     fn clone(&self) -> Self {
-        Self::default()
+        Self {
+            compiler: solar_sema::Compiler::new(Self::session_with_opts(
+                self.compiler.sess().opts.clone(),
+            )),
+        }
     }
 }
 
-impl Default for SolParser {
-    fn default() -> Self {
-        let sess = solar_sema::interface::Session::builder()
+impl SolParser {
+    pub(crate) fn session_with_opts(
+        opts: solar_sema::interface::config::Opts,
+    ) -> solar_sema::interface::Session {
+        solar_sema::interface::Session::builder()
             .with_buffer_emitter(Default::default())
-            .build();
-        Self { compiler: solar_sema::Compiler::new(sess) }
+            .opts(opts)
+            .build()
     }
 }
 

@@ -68,6 +68,12 @@ pub enum MultiCompilerLanguage {
     Vyper(VyperLanguage),
 }
 
+impl Default for MultiCompilerLanguage {
+    fn default() -> Self {
+        Self::Solc(SolcLanguage::Solidity)
+    }
+}
+
 impl MultiCompilerLanguage {
     pub fn is_vyper(&self) -> bool {
         matches!(self, Self::Vyper(_))
@@ -104,7 +110,7 @@ impl fmt::Display for MultiCompilerLanguage {
 }
 
 /// Source parser for the [`MultiCompiler`]. Recognizes Solc and Vyper sources.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct MultiCompilerParser {
     solc: SolParser,
     vyper: VyperParser,
@@ -360,6 +366,10 @@ impl Compiler for MultiCompiler {
 
 impl SourceParser for MultiCompilerParser {
     type ParsedSource = MultiCompilerParsedSource;
+
+    fn new(config: &crate::ProjectPathsConfig) -> Self {
+        Self { solc: SolParser::new(config), vyper: VyperParser::new(config) }
+    }
 
     fn read(&mut self, path: &Path) -> Result<crate::resolver::Node<Self::ParsedSource>> {
         Ok(match guess_lang(path)? {

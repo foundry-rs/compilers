@@ -367,6 +367,27 @@ impl CompilerSettings for SolcSettings {
 impl SourceParser for SolParser {
     type ParsedSource = SolData;
 
+    fn new(config: &crate::ProjectPathsConfig) -> Self {
+        Self {
+            compiler: solar_sema::Compiler::new(Self::session_with_opts(
+                solar_sema::interface::config::Opts {
+                    include_paths: config.include_paths.iter().cloned().collect(),
+                    base_path: Some(config.root.clone()),
+                    import_remappings: config
+                        .remappings
+                        .iter()
+                        .map(|r| solar_sema::interface::config::ImportRemapping {
+                            context: r.context.clone().unwrap_or_default(),
+                            prefix: r.name.clone(),
+                            path: r.path.clone(),
+                        })
+                        .collect(),
+                    ..Default::default()
+                },
+            )),
+        }
+    }
+
     fn read(&mut self, path: &Path) -> Result<Node<Self::ParsedSource>> {
         let mut sources = Sources::from_iter([(path.to_path_buf(), Source::read_(path)?)]);
         let nodes = self.parse_sources(&mut sources)?;
@@ -378,9 +399,7 @@ impl SourceParser for SolParser {
         sources: &mut Sources,
     ) -> Result<Vec<(PathBuf, Node<Self::ParsedSource>)>> {
         self.compiler.enter_mut(|compiler| {
-            let old = compiler.gcx().sources.len();
             let mut pcx = compiler.parse();
-            pcx.set_resolve_imports(false);
             let files = sources
                 .par_iter()
                 .map(|(path, source)| {
@@ -392,10 +411,16 @@ impl SourceParser for SolParser {
                 .collect::<Result<Vec<_>>>()?;
             pcx.add_files(files);
             pcx.parse();
-            let parsed = compiler.gcx().sources.as_raw_slice()[old..].iter().map(|s| {
-                let path = s.file.name.as_real().unwrap().to_path_buf();
-                let source = sources[&path].clone();
-                (path.clone(), Node::new(path, source, SolData::parse_from(compiler.gcx().sess, s)))
+
+            let parsed = sources.iter().map(|(path, source)| {
+                let sf = compiler.sess().source_map().get_file(path).unwrap();
+                let (_, s) = compiler.gcx().sources.get_file(&sf).unwrap();
+                let node = Node::new(
+                    path.clone(),
+                    source.clone(),
+                    SolData::parse_from(compiler.gcx().sess, s),
+                );
+                (path.clone(), node)
             });
             let mut parsed = parsed.collect::<Vec<_>>();
 

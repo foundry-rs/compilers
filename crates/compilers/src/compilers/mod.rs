@@ -141,13 +141,18 @@ pub trait CompilerInput: Serialize + Send + Sync + Sized + Debug {
 }
 
 /// [`ParsedSource`] parser.
-pub trait SourceParser: Clone + Default + Debug + Send + Sync {
+pub trait SourceParser: Clone + Debug + Send + Sync {
     type ParsedSource: ParsedSource;
 
+    /// Creates a new parser for the given config.
+    fn new(config: &ProjectPathsConfig) -> Self;
+
+    /// Reads and parses the source file at the given path.
     fn read(&mut self, path: &Path) -> Result<Node<Self::ParsedSource>> {
         Node::read(path)
     }
 
+    /// Parses the sources in the given sources map.
     fn parse_sources(
         &mut self,
         sources: &mut Sources,

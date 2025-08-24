@@ -111,7 +111,7 @@ pub struct GraphEdges<P: SourceParser> {
     /// the extracted data from the source files
     data: Vec<P::ParsedSource>,
     /// The parser which parsed `data`.
-    parser: P,
+    parser: Option<P>,
     /// with how many input files we started with, corresponds to `let input_files =
     /// nodes[..num_input_files]`.
     ///
@@ -148,12 +148,12 @@ impl<P: SourceParser> Default for GraphEdges<P> {
 impl<P: SourceParser> GraphEdges<P> {
     /// Returns the parser used to parse the sources.
     pub fn parser(&self) -> &P {
-        &self.parser
+        self.parser.as_ref().unwrap()
     }
 
     /// Returns the parser used to parse the sources.
     pub fn parser_mut(&mut self) -> &mut P {
-        &mut self.parser
+        self.parser.as_mut().unwrap()
     }
 
     /// How many files are source files
@@ -400,7 +400,7 @@ impl<P: SourceParser> Graph<P> {
             Ok(())
         }
 
-        let mut parser = P::default();
+        let mut parser = P::new(paths.with_language_ref());
 
         // we start off by reading all input files, which includes all solidity files from the
         // source and test folder
@@ -493,7 +493,7 @@ impl<P: SourceParser> Graph<P> {
                 .map(|(idx, node)| (idx, node.data.version_req().cloned()))
                 .collect(),
             data: Default::default(),
-            parser,
+            parser: Some(parser),
             unresolved_imports,
             resolved_solc_include_paths,
         };
@@ -1252,7 +1252,7 @@ src/Dapp.t.sol >=0.6.6
             );
         }
 
-        graph.edges.parser.compiler.enter(|c| {
+        graph.edges.parser().compiler.enter(|c| {
             assert_eq!(c.gcx().sources.len(), 3);
         });
     }
