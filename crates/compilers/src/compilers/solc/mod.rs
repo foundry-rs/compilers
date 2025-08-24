@@ -9,7 +9,6 @@ use crate::{
     },
     SourceParser,
 };
-pub use foundry_compilers_artifacts::SolcLanguage;
 use foundry_compilers_artifacts::{
     error::SourceLocation,
     output_selection::OutputSelection,
@@ -17,7 +16,8 @@ use foundry_compilers_artifacts::{
     sources::{Source, Sources},
     BytecodeHash, Contract, Error, EvmVersion, Settings, Severity, SolcInput,
 };
-use foundry_compilers_core::error::Result;
+use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
+use rayon::prelude::*;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -26,6 +26,9 @@ use std::{
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
+
+pub use foundry_compilers_artifacts::SolcLanguage;
+
 mod compiler;
 pub use compiler::{Solc, SOLC_EXTENSIONS};
 
@@ -378,14 +381,16 @@ impl SourceParser for SolParser {
             let old = compiler.gcx().sources.len();
             let mut pcx = compiler.parse();
             pcx.set_resolve_imports(false);
-            for (path, source) in sources.iter() {
-                if let Ok(file) = pcx.sess.source_map().new_source_file(
-                    solar_sema::interface::source_map::FileName::Real(path.clone()),
-                    source.content.as_str(),
-                ) {
-                    pcx.add_file(file);
-                }
-            }
+            let files = sources
+                .par_iter()
+                .map(|(path, source)| {
+                    pcx.sess
+                        .source_map()
+                        .new_source_file(path.clone(), source.content.as_str())
+                        .map_err(|e| SolcError::Io(SolcIoError::new(e, path)))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            pcx.add_files(files);
             pcx.parse();
             let parsed = compiler.gcx().sources.as_raw_slice()[old..].iter().map(|s| {
                 let path = s.file.name.as_real().unwrap().to_path_buf();
