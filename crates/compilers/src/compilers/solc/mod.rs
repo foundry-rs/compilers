@@ -438,6 +438,12 @@ impl SourceParser for SolParser {
                 }
             }
 
+            for (path, node) in &parsed {
+                if let Err(e) = &node.data.parse_result {
+                    debug!("failed parsing {}: {e}", path.display());
+                }
+            }
+
             Ok(parsed)
         })
     }
