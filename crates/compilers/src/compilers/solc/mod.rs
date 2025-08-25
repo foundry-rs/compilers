@@ -413,7 +413,7 @@ impl SourceParser for SolParser {
             pcx.add_files(files);
             pcx.parse();
 
-            let parsed = sources.iter().map(|(path, source)| {
+            let parsed = sources.par_iter().map(|(path, source)| {
                 let sf = compiler.sess().source_map().get_file(path).unwrap();
                 let (_, s) = compiler.gcx().sources.get_file(&sf).unwrap();
                 let node = Node::new(
@@ -425,11 +425,16 @@ impl SourceParser for SolParser {
             });
             let mut parsed = parsed.collect::<Vec<_>>();
 
-            // Set error on the first source if any. This doesn't really have to be exact, as long
-            // as at least one source has an error set it should be enough.
+            // Set error on the first successful source, if any. This doesn't really have to be
+            // exact, as long as at least one source has an error set it should be enough.
             if let Some(Err(diag)) = compiler.gcx().sess.emitted_errors() {
-                if let Some(first) = parsed.first_mut() {
-                    first.1.data.parse_result = Err(diag.to_string());
+                if let Some(idx) = parsed
+                    .iter()
+                    .position(|(_, node)| node.data.parse_result.is_ok())
+                    .or_else(|| parsed.first().map(|_| 0))
+                {
+                    let (_, node) = &mut parsed[idx];
+                    node.data.parse_result = Err(diag.to_string());
                 }
             }
 
