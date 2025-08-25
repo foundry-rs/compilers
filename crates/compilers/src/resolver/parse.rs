@@ -1,6 +1,7 @@
 use foundry_compilers_core::utils;
 use semver::VersionReq;
 use solar_parse::{ast, interface::sym};
+use solar_sema::interface;
 use std::{
     ops::Range,
     path::{Path, PathBuf},
@@ -36,10 +37,37 @@ impl SolParser {
     pub(crate) fn session_with_opts(
         opts: solar_sema::interface::config::Opts,
     ) -> solar_sema::interface::Session {
-        solar_sema::interface::Session::builder()
+        let sess = solar_sema::interface::Session::builder()
             .with_buffer_emitter(Default::default())
             .opts(opts)
-            .build()
+            .build();
+        sess.source_map().set_file_loader(FileLoader);
+        sess
+    }
+}
+
+struct FileLoader;
+impl interface::source_map::FileLoader for FileLoader {
+    fn canonicalize_path(&self, path: &Path) -> std::io::Result<PathBuf> {
+        interface::source_map::RealFileLoader.canonicalize_path(path)
+    }
+
+    fn load_stdin(&self) -> std::io::Result<String> {
+        interface::source_map::RealFileLoader.load_stdin()
+    }
+
+    fn load_file(&self, path: &Path) -> std::io::Result<String> {
+        interface::source_map::RealFileLoader.load_file(path).map(|s| {
+            if s.contains('\r') {
+                s.replace('\r', "")
+            } else {
+                s
+            }
+        })
+    }
+
+    fn load_binary_file(&self, path: &Path) -> std::io::Result<Vec<u8>> {
+        interface::source_map::RealFileLoader.load_binary_file(path)
     }
 }
 
