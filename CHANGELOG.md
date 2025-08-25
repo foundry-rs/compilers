@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.18.3
 - Use svm instead of manual svm dir logic ([#301](https://github.com/foundry-rs/compilers/issues/301))
 - Add @0xrusowsky to `CODEOWNERS` ([#299](https://github.com/foundry-rs/compilers/issues/299))
 - Update `CODEOWNERS` to improve visibility ([#298](https://github.com/foundry-rs/compilers/issues/298))
