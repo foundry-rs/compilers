@@ -317,10 +317,10 @@ impl Flattener {
                 // `loc.path` is expected to be different for each id because there can't be 2
                 // top-level declarations with the same name in the same file.
                 //
-                // Sorting by index loc.path in sorted files to make the renaming process
-                // deterministic.
+                // Sorting by index loc.path and loc.start in sorted files to make the renaming
+                // process deterministic.
                 ids.sort_by_key(|(_, loc)| {
-                    self.ordered_sources.iter().position(|p| p == &loc.path).unwrap()
+                    (self.ordered_sources.iter().position(|p| p == &loc.path).unwrap(), loc.start)
                 });
             }
             for (i, (id, loc)) in ids.iter().enumerate() {
