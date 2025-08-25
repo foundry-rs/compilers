@@ -74,3 +74,7 @@ solar-parse = { git = "https://github.com/paradigmxyz/solar", branch = "main" }
 solar-sema = { git = "https://github.com/paradigmxyz/solar", branch = "main" }
 solar-ast = { git = "https://github.com/paradigmxyz/solar", branch = "main" }
 solar-interface = { git = "https://github.com/paradigmxyz/solar", branch = "main" }
+# solar-parse = { path = "../../paradigmxyz/solar/crates/parse" }
+# solar-sema = { path = "../../paradigmxyz/solar/crates/sema" }
+# solar-ast = { path = "../../paradigmxyz/solar/crates/ast" }
+# solar-interface = { path = "../../paradigmxyz/solar/crates/interface" }
