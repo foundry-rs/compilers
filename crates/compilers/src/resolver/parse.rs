@@ -1,10 +1,90 @@
 use foundry_compilers_core::utils;
 use semver::VersionReq;
 use solar_parse::{ast, interface::sym};
+use solar_sema::interface;
 use std::{
     ops::Range,
     path::{Path, PathBuf},
 };
+
+/// Solidity parser.
+///
+/// Holds a [`solar_sema::Compiler`] that is used to parse sources incrementally.
+/// After project compilation ([`Graph::resolve`]), this will contain all sources parsed by
+/// [`Graph`].
+///
+/// This state is currently lost on `Clone`.
+///
+/// [`Graph`]: crate::Graph
+/// [`Graph::resolve`]: crate::Graph::resolve
+#[derive(derive_more::Debug)]
+pub struct SolParser {
+    #[debug(ignore)]
+    pub(crate) compiler: solar_sema::Compiler,
+}
+
+impl Clone for SolParser {
+    fn clone(&self) -> Self {
+        Self {
+            compiler: solar_sema::Compiler::new(Self::session_with_opts(
+                self.compiler.sess().opts.clone(),
+            )),
+        }
+    }
+}
+
+impl SolParser {
+    /// Returns a reference to the compiler.
+    pub fn compiler(&self) -> &solar_sema::Compiler {
+        &self.compiler
+    }
+
+    /// Returns a mutable reference to the compiler.
+    pub fn compiler_mut(&mut self) -> &mut solar_sema::Compiler {
+        &mut self.compiler
+    }
+
+    /// Consumes the parser and returns the compiler.
+    pub fn into_compiler(self) -> solar_sema::Compiler {
+        self.compiler
+    }
+
+    pub(crate) fn session_with_opts(
+        opts: solar_sema::interface::config::Opts,
+    ) -> solar_sema::interface::Session {
+        let sess = solar_sema::interface::Session::builder()
+            .with_buffer_emitter(Default::default())
+            .opts(opts)
+            .build();
+        sess.source_map().set_file_loader(FileLoader);
+        sess
+    }
+}
+
+struct FileLoader;
+impl interface::source_map::FileLoader for FileLoader {
+    fn canonicalize_path(&self, path: &Path) -> std::io::Result<PathBuf> {
+        interface::source_map::RealFileLoader.canonicalize_path(path)
+    }
+
+    fn load_stdin(&self) -> std::io::Result<String> {
+        interface::source_map::RealFileLoader.load_stdin()
+    }
+
+    fn load_file(&self, path: &Path) -> std::io::Result<String> {
+        interface::source_map::RealFileLoader.load_file(path).map(|s| {
+            if s.contains('\r') {
+                s.replace('\r', "")
+            } else {
+                s
+            }
+        })
+    }
+
+    fn load_binary_file(&self, path: &Path) -> std::io::Result<Vec<u8>> {
+        interface::source_map::RealFileLoader.load_binary_file(path)
+    }
+}
 
 /// Represents various information about a Solidity file.
 #[derive(Clone, Debug)]
@@ -44,111 +124,26 @@ impl SolData {
     /// parsing fails, we'll fall back to extract that info via regex
     #[instrument(name = "SolData::parse", skip_all)]
     pub fn parse(content: &str, file: &Path) -> Self {
-        let is_yul = file.extension().is_some_and(|ext| ext == "yul");
-        let mut version = None;
-        let mut experimental = None;
-        let mut imports = Vec::<Spanned<SolImport>>::new();
-        let mut libraries = Vec::new();
-        let mut contract_names = Vec::new();
-        let mut parse_result = Ok(());
-
-        let result = crate::parse_one_source(content, file, |ast| {
-            for item in ast.items.iter() {
-                let loc = item.span.lo().to_usize()..item.span.hi().to_usize();
-                match &item.kind {
-                    ast::ItemKind::Pragma(pragma) => match &pragma.tokens {
-                        ast::PragmaTokens::Version(name, req) if name.name == sym::solidity => {
-                            version = Some(Spanned::new(req.to_string(), loc));
-                        }
-                        ast::PragmaTokens::Custom(name, value)
-                            if name.as_str() == "experimental" =>
-                        {
-                            let value =
-                                value.as_ref().map(|v| v.as_str().to_string()).unwrap_or_default();
-                            experimental = Some(Spanned::new(value, loc));
-                        }
-                        _ => {}
-                    },
-
-                    ast::ItemKind::Import(import) => {
-                        let path = import.path.value.to_string();
-                        let aliases = match &import.items {
-                            ast::ImportItems::Plain(None) => &[][..],
-                            ast::ImportItems::Plain(Some(alias))
-                            | ast::ImportItems::Glob(alias) => &[(*alias, None)][..],
-                            ast::ImportItems::Aliases(aliases) => aliases,
-                        };
-                        let sol_import = SolImport::new(PathBuf::from(path)).set_aliases(
-                            aliases
-                                .iter()
-                                .map(|(id, alias)| match alias {
-                                    Some(al) => SolImportAlias::Contract(
-                                        al.name.to_string(),
-                                        id.name.to_string(),
-                                    ),
-                                    None => SolImportAlias::File(id.name.to_string()),
-                                })
-                                .collect(),
-                        );
-                        imports.push(Spanned::new(sol_import, loc));
-                    }
-
-                    ast::ItemKind::Contract(contract) => {
-                        if contract.kind.is_library() {
-                            libraries.push(SolLibrary { is_inlined: library_is_inlined(contract) });
-                        }
-                        contract_names.push(contract.name.to_string());
-                    }
-
-                    _ => {}
-                }
-            }
-        });
-        if let Err(e) = result {
-            let e = e.to_string();
-            trace!("failed parsing {file:?}: {e}");
-            parse_result = Err(e);
-
-            if version.is_none() {
-                version = utils::capture_outer_and_inner(
-                    content,
-                    &utils::RE_SOL_PRAGMA_VERSION,
-                    &["version"],
-                )
-                .first()
-                .map(|(cap, name)| Spanned::new(name.as_str().to_owned(), cap.range()));
-            }
-            if imports.is_empty() {
-                imports = capture_imports(content);
-            }
-            if contract_names.is_empty() {
-                utils::RE_CONTRACT_NAMES.captures_iter(content).for_each(|cap| {
-                    contract_names.push(cap[1].to_owned());
-                });
+        match crate::parse_one_source(content, file, |sess, ast| {
+            SolDataBuilder::parse(content, file, Ok((sess, ast)))
+        }) {
+            Ok(data) => data,
+            Err(e) => {
+                let e = e.to_string();
+                trace!("failed parsing {file:?}: {e}");
+                SolDataBuilder::parse(content, file, Err(Some(e)))
             }
         }
-        let license = content.lines().next().and_then(|line| {
-            utils::capture_outer_and_inner(
-                line,
-                &utils::RE_SOL_SDPX_LICENSE_IDENTIFIER,
-                &["license"],
-            )
-            .first()
-            .map(|(cap, l)| Spanned::new(l.as_str().to_owned(), cap.range()))
-        });
-        let version_req = version.as_ref().and_then(|v| Self::parse_version_req(v.data()).ok());
+    }
 
-        Self {
-            version_req,
-            version,
-            experimental,
-            imports,
-            license,
-            libraries,
-            contract_names,
-            is_yul,
-            parse_result,
-        }
+    pub(crate) fn parse_from(
+        sess: &solar_sema::interface::Session,
+        s: &solar_sema::Source<'_>,
+    ) -> Self {
+        let content = s.file.src.as_str();
+        let file = s.file.name.as_real().unwrap();
+        let ast = s.ast.as_ref().map(|ast| (sess, ast)).ok_or(None);
+        SolDataBuilder::parse(content, file, ast)
     }
 
     /// Parses the version pragma and returns the corresponding SemVer version requirement.
@@ -169,13 +164,148 @@ impl SolData {
         // Somehow, Solidity semver without an operator is considered to be "exact",
         // but lack of operator automatically marks the operator as Caret, so we need
         // to manually patch it? :shrug:
-        let exact = !matches!(&version[0..1], "*" | "^" | "=" | ">" | "<" | "~");
+        let exact = !matches!(version.get(..1), Some("*" | "^" | "=" | ">" | "<" | "~"));
         let mut version = VersionReq::parse(&version)?;
         if exact {
             version.comparators[0].op = semver::Op::Exact;
         }
 
         Ok(version)
+    }
+}
+
+#[derive(Default)]
+struct SolDataBuilder {
+    version: Option<Spanned<String>>,
+    experimental: Option<Spanned<String>>,
+    imports: Vec<Spanned<SolImport>>,
+    libraries: Vec<SolLibrary>,
+    contract_names: Vec<String>,
+    parse_err: Option<String>,
+}
+
+impl SolDataBuilder {
+    fn parse(
+        content: &str,
+        file: &Path,
+        ast: Result<
+            (&solar_sema::interface::Session, &solar_parse::ast::SourceUnit<'_>),
+            Option<String>,
+        >,
+    ) -> SolData {
+        let mut builder = Self::default();
+        match ast {
+            Ok((sess, ast)) => builder.parse_from_ast(sess, ast),
+            Err(err) => {
+                builder.parse_from_regex(content);
+                if let Some(err) = err {
+                    builder.parse_err = Some(err);
+                }
+            }
+        }
+        builder.build(content, file)
+    }
+
+    fn parse_from_ast(
+        &mut self,
+        sess: &solar_sema::interface::Session,
+        ast: &solar_parse::ast::SourceUnit<'_>,
+    ) {
+        for item in ast.items.iter() {
+            let loc = sess.source_map().span_to_source(item.span).unwrap().1;
+            match &item.kind {
+                ast::ItemKind::Pragma(pragma) => match &pragma.tokens {
+                    ast::PragmaTokens::Version(name, req) if name.name == sym::solidity => {
+                        self.version = Some(Spanned::new(req.to_string(), loc));
+                    }
+                    ast::PragmaTokens::Custom(name, value) if name.as_str() == "experimental" => {
+                        let value =
+                            value.as_ref().map(|v| v.as_str().to_string()).unwrap_or_default();
+                        self.experimental = Some(Spanned::new(value, loc));
+                    }
+                    _ => {}
+                },
+
+                ast::ItemKind::Import(import) => {
+                    let path = import.path.value.to_string();
+                    let aliases = match &import.items {
+                        ast::ImportItems::Plain(None) => &[][..],
+                        ast::ImportItems::Plain(Some(alias)) | ast::ImportItems::Glob(alias) => {
+                            &[(*alias, None)][..]
+                        }
+                        ast::ImportItems::Aliases(aliases) => aliases,
+                    };
+                    let sol_import = SolImport::new(PathBuf::from(path)).set_aliases(
+                        aliases
+                            .iter()
+                            .map(|(id, alias)| match alias {
+                                Some(al) => SolImportAlias::Contract(
+                                    al.name.to_string(),
+                                    id.name.to_string(),
+                                ),
+                                None => SolImportAlias::File(id.name.to_string()),
+                            })
+                            .collect(),
+                    );
+                    self.imports.push(Spanned::new(sol_import, loc));
+                }
+
+                ast::ItemKind::Contract(contract) => {
+                    if contract.kind.is_library() {
+                        self.libraries
+                            .push(SolLibrary { is_inlined: library_is_inlined(contract) });
+                    }
+                    self.contract_names.push(contract.name.to_string());
+                }
+
+                _ => {}
+            }
+        }
+    }
+
+    fn parse_from_regex(&mut self, content: &str) {
+        if self.version.is_none() {
+            self.version = utils::capture_outer_and_inner(
+                content,
+                &utils::RE_SOL_PRAGMA_VERSION,
+                &["version"],
+            )
+            .first()
+            .map(|(cap, name)| Spanned::new(name.as_str().to_owned(), cap.range()));
+        }
+        if self.imports.is_empty() {
+            self.imports = capture_imports(content);
+        }
+        if self.contract_names.is_empty() {
+            utils::RE_CONTRACT_NAMES.captures_iter(content).for_each(|cap| {
+                self.contract_names.push(cap[1].to_owned());
+            });
+        }
+    }
+
+    fn build(self, content: &str, file: &Path) -> SolData {
+        let Self { version, experimental, imports, libraries, contract_names, parse_err } = self;
+        let license = content.lines().next().and_then(|line| {
+            utils::capture_outer_and_inner(
+                line,
+                &utils::RE_SOL_SDPX_LICENSE_IDENTIFIER,
+                &["license"],
+            )
+            .first()
+            .map(|(cap, l)| Spanned::new(l.as_str().to_owned(), cap.range()))
+        });
+        let version_req = version.as_ref().and_then(|v| SolData::parse_version_req(v.data()).ok());
+        SolData {
+            license,
+            version,
+            experimental,
+            imports,
+            version_req,
+            libraries,
+            contract_names,
+            is_yul: file.extension().is_some_and(|ext| ext == "yul"),
+            parse_result: parse_err.map(Err).unwrap_or(Ok(())),
+        }
     }
 }
 

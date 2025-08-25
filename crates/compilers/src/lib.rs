@@ -64,8 +64,10 @@ use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
 use output::sources::{VersionedSourceFile, VersionedSourceFiles};
 use project::ProjectCompiler;
 use semver::Version;
-use solar_parse::Parser;
-use solar_sema::interface::{diagnostics::EmittedDiagnostics, source_map::FileName, Session};
+use solar_parse::{
+    interface::{diagnostics::EmittedDiagnostics, source_map::FileName, Session},
+    Parser,
+};
 use solc::SolcSettings;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
@@ -173,7 +175,7 @@ where
     /// Returns standard-json-input to compile the target contract
     pub fn standard_json_input(&self, target: &Path) -> Result<StandardJsonCompilerInput> {
         trace!(?target, "Building standard-json-input");
-        let graph = Graph::<C::ParsedSource>::resolve(&self.paths)?;
+        let graph = Graph::<C::Parser>::resolve(&self.paths)?;
         let target_index = graph.files().get(target).ok_or_else(|| {
             SolcError::msg(format!("cannot resolve file at {:?}", target.display()))
         })?;
@@ -389,7 +391,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler> Pro
         T: Clone,
         C: Clone,
     {
-        let graph = Graph::<C::ParsedSource>::resolve(&self.paths)?;
+        let graph = Graph::<C::Parser>::resolve(&self.paths)?;
         let mut contracts: HashMap<String, Vec<PathBuf>> = HashMap::new();
         if !graph.is_empty() {
             for node in &graph.nodes {
@@ -923,15 +925,15 @@ pub fn replace_source_content(
 pub(crate) fn parse_one_source<R>(
     content: &str,
     path: &Path,
-    f: impl FnOnce(solar_sema::ast::SourceUnit<'_>) -> R,
+    f: impl FnOnce(&Session, &solar_parse::ast::SourceUnit<'_>) -> R,
 ) -> Result<R, EmittedDiagnostics> {
     let sess = Session::builder().with_buffer_emitter(Default::default()).build();
-    let res = sess.enter(|| -> solar_parse::interface::Result<_> {
+    let res = sess.enter_sequential(|| -> solar_parse::interface::Result<_> {
         let arena = solar_parse::ast::Arena::new();
         let filename = FileName::Real(path.to_path_buf());
         let mut parser = Parser::from_source_code(&sess, &arena, filename, content.to_string())?;
         let ast = parser.parse_file().map_err(|e| e.emit())?;
-        Ok(f(ast))
+        Ok(f(&sess, &ast))
     });
 
     // Return if any diagnostics emitted during content parsing.
@@ -946,10 +948,9 @@ pub(crate) fn parse_one_source<R>(
 #[cfg(test)]
 #[cfg(feature = "svm-solc")]
 mod tests {
+    use super::*;
     use foundry_compilers_artifacts::Remapping;
     use foundry_compilers_core::utils::{self, mkdir_or_touch, tempdir};
-
-    use super::*;
 
     #[test]
     #[cfg_attr(windows, ignore = "<0.7 solc is flaky")]

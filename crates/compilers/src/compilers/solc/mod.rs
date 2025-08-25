@@ -2,8 +2,13 @@ use super::{
     restrictions::CompilerSettingsRestrictions, CompilationError, Compiler, CompilerInput,
     CompilerOutput, CompilerSettings, CompilerVersion, Language, ParsedSource,
 };
-use crate::resolver::parse::SolData;
-pub use foundry_compilers_artifacts::SolcLanguage;
+use crate::{
+    resolver::{
+        parse::{SolData, SolParser},
+        Node,
+    },
+    SourceParser,
+};
 use foundry_compilers_artifacts::{
     error::SourceLocation,
     output_selection::OutputSelection,
@@ -11,7 +16,8 @@ use foundry_compilers_artifacts::{
     sources::{Source, Sources},
     BytecodeHash, Contract, Error, EvmVersion, Settings, Severity, SolcInput,
 };
-use foundry_compilers_core::error::Result;
+use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
+use rayon::prelude::*;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -20,6 +26,9 @@ use std::{
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
+
+pub use foundry_compilers_artifacts::SolcLanguage;
+
 mod compiler;
 pub use compiler::{Solc, SOLC_EXTENSIONS};
 
@@ -40,7 +49,7 @@ impl Language for SolcLanguage {
 impl Compiler for SolcCompiler {
     type Input = SolcVersionedInput;
     type CompilationError = Error;
-    type ParsedSource = SolData;
+    type Parser = SolParser;
     type Settings = SolcSettings;
     type Language = SolcLanguage;
     type CompilerContract = Contract;
@@ -352,6 +361,91 @@ impl CompilerSettings for SolcSettings {
             .is_none_or(|min| min == 0 || self.optimizer.enabled.unwrap_or_default());
 
         satisfies
+    }
+}
+
+impl SourceParser for SolParser {
+    type ParsedSource = SolData;
+
+    fn new(config: &crate::ProjectPathsConfig) -> Self {
+        Self {
+            compiler: solar_sema::Compiler::new(Self::session_with_opts(
+                solar_sema::interface::config::Opts {
+                    include_paths: config.include_paths.iter().cloned().collect(),
+                    base_path: Some(config.root.clone()),
+                    import_remappings: config
+                        .remappings
+                        .iter()
+                        .map(|r| solar_sema::interface::config::ImportRemapping {
+                            context: r.context.clone().unwrap_or_default(),
+                            prefix: r.name.clone(),
+                            path: r.path.clone(),
+                        })
+                        .collect(),
+                    ..Default::default()
+                },
+            )),
+        }
+    }
+
+    fn read(&mut self, path: &Path) -> Result<Node<Self::ParsedSource>> {
+        let mut sources = Sources::from_iter([(path.to_path_buf(), Source::read_(path)?)]);
+        let nodes = self.parse_sources(&mut sources)?;
+        debug_assert_eq!(nodes.len(), 1, "{nodes:#?}");
+        Ok(nodes.into_iter().next().unwrap().1)
+    }
+
+    fn parse_sources(
+        &mut self,
+        sources: &mut Sources,
+    ) -> Result<Vec<(PathBuf, Node<Self::ParsedSource>)>> {
+        self.compiler_mut().enter_mut(|compiler| {
+            let mut pcx = compiler.parse();
+            let files = sources
+                .par_iter()
+                .map(|(path, source)| {
+                    pcx.sess
+                        .source_map()
+                        .new_source_file(path.clone(), source.content.as_str())
+                        .map_err(|e| SolcError::Io(SolcIoError::new(e, path)))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            pcx.add_files(files);
+            pcx.parse();
+
+            let parsed = sources.par_iter().map(|(path, source)| {
+                let sf = compiler.sess().source_map().get_file(path).unwrap();
+                let (_, s) = compiler.gcx().sources.get_file(&sf).unwrap();
+                let node = Node::new(
+                    path.clone(),
+                    source.clone(),
+                    SolData::parse_from(compiler.gcx().sess, s),
+                );
+                (path.clone(), node)
+            });
+            let mut parsed = parsed.collect::<Vec<_>>();
+
+            // Set error on the first successful source, if any. This doesn't really have to be
+            // exact, as long as at least one source has an error set it should be enough.
+            if let Some(Err(diag)) = compiler.gcx().sess.emitted_errors() {
+                if let Some(idx) = parsed
+                    .iter()
+                    .position(|(_, node)| node.data.parse_result.is_ok())
+                    .or_else(|| parsed.first().map(|_| 0))
+                {
+                    let (_, node) = &mut parsed[idx];
+                    node.data.parse_result = Err(diag.to_string());
+                }
+            }
+
+            for (path, node) in &parsed {
+                if let Err(e) = &node.data.parse_result {
+                    debug!("failed parsing {}: {e}", path.display());
+                }
+            }
+
+            Ok(parsed)
+        })
     }
 }
 

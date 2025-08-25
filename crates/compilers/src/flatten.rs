@@ -3,7 +3,7 @@ use crate::{
     compilers::{Compiler, ParsedSource},
     filter::MaybeSolData,
     resolver::parse::SolData,
-    ArtifactOutput, CompilerSettings, Graph, Project, ProjectPathsConfig, Updates,
+    ArtifactOutput, CompilerSettings, Graph, Project, ProjectPathsConfig, SourceParser, Updates,
 };
 use foundry_compilers_artifacts::{
     ast::{visitor::Visitor, *},
@@ -192,7 +192,7 @@ impl Flattener {
         target: &Path,
     ) -> std::result::Result<Self, FlattenerError>
     where
-        C::ParsedSource: MaybeSolData,
+        C::Parser: SourceParser<ParsedSource: MaybeSolData>,
     {
         // Configure project to compile the target file and only request AST for target file.
         project.cached = false;
@@ -210,7 +210,7 @@ impl Flattener {
         let output = output.compiler_output;
 
         let sources = Source::read_all_files(vec![target.to_path_buf()])?;
-        let graph = Graph::<C::ParsedSource>::resolve_sources(&project.paths, sources)?;
+        let graph = Graph::<C::Parser>::resolve_sources(&project.paths, sources)?;
 
         let ordered_sources = collect_ordered_deps(target, &project.paths, &graph)?;
 
@@ -794,10 +794,10 @@ impl Flattener {
 }
 
 /// Performs DFS to collect all dependencies of a target
-fn collect_deps<D: ParsedSource + MaybeSolData>(
+fn collect_deps<P: SourceParser<ParsedSource: MaybeSolData>>(
     path: &Path,
-    paths: &ProjectPathsConfig<D::Language>,
-    graph: &Graph<D>,
+    paths: &ProjectPathsConfig<<P::ParsedSource as ParsedSource>::Language>,
+    graph: &Graph<P>,
     deps: &mut HashSet<PathBuf>,
 ) -> Result<()> {
     if deps.insert(path.to_path_buf()) {
@@ -830,10 +830,10 @@ fn collect_deps<D: ParsedSource + MaybeSolData>(
 /// Instead, we sort files by the number of their dependencies (imports of any depth) in ascending
 /// order. If files have the same number of dependencies, we sort them alphabetically.
 /// Target file is always placed last.
-pub fn collect_ordered_deps<D: ParsedSource + MaybeSolData>(
+pub fn collect_ordered_deps<P: SourceParser<ParsedSource: MaybeSolData>>(
     path: &Path,
-    paths: &ProjectPathsConfig<D::Language>,
-    graph: &Graph<D>,
+    paths: &ProjectPathsConfig<<P::ParsedSource as ParsedSource>::Language>,
+    graph: &Graph<P>,
 ) -> Result<Vec<PathBuf>> {
     let mut deps = HashSet::new();
     collect_deps(path, paths, graph, &mut deps)?;

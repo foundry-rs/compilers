@@ -2,7 +2,7 @@ use crate::{
     cache::SOLIDITY_FILES_CACHE_FILENAME,
     compilers::{multi::MultiCompilerLanguage, Language},
     flatten::{collect_ordered_deps, combine_version_pragmas},
-    resolver::{parse::SolData, SolImportAlias},
+    resolver::{parse::SolParser, SolImportAlias},
     Graph,
 };
 use foundry_compilers_artifacts::{
@@ -110,7 +110,7 @@ impl ProjectPathsConfig<SolcLanguage> {
         }
 
         let sources = Source::read_all_files(input_files)?;
-        let graph = Graph::<SolData>::resolve_sources(self, sources)?;
+        let graph = Graph::<SolParser>::resolve_sources(self, sources)?;
         let ordered_deps = collect_ordered_deps(&flatten_target, self, &graph)?;
 
         #[cfg(windows)]
@@ -549,36 +549,14 @@ impl<L> ProjectPathsConfig<L> {
         }
     }
 
-    pub fn with_language<Lang>(self) -> ProjectPathsConfig<Lang> {
-        let Self {
-            root,
-            cache,
-            artifacts,
-            build_infos,
-            sources,
-            tests,
-            scripts,
-            libraries,
-            remappings,
-            include_paths,
-            allowed_paths,
-            _l,
-        } = self;
+    pub fn with_language_ref<Lang>(&self) -> &ProjectPathsConfig<Lang> {
+        // SAFETY: `Lang` is `PhantomData`.
+        unsafe { std::mem::transmute(self) }
+    }
 
-        ProjectPathsConfig {
-            root,
-            cache,
-            artifacts,
-            build_infos,
-            sources,
-            tests,
-            scripts,
-            libraries,
-            remappings,
-            include_paths,
-            allowed_paths,
-            _l: PhantomData,
-        }
+    pub fn with_language<Lang>(self) -> ProjectPathsConfig<Lang> {
+        // SAFETY: `Lang` is `PhantomData`.
+        unsafe { std::mem::transmute(self) }
     }
 
     pub fn apply_lib_remappings(&self, mut libraries: Libraries) -> Libraries {

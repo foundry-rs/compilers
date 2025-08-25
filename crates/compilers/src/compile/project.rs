@@ -146,7 +146,7 @@ pub struct ProjectCompiler<
     C: Compiler,
 > {
     /// Contains the relationship of the source files and their imports
-    edges: GraphEdges<C::ParsedSource>,
+    edges: GraphEdges<C::Parser>,
     project: &'a Project<C, T>,
     /// A mapping from a source file path to the primary profile name selected for it.
     primary_profiles: HashMap<PathBuf, &'a str>,
@@ -381,7 +381,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
         let skip_write_to_disk = project.no_artifacts || has_error;
         trace!(has_error, project.no_artifacts, skip_write_to_disk, cache_path=?project.cache_path(),"prepare writing cache file");
 
-        let (cached_artifacts, cached_builds) =
+        let (cached_artifacts, cached_builds, edges) =
             cache.consume(&compiled_artifacts, &output.build_infos, !skip_write_to_disk)?;
 
         project.artifacts_handler().handle_cached_artifacts(&cached_artifacts)?;
@@ -404,6 +404,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             ignored_file_paths,
             compiler_severity_filter,
             builds,
+            edges,
         })
     }
 }

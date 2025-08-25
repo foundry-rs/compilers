@@ -5,16 +5,14 @@ use foundry_compilers::{
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
     compilers::{
-        multi::{
-            MultiCompiler, MultiCompilerLanguage, MultiCompilerParsedSource, MultiCompilerSettings,
-        },
+        multi::{MultiCompiler, MultiCompilerLanguage, MultiCompilerSettings},
         solc::{Solc, SolcCompiler, SolcLanguage},
         vyper::{Vyper, VyperLanguage, VyperSettings},
         CompilerOutput,
     },
     flatten::Flattener,
     info::ContractInfo,
-    multi::{MultiCompilerInput, MultiCompilerRestrictions},
+    multi::{MultiCompilerInput, MultiCompilerParser, MultiCompilerRestrictions},
     project::{Preprocessor, ProjectCompiler},
     project_util::*,
     solc::{Restriction, SolcRestrictions, SolcSettings},
@@ -264,7 +262,7 @@ fn can_compile_dapp_detect_changes_in_libs() {
         )
         .unwrap();
 
-    let graph = Graph::<MultiCompilerParsedSource>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParser>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
     assert_eq!(graph.files().clone(), HashMap::from([(src, 0), (lib, 1),]));
 
@@ -294,7 +292,7 @@ fn can_compile_dapp_detect_changes_in_libs() {
         )
         .unwrap();
 
-    let graph = Graph::<MultiCompilerParsedSource>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParser>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
 
     let compiled = project.compile().unwrap();
@@ -336,7 +334,7 @@ fn can_compile_dapp_detect_changes_in_sources() {
         )
         .unwrap();
 
-    let graph = Graph::<MultiCompilerParsedSource>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParser>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
     assert_eq!(graph.files().clone(), HashMap::from([(base, 0), (src, 1),]));
     assert_eq!(graph.imported_nodes(1).to_vec(), vec![0]);
@@ -373,7 +371,7 @@ fn can_compile_dapp_detect_changes_in_sources() {
    ",
         )
         .unwrap();
-    let graph = Graph::<MultiCompilerParsedSource>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParser>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
 
     let compiled = project.compile().unwrap();
@@ -768,7 +766,6 @@ contract Contract {
         .unwrap();
 
     let result = project.paths().clone().with_language::<SolcLanguage>().flatten(target.as_path());
-    assert!(result.is_err());
     println!("{}", result.unwrap_err());
 }
 
@@ -3679,7 +3676,7 @@ fn can_add_basic_contract_and_library() {
 
     let lib = project.add_basic_source("Bar", "^0.8.0").unwrap();
 
-    let graph = Graph::<MultiCompilerParsedSource>::resolve(project.paths()).unwrap();
+    let graph = Graph::<MultiCompilerParser>::resolve(project.paths()).unwrap();
     assert_eq!(graph.files().len(), 2);
     assert!(graph.files().contains_key(&src));
     assert!(graph.files().contains_key(&lib));

@@ -6,7 +6,7 @@ use crate::{
     output::Builds,
     resolver::GraphEdges,
     ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
-    ProjectPaths, ProjectPathsConfig, SourceCompilationKind,
+    ProjectPaths, ProjectPathsConfig, SourceCompilationKind, SourceParser,
 };
 use foundry_compilers_artifacts::{
     sources::{Source, Sources},
@@ -658,7 +658,7 @@ pub(crate) struct ArtifactsCacheInner<
     pub cached_builds: Builds<C::Language>,
 
     /// Relationship between all the files.
-    pub edges: GraphEdges<C::ParsedSource>,
+    pub edges: GraphEdges<C::Parser>,
 
     /// The project.
     pub project: &'a Project<C, T>,
@@ -723,6 +723,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     /// Gets or calculates the interface representation hash for the given source file.
     fn interface_repr_hash(&mut self, source: &Source, file: &Path) -> &str {
         self.interface_repr_hashes.entry(file.to_path_buf()).or_insert_with(|| {
+            // TODO: use `interface_representation_ast` directly with `edges.parser()`.
             if let Some(r) = interface_repr_hash(&source.content, file) {
                 return r;
             }
@@ -823,10 +824,10 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 
     // Walks over all cache entries, detects dirty files and removes them from cache.
     fn find_and_remove_dirty(&mut self) {
-        fn populate_dirty_files<D>(
+        fn populate_dirty_files<P: SourceParser>(
             file: &Path,
             dirty_files: &mut HashSet<PathBuf>,
-            edges: &GraphEdges<D>,
+            edges: &GraphEdges<P>,
         ) {
             for file in edges.importers(file) {
                 // If file is marked as dirty we either have already visited it or it was marked as
@@ -890,7 +891,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 
         // Build a temporary graph for walking imports. We need this because `self.edges`
         // only contains graph data for in-scope sources but we are operating on cache entries.
-        if let Ok(graph) = Graph::<C::ParsedSource>::resolve_sources(&self.project.paths, sources) {
+        if let Ok(graph) = Graph::<C::Parser>::resolve_sources(&self.project.paths, sources) {
             let (sources, edges) = graph.into_sources();
 
             // Calculate content hashes for later comparison.
@@ -1020,7 +1021,7 @@ pub(crate) enum ArtifactsCache<
     C: Compiler,
 > {
     /// Cache nothing on disk
-    Ephemeral(GraphEdges<C::ParsedSource>, &'a Project<C, T>),
+    Ephemeral(GraphEdges<C::Parser>, &'a Project<C, T>),
     /// Handles the actual cached artifacts, detects artifacts that can be reused
     Cached(ArtifactsCacheInner<'a, T, C>),
 }
@@ -1032,7 +1033,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     #[instrument(name = "ArtifactsCache::new", skip(project, edges))]
     pub fn new(
         project: &'a Project<C, T>,
-        edges: GraphEdges<C::ParsedSource>,
+        edges: GraphEdges<C::Parser>,
         preprocessed: bool,
     ) -> Result<Self> {
         /// Returns the [CompilerCache] to use
@@ -1117,7 +1118,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     }
 
     /// Returns the graph data for this project
-    pub fn graph(&self) -> &GraphEdges<C::ParsedSource> {
+    pub fn graph(&self) -> &GraphEdges<C::Parser> {
         match self {
             ArtifactsCache::Ephemeral(graph, _) => graph,
             ArtifactsCache::Cached(inner) => &inner.edges,
@@ -1191,18 +1192,22 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// Returns all the _cached_ artifacts.
     #[instrument(name = "ArtifactsCache::consume", skip_all)]
+    #[allow(clippy::type_complexity)]
     pub fn consume<A>(
         self,
         written_artifacts: &Artifacts<A>,
         written_build_infos: &Vec<RawBuildInfo<C::Language>>,
         write_to_disk: bool,
-    ) -> Result<(Artifacts<A>, Builds<C::Language>)>
+    ) -> Result<(Artifacts<A>, Builds<C::Language>, GraphEdges<C::Parser>)>
     where
         T: ArtifactOutput<Artifact = A>,
     {
-        let ArtifactsCache::Cached(cache) = self else {
-            trace!("no cache configured, ephemeral");
-            return Ok(Default::default());
+        let cache = match self {
+            ArtifactsCache::Ephemeral(edges, _project) => {
+                trace!("no cache configured, ephemeral");
+                return Ok((Default::default(), Default::default(), edges));
+            }
+            ArtifactsCache::Cached(cache) => cache,
         };
 
         let ArtifactsCacheInner {
@@ -1212,7 +1217,9 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             dirty_sources,
             sources_in_scope,
             project,
-            ..
+            edges,
+            content_hashes: _,
+            interface_repr_hashes: _,
         } = cache;
 
         // Remove cached artifacts which are out of scope, dirty or appear in `written_artifacts`.
@@ -1264,7 +1271,7 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             cache.write(project.cache_path())?;
         }
 
-        Ok((cached_artifacts, cached_builds))
+        Ok((cached_artifacts, cached_builds, edges))
     }
 
     /// Marks the cached entry as seen by the compiler, if it's cached.

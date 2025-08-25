@@ -3,7 +3,7 @@
 use crate::{
     compilers::{multi::MultiCompilerParsedSource, CompilerSettings, ParsedSource},
     resolver::{parse::SolData, GraphEdges},
-    Sources,
+    SourceParser, Sources,
 };
 use foundry_compilers_artifacts::output_selection::OutputSelection;
 use std::{
@@ -101,11 +101,11 @@ impl<'a> SparseOutputFilter<'a> {
     ///
     /// This also takes the project's graph as input, this allows us to check if the files the
     /// filter matches depend on libraries that need to be linked
-    pub fn sparse_sources<D: ParsedSource, S: CompilerSettings>(
+    pub fn sparse_sources<P: SourceParser, S: CompilerSettings>(
         &self,
         sources: &Sources,
         settings: &mut S,
-        graph: &GraphEdges<D>,
+        graph: &GraphEdges<P>,
     ) -> Vec<PathBuf> {
         let mut full_compilation: HashSet<PathBuf> = sources
             .dirty_files()
