@@ -196,7 +196,6 @@ impl SolDataBuilder {
         sess: &solar_sema::interface::Session,
         ast: &solar_parse::ast::SourceUnit<'_>,
     ) {
-        eprintln!("parse_from_ast");
         for item in ast.items.iter() {
             let loc = sess.source_map().span_to_source(item.span).unwrap().1;
             match &item.kind {
@@ -250,7 +249,6 @@ impl SolDataBuilder {
     }
 
     fn parse_from_regex(&mut self, content: &str) {
-        eprintln!("parse_from_regex");
         if self.version.is_none() {
             self.version = utils::capture_outer_and_inner(
                 content,
