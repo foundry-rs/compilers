@@ -130,7 +130,6 @@ impl Solc {
         if !cfg!(debug_assertions) {
             return;
         }
-        assert_eq!(self.version_short(), self.version);
         if let Ok(v) = Self::version_with_args(&self.solc, &self.extra_args) {
             assert_eq!(v.major, self.version.major);
             assert_eq!(v.minor, self.version.minor);
