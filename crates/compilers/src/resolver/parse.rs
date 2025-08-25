@@ -20,7 +20,7 @@ use std::{
 #[derive(derive_more::Debug)]
 pub struct SolParser {
     #[debug(ignore)]
-    pub compiler: solar_sema::Compiler,
+    pub(crate) compiler: solar_sema::Compiler,
 }
 
 impl Clone for SolParser {
@@ -34,6 +34,21 @@ impl Clone for SolParser {
 }
 
 impl SolParser {
+    /// Returns a reference to the compiler.
+    pub fn compiler(&self) -> &solar_sema::Compiler {
+        &self.compiler
+    }
+
+    /// Returns a mutable reference to the compiler.
+    pub fn compiler_mut(&mut self) -> &mut solar_sema::Compiler {
+        &mut self.compiler
+    }
+
+    /// Consumes the parser and returns the compiler.
+    pub fn into_compiler(self) -> solar_sema::Compiler {
+        self.compiler
+    }
+
     pub(crate) fn session_with_opts(
         opts: solar_sema::interface::config::Opts,
     ) -> solar_sema::interface::Session {
