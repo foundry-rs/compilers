@@ -401,6 +401,7 @@ impl SourceParser for SolParser {
     ) -> Result<Vec<(PathBuf, Node<Self::ParsedSource>)>> {
         self.compiler.enter_mut(|compiler| {
             let mut pcx = compiler.parse();
+            pcx.set_resolve_imports(false);
             let files = sources
                 .par_iter()
                 .map(|(path, source)| {
