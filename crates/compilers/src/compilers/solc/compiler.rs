@@ -2,7 +2,7 @@ use crate::resolver::parse::SolData;
 use foundry_compilers_artifacts::{sources::Source, CompilerOutput, SolcInput};
 use foundry_compilers_core::{
     error::{Result, SolcError},
-    utils::{self, SUPPORTS_BASE_PATH, SUPPORTS_INCLUDE_PATH},
+    utils::{SUPPORTS_BASE_PATH, SUPPORTS_INCLUDE_PATH},
 };
 use itertools::Itertools;
 use semver::{Version, VersionReq};
@@ -91,9 +91,7 @@ impl Solc {
     /// Returns error if `solc` is not found in the system or if the version cannot be retrieved.
     #[instrument(name = "Solc::new", skip_all)]
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
-        let path = path.into();
-        let version = Self::version(path.clone())?;
-        Ok(Self::new_with_version(path, version))
+        Self::new_with_args(path, Vec::<String>::new())
     }
 
     /// A new instance which points to `solc` with additional cli arguments. Invokes `solc
@@ -104,25 +102,39 @@ impl Solc {
         path: impl Into<PathBuf>,
         extra_args: impl IntoIterator<Item: Into<String>>,
     ) -> Result<Self> {
-        let args = extra_args.into_iter().map(Into::into).collect::<Vec<_>>();
         let path = path.into();
-        let version = Self::version_with_args(path.clone(), &args)?;
-
-        let mut solc = Self::new_with_version(path, version);
-        solc.extra_args = args;
-
-        Ok(solc)
+        let extra_args = extra_args.into_iter().map(Into::into).collect::<Vec<_>>();
+        let version = Self::version_with_args(path.clone(), &extra_args)?;
+        Ok(Self::_new(path, version, extra_args))
     }
 
     /// A new instance which points to `solc` with the given version
     pub fn new_with_version(path: impl Into<PathBuf>, version: Version) -> Self {
-        Self {
-            solc: path.into(),
+        Self::_new(path.into(), version, Default::default())
+    }
+
+    fn _new(path: PathBuf, version: Version, extra_args: Vec<String>) -> Self {
+        let this = Self {
+            solc: path,
             version,
             base_path: None,
             allow_paths: Default::default(),
             include_paths: Default::default(),
-            extra_args: Default::default(),
+            extra_args,
+        };
+        this.debug_assert();
+        this
+    }
+
+    fn debug_assert(&self) {
+        if !cfg!(debug_assertions) {
+            return;
+        }
+        assert_eq!(self.version_short(), self.version);
+        if let Ok(v) = Self::version_with_args(&self.solc, &self.extra_args) {
+            assert_eq!(v.major, self.version.major);
+            assert_eq!(v.minor, self.version.minor);
+            assert_eq!(v.patch, self.version.patch);
         }
     }
 
@@ -202,17 +214,14 @@ impl Solc {
     /// Ok::<_, Box<dyn std::error::Error>>(())
     /// ```
     #[instrument(skip_all)]
+    #[cfg(feature = "svm-solc")]
     pub fn find_svm_installed_version(version: &Version) -> Result<Option<Self>> {
-        let version = format!("{}.{}.{}", version.major, version.minor, version.patch);
-        let solc = Self::svm_home()
-            .ok_or_else(|| SolcError::msg("svm home dir not found"))?
-            .join(&version)
-            .join(format!("solc-{version}"));
-
+        let version = Version::new(version.major, version.minor, version.patch);
+        let solc = svm::version_binary(&version.to_string());
         if !solc.is_file() {
             return Ok(None);
         }
-        Self::new(&solc).map(Some)
+        Ok(Some(Self::new_with_version(&solc, version)))
     }
 
     /// Returns the directory in which [svm](https://github.com/roynalnaruto/svm-rs) stores all versions
@@ -220,14 +229,9 @@ impl Solc {
     /// This will be:
     /// - `~/.svm` on unix, if it exists
     /// - $XDG_DATA_HOME (~/.local/share/svm) if the svm folder does not exist.
+    #[cfg(feature = "svm-solc")]
     pub fn svm_home() -> Option<PathBuf> {
-        if let Some(home_dir) = home::home_dir() {
-            let home_dot_svm = home_dir.join(".svm");
-            if home_dot_svm.exists() {
-                return Some(home_dot_svm);
-            }
-        }
-        dirs::data_dir().map(|dir| dir.join("svm"))
+        Some(svm::data_dir().to_path_buf())
     }
 
     /// Returns the `semver::Version` [svm](https://github.com/roynalnaruto/svm-rs)'s `.global_version` is currently set to.
@@ -235,23 +239,21 @@ impl Solc {
     ///
     /// This will read the version string (eg: "0.8.9") that the  `~/.svm/.global_version` file
     /// contains
+    #[cfg(feature = "svm-solc")]
     pub fn svm_global_version() -> Option<Version> {
-        let home = Self::svm_home()?;
-        let version = std::fs::read_to_string(home.join(".global_version")).ok()?;
-        Version::parse(&version).ok()
+        svm::get_global_version().ok().flatten()
     }
 
     /// Returns the list of all solc instances installed at `SVM_HOME`
+    #[cfg(feature = "svm-solc")]
     pub fn installed_versions() -> Vec<Version> {
-        Self::svm_home()
-            .map(|home| utils::installed_versions(&home).unwrap_or_default())
-            .unwrap_or_default()
+        svm::installed_versions().unwrap_or_default()
     }
 
     /// Returns the list of all versions that are available to download
     #[cfg(feature = "svm-solc")]
     pub fn released_versions() -> Vec<Version> {
-        RELEASES.1.clone().into_iter().collect()
+        RELEASES.1.clone()
     }
 
     /// Installs the provided version of Solc in the machine under the svm dir and returns the
@@ -446,8 +448,7 @@ impl Solc {
         compile_output(output)
     }
 
-    /// Invokes `solc --version` and parses the output as a SemVer [`Version`], stripping the
-    /// pre-release and build metadata.
+    /// Returns the SemVer [`Version`], stripping the pre-release and build metadata.
     pub fn version_short(&self) -> Version {
         Version::new(self.version.major, self.version.minor, self.version.patch)
     }
@@ -459,20 +460,22 @@ impl Solc {
 
     /// Invokes `solc --version` and parses the output as a SemVer [`Version`].
     pub fn version_with_args(solc: impl Into<PathBuf>, args: &[String]) -> Result<Version> {
-        crate::cache_version(solc.into(), args, |solc| {
-            let mut cmd = Command::new(solc);
-            cmd.args(args)
-                .arg("--version")
-                .stdin(Stdio::piped())
-                .stderr(Stdio::piped())
-                .stdout(Stdio::piped());
-            debug!(?cmd, "getting Solc version");
-            let output = cmd.output().map_err(|e| SolcError::io(e, solc))?;
-            trace!(?output);
-            let version = version_from_output(output)?;
-            debug!(%version);
-            Ok(version)
-        })
+        crate::cache_version(solc.into(), args, |solc| Self::version_impl(solc, args))
+    }
+
+    fn version_impl(solc: &Path, args: &[String]) -> Result<Version> {
+        let mut cmd = Command::new(solc);
+        cmd.args(args)
+            .arg("--version")
+            .stdin(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped());
+        debug!(?cmd, "getting Solc version");
+        let output = cmd.output().map_err(|e| SolcError::io(e, solc))?;
+        trace!(?output);
+        let version = version_from_output(output)?;
+        debug!(%version);
+        Ok(version)
     }
 
     fn map_io_err(&self) -> impl FnOnce(std::io::Error) -> SolcError + '_ {
@@ -759,7 +762,7 @@ mod tests {
         // This test does not take the lock by default, so we need to manually add it here.
         take_solc_installer_lock!(_lock);
         let version = Version::new(0, 8, 6);
-        if utils::installed_versions(svm::data_dir())
+        if svm::installed_versions()
             .map(|versions| !versions.contains(&version))
             .unwrap_or_default()
         {
