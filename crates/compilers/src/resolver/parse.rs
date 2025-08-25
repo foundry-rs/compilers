@@ -168,8 +168,10 @@ impl SolDataBuilder {
         sess: &solar_sema::interface::Session,
         ast: &solar_parse::ast::SourceUnit<'_>,
     ) {
+        eprintln!("parse_from_ast");
         for item in ast.items.iter() {
             let loc = sess.source_map().span_to_source(item.span).unwrap().1;
+            dbg!((item.description(), item.name()), item.span, &loc);
             match &item.kind {
                 ast::ItemKind::Pragma(pragma) => match &pragma.tokens {
                     ast::PragmaTokens::Version(name, req) if name.name == sym::solidity => {
@@ -221,6 +223,7 @@ impl SolDataBuilder {
     }
 
     fn parse_from_regex(&mut self, content: &str) {
+        eprintln!("parse_from_regex");
         if self.version.is_none() {
             self.version = utils::capture_outer_and_inner(
                 content,
@@ -252,7 +255,7 @@ impl SolDataBuilder {
             .map(|(cap, l)| Spanned::new(l.as_str().to_owned(), cap.range()))
         });
         let version_req = version.as_ref().and_then(|v| SolData::parse_version_req(v.data()).ok());
-        SolData {
+        dbg!(SolData {
             license,
             version,
             experimental,
@@ -262,7 +265,7 @@ impl SolDataBuilder {
             contract_names,
             is_yul: file.extension().is_some_and(|ext| ext == "yul"),
             parse_result: parse_err.map(Err).unwrap_or(Ok(())),
-        }
+        })
     }
 }
 

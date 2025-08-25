@@ -391,6 +391,7 @@ impl SourceParser for SolParser {
     fn read(&mut self, path: &Path) -> Result<Node<Self::ParsedSource>> {
         let mut sources = Sources::from_iter([(path.to_path_buf(), Source::read_(path)?)]);
         let nodes = self.parse_sources(&mut sources)?;
+        debug_assert_eq!(nodes.len(), 1, "{nodes:#?}");
         Ok(nodes.into_iter().next().unwrap().1)
     }
 
