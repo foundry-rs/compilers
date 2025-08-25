@@ -1,5 +1,5 @@
 use crate::{parse_one_source, replace_source_content};
-use solar_parse::{
+use solar::parse::{
     ast::{self, Span},
     interface::diagnostics::EmittedDiagnostics,
 };
@@ -21,8 +21,8 @@ pub(crate) fn interface_repr(content: &str, path: &Path) -> Result<String, Emitt
 /// Preserves all libraries and interfaces.
 pub(crate) fn interface_representation_ast(
     content: &str,
-    sess: &solar_sema::interface::Session,
-    ast: &solar_parse::ast::SourceUnit<'_>,
+    sess: &solar::sema::interface::Session,
+    ast: &solar::parse::ast::SourceUnit<'_>,
 ) -> String {
     let mut spans_to_remove: Vec<Span> = Vec::new();
     for item in ast.items.iter() {

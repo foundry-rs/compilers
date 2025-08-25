@@ -31,8 +31,7 @@ rayon.workspace = true
 thiserror.workspace = true
 path-slash.workspace = true
 yansi.workspace = true
-solar-parse.workspace = true
-solar-sema.workspace = true
+solar.workspace = true
 futures-util = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 
