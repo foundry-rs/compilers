@@ -1,7 +1,9 @@
 use foundry_compilers_core::utils;
 use semver::VersionReq;
-use solar_parse::{ast, interface::sym};
-use solar_sema::interface;
+use solar::{
+    parse::{ast, interface::sym},
+    sema::interface,
+};
 use std::{
     ops::Range,
     path::{Path, PathBuf},
@@ -9,7 +11,7 @@ use std::{
 
 /// Solidity parser.
 ///
-/// Holds a [`solar_sema::Compiler`] that is used to parse sources incrementally.
+/// Holds a [`solar::sema::Compiler`] that is used to parse sources incrementally.
 /// After project compilation ([`Graph::resolve`]), this will contain all sources parsed by
 /// [`Graph`].
 ///
@@ -20,13 +22,13 @@ use std::{
 #[derive(derive_more::Debug)]
 pub struct SolParser {
     #[debug(ignore)]
-    pub(crate) compiler: solar_sema::Compiler,
+    pub(crate) compiler: solar::sema::Compiler,
 }
 
 impl Clone for SolParser {
     fn clone(&self) -> Self {
         Self {
-            compiler: solar_sema::Compiler::new(Self::session_with_opts(
+            compiler: solar::sema::Compiler::new(Self::session_with_opts(
                 self.compiler.sess().opts.clone(),
             )),
         }
@@ -35,24 +37,24 @@ impl Clone for SolParser {
 
 impl SolParser {
     /// Returns a reference to the compiler.
-    pub fn compiler(&self) -> &solar_sema::Compiler {
+    pub fn compiler(&self) -> &solar::sema::Compiler {
         &self.compiler
     }
 
     /// Returns a mutable reference to the compiler.
-    pub fn compiler_mut(&mut self) -> &mut solar_sema::Compiler {
+    pub fn compiler_mut(&mut self) -> &mut solar::sema::Compiler {
         &mut self.compiler
     }
 
     /// Consumes the parser and returns the compiler.
-    pub fn into_compiler(self) -> solar_sema::Compiler {
+    pub fn into_compiler(self) -> solar::sema::Compiler {
         self.compiler
     }
 
     pub(crate) fn session_with_opts(
-        opts: solar_sema::interface::config::Opts,
-    ) -> solar_sema::interface::Session {
-        let sess = solar_sema::interface::Session::builder()
+        opts: solar::sema::interface::config::Opts,
+    ) -> solar::sema::interface::Session {
+        let sess = solar::sema::interface::Session::builder()
             .with_buffer_emitter(Default::default())
             .opts(opts)
             .build();
@@ -137,8 +139,8 @@ impl SolData {
     }
 
     pub(crate) fn parse_from(
-        sess: &solar_sema::interface::Session,
-        s: &solar_sema::Source<'_>,
+        sess: &solar::sema::interface::Session,
+        s: &solar::sema::Source<'_>,
     ) -> Self {
         let content = s.file.src.as_str();
         let file = s.file.name.as_real().unwrap();
@@ -189,7 +191,7 @@ impl SolDataBuilder {
         content: &str,
         file: &Path,
         ast: Result<
-            (&solar_sema::interface::Session, &solar_parse::ast::SourceUnit<'_>),
+            (&solar::sema::interface::Session, &solar::parse::ast::SourceUnit<'_>),
             Option<String>,
         >,
     ) -> SolData {
@@ -208,8 +210,8 @@ impl SolDataBuilder {
 
     fn parse_from_ast(
         &mut self,
-        sess: &solar_sema::interface::Session,
-        ast: &solar_parse::ast::SourceUnit<'_>,
+        sess: &solar::sema::interface::Session,
+        ast: &solar::parse::ast::SourceUnit<'_>,
     ) {
         for item in ast.items.iter() {
             let loc = sess.source_map().span_to_source(item.span).unwrap().1;

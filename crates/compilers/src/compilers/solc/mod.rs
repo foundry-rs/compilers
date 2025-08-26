@@ -369,14 +369,14 @@ impl SourceParser for SolParser {
 
     fn new(config: &crate::ProjectPathsConfig) -> Self {
         Self {
-            compiler: solar_sema::Compiler::new(Self::session_with_opts(
-                solar_sema::interface::config::Opts {
+            compiler: solar::sema::Compiler::new(Self::session_with_opts(
+                solar::sema::interface::config::Opts {
                     include_paths: config.include_paths.iter().cloned().collect(),
                     base_path: Some(config.root.clone()),
                     import_remappings: config
                         .remappings
                         .iter()
-                        .map(|r| solar_sema::interface::config::ImportRemapping {
+                        .map(|r| solar::sema::interface::config::ImportRemapping {
                             context: r.context.clone().unwrap_or_default(),
                             prefix: r.name.clone(),
                             path: r.path.clone(),
