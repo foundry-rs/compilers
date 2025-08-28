@@ -48,16 +48,20 @@ fn read_solmate(c: &mut Criterion) {
 
 fn prepare_contracts(root: &Path, num: usize) -> Vec<PathBuf> {
     let mut files = Vec::with_capacity(num);
-    for _ in 0..num {
-        let path = root.join(format!("file{num}.sol"));
+    for i in 0..num {
+        let path = root.join(format!("file{i}.sol"));
         let f = File::create(&path).unwrap();
         let mut writer = BufWriter::new(f);
 
-        let mut rng = rand::rng();
+        let mut rng = rand::thread_rng();
 
         // let's assume a solidity file is between 2kb and 16kb
-        let n: usize = rng.random_range(4..17);
-        let s: String = rng.sample_iter(&Alphanumeric).take(n * 1024).map(char::from).collect();
+        let n: usize = rng.gen_range(2..17);
+        let s: String = rng
+            .sample_iter(&Alphanumeric)
+            .take(n * 1024)
+            .map(char::from)
+            .collect();
         writer.write_all(s.as_bytes()).unwrap();
         writer.flush().unwrap();
         files.push(path)
