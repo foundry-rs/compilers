@@ -616,7 +616,7 @@ impl<L: Language> ProjectPathsConfig<L> {
 
     /// Returns the combined set of `Self::read_sources` + `Self::read_tests` + `Self::read_scripts`
     pub fn read_input_files(&self) -> Result<Sources> {
-        Ok(Source::read_all_files(self.input_files())?)
+        Ok(Source::read_all(self.input_files_iter())?)
     }
 }
 

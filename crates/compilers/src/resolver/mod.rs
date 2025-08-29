@@ -400,6 +400,9 @@ impl<P: SourceParser> Graph<P> {
             Ok(())
         }
 
+        // The cache relies on the absolute paths relative to the project root as cache keys.
+        sources.make_absolute(&paths.root);
+
         let mut parser = P::new(paths.with_language_ref());
 
         // we start off by reading all input files, which includes all solidity files from the
@@ -566,14 +569,14 @@ impl<P: SourceParser> Graph<P> {
             let mut versioned_sources = Vec::with_capacity(versioned_nodes.len());
 
             for (version, profile_to_nodes) in versioned_nodes {
-                for (profile_idx, input_node_indixies) in profile_to_nodes {
+                for (profile_idx, input_node_indexes) in profile_to_nodes {
                     let mut sources = Sources::new();
 
                     // all input nodes will be processed
-                    let mut processed_sources = input_node_indixies.iter().copied().collect();
+                    let mut processed_sources = input_node_indexes.iter().copied().collect();
 
                     // we only process input nodes (from sources, tests for example)
-                    for idx in input_node_indixies {
+                    for idx in input_node_indexes {
                         // insert the input node in the sources set and remove it from the available
                         // set
                         let (path, source) =
