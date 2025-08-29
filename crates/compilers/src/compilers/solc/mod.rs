@@ -288,8 +288,8 @@ impl CompilerSettingsRestrictions for SolcRestrictions {
 impl CompilerSettings for SolcSettings {
     type Restrictions = SolcRestrictions;
 
-    fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy) {
-        f(&mut self.settings.output_selection)
+    fn update_output_selection(&mut self, mut f: impl FnMut(&mut OutputSelection)) {
+        f(&mut self.settings.output_selection);
     }
 
     fn can_use_cached(&self, other: &Self) -> bool {

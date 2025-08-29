@@ -75,7 +75,7 @@ pub trait CompilerSettings:
     type Restrictions: CompilerSettingsRestrictions;
 
     /// Executes given fn with mutable reference to configured [OutputSelection].
-    fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy);
+    fn update_output_selection(&mut self, f: impl FnMut(&mut OutputSelection));
 
     /// Returns true if artifacts compiled with given `other` config are compatible with this
     /// config and if compilation can be skipped.
