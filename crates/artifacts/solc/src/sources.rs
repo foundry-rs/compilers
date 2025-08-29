@@ -22,6 +22,14 @@ impl Sources {
         Self::default()
     }
 
+    /// Joins all paths relative to `root`.
+    pub fn make_absolute(&mut self, root: &Path) {
+        self.0 = std::mem::take(&mut self.0)
+            .into_iter()
+            .map(|(path, source)| (root.join(path), source))
+            .collect();
+    }
+
     /// Returns `true` if no sources should have optimized output selection.
     pub fn all_dirty(&self) -> bool {
         self.0.values().all(|s| s.is_dirty())
@@ -169,7 +177,7 @@ impl Source {
     /// Recursively finds all source files under the given dir path and reads them all
     #[cfg(feature = "walkdir")]
     pub fn read_all_from(dir: &Path, extensions: &[&str]) -> Result<Sources, SolcIoError> {
-        Self::read_all_files(utils::source_files(dir, extensions))
+        Self::read_all(utils::source_files_iter(dir, extensions))
     }
 
     /// Recursively finds all solidity and yul files under the given dir path and reads them all
@@ -178,14 +186,12 @@ impl Source {
         Self::read_all_from(dir, utils::SOLC_EXTENSIONS)
     }
 
-    /// Reads all source files of the given vec
-    ///
-    /// Depending on the len of the vec it will try to read the files in parallel
+    /// Reads all source files of the given list.
     pub fn read_all_files(files: Vec<PathBuf>) -> Result<Sources, SolcIoError> {
         Self::read_all(files)
     }
 
-    /// Reads all files
+    /// Reads all of the given files.
     #[instrument(name = "Source::read_all", skip_all)]
     pub fn read_all<T, I>(files: I) -> Result<Sources, SolcIoError>
     where

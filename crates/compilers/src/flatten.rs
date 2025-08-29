@@ -209,7 +209,7 @@ impl Flattener {
 
         let output = output.compiler_output;
 
-        let sources = Source::read_all_files(vec![target.to_path_buf()])?;
+        let sources = Source::read_all([target.to_path_buf()])?;
         let graph = Graph::<C::Parser>::resolve_sources(&project.paths, sources)?;
 
         let ordered_sources = collect_ordered_deps(target, &project.paths, &graph)?;
