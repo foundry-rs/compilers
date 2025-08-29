@@ -21,8 +21,8 @@ impl CompilerSettingsRestrictions for VyperRestrictions {
 impl CompilerSettings for VyperSettings {
     type Restrictions = VyperRestrictions;
 
-    fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection)) {
-        f(&mut self.output_selection)
+    fn update_output_selection(&mut self, mut f: impl FnMut(&mut OutputSelection)) {
+        f(&mut self.output_selection);
     }
 
     fn can_use_cached(&self, other: &Self) -> bool {

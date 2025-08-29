@@ -204,8 +204,8 @@ impl CompilerSettings for MultiCompilerSettings {
         self.solc.can_use_cached(&other.solc) && self.vyper.can_use_cached(&other.vyper)
     }
 
-    fn update_output_selection(&mut self, f: impl FnOnce(&mut OutputSelection) + Copy) {
-        self.solc.update_output_selection(f);
+    fn update_output_selection(&mut self, mut f: impl FnMut(&mut OutputSelection)) {
+        self.solc.update_output_selection(&mut f);
         self.vyper.update_output_selection(f);
     }
 
