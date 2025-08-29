@@ -5,15 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.19.0](https://github.com/foundry-rs/compilers/releases/tag/v0.19.0) - 2025-08-25
+## [0.19.1](https://github.com/foundry-rs/compilers/releases/tag/v0.19.1) - 2025-08-29
 
 ### Bug Fixes
 
+- Make sources' paths absolute ([#312](https://github.com/foundry-rs/compilers/issues/312))
+- Sanitize `stopAfter` ([#309](https://github.com/foundry-rs/compilers/issues/309))
 - Remove superfluous assertion ([#304](https://github.com/foundry-rs/compilers/issues/304))
 - [flatten] Sort by loc path and loc start ([#302](https://github.com/foundry-rs/compilers/issues/302))
 
 ### Dependencies
 
+- [deps] Switch to solar meta crate ([#307](https://github.com/foundry-rs/compilers/issues/307))
 - [deps] Bump to 0.18.3 ([#303](https://github.com/foundry-rs/compilers/issues/303))
 - Update deps + fix clippy ([#297](https://github.com/foundry-rs/compilers/issues/297))
 
@@ -23,10 +26,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Use FnMut instead of FnOnce + Copy ([#310](https://github.com/foundry-rs/compilers/issues/310))
+- Release 0.19.0 ([#306](https://github.com/foundry-rs/compilers/issues/306))
 - Release 0.18.4 ([#305](https://github.com/foundry-rs/compilers/issues/305))
 - Use svm instead of manual svm dir logic ([#301](https://github.com/foundry-rs/compilers/issues/301))
 - Add @0xrusowsky to `CODEOWNERS` ([#299](https://github.com/foundry-rs/compilers/issues/299))
 - Update `CODEOWNERS` to improve visibility ([#298](https://github.com/foundry-rs/compilers/issues/298))
+
+### Refactor
+
+- Cache/is_dirty impls ([#311](https://github.com/foundry-rs/compilers/issues/311))
 
 ## [0.18.2](https://github.com/foundry-rs/compilers/releases/tag/v0.18.2) - 2025-08-01
 
