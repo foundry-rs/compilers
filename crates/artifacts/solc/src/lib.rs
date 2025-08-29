@@ -230,7 +230,8 @@ impl From<SolcInput> for StandardJsonCompilerInput {
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     /// Stop compilation after the given stage.
-    /// since 0.8.11: only "parsing" is valid here
+    ///
+    /// Since 0.7.3. Only "parsing" is valid here.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stop_after: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -295,6 +296,11 @@ impl Settings {
             }
             // introduced in <https://docs.soliditylang.org/en/v0.6.0/using-the-compiler.html#compiler-api>
             self.debug = None;
+        }
+
+        if *version < Version::new(0, 7, 3) {
+            // introduced in 0.7.3 <https://github.com/ethereum/solidity/releases/tag/v0.7.3>
+            self.stop_after = None;
         }
 
         if *version < Version::new(0, 7, 5) {
