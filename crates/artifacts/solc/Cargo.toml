@@ -45,5 +45,5 @@ foundry-compilers-core = { workspace = true, features = ["test-utils"] }
 [features]
 async = ["dep:tokio", "dep:futures-util"]
 checksum = ["foundry-compilers-core/hasher"]
-walkdir = ["foundry-compilers-core/walkdir"]
+walkdir = ["rayon", "foundry-compilers-core/walkdir"]
 rayon = ["dep:rayon"]
