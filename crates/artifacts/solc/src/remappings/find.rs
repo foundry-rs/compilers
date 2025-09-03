@@ -1,8 +1,11 @@
 use super::Remapping;
 use foundry_compilers_core::utils;
+use rayon::prelude::*;
 use std::{
     collections::{btree_map::Entry, BTreeMap, HashSet},
+    fs::FileType,
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 
 const DAPPTOOLS_CONTRACTS_DIR: &str = "src";
@@ -52,6 +55,7 @@ impl Remapping {
     /// which would be multiple rededications according to our rules ("governance", "protocol-v2"),
     /// are unified into `@aave` by looking at their common ancestor, the root of this subdirectory
     /// (`@aave`)
+    #[instrument(level = "trace", name = "Remapping::find_many")]
     pub fn find_many(dir: &Path) -> Vec<Self> {
         /// prioritize
         ///   - ("a", "1/2") over ("a", "1/2/3")
@@ -76,41 +80,30 @@ impl Remapping {
             }
         }
 
+        let is_inside_node_modules = dir.ends_with("node_modules");
+        let visited_symlink_dirs = Mutex::new(HashSet::new());
+
+        // iterate over all dirs that are children of the root
+        let candidates = read_dir(dir)
+            .filter(|(_, file_type, _)| file_type.is_dir())
+            .collect::<Vec<_>>()
+            .par_iter()
+            .flat_map_iter(|(dir, _, _)| {
+                find_remapping_candidates(
+                    dir,
+                    dir,
+                    0,
+                    is_inside_node_modules,
+                    &visited_symlink_dirs,
+                )
+            })
+            .collect::<Vec<_>>();
+
         // all combined remappings from all subdirs
         let mut all_remappings = BTreeMap::new();
-
-        let is_inside_node_modules = dir.ends_with("node_modules");
-
-        let mut visited_symlink_dirs = HashSet::new();
-        // iterate over all dirs that are children of the root
-        for dir in walkdir::WalkDir::new(dir)
-            .sort_by_file_name()
-            .follow_links(true)
-            .min_depth(1)
-            .max_depth(1)
-            .into_iter()
-            .filter_entry(|e| !is_hidden(e))
-            .filter_map(Result::ok)
-            .filter(|e| e.file_type().is_dir())
-        {
-            let depth1_dir = dir.path();
-            // check all remappings in this depth 1 folder
-            let candidates = find_remapping_candidates(
-                depth1_dir,
-                depth1_dir,
-                0,
-                is_inside_node_modules,
-                &mut visited_symlink_dirs,
-            );
-
-            for candidate in candidates {
-                if let Some(name) = candidate.window_start.file_name().and_then(|s| s.to_str()) {
-                    insert_prioritized(
-                        &mut all_remappings,
-                        format!("{name}/"),
-                        candidate.source_dir,
-                    );
-                }
+        for candidate in candidates {
+            if let Some(name) = candidate.window_start.file_name().and_then(|s| s.to_str()) {
+                insert_prioritized(&mut all_remappings, format!("{name}/"), candidate.source_dir);
             }
         }
 
@@ -292,45 +285,33 @@ fn is_lib_dir(dir: &Path) -> bool {
 }
 
 /// Returns true if the file is _hidden_
-fn is_hidden(entry: &walkdir::DirEntry) -> bool {
-    entry.file_name().to_str().map(|s| s.starts_with('.')).unwrap_or(false)
+fn is_hidden(path: &Path) -> bool {
+    path.file_name().and_then(|p| p.to_str()).map(|s| s.starts_with('.')).unwrap_or(false)
 }
 
 /// Finds all remappings in the directory recursively
 ///
-/// Note: this supports symlinks and will short-circuit if a symlink dir has already been visited, this can occur in pnpm setups: <https://github.com/foundry-rs/foundry/issues/7820>
+/// Note: this supports symlinks and will short-circuit if a symlink dir has already been visited,
+/// this can occur in pnpm setups: <https://github.com/foundry-rs/foundry/issues/7820>
 fn find_remapping_candidates(
     current_dir: &Path,
     open: &Path,
     current_level: usize,
     is_inside_node_modules: bool,
-    visited_symlink_dirs: &mut HashSet<PathBuf>,
+    visited_symlink_dirs: &Mutex<HashSet<PathBuf>>,
 ) -> Vec<Candidate> {
+    trace!("find_remapping_candidates({})", current_dir.display());
+
     // this is a marker if the current root is a candidate for a remapping
     let mut is_candidate = false;
 
-    // all found candidates
-    let mut candidates = Vec::new();
-
     // scan all entries in the current dir
-    for entry in walkdir::WalkDir::new(current_dir)
-        .sort_by_file_name()
-        .follow_links(true)
-        .min_depth(1)
-        .max_depth(1)
-        .into_iter()
-        .filter_entry(|e| !is_hidden(e))
-        .filter_map(Result::ok)
-    {
-        let entry: walkdir::DirEntry = entry;
-
+    let mut search = Vec::new();
+    for (subdir, file_type, path_is_symlink) in read_dir(current_dir) {
         // found a solidity file directly the current dir
-        if !is_candidate
-            && entry.file_type().is_file()
-            && entry.path().extension() == Some("sol".as_ref())
-        {
+        if !is_candidate && file_type.is_file() && subdir.extension() == Some("sol".as_ref()) {
             is_candidate = true;
-        } else if entry.file_type().is_dir() {
+        } else if file_type.is_dir() {
             // if the dir is a symlink to a parent dir we short circuit here
             // `walkdir` will catch symlink loops, but this check prevents that we end up scanning a
             // workspace like
@@ -339,9 +320,9 @@ fn find_remapping_candidates(
             // ├── dep/node_modules
             //     ├── symlink to `my-package`
             // ```
-            if entry.path_is_symlink() {
-                if let Ok(target) = utils::canonicalize(entry.path()) {
-                    if !visited_symlink_dirs.insert(target.clone()) {
+            if path_is_symlink {
+                if let Ok(target) = utils::canonicalize(&subdir) {
+                    if !visited_symlink_dirs.lock().unwrap().insert(target.clone()) {
                         // short-circuiting if we've already visited the symlink
                         return Vec::new();
                     }
@@ -355,39 +336,45 @@ fn find_remapping_candidates(
                 }
             }
 
-            let subdir = entry.path();
             // we skip commonly used subdirs that should not be searched for recursively
-            if !(subdir.ends_with("tests") || subdir.ends_with("test") || subdir.ends_with("demo"))
-            {
-                // scan the subdirectory for remappings, but we need a way to identify nested
-                // dependencies like `ds-token/lib/ds-stop/lib/ds-note/src/contract.sol`, or
-                // `oz/{tokens,auth}/{contracts, interfaces}/contract.sol` to assign
-                // the remappings to their root, we use a window that lies between two barriers. If
-                // we find a solidity file within a window, it belongs to the dir that opened the
-                // window.
-
-                // check if the subdir is a lib barrier, in which case we open a new window
-                if is_lib_dir(subdir) {
-                    candidates.extend(find_remapping_candidates(
-                        subdir,
-                        subdir,
-                        current_level + 1,
-                        is_inside_node_modules,
-                        visited_symlink_dirs,
-                    ));
-                } else {
-                    // continue scanning with the current window
-                    candidates.extend(find_remapping_candidates(
-                        subdir,
-                        open,
-                        current_level,
-                        is_inside_node_modules,
-                        visited_symlink_dirs,
-                    ));
-                }
+            if !no_recurse(&subdir) {
+                search.push(subdir);
             }
         }
     }
+
+    // all found candidates
+    let mut candidates = search
+        .par_iter()
+        .flat_map_iter(|subdir| {
+            // scan the subdirectory for remappings, but we need a way to identify nested
+            // dependencies like `ds-token/lib/ds-stop/lib/ds-note/src/contract.sol`, or
+            // `oz/{tokens,auth}/{contracts, interfaces}/contract.sol` to assign
+            // the remappings to their root, we use a window that lies between two barriers. If
+            // we find a solidity file within a window, it belongs to the dir that opened the
+            // window.
+
+            // check if the subdir is a lib barrier, in which case we open a new window
+            if is_lib_dir(subdir) {
+                find_remapping_candidates(
+                    subdir,
+                    subdir,
+                    current_level + 1,
+                    is_inside_node_modules,
+                    visited_symlink_dirs,
+                )
+            } else {
+                // continue scanning with the current window
+                find_remapping_candidates(
+                    subdir,
+                    open,
+                    current_level,
+                    is_inside_node_modules,
+                    visited_symlink_dirs,
+                )
+            }
+        })
+        .collect::<Vec<_>>();
 
     // need to find the actual next window in the event `open` is a lib dir
     let window_start = next_nested_window(open, current_dir);
@@ -423,6 +410,32 @@ fn find_remapping_candidates(
         }
     }
     candidates
+}
+
+/// Returns an iterator over the entries in the directory:
+/// `(path, real_file_type, path_is_symlink)`
+///
+/// File type is the file type of the link if it is a symlink. This mimics the behavior of
+/// `walkdir` with `follow_links` set to `true`.
+fn read_dir(dir: &Path) -> impl Iterator<Item = (PathBuf, FileType, bool)> {
+    std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter_map(|e| {
+            let path = e.path();
+            let mut ft = e.file_type().ok()?;
+            let path_is_symlink = ft.is_symlink();
+            if path_is_symlink {
+                ft = std::fs::metadata(&path).ok()?.file_type();
+            }
+            Some((path, ft, path_is_symlink))
+        })
+        .filter(|(p, _, _)| !is_hidden(p))
+}
+
+fn no_recurse(dir: &Path) -> bool {
+    dir.ends_with("tests") || dir.ends_with("test") || dir.ends_with("demo")
 }
 
 /// Counts the number of components between `root` and `current`
