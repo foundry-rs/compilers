@@ -85,10 +85,10 @@ impl Remapping {
 
         // iterate over all dirs that are children of the root
         let candidates = read_dir(dir)
-            .filter(|(_, file_type)| file_type.is_dir())
+            .filter(|(_, file_type, _)| file_type.is_dir())
             .collect::<Vec<_>>()
             .par_iter()
-            .flat_map_iter(|(dir, _)| {
+            .flat_map_iter(|(dir, _, _)| {
                 find_remapping_candidates(
                     dir,
                     dir,
@@ -307,7 +307,7 @@ fn find_remapping_candidates(
 
     // scan all entries in the current dir
     let mut search = Vec::new();
-    for (subdir, file_type) in read_dir(current_dir) {
+    for (subdir, file_type, is_symlink) in read_dir(current_dir) {
         // found a solidity file directly the current dir
         if !is_candidate && file_type.is_file() && subdir.extension() == Some("sol".as_ref()) {
             is_candidate = true;
@@ -320,7 +320,7 @@ fn find_remapping_candidates(
             // ├── dep/node_modules
             //     ├── symlink to `my-package`
             // ```
-            if file_type.is_symlink() {
+            if file_type.is_symlink() || is_symlink {
                 if let Ok(target) = utils::canonicalize(&subdir) {
                     if !visited_symlink_dirs.lock().unwrap().insert(target.clone()) {
                         // short-circuiting if we've already visited the symlink
@@ -412,13 +412,26 @@ fn find_remapping_candidates(
     candidates
 }
 
-fn read_dir(dir: &Path) -> impl Iterator<Item = (PathBuf, FileType)> {
+/// Returns an iterator over the entries in the directory:
+/// `(path, real_file_type, path_is_symlink)`
+///
+/// File type is the file type of the link if it is a symlink. This mimics the behavior of
+/// `walkdir` with `follow_links` set to `true`.
+fn read_dir(dir: &Path) -> impl Iterator<Item = (PathBuf, FileType, bool)> {
     std::fs::read_dir(dir)
         .into_iter()
         .flatten()
         .filter_map(Result::ok)
-        .filter_map(|e| Some((e.path(), e.file_type().ok()?)))
-        .filter(|(p, _)| !is_hidden(p))
+        .filter_map(|e| {
+            let path = e.path();
+            let mut ft = e.file_type().ok()?;
+            let path_is_symlink = ft.is_symlink();
+            if path_is_symlink {
+                ft = std::fs::metadata(&path).ok()?.file_type();
+            }
+            Some((path, ft, path_is_symlink))
+        })
+        .filter(|(p, _, _)| !is_hidden(p))
 }
 
 fn no_recurse(dir: &Path) -> bool {
