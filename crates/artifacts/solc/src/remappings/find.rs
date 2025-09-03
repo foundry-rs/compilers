@@ -307,7 +307,7 @@ fn find_remapping_candidates(
 
     // scan all entries in the current dir
     let mut search = Vec::new();
-    for (subdir, file_type, is_symlink) in read_dir(current_dir) {
+    for (subdir, file_type, path_is_symlink) in read_dir(current_dir) {
         // found a solidity file directly the current dir
         if !is_candidate && file_type.is_file() && subdir.extension() == Some("sol".as_ref()) {
             is_candidate = true;
@@ -320,7 +320,7 @@ fn find_remapping_candidates(
             // ├── dep/node_modules
             //     ├── symlink to `my-package`
             // ```
-            if file_type.is_symlink() || is_symlink {
+            if path_is_symlink {
                 if let Ok(target) = utils::canonicalize(&subdir) {
                     if !visited_symlink_dirs.lock().unwrap().insert(target.clone()) {
                         // short-circuiting if we've already visited the symlink
