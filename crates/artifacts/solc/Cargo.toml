@@ -31,9 +31,6 @@ regex.workspace = true
 tokio = { workspace = true, optional = true, features = ["fs"] }
 futures-util = { workspace = true, optional = true }
 
-# walkdir
-walkdir = { workspace = true, optional = true }
-
 # rayon
 rayon = { workspace = true, optional = true }
 
@@ -48,5 +45,5 @@ foundry-compilers-core = { workspace = true, features = ["test-utils"] }
 [features]
 async = ["dep:tokio", "dep:futures-util"]
 checksum = ["foundry-compilers-core/hasher"]
-walkdir = ["dep:walkdir", "foundry-compilers-core/walkdir"]
+walkdir = ["foundry-compilers-core/walkdir"]
 rayon = ["dep:rayon"]

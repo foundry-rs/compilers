@@ -3,6 +3,7 @@ use foundry_compilers_core::utils;
 use rayon::prelude::*;
 use std::{
     collections::{btree_map::Entry, BTreeMap, HashSet},
+    fs::FileType,
     path::{Path, PathBuf},
     sync::Mutex,
 };
@@ -84,11 +85,10 @@ impl Remapping {
 
         // iterate over all dirs that are children of the root
         let candidates = read_dir(dir)
-            .filter(|e| e.file_type().is_dir())
+            .filter(|(_, file_type)| file_type.is_dir())
             .collect::<Vec<_>>()
             .par_iter()
-            .flat_map_iter(|entry| {
-                let dir = entry.path();
+            .flat_map_iter(|(dir, _)| {
                 find_remapping_candidates(
                     dir,
                     dir,
@@ -285,8 +285,8 @@ fn is_lib_dir(dir: &Path) -> bool {
 }
 
 /// Returns true if the file is _hidden_
-fn is_hidden(entry: &walkdir::DirEntry) -> bool {
-    entry.file_name().to_str().map(|s| s.starts_with('.')).unwrap_or(false)
+fn is_hidden(path: &Path) -> bool {
+    path.file_name().and_then(|p| p.to_str()).map(|s| s.starts_with('.')).unwrap_or(false)
 }
 
 /// Finds all remappings in the directory recursively
@@ -307,14 +307,11 @@ fn find_remapping_candidates(
 
     // scan all entries in the current dir
     let mut search = Vec::new();
-    for entry in read_dir(current_dir) {
+    for (subdir, file_type) in read_dir(current_dir) {
         // found a solidity file directly the current dir
-        if !is_candidate
-            && entry.file_type().is_file()
-            && entry.path().extension() == Some("sol".as_ref())
-        {
+        if !is_candidate && file_type.is_file() && subdir.extension() == Some("sol".as_ref()) {
             is_candidate = true;
-        } else if entry.file_type().is_dir() {
+        } else if file_type.is_dir() {
             // if the dir is a symlink to a parent dir we short circuit here
             // `walkdir` will catch symlink loops, but this check prevents that we end up scanning a
             // workspace like
@@ -323,8 +320,8 @@ fn find_remapping_candidates(
             // ├── dep/node_modules
             //     ├── symlink to `my-package`
             // ```
-            if entry.path_is_symlink() {
-                if let Ok(target) = utils::canonicalize(entry.path()) {
+            if file_type.is_symlink() {
+                if let Ok(target) = utils::canonicalize(&subdir) {
                     if !visited_symlink_dirs.lock().unwrap().insert(target.clone()) {
                         // short-circuiting if we've already visited the symlink
                         return Vec::new();
@@ -339,10 +336,9 @@ fn find_remapping_candidates(
                 }
             }
 
-            let subdir = entry.path();
             // we skip commonly used subdirs that should not be searched for recursively
-            if !no_recurse(subdir) {
-                search.push(subdir.to_path_buf());
+            if !no_recurse(&subdir) {
+                search.push(subdir);
             }
         }
     }
@@ -416,15 +412,13 @@ fn find_remapping_candidates(
     candidates
 }
 
-fn read_dir(dir: &Path) -> impl Iterator<Item = walkdir::DirEntry> {
-    walkdir::WalkDir::new(dir)
-        .sort_by_file_name()
-        .follow_links(true)
-        .min_depth(1)
-        .max_depth(1)
+fn read_dir(dir: &Path) -> impl Iterator<Item = (PathBuf, FileType)> {
+    std::fs::read_dir(dir)
         .into_iter()
-        .filter_entry(|e| !is_hidden(e))
+        .flatten()
         .filter_map(Result::ok)
+        .filter_map(|e| Some((e.path(), e.file_type().ok()?)))
+        .filter(|(p, _)| !is_hidden(p))
 }
 
 fn no_recurse(dir: &Path) -> bool {
