@@ -214,7 +214,7 @@ impl SolDataBuilder {
         ast: &solar::parse::ast::SourceUnit<'_>,
     ) {
         for item in ast.items.iter() {
-            let loc = sess.source_map().span_to_source(item.span).unwrap().1;
+            let loc = sess.source_map().span_to_range(item.span).unwrap();
             match &item.kind {
                 ast::ItemKind::Pragma(pragma) => match &pragma.tokens {
                     ast::PragmaTokens::Version(name, req) if name.name == sym::solidity => {
