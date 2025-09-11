@@ -59,7 +59,7 @@ pub(crate) fn interface_representation_ast(
         }
     }
     let updates =
-        spans_to_remove.iter().map(|&span| (sess.source_map().span_to_source(span).unwrap().1, ""));
+        spans_to_remove.iter().map(|&span| (sess.source_map().span_to_range(span).unwrap(), ""));
     let content = replace_source_content(content, updates).replace("\n", "");
     crate::utils::RE_TWO_OR_MORE_SPACES.replace_all(&content, "").into_owned()
 }
