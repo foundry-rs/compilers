@@ -138,8 +138,11 @@ impl fmt::Display for Remapping {
             }
             s.push(':');
         }
-        let name =
-            if !self.name.ends_with('/') { format!("{}/", self.name) } else { self.name.clone() };
+        let name = if needs_trailing_slash(&self.name) {
+            format!("{}/", self.name)
+        } else {
+            self.name.clone()
+        };
         s.push_str(&{
             #[cfg(target_os = "windows")]
             {
@@ -153,7 +156,7 @@ impl fmt::Display for Remapping {
             }
         });
 
-        if !s.ends_with('/') {
+        if needs_trailing_slash(&s) {
             s.push('/');
         }
         f.write_str(&s)
@@ -241,7 +244,7 @@ impl fmt::Display for RelativeRemapping {
             }
         });
 
-        if !s.ends_with('/') {
+        if needs_trailing_slash(&s) {
             s.push('/');
         }
         f.write_str(&s)
@@ -252,10 +255,10 @@ impl From<RelativeRemapping> for Remapping {
     fn from(r: RelativeRemapping) -> Self {
         let RelativeRemapping { context, mut name, path } = r;
         let mut path = path.relative().display().to_string();
-        if !path.ends_with('/') {
+        if needs_trailing_slash(&path) {
             path.push('/');
         }
-        if !name.ends_with('/') {
+        if needs_trailing_slash(&name) {
             name.push('/');
         }
         Self { context, name, path }
@@ -341,6 +344,15 @@ impl<'de> Deserialize<'de> for RelativeRemapping {
     }
 }
 
+/// Helper to determine if name or path of a remapping needs trailing slash.
+/// Returns false if it already ends with a slash or if remapping is a solidity file.
+/// Used to preserve name and path of single file remapping, see
+/// <https://github.com/foundry-rs/foundry/issues/6706>
+/// <https://github.com/foundry-rs/foundry/issues/8499>
+fn needs_trailing_slash(name_or_path: &str) -> bool {
+    !name_or_path.ends_with('/') && !name_or_path.ends_with(".sol")
+}
+
 #[cfg(test)]
 mod tests {
     pub use super::*;
@@ -422,5 +434,22 @@ mod tests {
             Remapping { context: None, name: "oz".to_string(), path: "a/b/c/d/".to_string() }
         );
         assert_eq!(remapping.to_string(), "oz/=a/b/c/d/".to_string());
+    }
+
+    // <https://github.com/foundry-rs/foundry/issues/6706#issuecomment-3141270852>
+    #[test]
+    fn can_preserve_single_sol_file_remapping() {
+        let remapping = "@my-lib/B.sol=lib/my-lib/B.sol";
+        let remapping = Remapping::from_str(remapping).unwrap();
+
+        assert_eq!(
+            remapping,
+            Remapping {
+                context: None,
+                name: "@my-lib/B.sol".to_string(),
+                path: "lib/my-lib/B.sol".to_string()
+            }
+        );
+        assert_eq!(remapping.to_string(), "@my-lib/B.sol=lib/my-lib/B.sol".to_string());
     }
 }

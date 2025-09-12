@@ -5,6 +5,185 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.2](https://github.com/foundry-rs/compilers/releases/tag/v0.18.2) - 2025-08-01
+
+### Bug Fixes
+
+- Allow single sol file remappings ([#295](https://github.com/foundry-rs/compilers/issues/295))
+
+## [0.18.1](https://github.com/foundry-rs/compilers/releases/tag/v0.18.1) - 2025-07-31
+
+### Bug Fixes
+
+- Consistent handle of unresolved imports ([#294](https://github.com/foundry-rs/compilers/issues/294))
+
+### Miscellaneous Tasks
+
+- Release 0.18.1
+- Add more instrumentation ([#293](https://github.com/foundry-rs/compilers/issues/293))
+
+### Other
+
+- Remove duplicate assembly check in is_dirty ([#292](https://github.com/foundry-rs/compilers/issues/292))
+
+## [0.18.0](https://github.com/foundry-rs/compilers/releases/tag/v0.18.0) - 2025-07-14
+
+### Dependencies
+
+- Bump to 0.18.0
+- Update deps ([#290](https://github.com/foundry-rs/compilers/issues/290))
+- Bump solar + MSRV ([#289](https://github.com/foundry-rs/compilers/issues/289))
+
+### Miscellaneous Tasks
+
+- Release 0.18.0
+- Release 0.18.0
+
+## [0.17.4](https://github.com/foundry-rs/compilers/releases/tag/v0.17.4) - 2025-06-30
+
+### Bug Fixes
+
+- Fix typos in comments and variable names across solc-related modules ([#286](https://github.com/foundry-rs/compilers/issues/286))
+
+### Dependencies
+
+- Bump vyper to 0.4.3 which adds support for `prague` ([#285](https://github.com/foundry-rs/compilers/issues/285))
+
+### Miscellaneous Tasks
+
+- Release 0.17.4
+- Upstreamed  `strip_bytecode_placeholders` from foundry ([#287](https://github.com/foundry-rs/compilers/issues/287))
+
+## [0.17.3](https://github.com/foundry-rs/compilers/releases/tag/v0.17.3) - 2025-06-14
+
+### Miscellaneous Tasks
+
+- Release 0.17.3
+
+### Other
+
+- Revert "fix: implement proper serde handling for unknown AST node typ… ([#284](https://github.com/foundry-rs/compilers/issues/284))
+
+## [0.17.2](https://github.com/foundry-rs/compilers/releases/tag/v0.17.2) - 2025-06-10
+
+### Bug Fixes
+
+- Implement proper serde handling for unknown AST node types ([#280](https://github.com/foundry-rs/compilers/issues/280))
+
+### Miscellaneous Tasks
+
+- Release 0.17.2
+
+### Other
+
+- Add missing node types ([#282](https://github.com/foundry-rs/compilers/issues/282))
+- Remove EOF version field ([#279](https://github.com/foundry-rs/compilers/issues/279))
+
+## [0.17.1](https://github.com/foundry-rs/compilers/releases/tag/v0.17.1) - 2025-06-02
+
+### Dependencies
+
+- Bump to latest version in README
+- Update MSRV policy, bump to `1.87` in `clippy.toml` in line with `CI` and `Cargo.toml` ([#277](https://github.com/foundry-rs/compilers/issues/277))
+
+### Miscellaneous Tasks
+
+- Release 0.17.1
+- Release 0.17.1
+- Add language matcher on `MultiCompilerLanguage` ([#276](https://github.com/foundry-rs/compilers/issues/276))
+
+## [0.17.0](https://github.com/foundry-rs/compilers/releases/tag/v0.17.0) - 2025-05-29
+
+### Miscellaneous Tasks
+
+- Release 0.17.0
+- Release 0.17.0
+- Release 0.17.0
+
+## [0.16.4](https://github.com/foundry-rs/compilers/releases/tag/v0.16.4) - 2025-05-29
+
+### Dependencies
+
+- Bump solar v0.1.4 ([#275](https://github.com/foundry-rs/compilers/issues/275))
+
+### Miscellaneous Tasks
+
+- Release 0.16.4
+
+## [0.16.3](https://github.com/foundry-rs/compilers/releases/tag/v0.16.3) - 2025-05-28
+
+### Bug Fixes
+
+- Update Tera documentation link in cliff.toml ([#270](https://github.com/foundry-rs/compilers/issues/270))
+
+### Miscellaneous Tasks
+
+- Release 0.16.3
+- Switch to `Prague` hardfork by default ([#272](https://github.com/foundry-rs/compilers/issues/272))
+- Clean up error! calls ([#273](https://github.com/foundry-rs/compilers/issues/273))
+
+### Other
+
+- Some fields are optional during `"stopAfter":"parsing"` ([#271](https://github.com/foundry-rs/compilers/issues/271))
+
+## [0.16.2](https://github.com/foundry-rs/compilers/releases/tag/v0.16.2) - 2025-05-21
+
+### Miscellaneous Tasks
+
+- Release 0.16.2
+
+### Other
+
+- Support `transient` in `StorageLocation` ([#269](https://github.com/foundry-rs/compilers/issues/269))
+
+## [0.16.1](https://github.com/foundry-rs/compilers/releases/tag/v0.16.1) - 2025-05-16
+
+### Bug Fixes
+
+- Is_dirty to use additional_files ([#268](https://github.com/foundry-rs/compilers/issues/268))
+
+### Miscellaneous Tasks
+
+- Release 0.16.1
+
+## [0.16.0](https://github.com/foundry-rs/compilers/releases/tag/v0.16.0) - 2025-05-12
+
+### Dependencies
+
+- Bump solar version ([#264](https://github.com/foundry-rs/compilers/issues/264))
+
+### Miscellaneous Tasks
+
+- Release 0.16.0
+
+## [0.15.0](https://github.com/foundry-rs/compilers/releases/tag/v0.15.0) - 2025-05-07
+
+### Dependencies
+
+- [deps] Bump alloy 1.0 ([#263](https://github.com/foundry-rs/compilers/issues/263))
+
+### Documentation
+
+- Update CHANGELOG.md
+
+### Miscellaneous Tasks
+
+- Release 0.15.0
+
+## [0.14.1](https://github.com/foundry-rs/compilers/releases/tag/v0.14.1) - 2025-04-19
+
+### Bug Fixes
+
+- Fix Update CONTRIBUTING.md ([#261](https://github.com/foundry-rs/compilers/issues/261))
+
+### Miscellaneous Tasks
+
+- Release 0.14.1
+
+### Performance
+
+- Switch md5 to xxhash ([#262](https://github.com/foundry-rs/compilers/issues/262))
+
 ## [0.14.0](https://github.com/foundry-rs/compilers/releases/tag/v0.14.0) - 2025-04-07
 
 ### Features
@@ -13,6 +192,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.14.0
 - Simplify pragma parsing ([#260](https://github.com/foundry-rs/compilers/issues/260))
 
 ### Styling

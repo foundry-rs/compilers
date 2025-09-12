@@ -202,6 +202,9 @@ pub enum NodeType {
     ParameterList,
     TryCatchClause,
     ModifierInvocation,
+    UserDefinedTypeName,
+    ArrayTypeName,
+    Mapping,
 
     /// An unknown AST node type.
     Other(String),

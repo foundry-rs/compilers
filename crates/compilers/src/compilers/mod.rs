@@ -13,7 +13,7 @@ use semver::{Version, VersionReq};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::{Debug, Display},
     hash::Hash,
     path::{Path, PathBuf},
@@ -360,22 +360,26 @@ pub(crate) fn cache_version(
     f: impl FnOnce(&Path) -> Result<Version>,
 ) -> Result<Version> {
     #[allow(clippy::complexity)]
-    static VERSION_CACHE: OnceLock<Mutex<HashMap<PathBuf, HashMap<Vec<String>, Version>>>> =
+    static VERSION_CACHE: OnceLock<Mutex<HashMap<(PathBuf, Vec<String>), Version>>> =
         OnceLock::new();
-    let mut lock = VERSION_CACHE
-        .get_or_init(|| Mutex::new(HashMap::new()))
+
+    let mut cache = VERSION_CACHE
+        .get_or_init(Default::default)
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
 
-    if let Some(version) = lock.get(&path).and_then(|versions| versions.get(args)) {
-        return Ok(version.clone());
+    match cache.entry((path, args.to_vec())) {
+        Entry::Occupied(entry) => Ok(entry.get().clone()),
+        Entry::Vacant(entry) => {
+            let path = &entry.key().0;
+            let _guard =
+                debug_span!("get_version", path = %path.file_name().map(|n| n.to_string_lossy()).unwrap_or_else(|| path.to_string_lossy()))
+                    .entered();
+            let version = f(path)?;
+            entry.insert(version.clone());
+            Ok(version)
+        }
     }
-
-    let version = f(&path)?;
-
-    lock.entry(path).or_default().insert(args.to_vec(), version.clone());
-
-    Ok(version)
 }
 
 pub(crate) trait SimpleCompilerName {

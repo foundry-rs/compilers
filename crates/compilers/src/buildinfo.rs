@@ -3,9 +3,7 @@
 use crate::compilers::{
     CompilationError, CompilerContract, CompilerInput, CompilerOutput, Language,
 };
-use alloy_primitives::hex;
 use foundry_compilers_core::{error::Result, utils};
-use md5::Digest;
 use semver::Version;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
@@ -99,25 +97,13 @@ impl<L: Language> RawBuildInfo<L> {
         let input_version = input.version().clone();
         let build_context = BuildContext::new(input, output)?;
 
-        let mut hasher = md5::Md5::new();
-
-        hasher.update(ETHERS_FORMAT_VERSION);
-
-        let input_version_short =
-            format!("{}.{}.{}", input_version.major, input_version.minor, input_version.patch);
-        hasher.update(&input_version_short);
-        hasher.update(compiler_version.to_string());
-        hasher.update(input_version.to_string());
-
+        let solc_short = format!("{}.{}.{}", version.major, version.minor, version.patch);
         let input = serde_json::to_value(input)?;
-
-        hasher.update(&serde_json::to_string(&input)?);
-
-        // create the hash for `{_format,compilerVersion,inputVersion,inputLongVersion,input}`
-        // N.B. this is not exactly the same as hashing the json representation of these values but
-        // the must efficient one
-        let result = hasher.finalize();
-        let id = hex::encode(result);
+        let id = utils::unique_hash_many([
+            ETHERS_FORMAT_VERSION,
+            &version.to_string(),
+            &serde_json::to_string(&input)?,
+        ]);
 
         let mut build_info = BTreeMap::new();
 

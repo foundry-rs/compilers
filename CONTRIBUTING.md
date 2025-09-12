@@ -309,7 +309,7 @@ the commit log, or by using an `Author: ` meta-data tag in the commit.
 
 _Adapted from the [Tokio contributing guide]_.
 
-[hiding-a-comment]: https://help.github.com/articles/managing-disruptive-comments/#hiding-a-comment
+[hiding-a-comment]: https://docs.github.com/articles/managing-disruptive-comments/#hiding-a-comment
 
 [documentation test]: https://doc.rust-lang.org/rustdoc/documentation-tests.html
 

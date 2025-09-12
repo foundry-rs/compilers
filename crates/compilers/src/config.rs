@@ -524,7 +524,12 @@ impl<L> ProjectPathsConfig<L> {
             })
             .find_map(|r| {
                 import.strip_prefix(&r.name).ok().map(|stripped_import| {
-                    let lib_path = Path::new(&r.path).join(stripped_import);
+                    let lib_path =
+                        if stripped_import.as_os_str().is_empty() && r.path.ends_with(".sol") {
+                            r.path.clone().into()
+                        } else {
+                            Path::new(&r.path).join(stripped_import)
+                        };
 
                     // we handle the edge case where the path of a remapping ends with "contracts"
                     // (`<name>/=.../contracts`) and the stripped import also starts with
@@ -1195,5 +1200,40 @@ mod tests {
                 .unwrap(),
             dependency.join("A.sol")
         );
+    }
+
+    #[test]
+    fn can_resolve_single_file_mapped_import() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = ProjectPathsConfig::builder().root(dir.path()).build::<()>().unwrap();
+        config.create_all().unwrap();
+
+        fs::write(
+            config.sources.join("A.sol"),
+            r#"pragma solidity ^0.8.0; import "@my-lib/B.sol"; contract A is B {}"#,
+        )
+        .unwrap();
+
+        let dependency = config.root.join("my-lib");
+        fs::create_dir(&dependency).unwrap();
+        fs::write(dependency.join("B.sol"), r"pragma solidity ^0.8.0; contract B {}").unwrap();
+
+        config.remappings.push(Remapping {
+            context: None,
+            name: "@my-lib/B.sol".into(),
+            path: "my-lib/B.sol".into(),
+        });
+
+        // Test that single file import / remapping resolves to file.
+        assert!(config
+            .resolve_import_and_include_paths(
+                &config.sources,
+                Path::new("@my-lib/B.sol"),
+                &mut Default::default(),
+            )
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with("my-lib/B.sol"));
     }
 }

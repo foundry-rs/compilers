@@ -124,7 +124,7 @@ impl Source {
     }
 
     /// Reads the file's content
-    #[instrument(name = "read_source", level = "debug", skip_all, err)]
+    #[instrument(name = "Source::read", skip_all, err)]
     pub fn read(file: &Path) -> Result<Self, SolcIoError> {
         trace!(file=%file.display());
         let mut content = fs::read_to_string(file).map_err(|err| SolcIoError::new(err, file))?;
@@ -162,6 +162,7 @@ impl Source {
     }
 
     /// Reads all files
+    #[instrument(name = "Source::read_all", skip_all)]
     pub fn read_all<T, I>(files: I) -> Result<Sources, SolcIoError>
     where
         I: IntoIterator<Item = T>,
@@ -204,14 +205,14 @@ impl Source {
     /// Generate a non-cryptographically secure checksum of the given source.
     #[cfg(feature = "checksum")]
     pub fn content_hash_of(src: &str) -> String {
-        alloy_primitives::hex::encode(<md5::Md5 as md5::Digest>::digest(src))
+        foundry_compilers_core::utils::unique_hash(src)
     }
 }
 
 #[cfg(feature = "async")]
 impl Source {
     /// async version of `Self::read`
-    #[instrument(name = "async_read_source", level = "debug", skip_all, err)]
+    #[instrument(name = "Source::async_read", skip_all, err)]
     pub async fn async_read(file: &Path) -> Result<Self, SolcIoError> {
         let mut content =
             tokio::fs::read_to_string(file).await.map_err(|err| SolcIoError::new(err, file))?;

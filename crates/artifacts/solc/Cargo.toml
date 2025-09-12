@@ -22,18 +22,15 @@ alloy-json-abi.workspace = true
 alloy-primitives.workspace = true
 semver.workspace = true
 serde_json.workspace = true
-serde_repr = "0.1"
 serde.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 yansi.workspace = true
+regex.workspace = true
 
 # async
 tokio = { workspace = true, optional = true, features = ["fs"] }
 futures-util = { workspace = true, optional = true }
-
-# checksum
-md-5 = { workspace = true, optional = true }
 
 # walkdir
 walkdir = { workspace = true, optional = true }
@@ -51,6 +48,6 @@ foundry-compilers-core = { workspace = true, features = ["test-utils"] }
 
 [features]
 async = ["dep:tokio", "dep:futures-util"]
-checksum = ["dep:md-5"]
+checksum = ["foundry-compilers-core/hasher"]
 walkdir = ["dep:walkdir", "foundry-compilers-core/walkdir"]
 rayon = ["dep:rayon"]
