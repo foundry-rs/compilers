@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -18,6 +21,8 @@ jobs:
     name: test ${{ matrix.rust }} ${{ matrix.flags }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    permissions:
+      actions: write
     strategy:
       fail-fast: false
       matrix:
@@ -30,6 +35,8 @@ jobs:
             flags: "--all-features"
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
@@ -48,8 +55,12 @@ jobs:
   doctest:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      actions: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -59,8 +70,12 @@ jobs:
   feature-checks:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      actions: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@cargo-hack
       - uses: Swatinem/rust-cache@v2
@@ -72,8 +87,12 @@ jobs:
   clippy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      actions: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -87,8 +106,12 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      actions: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
         with:
@@ -102,6 +125,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
@@ -113,6 +138,7 @@ jobs:
   ci-success:
     runs-on: ubuntu-latest
     if: always()
+    permissions: {}
     needs:
       - test
       - doctest
