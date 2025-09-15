@@ -804,8 +804,8 @@ pub enum EvmVersion {
     London,
     Paris,
     Shanghai,
-    Cancun,
     #[default]
+    Cancun,
     Prague,
     Osaka,
 }

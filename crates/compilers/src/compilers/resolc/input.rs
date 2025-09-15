@@ -1,7 +1,7 @@
 use foundry_compilers_artifacts::{
-    output_selection::OutputSelection, serde_helpers, DebuggingSettings, EofVersion, EvmVersion,
-    Libraries, ModelCheckerSettings, OptimizerDetails, Remapping, Settings, SettingsMetadata,
-    SolcLanguage, Source, Sources,
+    output_selection::OutputSelection, serde_helpers, DebuggingSettings, EvmVersion, Libraries,
+    ModelCheckerSettings, OptimizerDetails, Remapping, Settings, SettingsMetadata, SolcLanguage,
+    Source, Sources,
 };
 use foundry_compilers_core::utils::strip_prefix_owned;
 use revive_solc_json_interface::SolcStandardJsonInputSettingsPolkaVMMemory;
@@ -233,9 +233,6 @@ pub struct ResolcSettingsInput {
     /// If this key is an empty string, that refers to a global level.
     #[serde(default)]
     pub libraries: Libraries,
-    /// Specify EOF version to produce.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub eof_version: Option<EofVersion>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub polkavm: Option<PolkaVM>,
 }
@@ -255,7 +252,6 @@ impl From<SolcSettings> for ResolcSettingsInput {
                     via_ir,
                     debug,
                     libraries,
-                    eof_version,
                 },
             extra_settings: ResolcSettings { polkavm, resolc_optimizer },
             ..
@@ -277,7 +273,6 @@ impl From<SolcSettings> for ResolcSettingsInput {
             via_ir,
             debug,
             libraries,
-            eof_version,
             polkavm,
         }
     }
@@ -370,7 +365,6 @@ impl Default for ResolcSettingsInput {
             libraries: Default::default(),
             remappings: Default::default(),
             model_checker: None,
-            eof_version: None,
             polkavm: None,
         }
         .with_ast()

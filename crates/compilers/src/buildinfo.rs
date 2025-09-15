@@ -94,7 +94,7 @@ impl<L: Language> RawBuildInfo<L> {
         compiler_version: &semver::Version,
         full_build_info: bool,
     ) -> Result<Self> {
-        let input_version = input.version().clone();
+        let version = input.version().clone();
         let build_context = BuildContext::new(input, output)?;
 
         let solc_short = format!("{}.{}.{}", version.major, version.minor, version.patch);
@@ -111,10 +111,8 @@ impl<L: Language> RawBuildInfo<L> {
             build_info.insert("_format".to_string(), serde_json::to_value(ETHERS_FORMAT_VERSION)?);
             build_info
                 .insert("compilerVersion".to_string(), serde_json::to_value(compiler_version)?);
-            build_info
-                .insert("inputVersion".to_string(), serde_json::to_value(&input_version_short)?);
-            build_info
-                .insert("inputVersionLong".to_string(), serde_json::to_value(&input_version)?);
+            build_info.insert("inputVersion".to_string(), serde_json::to_value(&solc_short)?);
+            build_info.insert("inputVersionLong".to_string(), serde_json::to_value(&solc_short)?);
             build_info.insert("input".to_string(), input);
             build_info.insert("output".to_string(), serde_json::to_value(output)?);
         }

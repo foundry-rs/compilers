@@ -919,10 +919,10 @@ pub fn replace_source_content(
     content
 }
 
-pub(crate) fn parse_one_source<R>(
+pub(crate) fn parse_one_source<R: std::marker::Send>(
     content: &str,
     path: &Path,
-    f: impl FnOnce(solar_sema::ast::SourceUnit<'_>) -> R,
+    f: impl FnOnce(solar_sema::ast::SourceUnit<'_>) -> R + std::marker::Send,
 ) -> Result<R, EmittedDiagnostics> {
     let sess = Session::builder().with_buffer_emitter(Default::default()).build();
     let res = sess.enter(|| -> solar_parse::interface::Result<_> {
