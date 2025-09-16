@@ -35,15 +35,14 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # master
         with:
           toolchain: ${{ matrix.rust }}
-      - name: Install test binaries
-        shell: bash
-        run: ./.github/scripts/install_test_binaries.sh
       - name: Install nextest
-        uses: taiki-e/install-action@nextest
-      - uses: Swatinem/rust-cache@v2
+        uses: taiki-e/install-action@e5f8d33e7166e0491b2ab4ff0567cc6cd6772737 # v2
+        with:
+          tool: nextest
+      - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
         with:
           cache-on-failure: true
       - name: test
@@ -57,8 +56,10 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
         with:
           cache-on-failure: true
       - run: cargo test --workspace --doc --all-features
@@ -70,9 +71,13 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@cargo-hack
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # master
+        with:
+          toolchain: stable
+      - uses: taiki-e/install-action@e5f8d33e7166e0491b2ab4ff0567cc6cd6772737 # master
+        with:
+          tool: cargo-hack
+      - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
         with:
           cache-on-failure: true
       - name: cargo hack
@@ -85,8 +90,11 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # master
+        with:
+          toolchain: nightly
+          components: clippy
+      - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
         with:
           cache-on-failure: true
       - run: cargo clippy --workspace --all-targets --all-features
@@ -100,8 +108,10 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@nightly
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # master
+        with:
+          toolchain: nightly
+      - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
         with:
           cache-on-failure: true
       - run: cargo doc --workspace --all-features --no-deps --document-private-items
@@ -115,13 +125,14 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # master
         with:
+          toolchain: nightly
           components: rustfmt
       - run: cargo fmt --all --check
 
   deny:
-    uses: ithacaxyz/ci/.github/workflows/deny.yml@main
+    uses: ithacaxyz/ci/.github/workflows/deny.yml@9c8d0dc20e7ad02455d3fdab2378a05f29907630 # main
 
   ci-success:
     runs-on: ubuntu-latest
@@ -138,6 +149,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Decide whether the needed jobs succeeded or failed
-        uses: re-actors/alls-green@release/v1
+        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # release/v1
         with:
           jobs: ${{ toJSON(needs) }}
