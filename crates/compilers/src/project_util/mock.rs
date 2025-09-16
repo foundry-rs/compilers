@@ -172,7 +172,7 @@ impl MockProjectGenerator {
 
     /// Adds sources and libraries and populates imports based on the settings
     pub fn populate(&mut self, settings: &MockProjectSettings) -> &mut Self {
-        self.add_sources(settings.num_lib_files);
+        self.add_sources(settings.num_sources);
         for _ in 0..settings.num_libs {
             self.add_lib(settings.num_lib_files);
         }
