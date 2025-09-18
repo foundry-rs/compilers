@@ -304,17 +304,7 @@ impl BytecodeObject {
     /// See also: <https://docs.soliditylang.org/en/develop/using-the-compiler.html#library-linking>
     pub fn link_fully_qualified(&mut self, name: &str, addr: Address) -> &mut Self {
         if let Self::Unlinked(unlinked) = self {
-            let place_holder = utils::library_hash_placeholder(name);
-            // the address as hex without prefix
-            let hex_addr = hex::encode(addr);
-
-            // the library placeholder used to be the fully qualified name of the library instead of
-            // the hash. This is also still supported by `solc` so we handle this as well
-            let fully_qualified_placeholder = utils::library_fully_qualified_placeholder(name);
-
-            *unlinked = unlinked
-                .replace(&format!("__{fully_qualified_placeholder}__"), &hex_addr)
-                .replace(&format!("__{place_holder}__"), &hex_addr)
+            link(unlinked, name, addr);
         }
         self
     }
@@ -383,6 +373,43 @@ impl AsRef<[u8]> for BytecodeObject {
             Self::Bytecode(code) => code.as_ref(),
             Self::Unlinked(code) => code.as_bytes(),
         }
+    }
+}
+
+/// Reference: <https://github.com/argotorg/solidity/blob/965166317bbc2b02067eb87f222a2dce9d24e289/libevmasm/LinkerObject.cpp#L38>
+fn link(unlinked: &mut String, name: &str, addr: Address) {
+    const LEN: usize = 40;
+
+    let mut refs = vec![];
+    let mut find = |needle: &str| {
+        assert_eq!(needle.len(), LEN, "{needle:?}");
+        refs.extend(memchr::memmem::find_iter(unlinked.as_bytes(), needle));
+    };
+
+    let placeholder = utils::library_hash_placeholder(name);
+    find(&format!("__{placeholder}__"));
+
+    // The library placeholder used to be the fully qualified name of the library instead of
+    // the hash. This is also still supported by `solc` so we handle this as well.
+    let fully_qualified_placeholder = utils::library_fully_qualified_placeholder(name);
+    find(&format!("__{fully_qualified_placeholder}__"));
+
+    if refs.is_empty() {
+        debug!("no references found while linking {name} -> {addr}");
+        return;
+    }
+
+    // The address as hex without prefix.
+    let mut buffer = hex::Buffer::<20, false>::new();
+    let hex_addr = &*buffer.format(&addr);
+    assert_eq!(hex_addr.len(), LEN, "{hex_addr:?}");
+
+    // The ranges are non-overlapping, so we don't need to sort, and can iterate in whatever order
+    // because of equal lengths.
+    // SAFETY: We're replacing LEN bytes at a time, and all the indexes come from the same string.
+    let unlinked = unsafe { unlinked.as_bytes_mut() };
+    for &idx in &refs {
+        unlinked[idx..idx + LEN].copy_from_slice(hex_addr.as_bytes());
     }
 }
 
