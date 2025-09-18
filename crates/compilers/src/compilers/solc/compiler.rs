@@ -432,6 +432,7 @@ impl Solc {
         debug!(?cmd, "compiling");
 
         let mut child = cmd.spawn().map_err(self.map_io_err())?;
+        let id = child.id();
         debug!("spawned");
 
         {
@@ -441,10 +442,7 @@ impl Solc {
         }
         debug!("wrote JSON input to stdin");
 
-        let output = child.wait_with_output().map_err(self.map_io_err())?;
-        debug!(%output.status, output.stderr = ?String::from_utf8_lossy(&output.stderr), "finished");
-
-        compile_output(output)
+        compile_output(child.wait_with_output().map_err(self.map_io_err())?, id)
     }
 
     /// Returns the SemVer [`Version`], stripping the pre-release and build metadata.
@@ -569,7 +567,8 @@ impl Solc {
         stdin.write_all(&content).await.map_err(self.map_io_err())?;
         stdin.flush().await.map_err(self.map_io_err())?;
 
-        compile_output(child.wait_with_output().await.map_err(self.map_io_err())?)
+        let id = child.id().unwrap_or(u32::MAX);
+        compile_output(child.wait_with_output().await.map_err(self.map_io_err())?, id)
     }
 
     pub async fn async_version(solc: &Path) -> Result<Version> {
@@ -605,7 +604,15 @@ impl Solc {
     }
 }
 
-fn compile_output(output: Output) -> Result<Vec<u8>> {
+fn compile_output(output: Output, id: u32) -> Result<Vec<u8>> {
+    debug!(%output.status, output.stderr = ?String::from_utf8_lossy(&output.stderr), "finished");
+
+    trace!(path = %{
+        let path = std::env::temp_dir().join(format!("solc-{id}.stdout.json"));
+        let _ = std::fs::write(&path, &output.stdout);
+        path
+    }.display(), "wrote stdout");
+
     if output.status.success() {
         Ok(output.stdout)
     } else {
