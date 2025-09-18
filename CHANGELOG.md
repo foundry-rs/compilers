@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.19.2](https://github.com/foundry-rs/compilers/releases/tag/v0.19.2) - 2025-09-11
+## [0.19.3](https://github.com/foundry-rs/compilers/releases/tag/v0.19.3) - 2025-09-18
 
 ### Bug Fixes
 
@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Dependencies
 
+- [`ci`] Pin deps in workflow and add `dependabot` to update them weekly ([#321](https://github.com/foundry-rs/compilers/issues/321))
 - [deps] Bump solar ([#315](https://github.com/foundry-rs/compilers/issues/315))
 - [deps] Switch to solar meta crate ([#307](https://github.com/foundry-rs/compilers/issues/307))
 - [deps] Bump to 0.18.3 ([#303](https://github.com/foundry-rs/compilers/issues/303))
@@ -27,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- [`ci`] Rescope permissions according to principle of least privilege ([#323](https://github.com/foundry-rs/compilers/issues/323))
+- [`ci`] Harden workflow by setting default permission to read only ([#320](https://github.com/foundry-rs/compilers/issues/320))
+- [`ci`] Add CodeQL ([#319](https://github.com/foundry-rs/compilers/issues/319))
+- Release 0.19.2 ([#317](https://github.com/foundry-rs/compilers/issues/317))
 - [`ci`] Add `ci-success` step so we can make this a condition for merging ([#316](https://github.com/foundry-rs/compilers/issues/316))
 - Release 0.19.1 ([#313](https://github.com/foundry-rs/compilers/issues/313))
 - Use FnMut instead of FnOnce + Copy ([#310](https://github.com/foundry-rs/compilers/issues/310))
@@ -38,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- Improve linking implementation ([#324](https://github.com/foundry-rs/compilers/issues/324))
 - Parallelize Remapping::get_many ([#314](https://github.com/foundry-rs/compilers/issues/314))
 
 ### Refactor
