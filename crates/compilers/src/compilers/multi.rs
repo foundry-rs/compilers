@@ -412,6 +412,43 @@ impl SourceParser for MultiCompilerParser {
             )
             .collect())
     }
+
+    fn finalize_imports(
+        &mut self,
+        all_nodes: &mut Vec<crate::resolver::Node<Self::ParsedSource>>,
+        include_paths: &BTreeSet<PathBuf>,
+    ) -> Result<()> {
+        let mut solc_nodes = Vec::new();
+        let mut vyper_nodes = Vec::new();
+        for node in std::mem::take(all_nodes) {
+            match node.data {
+                MultiCompilerParsedSource::Solc(_) => {
+                    solc_nodes.push(node.map_data(|data| match data {
+                        MultiCompilerParsedSource::Solc(data) => data,
+                        _ => unreachable!(),
+                    }))
+                }
+                MultiCompilerParsedSource::Vyper(_) => {
+                    vyper_nodes.push(node.map_data(|data| match data {
+                        MultiCompilerParsedSource::Vyper(data) => data,
+                        _ => unreachable!(),
+                    }))
+                }
+            }
+        }
+
+        self.solc.finalize_imports(&mut solc_nodes, include_paths)?;
+        self.vyper.finalize_imports(&mut vyper_nodes, include_paths)?;
+
+        all_nodes.extend(
+            solc_nodes.into_iter().map(|node| node.map_data(MultiCompilerParsedSource::Solc)),
+        );
+        all_nodes.extend(
+            vyper_nodes.into_iter().map(|node| node.map_data(MultiCompilerParsedSource::Vyper)),
+        );
+
+        Ok(())
+    }
 }
 
 impl ParsedSource for MultiCompilerParsedSource {
