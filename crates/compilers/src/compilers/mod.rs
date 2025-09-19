@@ -167,7 +167,11 @@ pub trait SourceParser: Clone + Debug + Send + Sync {
             .collect::<Result<_>>()
     }
 
-    fn finalize_imports(&mut self, _include_paths: &BTreeSet<PathBuf>) -> Result<()> {
+    fn finalize_imports(
+        &mut self,
+        _nodes: &mut Vec<Node<Self::ParsedSource>>,
+        _include_paths: &BTreeSet<PathBuf>,
+    ) -> Result<()> {
         Ok(())
     }
 }

@@ -399,7 +399,7 @@ impl SourceParser for SolParser {
         &mut self,
         sources: &mut Sources,
     ) -> Result<Vec<(PathBuf, Node<Self::ParsedSource>)>> {
-        self.compiler_mut().enter_mut(|compiler| {
+        self.compiler.enter_mut(|compiler| {
             let mut pcx = compiler.parse();
             pcx.set_resolve_imports(false);
             let files = sources
@@ -424,38 +424,43 @@ impl SourceParser for SolParser {
                 );
                 (path.clone(), node)
             });
-            let mut parsed = parsed.collect::<Vec<_>>();
-
-            // Set error on the first successful source, if any. This doesn't really have to be
-            // exact, as long as at least one source has an error set it should be enough.
-            if let Some(Err(diag)) = compiler.gcx().sess.emitted_errors() {
-                if let Some(idx) = parsed
-                    .iter()
-                    .position(|(_, node)| node.data.parse_result.is_ok())
-                    .or_else(|| parsed.first().map(|_| 0))
-                {
-                    let (_, node) = &mut parsed[idx];
-                    node.data.parse_result = Err(diag.to_string());
-                }
-            }
-
-            for (path, node) in &parsed {
-                if let Err(e) = &node.data.parse_result {
-                    debug!("failed parsing {}: {e}", path.display());
-                }
-            }
+            let parsed = parsed.collect::<Vec<_>>();
 
             Ok(parsed)
         })
     }
 
-    fn finalize_imports(&mut self, include_paths: &BTreeSet<PathBuf>) -> Result<()> {
-        self.compiler_mut().sess_mut().opts.include_paths.extend(include_paths.iter().cloned());
-        self.compiler_mut().enter_mut(|compiler| {
+    fn finalize_imports(
+        &mut self,
+        nodes: &mut Vec<Node<Self::ParsedSource>>,
+        include_paths: &BTreeSet<PathBuf>,
+    ) -> Result<()> {
+        let compiler = &mut self.compiler;
+        compiler.sess_mut().opts.include_paths.extend(include_paths.iter().cloned());
+        compiler.enter_mut(|compiler| {
             let mut pcx = compiler.parse();
             pcx.set_resolve_imports(true);
             pcx.force_resolve_all_imports();
         });
+
+        // Set error on the first successful source, if any. This doesn't really have to be
+        // exact, as long as at least one source has an error set it should be enough.
+        if let Some(Err(diag)) = compiler.sess().emitted_errors() {
+            if let Some(idx) = nodes
+                .iter()
+                .position(|node| node.data.parse_result.is_ok())
+                .or_else(|| nodes.first().map(|_| 0))
+            {
+                nodes[idx].data.parse_result = Err(diag.to_string());
+            }
+        }
+
+        for node in nodes.iter() {
+            if let Err(e) = &node.data.parse_result {
+                debug!("failed parsing:\n{e}");
+            }
+        }
+
         Ok(())
     }
 }
