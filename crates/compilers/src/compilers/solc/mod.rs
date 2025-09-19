@@ -401,6 +401,7 @@ impl SourceParser for SolParser {
     ) -> Result<Vec<(PathBuf, Node<Self::ParsedSource>)>> {
         self.compiler_mut().enter_mut(|compiler| {
             let mut pcx = compiler.parse();
+            pcx.set_resolve_imports(false);
             let files = sources
                 .par_iter()
                 .map(|(path, source)| {
@@ -446,6 +447,16 @@ impl SourceParser for SolParser {
 
             Ok(parsed)
         })
+    }
+
+    fn finalize_imports(&mut self, include_paths: &BTreeSet<PathBuf>) -> Result<()> {
+        self.compiler_mut().sess_mut().opts.include_paths.extend(include_paths.iter().cloned());
+        self.compiler_mut().enter_mut(|compiler| {
+            let mut pcx = compiler.parse();
+            pcx.set_resolve_imports(true);
+            pcx.force_resolve_all_imports();
+        });
+        Ok(())
     }
 }
 

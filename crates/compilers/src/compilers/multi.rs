@@ -412,6 +412,12 @@ impl SourceParser for MultiCompilerParser {
             )
             .collect())
     }
+
+    fn finalize_imports(&mut self, include_paths: &BTreeSet<PathBuf>) -> Result<()> {
+        self.solc.finalize_imports(include_paths)?;
+        self.vyper.finalize_imports(include_paths)?;
+        Ok(())
+    }
 }
 
 impl ParsedSource for MultiCompilerParsedSource {
