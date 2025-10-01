@@ -70,4 +70,4 @@ tokio = { version = "1.47", features = ["rt-multi-thread"] }
 snapbox = "0.6.21"
 
 [patch.crates-io]
-solar = { package = "solar-compiler", git = "https://github.com/paradigmxyz/solar", branch = "main" }
+# solar = { package = "solar-compiler", git = "https://github.com/paradigmxyz/solar", branch = "main" }
