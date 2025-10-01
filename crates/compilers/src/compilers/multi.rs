@@ -145,6 +145,18 @@ pub enum MultiCompilerParsedSource {
     Vyper(VyperParsedSource),
 }
 
+impl From<SolData> for MultiCompilerParsedSource {
+    fn from(data: SolData) -> Self {
+        Self::Solc(data)
+    }
+}
+
+impl From<VyperParsedSource> for MultiCompilerParsedSource {
+    fn from(data: VyperParsedSource) -> Self {
+        Self::Vyper(data)
+    }
+}
+
 impl MultiCompilerParsedSource {
     fn solc(&self) -> Option<&SolData> {
         match self {
@@ -418,21 +430,24 @@ impl SourceParser for MultiCompilerParser {
         all_nodes: &mut Vec<crate::resolver::Node<Self::ParsedSource>>,
         include_paths: &BTreeSet<PathBuf>,
     ) -> Result<()> {
+        // Must maintain original order.
         let mut solc_nodes = Vec::new();
         let mut vyper_nodes = Vec::new();
+        let mut order = Vec::new();
         for node in std::mem::take(all_nodes) {
+            order.push(node.data.language());
             match node.data {
                 MultiCompilerParsedSource::Solc(_) => {
                     solc_nodes.push(node.map_data(|data| match data {
                         MultiCompilerParsedSource::Solc(data) => data,
                         _ => unreachable!(),
-                    }))
+                    }));
                 }
                 MultiCompilerParsedSource::Vyper(_) => {
                     vyper_nodes.push(node.map_data(|data| match data {
                         MultiCompilerParsedSource::Vyper(data) => data,
                         _ => unreachable!(),
-                    }))
+                    }));
                 }
             }
         }
@@ -440,12 +455,21 @@ impl SourceParser for MultiCompilerParser {
         self.solc.finalize_imports(&mut solc_nodes, include_paths)?;
         self.vyper.finalize_imports(&mut vyper_nodes, include_paths)?;
 
-        all_nodes.extend(
-            solc_nodes.into_iter().map(|node| node.map_data(MultiCompilerParsedSource::Solc)),
-        );
-        all_nodes.extend(
-            vyper_nodes.into_iter().map(|node| node.map_data(MultiCompilerParsedSource::Vyper)),
-        );
+        // Assume that the order was not changed by the parsers.
+        let mut solc_nodes = solc_nodes.into_iter();
+        let mut vyper_nodes = vyper_nodes.into_iter();
+        for lang in order {
+            match lang {
+                MultiCompilerLanguage::Solc(_) => {
+                    all_nodes.push(solc_nodes.next().unwrap().map_data(Into::into));
+                }
+                MultiCompilerLanguage::Vyper(_) => {
+                    all_nodes.push(vyper_nodes.next().unwrap().map_data(Into::into));
+                }
+            }
+        }
+        assert!(solc_nodes.next().is_none());
+        assert!(vyper_nodes.next().is_none());
 
         Ok(())
     }
