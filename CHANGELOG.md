@@ -5,10 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.19.4](https://github.com/foundry-rs/compilers/releases/tag/v0.19.4) - 2025-10-01
+## [0.19.5](https://github.com/foundry-rs/compilers/releases/tag/v0.19.5) - 2025-10-01
 
 ### Bug Fixes
 
+- Finalize_imports node ordering ([#329](https://github.com/foundry-rs/compilers/issues/329))
 - Resolve imports at the end ([#326](https://github.com/foundry-rs/compilers/issues/326))
 - Make sources' paths absolute ([#312](https://github.com/foundry-rs/compilers/issues/312))
 - Sanitize `stopAfter` ([#309](https://github.com/foundry-rs/compilers/issues/309))
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.19.4 ([#328](https://github.com/foundry-rs/compilers/issues/328))
 - Remove feature(doc_auto_cfg) ([#327](https://github.com/foundry-rs/compilers/issues/327))
 - Release 0.19.3 ([#325](https://github.com/foundry-rs/compilers/issues/325))
 - [`ci`] Rescope permissions according to principle of least privilege ([#323](https://github.com/foundry-rs/compilers/issues/323))
