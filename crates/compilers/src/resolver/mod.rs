@@ -484,6 +484,8 @@ impl<P: SourceParser> Graph<P> {
             );
         }
 
+        parser.finalize_imports(&mut nodes, &resolved_solc_include_paths)?;
+
         let edges = GraphEdges {
             edges,
             rev_edges,
