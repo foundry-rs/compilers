@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 authors = ["Foundry Maintainers"]
-version = "0.19.4"
+version = "0.19.5"
 rust-version = "1.88"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
@@ -36,11 +36,11 @@ redundant-lifetimes = "warn"
 all = "warn"
 
 [workspace.dependencies]
-foundry-compilers = { path = "crates/compilers", version = "0.19.4" }
-foundry-compilers-artifacts = { path = "crates/artifacts/artifacts", version = "0.19.4" }
-foundry-compilers-artifacts-solc = { path = "crates/artifacts/solc", version = "0.19.4" }
-foundry-compilers-artifacts-vyper = { path = "crates/artifacts/vyper", version = "0.19.4" }
-foundry-compilers-core = { path = "crates/core", version = "0.19.4" }
+foundry-compilers = { path = "crates/compilers", version = "0.19.5" }
+foundry-compilers-artifacts = { path = "crates/artifacts/artifacts", version = "0.19.5" }
+foundry-compilers-artifacts-solc = { path = "crates/artifacts/solc", version = "0.19.5" }
+foundry-compilers-artifacts-vyper = { path = "crates/artifacts/vyper", version = "0.19.5" }
+foundry-compilers-core = { path = "crates/core", version = "0.19.5" }
 
 alloy-json-abi = { version = "1.3", features = ["serde_json"] }
 alloy-primitives = { version = "1.3", features = ["serde", "rand"] }
