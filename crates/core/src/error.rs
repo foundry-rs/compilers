@@ -59,7 +59,7 @@ pub enum SolcError {
          --> {1}\n\t\
          {2}"
     )]
-    FailedResolveImport(Box<SolcError>, PathBuf, PathBuf),
+    FailedResolveImport(Box<Self>, PathBuf, PathBuf),
     #[cfg(feature = "svm-solc")]
     #[error(transparent)]
     SvmError(#[from] svm::SvmError),

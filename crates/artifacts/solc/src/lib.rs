@@ -1447,7 +1447,7 @@ pub struct Item {
     #[serde(rename = "type")]
     pub put_type: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub components: Vec<Item>,
+    pub components: Vec<Self>,
     /// Indexed flag. for solidity events
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub indexed: Option<bool>,
