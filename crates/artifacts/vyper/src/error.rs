@@ -5,11 +5,11 @@ use std::path::PathBuf;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VyperSourceLocation {
-    file: PathBuf,
+    pub file: PathBuf,
     #[serde(rename = "lineno")]
-    line: Option<u64>,
+    pub line: Option<u64>,
     #[serde(rename = "col_offset")]
-    offset: Option<u64>,
+    pub offset: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
