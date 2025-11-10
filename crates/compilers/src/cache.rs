@@ -908,9 +908,8 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
                             if self.cache.mocks.contains(file) {
                                 // Mark all mock edges as dirty.
                                 populate_dirty_files(file, &mut self.dirty_sources, &edges);
-                            } else {
-                                self.dirty_sources.insert(file.clone());
                             }
+                            self.dirty_sources.insert(file.clone());
                         }
                     }
                 }
