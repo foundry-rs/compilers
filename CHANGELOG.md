@@ -5,10 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.19.5](https://github.com/foundry-rs/compilers/releases/tag/v0.19.5) - 2025-10-01
+## [0.19.6](https://github.com/foundry-rs/compilers/releases/tag/v0.19.6) - 2025-11-12
 
 ### Bug Fixes
 
+- Always mark mocks as dirty ([#335](https://github.com/foundry-rs/compilers/issues/335))
+- Expose VyperSourceLocation fields ([#333](https://github.com/foundry-rs/compilers/issues/333))
 - Finalize_imports node ordering ([#329](https://github.com/foundry-rs/compilers/issues/329))
 - Resolve imports at the end ([#326](https://github.com/foundry-rs/compilers/issues/326))
 - Make sources' paths absolute ([#312](https://github.com/foundry-rs/compilers/issues/312))
@@ -18,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Dependencies
 
+- Bump 0.19.6 ([#337](https://github.com/foundry-rs/compilers/issues/337))
+- Bump version number in README ([#336](https://github.com/foundry-rs/compilers/issues/336))
 - [`ci`] Pin deps in workflow and add `dependabot` to update them weekly ([#321](https://github.com/foundry-rs/compilers/issues/321))
 - [deps] Bump solar ([#315](https://github.com/foundry-rs/compilers/issues/315))
 - [deps] Switch to solar meta crate ([#307](https://github.com/foundry-rs/compilers/issues/307))
@@ -30,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Make clippy happy ([#334](https://github.com/foundry-rs/compilers/issues/334))
+- [`ci`] Merge in `codeql.yml` and mark as requirement for ci-success ([#331](https://github.com/foundry-rs/compilers/issues/331))
+- Release 0.19.5 ([#330](https://github.com/foundry-rs/compilers/issues/330))
 - Release 0.19.4 ([#328](https://github.com/foundry-rs/compilers/issues/328))
 - Remove feature(doc_auto_cfg) ([#327](https://github.com/foundry-rs/compilers/issues/327))
 - Release 0.19.3 ([#325](https://github.com/foundry-rs/compilers/issues/325))
