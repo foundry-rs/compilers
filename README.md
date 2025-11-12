@@ -45,7 +45,7 @@ To install, simply add `foundry-compilers` to your cargo dependencies.
 
 ```toml
 [dependencies]
-foundry-compilers = "0.19.5"
+foundry-compilers = "0.19.6"
 ```
 
 Example usage:
