@@ -294,7 +294,12 @@ impl Solc {
         #[cfg(test)]
         crate::take_solc_installer_lock!(_lock);
 
-        let version = Version::new(version.major, version.minor, version.patch);
+        let version = if version.pre.is_empty() {
+            Version::new(version.major, version.minor, version.patch)
+        } else {
+            // Preserve version if it is a prerelease.
+            version.clone()
+        };
 
         trace!("blocking installing solc version \"{}\"", version);
         crate::report::solc_installation_start(&version);
