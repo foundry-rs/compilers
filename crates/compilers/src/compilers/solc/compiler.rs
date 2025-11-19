@@ -215,11 +215,17 @@ impl Solc {
     #[instrument(skip_all)]
     #[cfg(feature = "svm-solc")]
     pub fn find_svm_installed_version(version: &Version) -> Result<Option<Self>> {
+        let version = if version.pre.is_empty() {
+            Version::new(version.major, version.minor, version.patch)
+        } else {
+            // Preserve version if it is a prerelease.
+            version.clone()
+        };
         let solc = svm::version_binary(&version.to_string());
         if !solc.is_file() {
             return Ok(None);
         }
-        Ok(Some(Self::new_with_version(&solc, version.clone())))
+        Ok(Some(Self::new_with_version(&solc, version)))
     }
 
     /// Returns the directory in which [svm](https://github.com/roynalnaruto/svm-rs) stores all versions
@@ -293,18 +299,25 @@ impl Solc {
         #[cfg(test)]
         crate::take_solc_installer_lock!(_lock);
 
+        let version = if version.pre.is_empty() {
+            Version::new(version.major, version.minor, version.patch)
+        } else {
+            // Preserve version if it is a prerelease.
+            version.clone()
+        };
+
         trace!("blocking installing solc version \"{}\"", version);
-        crate::report::solc_installation_start(version);
+        crate::report::solc_installation_start(&version);
         // The async version `svm::install` is used instead of `svm::blocking_install`
         // because the underlying `reqwest::blocking::Client` does not behave well
         // inside of a Tokio runtime. See: https://github.com/seanmonstar/reqwest/issues/1017
-        match RuntimeOrHandle::new().block_on(svm::install(version)) {
+        match RuntimeOrHandle::new().block_on(svm::install(&version)) {
             Ok(path) => {
-                crate::report::solc_installation_success(version);
+                crate::report::solc_installation_success(&version);
                 Ok(Self::new_with_version(path, version.clone()))
             }
             Err(err) => {
-                crate::report::solc_installation_error(version, &err.to_string());
+                crate::report::solc_installation_error(&version, &err.to_string());
                 Err(err)
             }
         }
