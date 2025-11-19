@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.9](https://github.com/foundry-rs/compilers/releases/tag/v0.19.9) - 2025-11-19
+
+### Bug Fixes
+
+- Preserve pre release version ([#340](https://github.com/foundry-rs/compilers/issues/340))
+
 ## [0.19.7](https://github.com/foundry-rs/compilers/releases/tag/v0.19.7) - 2025-11-18
 
 ### Bug Fixes
@@ -35,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.19.7
 - Release 0.19.6 ([#338](https://github.com/foundry-rs/compilers/issues/338))
 - Make clippy happy ([#334](https://github.com/foundry-rs/compilers/issues/334))
 - [`ci`] Merge in `codeql.yml` and mark as requirement for ci-success ([#331](https://github.com/foundry-rs/compilers/issues/331))
