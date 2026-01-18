@@ -215,7 +215,12 @@ impl Solc {
     #[instrument(skip_all)]
     #[cfg(feature = "svm-solc")]
     pub fn find_svm_installed_version(version: &Version) -> Result<Option<Self>> {
-        let version = Version::new(version.major, version.minor, version.patch);
+        let version = if version.pre.is_empty() {
+            Version::new(version.major, version.minor, version.patch)
+        } else {
+            // Preserve version if it is a prerelease.
+            version.clone()
+        };
         let solc = svm::version_binary(&version.to_string());
         if !solc.is_file() {
             return Ok(None);
@@ -294,7 +299,12 @@ impl Solc {
         #[cfg(test)]
         crate::take_solc_installer_lock!(_lock);
 
-        let version = Version::new(version.major, version.minor, version.patch);
+        let version = if version.pre.is_empty() {
+            Version::new(version.major, version.minor, version.patch)
+        } else {
+            // Preserve version if it is a prerelease.
+            version.clone()
+        };
 
         trace!("blocking installing solc version \"{}\"", version);
         crate::report::solc_installation_start(&version);
@@ -618,8 +628,7 @@ fn version_from_output(output: Output) -> Result<Version> {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let version = stdout
             .lines()
-            .filter(|l| !l.trim().is_empty())
-            .next_back()
+            .rfind(|l| !l.trim().is_empty())
             .ok_or_else(|| SolcError::msg("Version not found in Solc output"))?;
         // NOTE: semver doesn't like `+` in g++ in build metadata which is invalid semver
         Ok(Version::from_str(&version.trim_start_matches("Version: ").replace(".g++", ".gcc"))?)

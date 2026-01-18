@@ -40,11 +40,11 @@ pub struct Node {
 
     /// Child nodes for some node types.
     #[serde(default)]
-    pub nodes: Vec<Node>,
+    pub nodes: Vec<Self>,
 
     /// Body node for some node types.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub body: Option<Box<Node>>,
+    pub body: Option<Box<Self>>,
 
     /// Node attributes that were not deserialized.
     #[serde(flatten)]
