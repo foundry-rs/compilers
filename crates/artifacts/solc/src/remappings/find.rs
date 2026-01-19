@@ -84,7 +84,7 @@ impl Remapping {
         let visited_symlink_dirs = Mutex::new(HashSet::new());
 
         // iterate over all dirs that are children of the root
-        let candidates = read_dir(dir)
+        let mut candidates = read_dir(dir)
             .filter(|(_, file_type, _)| file_type.is_dir())
             .collect::<Vec<_>>()
             .par_iter()
@@ -98,6 +98,11 @@ impl Remapping {
                 )
             })
             .collect::<Vec<_>>();
+
+        // sort candidates so they are deterministic.
+        // this ensures that hashes do not change due to non deterministic mappings for paths with
+        // same number of components.
+        candidates.sort_by(|a, b| a.source_dir.cmp(&b.source_dir));
 
         // all combined remappings from all subdirs
         let mut all_remappings = BTreeMap::new();
