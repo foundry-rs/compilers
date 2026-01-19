@@ -72,8 +72,7 @@ mod tests {
     fn normalizes_evm_version_on_creation() {
         // Vyper 0.4.3 only supports up to Prague, not Osaka
         let vyper_version = Version::new(0, 4, 3);
-        let settings =
-            VyperSettings { evm_version: Some(EvmVersion::Osaka), ..Default::default() };
+        let settings = VyperSettings { evm_version: Some(EvmVersion::Osaka), ..Default::default() };
 
         let input = VyperInput::new(Sources::new(), settings, &vyper_version);
 
