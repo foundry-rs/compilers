@@ -180,12 +180,8 @@ impl ArtifactOutput for ConfigurableArtifacts {
         for (file, contracts) in contracts.as_ref().iter() {
             for (name, versioned_contracts) in contracts {
                 for contract in versioned_contracts {
-                    if let Some(artifact) = artifacts.find_artifact_with_profile(
-                        file,
-                        name,
-                        &contract.version,
-                        &contract.profile,
-                    ) {
+                    // INTENTIONALLY USING OLD CODE TO DEMONSTRATE BUG
+                    if let Some(artifact) = artifacts.find_artifact(file, name, &contract.version) {
                         let file = &artifact.file;
                         utils::create_parent_dir_all(file)?;
                         self.additional_files.write_extras(&contract.contract, file)?;
