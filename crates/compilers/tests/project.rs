@@ -4215,7 +4215,13 @@ fn extra_output_files_with_multiple_profiles() {
     // Use same setup as test_settings_restrictions which is known to work
     project.project_mut().settings.solc.evm_version = Some(EvmVersion::Paris);
 
-    let common_path = project.add_source("Common.sol", "").unwrap();
+    // Use a non-empty contract so bytecode is generated
+    let common_path = project
+        .add_source(
+            "Common.sol",
+            "contract Common { function foo() public pure returns (uint256) { return 42; } }",
+        )
+        .unwrap();
 
     let cancun_path = project
         .add_source(
