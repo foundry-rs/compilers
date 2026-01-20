@@ -4299,15 +4299,13 @@ contract Simple {
 
     // Counter.sol should be compiled with BOTH profiles since it's imported by both
     // Simple.sol (default) and Optimized.sol (optimized)
-    let counter_artifacts: Vec<_> = output
-        .artifact_ids()
-        .filter(|(id, _)| id.source == counter_path)
-        .map(|(id, _)| (id.profile.clone(), id.version.clone()))
-        .collect();
+    let counter_artifacts: Vec<_> =
+        output.artifact_ids().filter(|(id, _)| id.source == counter_path).collect();
 
     // Verify same version, different profiles
-    let versions: HashSet<_> = counter_artifacts.iter().map(|(_, v)| v).collect();
-    let profiles: HashSet<_> = counter_artifacts.iter().map(|(p, _)| p.as_str()).collect();
+    let versions: HashSet<_> = counter_artifacts.iter().map(|(id, _)| &id.version).collect();
+    let profiles: HashSet<_> =
+        counter_artifacts.iter().map(|(id, _)| id.profile.as_str()).collect();
 
     assert_eq!(versions.len(), 1, "expected same solc version for both profiles");
     assert!(
