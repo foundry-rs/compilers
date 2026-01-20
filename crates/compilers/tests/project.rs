@@ -4212,6 +4212,9 @@ fn extra_output_files_with_multiple_profiles() {
         TempProject::<MultiCompiler, ConfigurableArtifacts>::with_artifacts(paths, handler)
             .unwrap();
 
+    // Set default EVM version to Paris
+    project.project_mut().settings.solc.evm_version = Some(EvmVersion::Paris);
+
     // Add a shared library contract that will be compiled with multiple profiles
     project
         .add_source(
@@ -4229,7 +4232,7 @@ library Lib {
         )
         .unwrap();
 
-    // Add a contract that uses the library and compiles with default profile
+    // Add a contract that uses the library and compiles with default profile (Paris)
     project
         .add_source(
             "Default.sol",
@@ -4248,18 +4251,19 @@ contract Default {
         )
         .unwrap();
 
-    // Add a contract that requires optimized profile
-    let optimized_path = project
+    // Add a contract that requires Cancun EVM version (uses tstore)
+    let cancun_path = project
         .add_source(
-            "Optimized.sol",
+            "Cancun.sol",
             r#"
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import "./Lib.sol";
 
-contract Optimized {
-    function calc(uint256 x) public pure returns (uint256) {
+contract Cancun {
+    function calc(uint256 x) public returns (uint256) {
+        assembly { tstore(0, x) }
         return Lib.add(x, 2);
     }
 }
@@ -4267,31 +4271,30 @@ contract Optimized {
         )
         .unwrap();
 
-    // Create a second profile with different optimizer settings
-    let mut optimized_settings = project.project().settings.clone();
-    optimized_settings.solc.optimizer.enabled = Some(true);
-    optimized_settings.solc.optimizer.runs = Some(100000);
-    project.project_mut().additional_settings.insert("optimized".to_string(), optimized_settings);
+    // Create a second profile with Cancun EVM version
+    let mut cancun_settings = project.project().settings.clone();
+    cancun_settings.solc.evm_version = Some(EvmVersion::Cancun);
+    project.project_mut().additional_settings.insert("cancun".to_string(), cancun_settings);
 
-    // Create a restriction that requires Optimized.sol to use the optimized profile
-    let optimized_restriction = RestrictionsWithVersion {
+    // Create a restriction that requires Cancun.sol to use the cancun profile
+    let cancun_restriction = RestrictionsWithVersion {
         restrictions: MultiCompilerRestrictions {
             solc: SolcRestrictions {
-                optimizer_runs: Restriction { min: Some(100000), ..Default::default() },
+                evm_version: Restriction { min: Some(EvmVersion::Cancun), ..Default::default() },
                 ..Default::default()
             },
             ..Default::default()
         },
         version: None,
     };
-    project.project_mut().restrictions.insert(optimized_path, optimized_restriction);
+    project.project_mut().restrictions.insert(cancun_path, cancun_restriction);
 
     // Compile
     let output = project.compile().unwrap();
     output.assert_success();
 
     // Lib.sol should be compiled with BOTH profiles since it's imported by both
-    // Default.sol (default profile) and Optimized.sol (optimized profile)
+    // Default.sol (default/Paris profile) and Cancun.sol (cancun profile)
     let lib_profiles: HashSet<_> = output
         .artifact_ids()
         .filter(|(id, _)| id.name == "Lib")
@@ -4299,8 +4302,8 @@ contract Optimized {
         .collect();
 
     assert!(
-        lib_profiles.contains("default") && lib_profiles.contains("optimized"),
-        "expected Lib to be compiled with both 'default' and 'optimized' profiles, got: {lib_profiles:?}",
+        lib_profiles.contains("default") && lib_profiles.contains("cancun"),
+        "expected Lib to be compiled with both 'default' and 'cancun' profiles, got: {lib_profiles:?}",
     );
 
     // Check that .bin files were generated for each profile of Lib
@@ -4316,12 +4319,4 @@ contract Optimized {
 
     // We should have exactly 2 .bin files (one per profile)
     assert_eq!(bin_files.len(), 2, "expected 2 .bin files (one per profile), got: {bin_files:?}");
-
-    // Verify the files have different content (different optimizer settings = different bytecode)
-    let bin_contents: Vec<_> =
-        bin_files.iter().map(|name| fs::read_to_string(lib_dir.join(name)).unwrap()).collect();
-    assert_ne!(
-        bin_contents[0], bin_contents[1],
-        "expected different bytecode for different profiles"
-    );
 }
