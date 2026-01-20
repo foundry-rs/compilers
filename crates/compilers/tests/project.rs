@@ -4206,9 +4206,11 @@ fn extra_output_files_with_multiple_profiles() {
         ..Default::default()
     };
 
-    let paths = ProjectPathsConfig::dapptools(env!("CARGO_MANIFEST_DIR")).unwrap();
-    let mut project = TempProject::<MultiCompiler, ConfigurableArtifacts>::new(paths).unwrap();
-    project.project_mut().artifacts = handler;
+    // Create a dapptools-style project with custom artifacts handler
+    let paths = ProjectPathsConfig::builder();
+    let mut project =
+        TempProject::<MultiCompiler, ConfigurableArtifacts>::with_artifacts(paths, handler)
+            .unwrap();
 
     // Add a contract that will be compiled with multiple profiles
     let contract_path = project
