@@ -5,29 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.19.12](https://github.com/foundry-rs/compilers/releases/tag/v0.19.12) - 2026-01-19
+## [0.19.13](https://github.com/foundry-rs/compilers/releases/tag/v0.19.13) - 2026-01-20
 
 ### Bug Fixes
 
+- Add snake_case aliases for ModelCheckerSettings fields ([#348](https://github.com/foundry-rs/compilers/issues/348))
 - Normalize Vyper EVM version during input creation ([#345](https://github.com/foundry-rs/compilers/issues/345))
-
-### Other
-
-- Bump to 0.19.12 in README
-
-## [0.19.11](https://github.com/foundry-rs/compilers/releases/tag/v0.19.11) - 2026-01-19
-
-### Bug Fixes
-
 - Sort remapping candidates to avoid non deterministic output ([#343](https://github.com/foundry-rs/compilers/issues/343))
 
-### Other
+### Dependencies
 
-- Update to tempoxyz ([#344](https://github.com/foundry-rs/compilers/issues/344))
+- Bump 0.19.12 ([#347](https://github.com/foundry-rs/compilers/issues/347))
+- Bump
 
 ### Miscellaneous Tasks
 
 - Release 0.19.11 ([#346](https://github.com/foundry-rs/compilers/issues/346))
+
+### Other
+
+- Merge branch 'main' of github.com:foundry-rs/compilers
+- Update to tempoxyz ([#344](https://github.com/foundry-rs/compilers/issues/344))
 
 ## [0.19.10](https://github.com/foundry-rs/compilers/releases/tag/v0.19.10) - 2025-11-19
 
@@ -160,7 +158,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Miscellaneous Tasks
 
 - Release 0.17.4
-- Upstreamed `strip_bytecode_placeholders` from foundry ([#287](https://github.com/foundry-rs/compilers/issues/287))
+- Upstreamed  `strip_bytecode_placeholders` from foundry ([#287](https://github.com/foundry-rs/compilers/issues/287))
 
 ## [0.17.3](https://github.com/foundry-rs/compilers/releases/tag/v0.17.3) - 2025-06-14
 
