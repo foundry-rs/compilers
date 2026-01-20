@@ -1248,15 +1248,15 @@ pub struct ModelCheckerSettings {
     pub targets: Option<Vec<ModelCheckerTarget>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub invariants: Option<Vec<ModelCheckerInvariant>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", alias = "show_unproved")]
     pub show_unproved: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", alias = "div_mod_with_slacks")]
     pub div_mod_with_slacks: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub solvers: Option<Vec<ModelCheckerSolver>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", alias = "show_unsupported")]
     pub show_unsupported: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", alias = "show_proved_safe")]
     pub show_proved_safe: Option<bool>,
 }
 
@@ -2236,5 +2236,49 @@ mod tests {
 
         let i = input.sanitized(&Version::new(0, 8, 5));
         assert_eq!(i.settings.optimizer.details.unwrap().inliner, Some(false));
+    }
+
+    // <https://github.com/foundry-rs/foundry/issues/12801>
+    #[test]
+    fn model_checker_settings_snake_case_aliases() {
+        // Test that snake_case field names work (used in foundry.toml config)
+        let snake_case_json = r#"{
+            "engine": "chc",
+            "show_unproved": true,
+            "show_unsupported": true,
+            "show_proved_safe": false,
+            "div_mod_with_slacks": true
+        }"#;
+
+        let settings: ModelCheckerSettings = serde_json::from_str(snake_case_json).unwrap();
+        assert_eq!(settings.engine, Some(ModelCheckerEngine::CHC));
+        assert_eq!(settings.show_unproved, Some(true));
+        assert_eq!(settings.show_unsupported, Some(true));
+        assert_eq!(settings.show_proved_safe, Some(false));
+        assert_eq!(settings.div_mod_with_slacks, Some(true));
+
+        // Test that camelCase still works (used in solc JSON input)
+        let camel_case_json = r#"{
+            "engine": "chc",
+            "showUnproved": true,
+            "showUnsupported": true,
+            "showProvedSafe": false,
+            "divModWithSlacks": true
+        }"#;
+
+        let settings: ModelCheckerSettings = serde_json::from_str(camel_case_json).unwrap();
+        assert_eq!(settings.engine, Some(ModelCheckerEngine::CHC));
+        assert_eq!(settings.show_unproved, Some(true));
+        assert_eq!(settings.show_unsupported, Some(true));
+        assert_eq!(settings.show_proved_safe, Some(false));
+        assert_eq!(settings.div_mod_with_slacks, Some(true));
+
+        // Serialization should produce camelCase (for solc compatibility)
+        let serialized = serde_json::to_string(&settings).unwrap();
+        assert!(serialized.contains("showUnproved"));
+        assert!(serialized.contains("showUnsupported"));
+        assert!(serialized.contains("showProvedSafe"));
+        assert!(serialized.contains("divModWithSlacks"));
+        assert!(!serialized.contains("show_unproved"));
     }
 }
