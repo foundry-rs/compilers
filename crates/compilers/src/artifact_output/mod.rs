@@ -269,14 +269,11 @@ impl<T> Artifacts<T> {
         version: &Version,
         profile: &str,
     ) -> Option<&ArtifactFile<T>> {
-        self.0
-            .get(file)
-            .and_then(|contracts| contracts.get(contract_name))
-            .and_then(|artifacts| {
-                artifacts
-                    .iter()
-                    .find(|artifact| artifact.version == *version && artifact.profile == profile)
-            })
+        self.0.get(file).and_then(|contracts| contracts.get(contract_name)).and_then(|artifacts| {
+            artifacts
+                .iter()
+                .find(|artifact| artifact.version == *version && artifact.profile == profile)
+        })
     }
 
     /// Returns true if this type contains an artifact with the given path for the given contract
