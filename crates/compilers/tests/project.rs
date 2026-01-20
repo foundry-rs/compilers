@@ -4212,17 +4212,56 @@ fn extra_output_files_with_multiple_profiles() {
         TempProject::<MultiCompiler, ConfigurableArtifacts>::with_artifacts(paths, handler)
             .unwrap();
 
-    // Add a contract that will be compiled with multiple profiles
-    let contract_path = project
+    // Add a shared library contract that will be compiled with multiple profiles
+    project
         .add_source(
-            "Counter.sol",
+            "Lib.sol",
             r#"
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract Counter {
-    uint256 public count;
-    function increment() public { count++; }
+library Lib {
+    function add(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a + b;
+    }
+}
+"#,
+        )
+        .unwrap();
+
+    // Add a contract that uses the library and compiles with default profile
+    project
+        .add_source(
+            "Default.sol",
+            r#"
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./Lib.sol";
+
+contract Default {
+    function calc(uint256 x) public pure returns (uint256) {
+        return Lib.add(x, 1);
+    }
+}
+"#,
+        )
+        .unwrap();
+
+    // Add a contract that requires optimized profile (uses transient storage which needs specific settings)
+    let optimized_path = project
+        .add_source(
+            "Optimized.sol",
+            r#"
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./Lib.sol";
+
+contract Optimized {
+    function calc(uint256 x) public pure returns (uint256) {
+        return Lib.add(x, 2);
+    }
 }
 "#,
         )
@@ -4234,7 +4273,7 @@ contract Counter {
     optimized_settings.solc.optimizer.runs = Some(100000);
     project.project_mut().additional_settings.insert("optimized".to_string(), optimized_settings);
 
-    // Create a restriction that requires this contract to use the optimized profile
+    // Create a restriction that requires Optimized.sol to use the optimized profile
     let optimized_restriction = RestrictionsWithVersion {
         restrictions: MultiCompilerRestrictions {
             solc: SolcRestrictions {
@@ -4245,26 +4284,31 @@ contract Counter {
         },
         version: None,
     };
-    project.project_mut().restrictions.insert(contract_path, optimized_restriction);
+    project.project_mut().restrictions.insert(optimized_path, optimized_restriction);
 
     // Compile
     let output = project.compile().unwrap();
     output.assert_success();
 
-    // Verify we have artifacts for both profiles
-    let profiles: HashSet<_> = output.artifact_ids().map(|(id, _)| id.profile).collect();
+    // Lib.sol should be compiled with BOTH profiles since it's imported by both
+    // Default.sol (default profile) and Optimized.sol (optimized profile)
+    let lib_artifacts: Vec<_> = output
+        .artifact_ids()
+        .filter(|(id, _)| id.name == "Lib")
+        .map(|(id, _)| id.profile.clone())
+        .collect();
+
     assert!(
-        profiles.contains("default") && profiles.contains("optimized"),
-        "expected both 'default' and 'optimized' profiles, got: {profiles:?}",
+        lib_artifacts.contains(&"default".to_string())
+            && lib_artifacts.contains(&"optimized".to_string()),
+        "expected Lib to be compiled with both 'default' and 'optimized' profiles, got: {lib_artifacts:?}",
     );
 
-    // Check that .bin files were generated for each profile
+    // Check that .bin files were generated for each profile of Lib
     let artifacts_dir = project.paths().artifacts.clone();
-    let counter_dir = artifacts_dir.join("Counter.sol");
+    let lib_dir = artifacts_dir.join("Lib.sol");
 
-    // Default profile should produce Counter.bin (primary profile, no suffix)
-    // or the optimized one produces Counter.optimized.bin
-    let bin_files: Vec<_> = std::fs::read_dir(&counter_dir)
+    let bin_files: Vec<_> = fs::read_dir(&lib_dir)
         .unwrap()
         .filter_map(|e| e.ok())
         .map(|e| e.file_name().to_string_lossy().to_string())
@@ -4272,13 +4316,11 @@ contract Counter {
         .collect();
 
     // We should have exactly 2 .bin files (one per profile)
-    assert_eq!(bin_files.len(), 2, "expected 2 .bin files (one per profile), got: {:?}", bin_files);
+    assert_eq!(bin_files.len(), 2, "expected 2 .bin files (one per profile), got: {bin_files:?}");
 
     // Verify the files have different content (different optimizer settings = different bytecode)
-    let bin_contents: Vec<_> = bin_files
-        .iter()
-        .map(|name| std::fs::read_to_string(counter_dir.join(name)).unwrap())
-        .collect();
+    let bin_contents: Vec<_> =
+        bin_files.iter().map(|name| fs::read_to_string(lib_dir.join(name)).unwrap()).collect();
     assert_ne!(
         bin_contents[0], bin_contents[1],
         "expected different bytecode for different profiles"
