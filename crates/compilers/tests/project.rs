@@ -4245,22 +4245,17 @@ contract Counter {
         },
         version: None,
     };
-    project.project_mut().restrictions.insert(contract_path.clone(), optimized_restriction);
+    project.project_mut().restrictions.insert(contract_path, optimized_restriction);
 
     // Compile
     let output = project.compile().unwrap();
     output.assert_success();
 
-    // Collect all artifact profiles and paths
-    let artifacts: Vec<_> =
-        output.artifact_ids().map(|(id, _)| (id.profile.clone(), id.path.clone())).collect();
-
     // Verify we have artifacts for both profiles
-    let profiles: HashSet<_> = artifacts.iter().map(|(p, _)| p.as_str()).collect();
+    let profiles: HashSet<_> = output.artifact_ids().map(|(id, _)| id.profile).collect();
     assert!(
         profiles.contains("default") && profiles.contains("optimized"),
-        "expected both 'default' and 'optimized' profiles, got: {:?}",
-        profiles
+        "expected both 'default' and 'optimized' profiles, got: {profiles:?}",
     );
 
     // Check that .bin files were generated for each profile
