@@ -16,9 +16,9 @@ use foundry_compilers::{
     project::{Preprocessor, ProjectCompiler},
     project_util::*,
     solc::{Restriction, SolcRestrictions, SolcSettings},
-    take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, RestrictionsWithVersion,
-    TestFileFilter,
+    take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputFiles, ExtraOutputValues,
+    Graph, Project, ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig,
+    RestrictionsWithVersion, TestFileFilter,
 };
 use foundry_compilers_artifacts::{
     output_selection::OutputSelection, remappings::Remapping, BytecodeHash, Contract, DevDoc,
@@ -4195,4 +4195,95 @@ fn can_preprocess() {
     };
     compiled.assert_success();
     assert!(!compiled.is_unchanged());
+}
+
+// https://github.com/foundry-rs/foundry/issues/13057
+#[test]
+fn extra_output_files_with_multiple_profiles() {
+    // Configure artifacts handler with extra output files (bytecode)
+    let handler = ConfigurableArtifacts {
+        additional_files: ExtraOutputFiles { bytecode: true, ..Default::default() },
+        ..Default::default()
+    };
+
+    let paths = ProjectPathsConfig::dapptools(env!("CARGO_MANIFEST_DIR")).unwrap();
+    let mut project = TempProject::<MultiCompiler, ConfigurableArtifacts>::new(paths).unwrap();
+    project.project_mut().artifacts = handler;
+
+    // Add a contract that will be compiled with multiple profiles
+    let contract_path = project
+        .add_source(
+            "Counter.sol",
+            r#"
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Counter {
+    uint256 public count;
+    function increment() public { count++; }
+}
+"#,
+        )
+        .unwrap();
+
+    // Create a second profile with different optimizer settings
+    let mut optimized_settings = project.project().settings.clone();
+    optimized_settings.solc.optimizer.enabled = Some(true);
+    optimized_settings.solc.optimizer.runs = Some(100000);
+    project.project_mut().additional_settings.insert("optimized".to_string(), optimized_settings);
+
+    // Create a restriction that requires this contract to use the optimized profile
+    let optimized_restriction = RestrictionsWithVersion {
+        restrictions: MultiCompilerRestrictions {
+            solc: SolcRestrictions {
+                optimizer_runs: Restriction { min: Some(100000), ..Default::default() },
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        version: None,
+    };
+    project.project_mut().restrictions.insert(contract_path.clone(), optimized_restriction);
+
+    // Compile
+    let output = project.compile().unwrap();
+    output.assert_success();
+
+    // Collect all artifact profiles and paths
+    let artifacts: Vec<_> =
+        output.artifact_ids().map(|(id, _)| (id.profile.clone(), id.path.clone())).collect();
+
+    // Verify we have artifacts for both profiles
+    let profiles: HashSet<_> = artifacts.iter().map(|(p, _)| p.as_str()).collect();
+    assert!(
+        profiles.contains("default") && profiles.contains("optimized"),
+        "expected both 'default' and 'optimized' profiles, got: {:?}",
+        profiles
+    );
+
+    // Check that .bin files were generated for each profile
+    let artifacts_dir = project.paths().artifacts.clone();
+    let counter_dir = artifacts_dir.join("Counter.sol");
+
+    // Default profile should produce Counter.bin (primary profile, no suffix)
+    // or the optimized one produces Counter.optimized.bin
+    let bin_files: Vec<_> = std::fs::read_dir(&counter_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .filter(|name| name.ends_with(".bin"))
+        .collect();
+
+    // We should have exactly 2 .bin files (one per profile)
+    assert_eq!(bin_files.len(), 2, "expected 2 .bin files (one per profile), got: {:?}", bin_files);
+
+    // Verify the files have different content (different optimizer settings = different bytecode)
+    let bin_contents: Vec<_> = bin_files
+        .iter()
+        .map(|name| std::fs::read_to_string(counter_dir.join(name)).unwrap())
+        .collect();
+    assert_ne!(
+        bin_contents[0], bin_contents[1],
+        "expected different bytecode for different profiles"
+    );
 }
