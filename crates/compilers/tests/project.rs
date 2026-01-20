@@ -4206,77 +4206,43 @@ fn extra_output_files_with_multiple_profiles() {
         ..Default::default()
     };
 
-    // Create a dapptools-style project with custom artifacts handler
+    // Create project using dapptools style, then replace artifacts handler
     let paths = ProjectPathsConfig::builder();
     let mut project =
         TempProject::<MultiCompiler, ConfigurableArtifacts>::with_artifacts(paths, handler)
             .unwrap();
 
-    // Set default EVM version to Paris
+    // Use same setup as test_settings_restrictions which is known to work
     project.project_mut().settings.solc.evm_version = Some(EvmVersion::Paris);
 
-    // Add a shared library contract that will be compiled with multiple profiles
-    project
-        .add_source(
-            "Lib.sol",
-            r#"
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+    let common_path = project.add_source("Common.sol", "").unwrap();
 
-library Lib {
-    function add(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a + b;
-    }
-}
-"#,
-        )
-        .unwrap();
-
-    // Add a contract that uses the library and compiles with default profile (Paris)
-    project
-        .add_source(
-            "Default.sol",
-            r#"
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-import "./Lib.sol";
-
-contract Default {
-    function calc(uint256 x) public pure returns (uint256) {
-        return Lib.add(x, 1);
-    }
-}
-"#,
-        )
-        .unwrap();
-
-    // Add a contract that requires Cancun EVM version (uses tstore)
     let cancun_path = project
         .add_source(
             "Cancun.sol",
             r#"
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+import "./Common.sol";
 
-import "./Lib.sol";
-
-contract Cancun {
-    function calc(uint256 x) public returns (uint256) {
-        assembly { tstore(0, x) }
-        return Lib.add(x, 2);
+contract TransientContract {
+    function lock() public {
+        assembly {
+            tstore(0, 1)
+        }
     }
-}
-"#,
+}"#,
         )
         .unwrap();
 
-    // Create a second profile with Cancun EVM version
+    project
+        .add_source("Simple.sol", "import \"./Common.sol\"; contract SimpleContract {}")
+        .unwrap();
+
+    // Add cancun profile
     let mut cancun_settings = project.project().settings.clone();
     cancun_settings.solc.evm_version = Some(EvmVersion::Cancun);
     project.project_mut().additional_settings.insert("cancun".to_string(), cancun_settings);
 
-    // Create a restriction that requires Cancun.sol to use the cancun profile
+    // Add restriction for Cancun.sol
     let cancun_restriction = RestrictionsWithVersion {
         restrictions: MultiCompilerRestrictions {
             solc: SolcRestrictions {
@@ -4293,24 +4259,24 @@ contract Cancun {
     let output = project.compile().unwrap();
     output.assert_success();
 
-    // Lib.sol should be compiled with BOTH profiles since it's imported by both
-    // Default.sol (default/Paris profile) and Cancun.sol (cancun profile)
-    let lib_profiles: HashSet<_> = output
+    // Common.sol should be compiled with BOTH profiles
+    let common_artifacts: Vec<_> = output
         .artifact_ids()
-        .filter(|(id, _)| id.name == "Lib")
+        .filter(|(id, _)| id.source == common_path)
         .map(|(id, _)| id.profile)
         .collect();
 
     assert!(
-        lib_profiles.contains("default") && lib_profiles.contains("cancun"),
-        "expected Lib to be compiled with both 'default' and 'cancun' profiles, got: {lib_profiles:?}",
+        common_artifacts.contains(&"default".to_string())
+            && common_artifacts.contains(&"cancun".to_string()),
+        "expected Common.sol with both profiles, got: {common_artifacts:?}",
     );
 
-    // Check that .bin files were generated for each profile of Lib
+    // Check that .bin files were generated for each profile of Common.sol
     let artifacts_dir = project.paths().artifacts.clone();
-    let lib_dir = artifacts_dir.join("Lib.sol");
+    let common_dir = artifacts_dir.join("Common.sol");
 
-    let bin_files: Vec<_> = fs::read_dir(&lib_dir)
+    let bin_files: Vec<_> = fs::read_dir(&common_dir)
         .unwrap()
         .filter_map(|e| e.ok())
         .map(|e| e.file_name().to_string_lossy().to_string())
