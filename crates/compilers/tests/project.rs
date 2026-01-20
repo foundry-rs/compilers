@@ -4248,7 +4248,7 @@ contract Default {
         )
         .unwrap();
 
-    // Add a contract that requires optimized profile (uses transient storage which needs specific settings)
+    // Add a contract that requires optimized profile
     let optimized_path = project
         .add_source(
             "Optimized.sol",
@@ -4292,16 +4292,15 @@ contract Optimized {
 
     // Lib.sol should be compiled with BOTH profiles since it's imported by both
     // Default.sol (default profile) and Optimized.sol (optimized profile)
-    let lib_artifacts: Vec<_> = output
+    let lib_profiles: HashSet<_> = output
         .artifact_ids()
         .filter(|(id, _)| id.name == "Lib")
-        .map(|(id, _)| id.profile.clone())
+        .map(|(id, _)| id.profile)
         .collect();
 
     assert!(
-        lib_artifacts.contains(&"default".to_string())
-            && lib_artifacts.contains(&"optimized".to_string()),
-        "expected Lib to be compiled with both 'default' and 'optimized' profiles, got: {lib_artifacts:?}",
+        lib_profiles.contains("default") && lib_profiles.contains("optimized"),
+        "expected Lib to be compiled with both 'default' and 'optimized' profiles, got: {lib_profiles:?}",
     );
 
     // Check that .bin files were generated for each profile of Lib
