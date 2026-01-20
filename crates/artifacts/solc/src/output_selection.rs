@@ -127,6 +127,24 @@ impl OutputSelection {
             })
         })
     }
+
+    /// Returns true if AST output is requested.
+    ///
+    /// AST is a file-level output (uses empty string as contract name) and requires
+    /// all files to be compiled together to ensure consistent node IDs across the
+    /// compilation unit. When AST is requested, sparse output optimization should
+    /// be disabled.
+    pub fn contains_ast(&self) -> bool {
+        self.0.values().any(|file_selection| {
+            file_selection.iter().any(|(contract_name, outputs)| {
+                // AST is a file-level output, indicated by an empty contract name.
+                // When contract_name is empty, outputs like "ast" or "*" include AST.
+                // When contract_name is "*", the "*" in outputs means "all contract outputs"
+                // which doesn't include AST (file-level), but explicit "ast" would be invalid.
+                contract_name.is_empty() && outputs.iter().any(|o| o == "ast" || o == "*")
+            })
+        })
+    }
 }
 
 // this will make sure that if the `FileOutputSelection` for a certain file is empty will be
@@ -632,5 +650,47 @@ mod tests {
                 .unwrap(),
             DeployedBytecodeOutputSelection::ImmutableReferences
         )
+    }
+
+    #[test]
+    fn test_contains_ast() {
+        // AST selection with empty contract name (file-level output)
+        let ast_selection = OutputSelection::ast_output_selection();
+        assert!(ast_selection.contains_ast());
+
+        // Default output selection (no AST)
+        let default_selection = OutputSelection::default_output_selection();
+        assert!(!default_selection.contains_ast());
+
+        // Complete output selection (includes "*" wildcard which includes AST)
+        let complete_selection = OutputSelection::complete_output_selection();
+        assert!(complete_selection.contains_ast());
+
+        // Empty output selection
+        let empty_selection = OutputSelection::from(BTreeMap::from([(
+            "*".to_string(),
+            BTreeMap::from([("*".to_string(), vec![])]),
+        )]));
+        assert!(!empty_selection.contains_ast());
+
+        // Explicit AST in file-level output
+        let explicit_ast = OutputSelection::from(BTreeMap::from([(
+            "*".to_string(),
+            BTreeMap::from([
+                ("*".to_string(), vec!["abi".to_string()]),
+                (String::new(), vec!["ast".to_string()]),
+            ]),
+        )]));
+        assert!(explicit_ast.contains_ast());
+
+        // Only contract-level outputs (no AST)
+        let contract_only = OutputSelection::from(BTreeMap::from([(
+            "*".to_string(),
+            BTreeMap::from([(
+                "*".to_string(),
+                vec!["abi".to_string(), "evm.bytecode".to_string()],
+            )]),
+        )]));
+        assert!(!contract_only.contains_ast());
     }
 }
