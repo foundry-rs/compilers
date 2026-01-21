@@ -145,6 +145,20 @@ impl<'a> SparseOutputFilter<'a> {
         full_compilation.retain(|file| sources.0.get(file).is_some_and(|s| s.is_dirty()));
 
         settings.update_output_selection(|selection| {
+            // When AST output is requested, we cannot use sparse output optimization because
+            // AST node IDs are specific to each compilation unit. If we selectively compile
+            // only dirty files with AST output, the cached AST from previous compilations
+            // will have different node IDs than the freshly compiled files, breaking
+            // cross-file references in the AST.
+            if selection.contains_ast() {
+                trace!(
+                    "skipping sparse output optimization: AST output is requested, \
+                     requiring full compilation for consistent AST node IDs"
+                );
+                // Keep full output selection for all files
+                return;
+            }
+
             trace!(
                 "optimizing output selection for {} sources",
                 sources.len() - full_compilation.len()

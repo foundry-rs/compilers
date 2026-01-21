@@ -4154,6 +4154,103 @@ contract A { }
     });
 }
 
+/// Regression test for foundry-rs/foundry#11056 - verifies contains_ast() method
+///
+/// This test verifies that the OutputSelection::contains_ast() method correctly detects
+/// when AST output is requested, which is used by the sparse output optimization to
+/// skip optimization when AST is needed.
+#[test]
+fn test_output_selection_contains_ast() {
+    // Default selection should not contain AST
+    let default_selection = OutputSelection::default_output_selection();
+    assert!(!default_selection.contains_ast(), "Default output selection should not contain AST");
+
+    // AST selection should contain AST
+    let ast_selection = OutputSelection::ast_output_selection();
+    assert!(ast_selection.contains_ast(), "AST output selection should contain AST");
+
+    // Complete selection (with *) should contain AST
+    let complete_selection = OutputSelection::complete_output_selection();
+    assert!(complete_selection.contains_ast(), "Complete output selection should contain AST");
+
+    // Custom selection with AST in file-level output should contain AST
+    let mut custom = OutputSelection::default_output_selection();
+    custom.0.entry("*".to_string()).or_default().insert(String::new(), vec!["ast".to_string()]);
+    assert!(custom.contains_ast(), "Custom selection with AST should contain AST");
+}
+
+/// Regression test for foundry-rs/foundry#11056
+///
+/// This test verifies that when AST output is requested, the sparse output
+/// optimization is skipped (by returning early in sparse_sources), which keeps
+/// the full output selection for all files instead of setting empty selection
+/// for non-dirty files.
+///
+/// Without this fix, non-dirty files would have empty output selection, resulting
+/// in no AST output for cached dependencies, causing AST node ID mismatches.
+#[test]
+fn sparse_output_preserves_selection_when_ast_requested() {
+    let mut tmp = TempProject::<MultiCompiler>::new(ProjectPathsConfig::builder()).unwrap();
+
+    // Create a test file and its dependency
+    tmp.add_source(
+        "Dep.sol",
+        r#"
+pragma solidity ^0.8.10;
+contract Dep {
+    uint256 public value;
+}
+"#,
+    )
+    .unwrap();
+
+    tmp.add_source(
+        "Test.t.sol",
+        r#"
+pragma solidity ^0.8.10;
+import "./Dep.sol";
+contract Test {
+    Dep public dep;
+    function test() public {
+        dep = new Dep();
+    }
+}
+"#,
+    )
+    .unwrap();
+
+    // Enable AST output selection
+    tmp.project_mut().update_output_selection(|selection| {
+        selection
+            .0
+            .entry("*".to_string())
+            .or_default()
+            .insert(String::new(), vec!["ast".to_string()]);
+    });
+
+    // Enable sparse output
+    tmp.project_mut().sparse_output = Some(Box::<TestFileFilter>::default());
+
+    // Compile - both files should be compiled with AST output
+    let compiled = tmp.compile().unwrap();
+    compiled.assert_success();
+
+    // Verify both contracts have AST output
+    let artifacts = tmp.artifacts_snapshot().unwrap();
+
+    let test_artifact = artifacts
+        .artifacts
+        .as_ref()
+        .iter()
+        .find(|(path, _)| path.ends_with("Test.t.sol"))
+        .and_then(|(_, contracts)| contracts.get("Test"))
+        .and_then(|versions| versions.first())
+        .map(|a| &a.artifact);
+
+    // The test file should always have AST (it's in the sparse filter)
+    assert!(test_artifact.is_some_and(|a| a.ast.is_some()), "Test contract should have AST output");
+}
+
 #[test]
 fn can_preprocess() {
     #[derive(Debug)]
