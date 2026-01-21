@@ -411,9 +411,11 @@ impl<L> ProjectPathsConfig<L> {
         if component == Component::CurDir || component == Component::ParentDir {
             // if the import is relative we assume it's already part of the processed input
             // file set
-            utils::normalize_solidity_import_path(cwd, import).map_err(|err| {
+            let resolved = utils::normalize_solidity_import_path(cwd, import).map_err(|err| {
                 SolcError::msg(format!("failed to resolve relative import \"{err:?}\""))
-            })
+            })?;
+            // Check if the resolved path matches a remapping and should be redirected
+            Ok(self.apply_remapping_to_path(cwd, &resolved))
         } else {
             // resolve library file
             let resolved = self.resolve_library_import(cwd.as_ref(), import.as_ref());
@@ -547,6 +549,55 @@ impl<L> ProjectPathsConfig<L> {
         } else {
             utils::resolve_library(&self.libraries, import)
         }
+    }
+
+    /// Applies remappings to a resolved absolute path.
+    ///
+    /// When a file is resolved via relative imports, the resulting path might match a remapping
+    /// pattern. This method checks if the resolved path (relative to the project root) matches
+    /// any remapping and returns the remapped path if so.
+    ///
+    /// This is important for contract verification where the standard JSON input must use
+    /// remapped paths that match what the Solidity compiler expects.
+    ///
+    /// # Arguments
+    /// * `cwd` - The current working directory (parent of the importing file)
+    /// * `resolved_path` - The absolute path that was resolved
+    ///
+    /// # Returns
+    /// The remapped path if a matching remapping exists and the target file exists,
+    /// otherwise returns the original path.
+    pub fn apply_remapping_to_path(&self, cwd: &Path, resolved_path: &Path) -> PathBuf {
+        // Get the path relative to root
+        let relative_path = match resolved_path.strip_prefix(&self.root) {
+            Ok(p) => p,
+            Err(_) => return resolved_path.to_path_buf(),
+        };
+
+        let cwd_relative = cwd.strip_prefix(&self.root).unwrap_or(cwd);
+
+        // Check if any remapping matches this path
+        for r in &self.remappings {
+            // Check context
+            if let Some(ctx) = r.context.as_ref() {
+                if !cwd_relative.starts_with(ctx) {
+                    continue;
+                }
+            }
+
+            // Check if the relative path starts with the remapping name
+            if let Ok(stripped) = relative_path.strip_prefix(&r.name) {
+                let remapped_relative = Path::new(&r.path).join(stripped);
+                let remapped_absolute = self.root.join(&remapped_relative);
+
+                // Only use remapped path if the target file exists
+                if remapped_absolute.exists() {
+                    return remapped_absolute;
+                }
+            }
+        }
+
+        resolved_path.to_path_buf()
     }
 
     pub fn with_language_ref<Lang>(&self) -> &ProjectPathsConfig<Lang> {
@@ -1213,5 +1264,58 @@ mod tests {
             .to_str()
             .unwrap()
             .ends_with("my-lib/B.sol"));
+    }
+
+    #[test]
+    fn can_apply_remapping_to_relative_import() {
+        // This test verifies the fix for foundry-rs/foundry#12667
+        // When a relative import resolves to a path that matches a remapping,
+        // the remapped path should be used instead.
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = ProjectPathsConfig::builder().root(dir.path()).build::<()>().unwrap();
+        config.create_all().unwrap();
+
+        // Create lib/external/utils/LibMem/LibMem.sol (the original external file)
+        let lib_dir = config.root.join("lib/external/utils/LibMem");
+        fs::create_dir_all(&lib_dir).unwrap();
+        fs::write(
+            lib_dir.join("LibMem.sol"),
+            r"pragma solidity ^0.8.0; library LibMem { bool constant EXTERNAL = true; }",
+        )
+        .unwrap();
+
+        // Create src/utils/LibMem.sol (the local override)
+        let local_dir = config.root.join("src/utils");
+        fs::create_dir_all(&local_dir).unwrap();
+        fs::write(
+            local_dir.join("LibMem.sol"),
+            r"pragma solidity ^0.8.0; library LibMem { bool constant LOCAL = true; }",
+        )
+        .unwrap();
+
+        // Create a file that uses relative import
+        let importing_file = config.root.join("lib/external/utils/BytesUtils.sol");
+        fs::write(&importing_file, r#"pragma solidity ^0.8.0; import "./LibMem/LibMem.sol";"#)
+            .unwrap();
+
+        // Add remapping: lib/external/utils/LibMem/=src/utils/
+        config.remappings.push(Remapping {
+            context: None,
+            name: "lib/external/utils/LibMem/".into(),
+            path: "src/utils/".into(),
+        });
+
+        // Resolve the relative import from BytesUtils.sol
+        let cwd = importing_file.parent().unwrap();
+        let resolved = config
+            .resolve_import_and_include_paths(
+                cwd,
+                Path::new("./LibMem/LibMem.sol"),
+                &mut Default::default(),
+            )
+            .unwrap();
+
+        // The resolved path should be the local override, not the external file
+        assert_eq!(resolved, local_dir.join("LibMem.sol"));
     }
 }
