@@ -16,9 +16,9 @@ use foundry_compilers::{
     project::{Preprocessor, ProjectCompiler},
     project_util::*,
     solc::{Restriction, SolcRestrictions, SolcSettings},
-    take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputValues, Graph, Project,
-    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, RestrictionsWithVersion,
-    TestFileFilter,
+    take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputFiles, ExtraOutputValues,
+    Graph, Project, ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig,
+    RestrictionsWithVersion, TestFileFilter,
 };
 use foundry_compilers_artifacts::{
     output_selection::OutputSelection, remappings::Remapping, BytecodeHash, Contract, DevDoc,
@@ -4292,4 +4292,138 @@ fn can_preprocess() {
     };
     compiled.assert_success();
     assert!(!compiled.is_unchanged());
+}
+
+// https://github.com/foundry-rs/foundry/issues/13057
+// Tests that extra output files (.bin) are correctly generated for each profile
+// when the same contract is compiled with multiple profiles using the SAME solc version.
+// The bug was that find_artifact() only matched by version, not profile, so all profiles
+// would write to the same .bin file path.
+#[test]
+fn extra_output_files_with_multiple_profiles() {
+    // Configure artifacts handler with extra output files (bytecode)
+    let handler = ConfigurableArtifacts {
+        additional_files: ExtraOutputFiles { bytecode: true, ..Default::default() },
+        ..Default::default()
+    };
+
+    let paths = ProjectPathsConfig::builder();
+    let mut project =
+        TempProject::<MultiCompiler, ConfigurableArtifacts>::with_artifacts(paths, handler)
+            .unwrap();
+
+    // Fix solc version to ensure both profiles use the SAME version
+    // This is critical - the bug only manifests when version is the same but profile differs
+    project.set_solc("0.8.26");
+
+    // Default profile: optimizer disabled
+    project.project_mut().settings.solc.optimizer.enabled = Some(false);
+
+    // Add a contract that will be compiled with both profiles
+    let counter_path = project
+        .add_source(
+            "Counter.sol",
+            r#"
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Counter {
+    uint256 public count;
+    function increment() public { count++; }
+    function decrement() public { count--; }
+}
+"#,
+        )
+        .unwrap();
+
+    // Add a contract that imports Counter and requires the optimized profile
+    let optimized_path = project
+        .add_source(
+            "Optimized.sol",
+            r#"
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./Counter.sol";
+
+contract Optimized {
+    Counter public counter;
+    constructor() { counter = new Counter(); }
+}
+"#,
+        )
+        .unwrap();
+
+    // Add a contract that imports Counter and uses default profile
+    project
+        .add_source(
+            "Simple.sol",
+            r#"
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./Counter.sol";
+
+contract Simple {
+    Counter public counter;
+}
+"#,
+        )
+        .unwrap();
+
+    // Create optimized profile with high optimizer runs (same solc version, different settings)
+    let mut optimized_settings = project.project().settings.clone();
+    optimized_settings.solc.optimizer.enabled = Some(true);
+    optimized_settings.solc.optimizer.runs = Some(10000);
+    project.project_mut().additional_settings.insert("optimized".to_string(), optimized_settings);
+
+    // Add restriction: Optimized.sol requires optimizer_runs >= 10000
+    let optimized_restriction = RestrictionsWithVersion {
+        restrictions: MultiCompilerRestrictions {
+            solc: SolcRestrictions {
+                optimizer_runs: Restriction { min: Some(10000), ..Default::default() },
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        version: None,
+    };
+    project.project_mut().restrictions.insert(optimized_path, optimized_restriction);
+
+    // Compile
+    let output = project.compile().unwrap();
+    output.assert_success();
+
+    // Counter.sol should be compiled with BOTH profiles since it's imported by both
+    // Simple.sol (default) and Optimized.sol (optimized)
+    let counter_artifacts: Vec<_> =
+        output.artifact_ids().filter(|(id, _)| id.source == counter_path).collect();
+
+    // Verify same version, different profiles
+    let versions: HashSet<_> = counter_artifacts.iter().map(|(id, _)| &id.version).collect();
+    let profiles: HashSet<_> =
+        counter_artifacts.iter().map(|(id, _)| id.profile.as_str()).collect();
+
+    assert_eq!(versions.len(), 1, "expected same solc version for both profiles");
+    assert!(
+        profiles.contains("default") && profiles.contains("optimized"),
+        "expected Counter with both profiles, got: {profiles:?}",
+    );
+
+    // Check that .bin files were generated for each profile
+    let artifacts_dir = project.paths().artifacts.clone();
+    let counter_dir = artifacts_dir.join("Counter.sol");
+
+    let bin_files: Vec<_> = fs::read_dir(&counter_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .filter(|name| name.ends_with(".bin"))
+        .collect();
+
+    // We should have exactly 2 .bin files (one per profile)
+    // Without the fix, only 1 .bin would exist because find_artifact() returns the same
+    // artifact for both profiles (matches by version only), causing the second write to
+    // overwrite the first.
+    assert_eq!(bin_files.len(), 2, "expected 2 .bin files (one per profile), got: {bin_files:?}");
 }

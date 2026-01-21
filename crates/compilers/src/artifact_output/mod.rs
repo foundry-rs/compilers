@@ -261,6 +261,21 @@ impl<T> Artifacts<T> {
             .and_then(|artifacts| artifacts.iter().find(|artifact| artifact.version == *version))
     }
 
+    /// Returns the `Artifact` with matching file, contract name, version and profile
+    pub fn find_artifact_with_profile(
+        &self,
+        file: &Path,
+        contract_name: &str,
+        version: &Version,
+        profile: &str,
+    ) -> Option<&ArtifactFile<T>> {
+        self.0.get(file).and_then(|contracts| contracts.get(contract_name)).and_then(|artifacts| {
+            artifacts
+                .iter()
+                .find(|artifact| artifact.version == *version && artifact.profile == profile)
+        })
+    }
+
     /// Returns true if this type contains an artifact with the given path for the given contract
     pub fn has_contract_artifact(&self, contract_name: &str, artifact_path: &Path) -> bool {
         self.get_contract_artifact_files(contract_name)
