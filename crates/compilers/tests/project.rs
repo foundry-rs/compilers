@@ -433,6 +433,84 @@ contract B { }
 }
 
 #[test]
+fn build_info_sources_ordered_by_id() {
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
+    project.project_mut().build_info = true;
+
+    project
+        .add_source(
+            "Z_Last",
+            r#"
+pragma solidity ^0.8.10;
+import "./A_First.sol";
+import "./M_Middle.sol";
+contract ZLast is AFirst, MMiddle { }
+"#,
+        )
+        .unwrap();
+
+    project
+        .add_source(
+            "A_First",
+            r"
+pragma solidity ^0.8.10;
+contract AFirst { }
+",
+        )
+        .unwrap();
+
+    project
+        .add_source(
+            "M_Middle",
+            r"
+pragma solidity ^0.8.10;
+contract MMiddle { }
+",
+        )
+        .unwrap();
+
+    let compiled = project.compile().unwrap();
+    compiled.assert_success();
+
+    let info_dir = project.project().build_info_path();
+    assert!(info_dir.exists());
+
+    for entry in fs::read_dir(info_dir).unwrap() {
+        let path = entry.unwrap().path();
+        let json_content = fs::read_to_string(&path).unwrap();
+
+        let info: BuildInfo<SolcInput, CompilerOutput<Error, Contract>> =
+            serde_json::from_str(&json_content).unwrap();
+
+        let sources_with_ids: Vec<_> =
+            info.output.sources.iter().map(|(path, source)| (path.clone(), source.id)).collect();
+
+        let mut sorted_by_id = sources_with_ids.clone();
+        sorted_by_id.sort_by_key(|(_, id)| *id);
+
+        let output_start = json_content.find(r#""output""#).unwrap();
+        let output_section = &json_content[output_start..];
+
+        let mut last_pos = 0;
+        for (path, id) in &sorted_by_id {
+            let filename = path.file_name().unwrap().to_string_lossy();
+            let pos = output_section.find(filename.as_ref()).unwrap();
+            assert!(
+                pos > last_pos || *id == sorted_by_id[0].1,
+                "Source {filename} (id={id}) should appear in order by source unit ID in build info JSON"
+            );
+            last_pos = pos;
+        }
+
+        assert!(
+            sources_with_ids.len() >= 3,
+            "Expected at least 3 sources, got {}",
+            sources_with_ids.len()
+        );
+    }
+}
+
+#[test]
 fn can_clean_build_info() {
     let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
