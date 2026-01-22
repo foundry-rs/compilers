@@ -537,7 +537,7 @@ impl<L> ProjectPathsConfig<L> {
                     // (`<name>/=.../contracts`) and the stripped import also starts with
                     // `contracts`
                     if let Ok(adjusted_import) = stripped_import.strip_prefix("contracts/") {
-                        if r.path.ends_with("contracts/") && !lib_path.exists() {
+                        if r.path.ends_with("contracts/") && !self.root.join(&lib_path).exists() {
                             return Path::new(&r.path).join(adjusted_import);
                         }
                     }
