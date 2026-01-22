@@ -439,32 +439,32 @@ fn build_info_sources_ordered_by_id() {
 
     project
         .add_source(
-            "Z_Last",
+            "A_Main",
             r#"
 pragma solidity ^0.8.10;
-import "./A_First.sol";
-import "./M_Middle.sol";
-contract ZLast is AFirst, MMiddle { }
+import "./Z_Imported.sol";
+import "./M_AlsoImported.sol";
+contract AMain is ZImported, MAlsoImported { }
 "#,
         )
         .unwrap();
 
     project
         .add_source(
-            "A_First",
+            "Z_Imported",
             r"
 pragma solidity ^0.8.10;
-contract AFirst { }
+contract ZImported { }
 ",
         )
         .unwrap();
 
     project
         .add_source(
-            "M_Middle",
+            "M_AlsoImported",
             r"
 pragma solidity ^0.8.10;
-contract MMiddle { }
+contract MAlsoImported { }
 ",
         )
         .unwrap();
@@ -482,31 +482,40 @@ contract MMiddle { }
         let info: BuildInfo<SolcInput, CompilerOutput<Error, Contract>> =
             serde_json::from_str(&json_content).unwrap();
 
-        let sources_with_ids: Vec<_> =
-            info.output.sources.iter().map(|(path, source)| (path.clone(), source.id)).collect();
+        assert!(
+            info.output.sources.len() >= 3,
+            "Expected at least 3 sources, got {}",
+            info.output.sources.len()
+        );
 
-        let mut sorted_by_id = sources_with_ids.clone();
-        sorted_by_id.sort_by_key(|(_, id)| *id);
+        let mut sources_by_id: Vec<_> = info
+            .output
+            .sources
+            .iter()
+            .map(|(path, source)| {
+                (path.file_name().unwrap().to_string_lossy().to_string(), source.id)
+            })
+            .collect();
+        sources_by_id.sort_by_key(|(_, id)| *id);
 
-        let output_start = json_content.find(r#""output""#).unwrap();
-        let output_section = &json_content[output_start..];
+        let reserialized = serde_json::to_string(&info.output).unwrap();
+        let sources_start = reserialized.find(r#""sources""#).unwrap();
+        let sources_section = &reserialized[sources_start..];
 
         let mut last_pos = 0;
-        for (path, id) in &sorted_by_id {
-            let filename = path.file_name().unwrap().to_string_lossy();
-            let pos = output_section.find(filename.as_ref()).unwrap();
+        for (filename, id) in &sources_by_id {
+            let pattern = format!(r#"{filename}":{{"id":"#);
+            let pos = sources_section
+                .find(&pattern)
+                .unwrap_or_else(|| panic!("Could not find pattern '{pattern}' in sources section"));
             assert!(
-                pos > last_pos || *id == sorted_by_id[0].1,
-                "Source {filename} (id={id}) should appear in order by source unit ID in build info JSON"
+                pos > last_pos || *id == sources_by_id[0].1,
+                "After round-trip (deserialize then reserialize), sources must be ordered by ID. \
+                 {filename} (id={id}) appeared at wrong position. \
+                 Expected order: {sources_by_id:?}"
             );
             last_pos = pos;
         }
-
-        assert!(
-            sources_with_ids.len() >= 3,
-            "Expected at least 3 sources, got {}",
-            sources_with_ids.len()
-        );
     }
 }
 
