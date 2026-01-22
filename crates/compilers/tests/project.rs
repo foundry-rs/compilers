@@ -4502,10 +4502,8 @@ contract Test is PBTSimple {
     compiled.assert_success();
 
     // Now check standard_json_input
-    let std_json = project
-        .project()
-        .standard_json_input(&project.sources_path().join("Test.sol"))
-        .unwrap();
+    let std_json =
+        project.project().standard_json_input(&project.sources_path().join("Test.sol")).unwrap();
 
     let source_paths: Vec<_> = std_json.sources.iter().map(|(p, _)| p.clone()).collect();
 
@@ -4523,7 +4521,8 @@ contract Test is PBTSimple {
     // Ensure it's NOT using root openzeppelin (which doesn't even exist in this test)
     let has_wrong_oz = source_paths.iter().any(|p| {
         let s = p.to_string_lossy();
-        s.contains("lib/openzeppelin-contracts") && !s.contains("lib/PBT/lib/openzeppelin-contracts")
+        s.contains("lib/openzeppelin-contracts")
+            && !s.contains("lib/PBT/lib/openzeppelin-contracts")
     });
     assert!(
         !has_wrong_oz,
@@ -4624,19 +4623,18 @@ contract Test is PBTSimple {
     compiled.assert_success();
 
     // Now check standard_json_input
-    let std_json = project
-        .project()
-        .standard_json_input(&project.sources_path().join("Test.sol"))
-        .unwrap();
+    let std_json =
+        project.project().standard_json_input(&project.sources_path().join("Test.sol")).unwrap();
 
     let source_paths: Vec<_> = std_json.sources.iter().map(|(p, _)| p.clone()).collect();
 
     // Should have PBT's vendored openzeppelin Ownable
-    let has_pbt_vendored_ownable = source_paths
-        .iter()
-        .any(|p| p.to_string_lossy().contains("lib/PBT/lib/openzeppelin-contracts/contracts/access/Ownable.sol"));
+    let has_pbt_vendored_ownable = source_paths.iter().any(|p| {
+        p.to_string_lossy()
+            .contains("lib/PBT/lib/openzeppelin-contracts/contracts/access/Ownable.sol")
+    });
 
-    // Should have root openzeppelin Strings  
+    // Should have root openzeppelin Strings
     let has_root_strings = source_paths.iter().any(|p| {
         let s = p.to_string_lossy();
         s.contains("lib/openzeppelin-contracts/contracts/utils/Strings.sol")
