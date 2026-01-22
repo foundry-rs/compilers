@@ -4427,3 +4427,241 @@ contract Simple {
     // overwrite the first.
     assert_eq!(bin_files.len(), 2, "expected 2 .bin files (one per profile), got: {bin_files:?}");
 }
+
+// https://github.com/foundry-rs/compilers/issues/112
+#[test]
+fn standard_json_input_uses_correct_nested_library_sources() {
+    // This test verifies that standard_json_input uses the same sources as forge build
+    // when there are nested library dependencies with their own vendored dependencies.
+    //
+    // Scenario:
+    // - Root project has lib/PBT which has its own lib/openzeppelin-contracts
+    // - PBTSimple.sol imports from its vendored openzeppelin (relative import)
+    // - Test.sol imports PBTSimple
+    //
+    // The standard_json_input should use lib/PBT/lib/openzeppelin-contracts for PBT's imports,
+    // NOT lib/openzeppelin-contracts (if it existed at root).
+
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
+
+    // Create PBT library with its own vendored openzeppelin
+    let pbt_src = project.root().join("lib/PBT/src");
+    let pbt_oz = project.root().join("lib/PBT/lib/openzeppelin-contracts/contracts/access");
+    fs::create_dir_all(&pbt_src).unwrap();
+    fs::create_dir_all(&pbt_oz).unwrap();
+
+    // PBT's vendored openzeppelin
+    fs::write(
+        pbt_oz.join("Ownable.sol"),
+        r#"// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+contract Ownable {
+    address private _owner;
+    constructor() { _owner = msg.sender; }
+    function owner() public view returns (address) { return _owner; }
+}"#,
+    )
+    .unwrap();
+
+    // PBTSimple.sol uses relative import to its vendored openzeppelin
+    fs::write(
+        pbt_src.join("PBTSimple.sol"),
+        r#"// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+contract PBTSimple is Ownable {
+    uint256 public value;
+    function setValue(uint256 _value) public { value = _value; }
+}"#,
+    )
+    .unwrap();
+
+    // Main contract imports PBTSimple
+    project
+        .add_source(
+            "Test",
+            r#"// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+import "@chiru-labs/pbt/PBTSimple.sol";
+contract Test is PBTSimple {
+    uint256 public number;
+    function setNumber(uint256 newNumber) public { number = newNumber; }
+}"#,
+        )
+        .unwrap();
+
+    // Add remapping for PBT
+    project.project_mut().paths.remappings.push(Remapping {
+        context: None,
+        name: "@chiru-labs/pbt/".into(),
+        path: "lib/PBT/src/".into(),
+    });
+
+    // Compile should succeed
+    let compiled = project.compile().unwrap();
+    compiled.assert_success();
+
+    // Now check standard_json_input
+    let std_json =
+        project.project().standard_json_input(&project.sources_path().join("Test.sol")).unwrap();
+
+    let source_paths: Vec<_> = std_json.sources.iter().map(|(p, _)| p.clone()).collect();
+
+    // The key assertion: PBTSimple.sol should import from its vendored openzeppelin,
+    // at lib/PBT/lib/openzeppelin-contracts
+    let has_pbt_vendored_oz = source_paths
+        .iter()
+        .any(|p| p.to_string_lossy().contains("lib/PBT/lib/openzeppelin-contracts"));
+
+    assert!(
+        has_pbt_vendored_oz,
+        "standard_json_input should include PBT's vendored openzeppelin (lib/PBT/lib/openzeppelin-contracts), got: {source_paths:?}"
+    );
+
+    // Ensure it's NOT using root openzeppelin (which doesn't even exist in this test)
+    let has_wrong_oz = source_paths.iter().any(|p| {
+        let s = p.to_string_lossy();
+        s.contains("lib/openzeppelin-contracts")
+            && !s.contains("lib/PBT/lib/openzeppelin-contracts")
+    });
+    assert!(
+        !has_wrong_oz,
+        "standard_json_input should NOT include root openzeppelin, got: {source_paths:?}"
+    );
+}
+
+// https://github.com/foundry-rs/compilers/issues/112
+// Additional test: when both root and nested openzeppelin exist
+#[test]
+fn standard_json_input_handles_conflicting_nested_dependencies() {
+    // This test verifies the core issue #112 scenario:
+    // - Root project has lib/openzeppelin-contracts
+    // - Root project also has lib/PBT which has its own lib/openzeppelin-contracts
+    // - PBTSimple.sol uses relative import: ../lib/openzeppelin-contracts/...
+    // - Root project uses remapping: @openzeppelin/=lib/openzeppelin-contracts/
+    //
+    // The key issue: standard_json_input was incorrectly using lib/openzeppelin-contracts
+    // for PBT's relative imports instead of lib/PBT/lib/openzeppelin-contracts.
+
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
+
+    // Create root project's openzeppelin with a utility contract
+    let root_oz = project.root().join("lib/openzeppelin-contracts/contracts/utils");
+    fs::create_dir_all(&root_oz).unwrap();
+    fs::write(
+        root_oz.join("Strings.sol"),
+        r#"// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+library Strings {
+    function toString(uint256 value) internal pure returns (string memory) {
+        return "root-v4.7.0";
+    }
+}"#,
+    )
+    .unwrap();
+
+    // Create PBT library with its own vendored openzeppelin with Ownable
+    let pbt_src = project.root().join("lib/PBT/src");
+    let pbt_oz_access = project.root().join("lib/PBT/lib/openzeppelin-contracts/contracts/access");
+    fs::create_dir_all(&pbt_src).unwrap();
+    fs::create_dir_all(&pbt_oz_access).unwrap();
+
+    fs::write(
+        pbt_oz_access.join("Ownable.sol"),
+        r#"// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+contract Ownable {
+    address private _owner;
+    constructor() { _owner = msg.sender; }
+    function owner() public view returns (address) { return _owner; }
+}"#,
+    )
+    .unwrap();
+
+    // PBTSimple.sol uses relative import to its vendored openzeppelin
+    fs::write(
+        pbt_src.join("PBTSimple.sol"),
+        r#"// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+contract PBTSimple is Ownable {
+    uint256 public value;
+}"#,
+    )
+    .unwrap();
+
+    // Main contract imports PBTSimple and uses root openzeppelin's Strings
+    project
+        .add_source(
+            "Test",
+            r#"// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+import "@chiru-labs/pbt/PBTSimple.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+contract Test is PBTSimple {
+    function getNumber() public pure returns (string memory) {
+        return Strings.toString(42);
+    }
+}"#,
+        )
+        .unwrap();
+
+    // Add remappings
+    project.project_mut().paths.remappings.push(Remapping {
+        context: None,
+        name: "@chiru-labs/pbt/".into(),
+        path: "lib/PBT/src/".into(),
+    });
+    project.project_mut().paths.remappings.push(Remapping {
+        context: None,
+        name: "@openzeppelin/".into(),
+        path: "lib/openzeppelin-contracts/".into(),
+    });
+
+    // Compile should succeed
+    let compiled = project.compile().unwrap();
+    compiled.assert_success();
+
+    // Now check standard_json_input
+    let std_json =
+        project.project().standard_json_input(&project.sources_path().join("Test.sol")).unwrap();
+
+    let source_paths: Vec<_> = std_json.sources.iter().map(|(p, _)| p.clone()).collect();
+
+    // Should have PBT's vendored openzeppelin Ownable
+    let has_pbt_vendored_ownable = source_paths.iter().any(|p| {
+        p.to_string_lossy()
+            .contains("lib/PBT/lib/openzeppelin-contracts/contracts/access/Ownable.sol")
+    });
+
+    // Should have root openzeppelin Strings
+    let has_root_strings = source_paths.iter().any(|p| {
+        let s = p.to_string_lossy();
+        s.contains("lib/openzeppelin-contracts/contracts/utils/Strings.sol")
+            && !s.contains("lib/PBT/lib/openzeppelin-contracts")
+    });
+
+    assert!(
+        has_pbt_vendored_ownable,
+        "standard_json_input should include PBT's vendored Ownable, got: {source_paths:?}"
+    );
+    assert!(
+        has_root_strings,
+        "standard_json_input should include root openzeppelin's Strings, got: {source_paths:?}"
+    );
+
+    // Verify the standard_json_input can actually compile with solc
+    if let Ok(solc) = Solc::find_or_install(&Version::new(0, 8, 28)) {
+        let compiler_errors: Vec<_> = solc
+            .compile(&std_json)
+            .unwrap()
+            .errors
+            .into_iter()
+            .filter_map(|e| if e.severity.is_error() { Some(e.message) } else { None })
+            .collect();
+        assert!(
+            compiler_errors.is_empty(),
+            "standard_json_input should compile without errors: {compiler_errors:?}"
+        );
+    }
+}
