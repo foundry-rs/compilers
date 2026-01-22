@@ -5,6 +5,7 @@ use foundry_compilers_artifacts::{
     error::SourceLocation,
     output_selection::OutputSelection,
     remappings::Remapping,
+    serde_helpers::sources_by_id,
     sources::{Source, Sources},
     BytecodeObject, CompactContractRef, Contract, FileToContractsMap, Severity, SourceFile,
 };
@@ -28,8 +29,6 @@ pub use vyper::*;
 
 mod restrictions;
 pub use restrictions::{CompilerSettingsRestrictions, RestrictionsWithVersion};
-
-use foundry_compilers_artifacts::serde_helpers::sources_by_id;
 
 /// A compiler version is either installed (available locally) or can be downloaded, from the remote
 /// endpoint
