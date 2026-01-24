@@ -158,7 +158,12 @@ impl CompilerInput for SolcVersionedInput {
     }
 
     fn compiler_name(&self) -> Cow<'static, str> {
-        "Solc".into()
+        // Detect Solar from version build metadata (e.g., "0.8.28+commit.xxx.solar.0.1.8")
+        if self.version.build.as_str().contains("solar") {
+            "Solar".into()
+        } else {
+            "Solc".into()
+        }
     }
 
     fn strip_prefix(&mut self, base: &Path) {
@@ -584,5 +589,30 @@ mod tests {
         let mut aggregated = AggregatedCompilerOutput::<SolcCompiler>::default();
         aggregated.extend(v, build_info, "default", out_converted);
         assert!(!aggregated.is_unchanged());
+    }
+
+    #[test]
+    fn test_compiler_name_detection() {
+        use std::str::FromStr;
+
+        // Regular solc version
+        let solc_version = Version::from_str("0.8.28+commit.2d360a2").unwrap();
+        let input = SolcVersionedInput::build(
+            Default::default(),
+            Default::default(),
+            SolcLanguage::Solidity,
+            solc_version,
+        );
+        assert_eq!(input.compiler_name().as_ref(), "Solc");
+
+        // Solar version (contains "solar" in build metadata)
+        let solar_version = Version::from_str("0.8.28+commit.2d360a2.solar.0.1.8").unwrap();
+        let input = SolcVersionedInput::build(
+            Default::default(),
+            Default::default(),
+            SolcLanguage::Solidity,
+            solar_version,
+        );
+        assert_eq!(input.compiler_name().as_ref(), "Solar");
     }
 }
