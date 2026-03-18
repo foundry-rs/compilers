@@ -76,6 +76,8 @@ pub struct ProjectCompileOutput<
     pub(crate) cached_artifacts: Artifacts<T::Artifact>,
     /// errors that should be omitted
     pub(crate) ignored_error_codes: Vec<u64>,
+    /// errors that should be omitted from each path prefix
+    pub(crate) ignored_error_codes_from: Vec<(PathBuf, Vec<u64>)>,
     /// paths that should be omitted
     pub(crate) ignored_file_paths: Vec<PathBuf>,
     /// set minimum level of severity that is treated as an error
@@ -487,6 +489,7 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>>
     pub fn has_compiler_errors(&self) -> bool {
         self.compiler_output.has_error(
             &self.ignored_error_codes,
+            &self.ignored_error_codes_from,
             &self.ignored_file_paths,
             &self.compiler_severity_filter,
         )
@@ -494,7 +497,11 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>>
 
     /// Returns whether any warnings were emitted by the compiler.
     pub fn has_compiler_warnings(&self) -> bool {
-        self.compiler_output.has_warning(&self.ignored_error_codes, &self.ignored_file_paths)
+        self.compiler_output.has_warning(
+            &self.ignored_error_codes,
+            &self.ignored_error_codes_from,
+            &self.ignored_file_paths,
+        )
     }
 
     /// Panics if any errors were emitted by the compiler.
@@ -521,6 +528,7 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> fmt
             self.compiler_output
                 .diagnostics(
                     &self.ignored_error_codes,
+                    &self.ignored_error_codes_from,
                     &self.ignored_file_paths,
                     self.compiler_severity_filter,
                 )
@@ -565,12 +573,14 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     pub fn diagnostics<'a>(
         &'a self,
         ignored_error_codes: &'a [u64],
+        ignored_error_codes_from: &'a [(PathBuf, Vec<u64>)],
         ignored_file_paths: &'a [PathBuf],
         compiler_severity_filter: Severity,
     ) -> OutputDiagnostics<'a, C> {
         OutputDiagnostics {
             compiler_output: self,
             ignored_error_codes,
+            ignored_error_codes_from,
             ignored_file_paths,
             compiler_severity_filter,
         }
@@ -831,6 +841,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     pub fn has_error(
         &self,
         ignored_error_codes: &[u64],
+        ignored_error_codes_from: &[(PathBuf, Vec<u64>)],
         ignored_file_paths: &[PathBuf],
         compiler_severity_filter: &Severity,
     ) -> bool {
@@ -843,7 +854,11 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
             if compiler_severity_filter.ge(&err.severity()) {
                 if compiler_severity_filter.is_warning() {
                     // skip ignored error codes and file path from warnings
-                    return self.has_warning(ignored_error_codes, ignored_file_paths);
+                    return self.has_warning(
+                        ignored_error_codes,
+                        ignored_error_codes_from,
+                        ignored_file_paths,
+                    );
                 }
                 return true;
             }
@@ -853,15 +868,26 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
 
     /// Checks if there are any compiler warnings that are not ignored by the specified error codes
     /// and file paths.
-    pub fn has_warning(&self, ignored_error_codes: &[u64], ignored_file_paths: &[PathBuf]) -> bool {
-        self.errors
-            .iter()
-            .any(|error| !self.should_ignore(ignored_error_codes, ignored_file_paths, error))
+    pub fn has_warning(
+        &self,
+        ignored_error_codes: &[u64],
+        ignored_error_codes_from: &[(PathBuf, Vec<u64>)],
+        ignored_file_paths: &[PathBuf],
+    ) -> bool {
+        self.errors.iter().any(|error| {
+            !self.should_ignore(
+                ignored_error_codes,
+                ignored_error_codes_from,
+                ignored_file_paths,
+                error,
+            )
+        })
     }
 
     pub fn should_ignore(
         &self,
         ignored_error_codes: &[u64],
+        ignored_error_codes_from: &[(PathBuf, Vec<u64>)],
         ignored_file_paths: &[PathBuf],
         error: &C::CompilationError,
     ) -> bool {
@@ -877,6 +903,9 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
                 let path = Path::new(&loc.file);
                 ignore |=
                     ignored_file_paths.iter().any(|ignored_path| path.starts_with(ignored_path));
+                ignore |= ignored_error_codes_from
+                    .iter()
+                    .any(|(prefix, codes)| path.starts_with(prefix) && codes.contains(&code));
 
                 // we ignore spdx and contract size warnings in test
                 // files. if we are looking at one of these warnings
@@ -909,6 +938,8 @@ pub struct OutputDiagnostics<'a, C: Compiler> {
     compiler_output: &'a AggregatedCompilerOutput<C>,
     /// the error codes to ignore
     ignored_error_codes: &'a [u64],
+    /// the error codes to ignore from each path prefix
+    ignored_error_codes_from: &'a [(PathBuf, Vec<u64>)],
     /// the file paths to ignore
     ignored_file_paths: &'a [PathBuf],
     /// set minimum level of severity that is treated as an error
@@ -920,6 +951,7 @@ impl<C: Compiler> OutputDiagnostics<'_, C> {
     pub fn has_error(&self) -> bool {
         self.compiler_output.has_error(
             self.ignored_error_codes,
+            self.ignored_error_codes_from,
             self.ignored_file_paths,
             &self.compiler_severity_filter,
         )
@@ -927,7 +959,11 @@ impl<C: Compiler> OutputDiagnostics<'_, C> {
 
     /// Returns true if there is at least one warning
     pub fn has_warning(&self) -> bool {
-        self.compiler_output.has_warning(self.ignored_error_codes, self.ignored_file_paths)
+        self.compiler_output.has_warning(
+            self.ignored_error_codes,
+            self.ignored_error_codes_from,
+            self.ignored_file_paths,
+        )
     }
 }
 
@@ -945,6 +981,7 @@ impl<C: Compiler> fmt::Display for OutputDiagnostics<'_, C> {
         for err in &self.compiler_output.errors {
             if !self.compiler_output.should_ignore(
                 self.ignored_error_codes,
+                self.ignored_error_codes_from,
                 self.ignored_file_paths,
                 err,
             ) {
