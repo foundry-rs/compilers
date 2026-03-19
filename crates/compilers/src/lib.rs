@@ -106,6 +106,9 @@ pub struct Project<
     pub artifacts: T,
     /// Errors/Warnings which match these error codes are not going to be logged
     pub ignored_error_codes: Vec<u64>,
+    /// Errors/Warnings which match these error codes from these path prefixes are not going to be
+    /// logged
+    pub ignored_error_codes_from: Vec<(PathBuf, Vec<u64>)>,
     /// Errors/Warnings which match these file paths are not going to be logged
     pub ignored_file_paths: Vec<PathBuf>,
     /// The minimum severity level that is treated as a compiler error
@@ -463,6 +466,8 @@ pub struct ProjectBuilder<
     artifacts: T,
     /// Which error codes to ignore
     pub ignored_error_codes: Vec<u64>,
+    /// Which error codes to ignore for files matching each path prefix
+    pub ignored_error_codes_from: Vec<(PathBuf, Vec<u64>)>,
     /// Which file paths to ignore
     pub ignored_file_paths: Vec<PathBuf>,
     /// The minimum severity level that is treated as a compiler error
@@ -484,6 +489,7 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> Pro
             slash_paths: true,
             artifacts,
             ignored_error_codes: Vec::new(),
+            ignored_error_codes_from: Vec::new(),
             ignored_file_paths: Vec::new(),
             compiler_severity_filter: Severity::Error,
             solc_jobs: None,
@@ -517,6 +523,15 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> Pro
         for code in codes {
             self = self.ignore_error_code(code);
         }
+        self
+    }
+
+    #[must_use]
+    pub fn ignore_error_codes_from(
+        mut self,
+        pairs: impl IntoIterator<Item = (PathBuf, Vec<u64>)>,
+    ) -> Self {
+        self.ignored_error_codes_from.extend(pairs);
         self
     }
 
@@ -643,6 +658,7 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> Pro
             cached,
             no_artifacts,
             ignored_error_codes,
+            ignored_error_codes_from,
             compiler_severity_filter,
             solc_jobs,
             offline,
@@ -665,6 +681,7 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> Pro
             slash_paths,
             artifacts,
             ignored_error_codes,
+            ignored_error_codes_from,
             ignored_file_paths,
             compiler_severity_filter,
             solc_jobs,
@@ -681,6 +698,7 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> Pro
             no_artifacts,
             artifacts,
             ignored_error_codes,
+            ignored_error_codes_from,
             ignored_file_paths,
             compiler_severity_filter,
             solc_jobs,
@@ -708,6 +726,7 @@ impl<C: Compiler, T: ArtifactOutput<CompilerContract = C::CompilerContract>> Pro
             no_artifacts,
             artifacts,
             ignored_error_codes,
+            ignored_error_codes_from,
             ignored_file_paths,
             compiler_severity_filter,
             solc_jobs: solc_jobs
