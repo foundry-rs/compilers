@@ -2913,7 +2913,7 @@ fn test_compiler_ignored_error_codes_from() {
         None,
         None,
         None,
-        Some(vec![(testdata.clone(), vec![missing_license_error_code])]),
+        Some(vec![(testdata, vec![missing_license_error_code])]),
     );
     assert!(!compiled.has_compiler_warnings());
     compiled.assert_success();
