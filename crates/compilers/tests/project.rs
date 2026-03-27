@@ -433,6 +433,93 @@ contract B { }
 }
 
 #[test]
+fn build_info_sources_ordered_by_id() {
+    let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
+    project.project_mut().build_info = true;
+
+    project
+        .add_source(
+            "A_Main",
+            r#"
+pragma solidity ^0.8.10;
+import "./Z_Imported.sol";
+import "./M_AlsoImported.sol";
+contract AMain is ZImported, MAlsoImported { }
+"#,
+        )
+        .unwrap();
+
+    project
+        .add_source(
+            "Z_Imported",
+            r"
+pragma solidity ^0.8.10;
+contract ZImported { }
+",
+        )
+        .unwrap();
+
+    project
+        .add_source(
+            "M_AlsoImported",
+            r"
+pragma solidity ^0.8.10;
+contract MAlsoImported { }
+",
+        )
+        .unwrap();
+
+    let compiled = project.compile().unwrap();
+    compiled.assert_success();
+
+    let info_dir = project.project().build_info_path();
+    assert!(info_dir.exists());
+
+    for entry in fs::read_dir(info_dir).unwrap() {
+        let path = entry.unwrap().path();
+        let json_content = fs::read_to_string(&path).unwrap();
+
+        let info: BuildInfo<SolcInput, CompilerOutput<Error, Contract>> =
+            serde_json::from_str(&json_content).unwrap();
+
+        assert!(
+            info.output.sources.len() >= 3,
+            "Expected at least 3 sources, got {}",
+            info.output.sources.len()
+        );
+
+        let mut sources_by_id: Vec<_> = info
+            .output
+            .sources
+            .iter()
+            .map(|(path, source)| {
+                (path.file_name().unwrap().to_string_lossy().to_string(), source.id)
+            })
+            .collect();
+        sources_by_id.sort_by_key(|(_, id)| *id);
+
+        let reserialized = serde_json::to_string(&info.output).unwrap();
+        let sources_start = reserialized.find(r#""sources""#).unwrap();
+        let sources_section = &reserialized[sources_start..];
+
+        let mut last_pos = 0;
+        for (filename, id) in &sources_by_id {
+            let pattern = format!(r#"{filename}":{{"id":"#);
+            let pos = sources_section
+                .find(&pattern)
+                .unwrap_or_else(|| panic!("Could not find pattern '{pattern}' in sources section"));
+            assert!(
+                pos > last_pos || *id == sources_by_id[0].1,
+                "After round-trip (deserialize then reserialize), sources must be ordered by ID. \
+                 {filename} (id={id}) appeared at wrong position. \
+                 Expected order: {sources_by_id:?}"
+            );
+            last_pos = pos;
+        }
+    }
+}
+
+#[test]
 fn can_clean_build_info() {
     let mut project = TempProject::<MultiCompiler>::dapptools().unwrap();
 
