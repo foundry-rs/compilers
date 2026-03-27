@@ -14,3 +14,6 @@ pub use input::VyperInput;
 
 mod output;
 pub use output::VyperOutput;
+
+pub mod ast;
+pub use ast::*;
