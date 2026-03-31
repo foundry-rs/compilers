@@ -5,26 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.19.13](https://github.com/foundry-rs/compilers/releases/tag/v0.19.13) - 2026-01-20
+## [0.19.14](https://github.com/foundry-rs/compilers/releases/tag/v0.19.14) - 2026-01-22
 
 ### Bug Fixes
 
+- Use absolute path for exists() check in resolve_library_import ([#355](https://github.com/foundry-rs/compilers/issues/355))
+- Disable sparse output optimization when AST is requested ([#352](https://github.com/foundry-rs/compilers/issues/352))
+- Apply remappings to resolved relative import paths ([#353](https://github.com/foundry-rs/compilers/issues/353))
+- Match artifact by profile when writing extra output files ([#350](https://github.com/foundry-rs/compilers/issues/350))
 - Add snake_case aliases for ModelCheckerSettings fields ([#348](https://github.com/foundry-rs/compilers/issues/348))
 - Normalize Vyper EVM version during input creation ([#345](https://github.com/foundry-rs/compilers/issues/345))
 - Sort remapping candidates to avoid non deterministic output ([#343](https://github.com/foundry-rs/compilers/issues/343))
 
 ### Dependencies
 
+- Bump version, prepare for release
 - Bump 0.19.12 ([#347](https://github.com/foundry-rs/compilers/issues/347))
-- Bump
 
 ### Miscellaneous Tasks
 
+- [release] 0.19.13 ([#349](https://github.com/foundry-rs/compilers/issues/349))
 - Release 0.19.11 ([#346](https://github.com/foundry-rs/compilers/issues/346))
 
 ### Other
 
-- Merge branch 'main' of github.com:foundry-rs/compilers
 - Update to tempoxyz ([#344](https://github.com/foundry-rs/compilers/issues/344))
 
 ## [0.19.10](https://github.com/foundry-rs/compilers/releases/tag/v0.19.10) - 2025-11-19

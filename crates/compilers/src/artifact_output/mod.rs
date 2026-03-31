@@ -305,7 +305,7 @@ impl<T> Artifacts<T> {
         &self,
     ) -> impl Iterator<Item = (ArtifactId, &T)> + '_ {
         self.0.iter().flat_map(|(source, contract_artifacts)| {
-            contract_artifacts.iter().flat_map(move |(_contract_name, artifacts)| {
+            contract_artifacts.values().flat_map(move |artifacts| {
                 artifacts.iter().filter_map(move |artifact| {
                     O::contract_name(&artifact.file).map(|name| {
                         (
@@ -331,7 +331,7 @@ impl<T> Artifacts<T> {
         self,
     ) -> impl Iterator<Item = (ArtifactId, T)> {
         self.0.into_iter().flat_map(|(source, contract_artifacts)| {
-            contract_artifacts.into_iter().flat_map(move |(_contract_name, artifacts)| {
+            contract_artifacts.into_values().flat_map(move |artifacts| {
                 let source = source.clone();
                 artifacts.into_iter().filter_map(move |artifact| {
                     O::contract_name(&artifact.file).map(|name| {
