@@ -1474,7 +1474,7 @@ pub struct DocLibraries {
 pub struct CompilerOutput {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<Error>,
-    #[serde(default)]
+    #[serde(default, with = "serde_helpers::sources_by_id")]
     pub sources: BTreeMap<PathBuf, SourceFile>,
     #[serde(default)]
     pub contracts: Contracts,

@@ -5,6 +5,7 @@ use foundry_compilers_artifacts::{
     error::SourceLocation,
     output_selection::OutputSelection,
     remappings::Remapping,
+    serde_helpers::sources_by_id,
     sources::{Source, Sources},
     BytecodeObject, CompactContractRef, Contract, FileToContractsMap, Severity, SourceFile,
 };
@@ -244,7 +245,7 @@ pub struct CompilerOutput<E, C> {
     pub errors: Vec<E>,
     #[serde(default = "BTreeMap::new")]
     pub contracts: FileToContractsMap<C>,
-    #[serde(default)]
+    #[serde(default, with = "sources_by_id")]
     pub sources: BTreeMap<PathBuf, SourceFile>,
     #[serde(default, skip_serializing_if = "::std::collections::BTreeMap::is_empty")]
     pub metadata: BTreeMap<String, serde_json::Value>,

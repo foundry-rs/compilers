@@ -177,6 +177,65 @@ pub mod display_from_str {
     }
 }
 
+/// Serialize sources map ordered by source unit ID instead of by path.
+///
+/// This ensures build info JSON maintains the same ordering as solc output,
+/// where sources appear in order of their source unit ID.
+pub mod sources_by_id {
+    use crate::SourceFile;
+    use serde::{
+        de::{MapAccess, Visitor},
+        ser::SerializeMap,
+        Deserializer, Serializer,
+    };
+    use std::{collections::BTreeMap, fmt, path::PathBuf};
+
+    pub fn serialize<S>(
+        sources: &BTreeMap<PathBuf, SourceFile>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut entries: Vec<_> = sources.iter().collect();
+        entries.sort_by_key(|(_, source)| source.id);
+
+        let mut map = serializer.serialize_map(Some(entries.len()))?;
+        for (path, source) in entries {
+            map.serialize_entry(path, source)?;
+        }
+        map.end()
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<BTreeMap<PathBuf, SourceFile>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct SourcesVisitor;
+
+        impl<'de> Visitor<'de> for SourcesVisitor {
+            type Value = BTreeMap<PathBuf, SourceFile>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a map of source files")
+            }
+
+            fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+            where
+                M: MapAccess<'de>,
+            {
+                let mut map = BTreeMap::new();
+                while let Some((key, value)) = access.next_entry::<PathBuf, SourceFile>()? {
+                    map.insert(key, value);
+                }
+                Ok(map)
+            }
+        }
+
+        deserializer.deserialize_map(SourcesVisitor)
+    }
+}
+
 /// (De)serialize vec of tuples as map
 pub mod tuple_vec_map {
     use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
