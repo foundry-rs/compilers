@@ -969,7 +969,7 @@ pub(crate) fn parse_one_source<R>(
 mod tests {
     use super::*;
     use foundry_compilers_artifacts::Remapping;
-    use foundry_compilers_core::utils::{self, mkdir_or_touch, tempdir};
+    use foundry_compilers_core::utils::{mkdir_or_touch, tempdir};
 
     #[test]
     #[cfg_attr(windows, ignore = "<0.7 solc is flaky")]

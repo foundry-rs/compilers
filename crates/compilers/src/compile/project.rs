@@ -647,8 +647,8 @@ mod tests {
     use foundry_compilers_artifacts::output_selection::ContractOutputSelection;
 
     use crate::{
-        ConfigurableArtifacts, MinimalCombinedArtifacts, ProjectPathsConfig,
-        compilers::multi::MultiCompiler, project_util::TempProject,
+        ConfigurableArtifacts, MinimalCombinedArtifacts, compilers::multi::MultiCompiler,
+        project_util::TempProject,
     };
 
     use super::*;

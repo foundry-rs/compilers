@@ -5,7 +5,7 @@ resolver = "3"
 [workspace.package]
 authors = ["Foundry Maintainers"]
 version = "0.19.14"
-rust-version = "1.88"
+rust-version = "1.89"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/foundry-rs/compilers"

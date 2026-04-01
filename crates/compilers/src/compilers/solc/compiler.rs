@@ -643,7 +643,7 @@ impl AsRef<Path> for Solc {
 #[cfg(feature = "svm-solc")]
 mod tests {
     use super::*;
-    use crate::{Artifact, resolver::parse::SolData};
+    use crate::Artifact;
 
     #[test]
     fn test_version_parse() {
