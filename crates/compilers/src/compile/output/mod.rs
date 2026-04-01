@@ -131,7 +131,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::ConfigurableContractArtifact, ArtifactId, Project};
+    /// use foundry_compilers::{ArtifactId, Project, artifacts::ConfigurableContractArtifact};
     /// use std::collections::btree_map::BTreeMap;
     ///
     /// let project = Project::builder().build(Default::default())?;
@@ -149,7 +149,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::ConfigurableContractArtifact, Project};
+    /// use foundry_compilers::{Project, artifacts::ConfigurableContractArtifact};
     /// use std::collections::btree_map::BTreeMap;
     ///
     /// let project = Project::builder().build(Default::default())?;
@@ -166,7 +166,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::ConfigurableContractArtifact, Project};
+    /// use foundry_compilers::{Project, artifacts::ConfigurableContractArtifact};
     /// use semver::Version;
     /// use std::collections::btree_map::BTreeMap;
     ///
@@ -208,7 +208,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::ConfigurableContractArtifact, Project};
+    /// use foundry_compilers::{Project, artifacts::ConfigurableContractArtifact};
     /// use std::{collections::btree_map::BTreeMap, path::PathBuf};
     ///
     /// let project = Project::builder().build(Default::default())?;
@@ -268,7 +268,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::contract::Contract, Project};
+    /// use foundry_compilers::{Project, artifacts::contract::Contract};
     /// use std::collections::btree_map::BTreeMap;
     ///
     /// let project = Project::builder().build(Default::default())?;
@@ -342,7 +342,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, info::ContractInfo, Project};
+    /// use foundry_compilers::{Project, artifacts::*, info::ContractInfo};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?;
@@ -363,7 +363,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?;
@@ -389,7 +389,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?;
@@ -407,7 +407,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let mut output = project.compile()?;
@@ -430,7 +430,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, info::ContractInfo, Project};
+    /// use foundry_compilers::{Project, artifacts::*, info::ContractInfo};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let mut output = project.compile()?;
@@ -456,8 +456,8 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
     /// # Examples
     /// ```no_run
     /// use foundry_compilers::{
-    ///     artifacts::contract::CompactContractBytecode, contracts::ArtifactContracts, ArtifactId,
-    ///     Project,
+    ///     ArtifactId, Project, artifacts::contract::CompactContractBytecode,
+    ///     contracts::ArtifactContracts,
     /// };
     /// use std::collections::btree_map::BTreeMap;
     ///
@@ -657,7 +657,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
@@ -672,7 +672,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let mut output = project.compile()?.into_output();
@@ -687,7 +687,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let mut output = project.compile()?.into_output();
@@ -706,7 +706,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, info::ContractInfo, Project};
+    /// use foundry_compilers::{Project, artifacts::*, info::ContractInfo};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let mut output = project.compile()?.into_output();
@@ -769,7 +769,7 @@ impl<C: Compiler> AggregatedCompilerOutput<C> {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();

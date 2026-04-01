@@ -53,7 +53,7 @@ where
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
@@ -70,7 +70,7 @@ where
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
@@ -92,7 +92,7 @@ where
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let (_, mut contracts) = project.compile()?.into_output().split();
@@ -118,7 +118,7 @@ where
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let (_, mut contracts) = project.compile()?.into_output().split();

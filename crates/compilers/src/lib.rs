@@ -149,7 +149,7 @@ impl Project {
     ///
     /// or use the builder directly:
     /// ```no_run
-    /// use foundry_compilers::{multi::MultiCompiler, ConfigurableArtifacts, ProjectBuilder};
+    /// use foundry_compilers::{ConfigurableArtifacts, ProjectBuilder, multi::MultiCompiler};
     ///
     /// let config = ProjectBuilder::<MultiCompiler>::default().build(Default::default())?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())

@@ -108,11 +108,11 @@ impl Vyper {
     ///
     /// ```no_run
     /// use foundry_compilers::{
-    ///     artifacts::{
-    ///         vyper::{VyperInput, VyperSettings},
-    ///         Source,
-    ///     },
     ///     Vyper,
+    ///     artifacts::{
+    ///         Source,
+    ///         vyper::{VyperInput, VyperSettings},
+    ///     },
     /// };
     /// use std::path::Path;
     ///

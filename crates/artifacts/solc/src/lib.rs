@@ -393,7 +393,7 @@ impl Settings {
     /// Inserts the value for all files and contracts
     ///
     /// ```
-    /// use foundry_compilers_artifacts_solc::{output_selection::ContractOutputSelection, Settings};
+    /// use foundry_compilers_artifacts_solc::{Settings, output_selection::ContractOutputSelection};
     /// let mut selection = Settings::default();
     /// selection.push_output_selection(ContractOutputSelection::Metadata);
     /// ```

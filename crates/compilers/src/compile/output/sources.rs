@@ -57,7 +57,7 @@ impl VersionedSourceFiles {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
@@ -81,7 +81,7 @@ impl VersionedSourceFiles {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let output = project.compile()?.into_output();
@@ -104,7 +104,7 @@ impl VersionedSourceFiles {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let (mut sources, _) = project.compile()?.into_output().split();
@@ -121,7 +121,7 @@ impl VersionedSourceFiles {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{artifacts::*, Project};
+    /// use foundry_compilers::{Project, artifacts::*};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let (mut sources, _) = project.compile()?.into_output().split();

@@ -112,7 +112,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{cache::CompilerCache, solc::SolcSettings, Project};
+    /// use foundry_compilers::{Project, cache::CompilerCache, solc::SolcSettings};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let mut cache = CompilerCache::<SolcSettings>::read(project.cache_path())?;
@@ -136,7 +136,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{cache::CompilerCache, solc::SolcSettings, Project};
+    /// use foundry_compilers::{Project, cache::CompilerCache, solc::SolcSettings};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let cache: CompilerCache<SolcSettings> = CompilerCache::read_joined(&project.paths)?;
@@ -245,7 +245,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// # Examples
     /// ```no_run
     /// use foundry_compilers::{
-    ///     artifacts::contract::CompactContract, cache::CompilerCache, solc::SolcSettings, Project,
+    ///     Project, artifacts::contract::CompactContract, cache::CompilerCache, solc::SolcSettings,
     /// };
     ///
     /// let project = Project::builder().build(Default::default())?;
@@ -269,7 +269,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{cache::CompilerCache, solc::SolcSettings, Project};
+    /// use foundry_compilers::{Project, cache::CompilerCache, solc::SolcSettings};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let cache: CompilerCache<SolcSettings> = CompilerCache::read_joined(&project.paths)?;
@@ -287,7 +287,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// # Examples
     /// ```no_run
     /// use foundry_compilers::{
-    ///     artifacts::contract::CompactContract, cache::CompilerCache, solc::SolcSettings, Project,
+    ///     Project, artifacts::contract::CompactContract, cache::CompilerCache, solc::SolcSettings,
     /// };
     ///
     /// let project = Project::builder().build(Default::default())?;
@@ -317,8 +317,8 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// # Examples
     /// ```no_run
     /// use foundry_compilers::{
-    ///     artifacts::contract::CompactContractBytecode, cache::CompilerCache, solc::SolcSettings,
-    ///     Project,
+    ///     Project, artifacts::contract::CompactContractBytecode, cache::CompilerCache,
+    ///     solc::SolcSettings,
     /// };
     ///
     /// let project = Project::builder().build(Default::default())?;
