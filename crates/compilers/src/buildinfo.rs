@@ -5,7 +5,7 @@ use crate::compilers::{
 };
 use foundry_compilers_core::{error::Result, utils};
 use semver::Version;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
@@ -121,7 +121,7 @@ impl<L: Language> RawBuildInfo<L> {
 mod tests {
     use super::*;
     use crate::compilers::solc::SolcVersionedInput;
-    use foundry_compilers_artifacts::{sources::Source, Contract, Error, SolcLanguage, Sources};
+    use foundry_compilers_artifacts::{Contract, Error, SolcLanguage, Sources, sources::Source};
     use std::path::PathBuf;
 
     #[test]

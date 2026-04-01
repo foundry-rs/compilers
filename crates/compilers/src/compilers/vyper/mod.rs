@@ -3,10 +3,10 @@ use super::{Compiler, CompilerOutput, Language};
 pub use crate::artifacts::vyper::{VyperCompilationError, VyperInput, VyperOutput, VyperSettings};
 use crate::parser::VyperParser;
 use core::fmt;
-use foundry_compilers_artifacts::{sources::Source, Contract};
+use foundry_compilers_artifacts::{Contract, sources::Source};
 use foundry_compilers_core::error::{Result, SolcError};
 use semver::Version;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::{
     io::{self, Write},
     path::{Path, PathBuf},

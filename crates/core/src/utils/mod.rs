@@ -4,7 +4,7 @@ use crate::error::{SolcError, SolcIoError};
 use alloy_primitives::{hex, keccak256};
 use cfg_if::cfg_if;
 use semver::{Version, VersionReq};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::{
     fs,
     io::Write,
@@ -392,11 +392,7 @@ pub fn common_ancestor(a: &Path, b: &Path) -> Option<PathBuf> {
             break;
         }
     }
-    if found {
-        Some(ret)
-    } else {
-        None
-    }
+    if found { Some(ret) } else { None }
 }
 
 /// Returns the right subpath in a dir
@@ -517,7 +513,7 @@ pub fn mkdir_or_touch(tmp: &std::path::Path, paths: &[&str]) {
 #[cfg(test)]
 mod tests {
     pub use super::*;
-    pub use std::fs::{create_dir_all, File};
+    pub use std::fs::{File, create_dir_all};
 
     #[test]
     fn can_create_parent_dirs_with_ext() {

@@ -101,6 +101,8 @@
 //! solc with only these dirty files instead of the entire source set.
 
 use crate::{
+    ArtifactOutput, CompilerSettings, Graph, Project, ProjectCompileOutput, ProjectPathsConfig,
+    Sources,
     artifact_output::Artifacts,
     buildinfo::RawBuildInfo,
     cache::ArtifactsCache,
@@ -109,8 +111,6 @@ use crate::{
     output::{AggregatedCompilerOutput, Builds},
     report,
     resolver::{GraphEdges, ResolvedSources},
-    ArtifactOutput, CompilerSettings, Graph, Project, ProjectCompileOutput, ProjectPathsConfig,
-    Sources,
 };
 use foundry_compilers_core::error::Result;
 use rayon::prelude::*;
@@ -647,8 +647,8 @@ mod tests {
     use foundry_compilers_artifacts::output_selection::ContractOutputSelection;
 
     use crate::{
-        compilers::multi::MultiCompiler, project_util::TempProject, ConfigurableArtifacts,
-        MinimalCombinedArtifacts, ProjectPathsConfig,
+        ConfigurableArtifacts, MinimalCombinedArtifacts, ProjectPathsConfig,
+        compilers::multi::MultiCompiler, project_util::TempProject,
     };
 
     use super::*;

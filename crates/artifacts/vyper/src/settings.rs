@@ -1,5 +1,5 @@
 use foundry_compilers_artifacts_solc::{
-    output_selection::OutputSelection, serde_helpers, EvmVersion,
+    EvmVersion, output_selection::OutputSelection, serde_helpers,
 };
 use semver::Version;
 use serde::{Deserialize, Serialize};

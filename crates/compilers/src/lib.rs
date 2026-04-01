@@ -56,8 +56,8 @@ use compilers::multi::MultiCompiler;
 use foundry_compilers_artifacts::{
     output_selection::OutputSelection,
     solc::{
-        sources::{Source, SourceCompilationKind, Sources},
         Severity, SourceFile, StandardJsonCompilerInput,
+        sources::{Source, SourceCompilationKind, Sources},
     },
 };
 use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
@@ -65,8 +65,8 @@ use output::sources::{VersionedSourceFile, VersionedSourceFiles};
 use project::ProjectCompiler;
 use semver::Version;
 use solar::parse::{
-    interface::{diagnostics::EmittedDiagnostics, source_map::FileName, Session},
     Parser,
+    interface::{Session, diagnostics::EmittedDiagnostics, source_map::FileName},
 };
 use solc::SolcSettings;
 use std::{

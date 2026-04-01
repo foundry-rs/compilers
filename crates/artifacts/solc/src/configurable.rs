@@ -74,10 +74,10 @@ impl ConfigurableContractArtifact {
             links.extend(bcode.link_references.clone());
         }
 
-        if let Some(d_bcode) = &self.deployed_bytecode {
-            if let Some(bcode) = &d_bcode.bytecode {
-                links.extend(bcode.link_references.clone());
-            }
+        if let Some(d_bcode) = &self.deployed_bytecode
+            && let Some(bcode) = &d_bcode.bytecode
+        {
+            links.extend(bcode.link_references.clone());
         }
         links
     }

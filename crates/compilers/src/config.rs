@@ -1,15 +1,15 @@
 use crate::{
-    cache::SOLIDITY_FILES_CACHE_FILENAME,
-    compilers::{multi::MultiCompilerLanguage, Language},
-    flatten::{collect_ordered_deps, combine_version_pragmas},
-    resolver::{parse::SolParser, SolImportAlias},
     Graph,
+    cache::SOLIDITY_FILES_CACHE_FILENAME,
+    compilers::{Language, multi::MultiCompilerLanguage},
+    flatten::{collect_ordered_deps, combine_version_pragmas},
+    resolver::{SolImportAlias, parse::SolParser},
 };
 use foundry_compilers_artifacts::{
+    Libraries, Settings, SolcLanguage,
     output_selection::ContractOutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Libraries, Settings, SolcLanguage,
 };
 use foundry_compilers_core::{
     error::{Result, SolcError, SolcIoError},
@@ -424,21 +424,20 @@ impl<L> ProjectPathsConfig<L> {
                 // absolute paths in solidity are a thing for example `import
                 // "src/interfaces/IConfig.sol"` which could either point to `cwd +
                 // src/interfaces/IConfig.sol`, or make use of a remapping (`src/=....`)
-                if let Some(lib) = self.find_library_ancestor(cwd) {
-                    if let Some((include_path, import)) =
+                if let Some(lib) = self.find_library_ancestor(cwd)
+                    && let Some((include_path, import)) =
                         utils::resolve_absolute_library(lib, cwd, import)
-                    {
-                        // track the path for this absolute import inside a nested library
-                        include_paths.insert(include_path);
-                        return Ok(import);
-                    }
+                {
+                    // track the path for this absolute import inside a nested library
+                    include_paths.insert(include_path);
+                    return Ok(import);
                 }
                 // also try to resolve absolute imports from the project paths
                 for path in [&self.root, &self.sources, &self.tests, &self.scripts] {
-                    if cwd.starts_with(path) {
-                        if let Ok(import) = utils::normalize_solidity_import_path(path, import) {
-                            return Ok(import);
-                        }
+                    if cwd.starts_with(path)
+                        && let Ok(import) = utils::normalize_solidity_import_path(path, import)
+                    {
+                        return Ok(import);
                     }
                 }
             }
@@ -518,11 +517,7 @@ impl<L> ProjectPathsConfig<L> {
             .iter()
             .filter(|r| {
                 // only check remappings that are either global or for `cwd`
-                if let Some(ctx) = r.context.as_ref() {
-                    cwd.starts_with(ctx)
-                } else {
-                    true
-                }
+                if let Some(ctx) = r.context.as_ref() { cwd.starts_with(ctx) } else { true }
             })
             .find_map(|r| {
                 import.strip_prefix(&r.name).ok().map(|stripped_import| {
@@ -536,10 +531,11 @@ impl<L> ProjectPathsConfig<L> {
                     // we handle the edge case where the path of a remapping ends with "contracts"
                     // (`<name>/=.../contracts`) and the stripped import also starts with
                     // `contracts`
-                    if let Ok(adjusted_import) = stripped_import.strip_prefix("contracts/") {
-                        if r.path.ends_with("contracts/") && !self.root.join(&lib_path).exists() {
-                            return Path::new(&r.path).join(adjusted_import);
-                        }
+                    if let Ok(adjusted_import) = stripped_import.strip_prefix("contracts/")
+                        && r.path.ends_with("contracts/")
+                        && !self.root.join(&lib_path).exists()
+                    {
+                        return Path::new(&r.path).join(adjusted_import);
                     }
                     lib_path
                 })
@@ -579,10 +575,10 @@ impl<L> ProjectPathsConfig<L> {
         // Check if any remapping matches this path
         for r in &self.remappings {
             // Check context
-            if let Some(ctx) = r.context.as_ref() {
-                if !cwd_relative.starts_with(ctx) {
-                    continue;
-                }
+            if let Some(ctx) = r.context.as_ref()
+                && !cwd_relative.starts_with(ctx)
+            {
+                continue;
             }
 
             // Check if the relative path starts with the remapping name
@@ -1254,16 +1250,18 @@ mod tests {
         });
 
         // Test that single file import / remapping resolves to file.
-        assert!(config
-            .resolve_import_and_include_paths(
-                &config.sources,
-                Path::new("@my-lib/B.sol"),
-                &mut Default::default(),
-            )
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .ends_with("my-lib/B.sol"));
+        assert!(
+            config
+                .resolve_import_and_include_paths(
+                    &config.sources,
+                    Path::new("@my-lib/B.sol"),
+                    &mut Default::default(),
+                )
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .ends_with("my-lib/B.sol")
+        );
     }
 
     #[test]

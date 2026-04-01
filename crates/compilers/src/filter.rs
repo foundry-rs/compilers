@@ -1,9 +1,9 @@
 //! Types to apply filter to input types
 
 use crate::{
-    compilers::{multi::MultiCompilerParsedSource, CompilerSettings, ParsedSource},
-    resolver::{parse::SolData, GraphEdges},
     SourceParser, Sources,
+    compilers::{CompilerSettings, ParsedSource, multi::MultiCompilerParsedSource},
+    resolver::{GraphEdges, parse::SolData},
 };
 use foundry_compilers_artifacts::output_selection::OutputSelection;
 use std::{
@@ -111,10 +111,10 @@ impl<'a> SparseOutputFilter<'a> {
             .dirty_files()
             .flat_map(|file| {
                 // If we have a custom filter and file does not match, we skip it.
-                if let Self::Custom(f) = self {
-                    if !f.is_match(file) {
-                        return vec![];
-                    }
+                if let Self::Custom(f) = self
+                    && !f.is_match(file)
+                {
+                    return vec![];
                 }
 
                 // Collect compilation dependencies for sources needing compilation.

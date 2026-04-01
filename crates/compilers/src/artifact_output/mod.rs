@@ -3,10 +3,10 @@
 use alloy_json_abi::JsonAbi;
 use alloy_primitives::Bytes;
 use foundry_compilers_artifacts::{
-    hh::HardhatArtifact,
-    sourcemap::{SourceMap, SyntaxError},
     BytecodeObject, CompactBytecode, CompactContract, CompactContractBytecode,
     CompactContractBytecodeCow, CompactDeployedBytecode, Contract, FileToContractsMap, SourceFile,
+    hh::HardhatArtifact,
+    sourcemap::{SourceMap, SyntaxError},
 };
 use foundry_compilers_core::{
     error::{Result, SolcError, SolcIoError},
@@ -14,10 +14,10 @@ use foundry_compilers_core::{
 };
 use path_slash::PathBufExt;
 use semver::Version;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     borrow::Cow,
-    collections::{btree_map::BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet, btree_map::BTreeMap},
     ffi::OsString,
     fmt, fs,
     hash::Hash,
@@ -32,12 +32,12 @@ mod hh;
 pub use hh::*;
 
 use crate::{
+    CompilerContract, ProjectPathsConfig,
     cache::{CachedArtifacts, CompilerCache},
     output::{
         contracts::VersionedContracts,
         sources::{VersionedSourceFile, VersionedSourceFiles},
     },
-    CompilerContract, ProjectPathsConfig,
 };
 
 /// Represents unique artifact metadata for identifying artifacts on output
@@ -968,38 +968,36 @@ pub trait ArtifactOutput {
                     }
 
                     // we use file and file stem
-                    if let Some(name) = Path::new(file).file_stem().and_then(|stem| stem.to_str()) {
-                        if let Some(artifact) =
+                    if let Some(name) = Path::new(file).file_stem().and_then(|stem| stem.to_str())
+                        && let Some(artifact) =
                             self.standalone_source_file_to_artifact(file, source)
-                        {
-                            let artifact_path = Self::get_artifact_path(
-                                &ctx,
-                                &taken_paths_lowercase,
-                                file,
-                                name,
-                                &layout.artifacts,
-                                &source.version,
-                                &source.profile,
-                                unique_versions.len() > 1,
-                                unique_profiles.len() > 1,
-                            );
+                    {
+                        let artifact_path = Self::get_artifact_path(
+                            &ctx,
+                            &taken_paths_lowercase,
+                            file,
+                            name,
+                            &layout.artifacts,
+                            &source.version,
+                            &source.profile,
+                            unique_versions.len() > 1,
+                            unique_profiles.len() > 1,
+                        );
 
-                            taken_paths_lowercase
-                                .insert(artifact_path.to_slash_lossy().to_lowercase());
+                        taken_paths_lowercase.insert(artifact_path.to_slash_lossy().to_lowercase());
 
-                            artifacts
-                                .entry(file.clone())
-                                .or_default()
-                                .entry(name.to_string())
-                                .or_default()
-                                .push(ArtifactFile {
-                                    artifact,
-                                    file: artifact_path,
-                                    version: source.version.clone(),
-                                    build_id: source.build_id.clone(),
-                                    profile: source.profile.clone(),
-                                });
-                        }
+                        artifacts
+                            .entry(file.clone())
+                            .or_default()
+                            .entry(name.to_string())
+                            .or_default()
+                            .push(ArtifactFile {
+                                artifact,
+                                file: artifact_path,
+                                version: source.version.clone(),
+                                build_id: source.build_id.clone(),
+                                profile: source.profile.clone(),
+                            });
                     }
                 }
             }
@@ -1237,7 +1235,9 @@ mod tests {
         let mut already_taken = HashSet::new();
 
         let file = "/Users/carter/dev/goldfinch/mono/packages/protocol/test/forge/mainnet/utils/BaseMainnetForkingTest.t.sol";
-        let conflict = PathBuf::from("/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts/BaseMainnetForkingTest.t.sol/BaseMainnetForkingTest.json");
+        let conflict = PathBuf::from(
+            "/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts/BaseMainnetForkingTest.t.sol/BaseMainnetForkingTest.json",
+        );
         already_taken.insert("/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts/BaseMainnetForkingTest.t.sol/BaseMainnetForkingTest.json".into());
 
         let alternative = ConfigurableArtifacts::conflict_free_output_file(
@@ -1247,7 +1247,10 @@ mod tests {
             "/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts".as_ref(),
         );
 
-        assert_eq!(alternative.to_slash_lossy(), "/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts/utils/BaseMainnetForkingTest.t.sol/BaseMainnetForkingTest.json");
+        assert_eq!(
+            alternative.to_slash_lossy(),
+            "/Users/carter/dev/goldfinch/mono/packages/protocol/artifacts/utils/BaseMainnetForkingTest.t.sol/BaseMainnetForkingTest.json"
+        );
     }
 
     fn assert_artifact<T: crate::Artifact>() {}

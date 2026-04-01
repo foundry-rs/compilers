@@ -238,11 +238,7 @@ impl SourceElement {
     /// This case is represented as a `None` value.
     #[inline]
     pub fn index(&self) -> Option<u32> {
-        if self.index == -1 {
-            None
-        } else {
-            Some(self.index as u32)
-        }
+        if self.index == -1 { None } else { Some(self.index as u32) }
     }
 
     /// The source index.
@@ -594,7 +590,9 @@ mod tests {
         if s != input {
             return Err(SyntaxError::new(
                 None,
-                format!("mismatched output:\n   actual: {s:?}\n expected: {input:?}\n       sm: {sm:#?}"),
+                format!(
+                    "mismatched output:\n   actual: {s:?}\n expected: {input:?}\n       sm: {sm:#?}"
+                ),
             ));
         }
         Ok(sm)

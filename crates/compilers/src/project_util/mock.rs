@@ -2,7 +2,7 @@
 
 use foundry_compilers_artifacts::Remapping;
 use foundry_compilers_core::error::{Result, SolcError};
-use rand::{seq::SliceRandom, Rng};
+use rand::{Rng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeSet, HashMap, HashSet, VecDeque},
@@ -10,8 +10,8 @@ use std::{
 };
 
 use crate::{
-    compilers::Language, multi::MultiCompilerParser, resolver::GraphEdges, Graph,
-    ProjectPathsConfig, SourceParser,
+    Graph, ProjectPathsConfig, SourceParser, compilers::Language, multi::MultiCompilerParser,
+    resolver::GraphEdges,
 };
 
 /// Represents the layout of a project

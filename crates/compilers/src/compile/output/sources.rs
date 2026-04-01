@@ -72,11 +72,7 @@ impl VersionedSourceFiles {
     pub fn find_file_and_version(&self, path: &Path, version: &Version) -> Option<&SourceFile> {
         self.0.get(path).and_then(|contracts| {
             contracts.iter().find_map(|source| {
-                if source.version == *version {
-                    Some(&source.source_file)
-                } else {
-                    None
-                }
+                if source.version == *version { Some(&source.source_file) } else { None }
             })
         })
     }
@@ -117,11 +113,7 @@ impl VersionedSourceFiles {
     /// ```
     pub fn remove_by_path(&mut self, path: &Path) -> Option<SourceFile> {
         self.0.get_mut(path).and_then(|all_sources| {
-            if !all_sources.is_empty() {
-                Some(all_sources.remove(0).source_file)
-            } else {
-                None
-            }
+            if !all_sources.is_empty() { Some(all_sources.remove(0).source_file) } else { None }
         })
     }
 

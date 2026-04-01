@@ -1,4 +1,4 @@
-use crate::{compilers::CompilerContract, ArtifactId};
+use crate::{ArtifactId, compilers::CompilerContract};
 use foundry_compilers_artifacts::{
     CompactContractBytecode, CompactContractRef, FileToContractsMap,
 };

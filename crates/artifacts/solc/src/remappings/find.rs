@@ -2,7 +2,7 @@ use super::Remapping;
 use foundry_compilers_core::utils;
 use rayon::prelude::*;
 use std::{
-    collections::{btree_map::Entry, BTreeMap, HashSet},
+    collections::{BTreeMap, HashSet, btree_map::Entry},
     fs::FileType,
     path::{Path, PathBuf},
     sync::Mutex,
@@ -325,19 +325,17 @@ fn find_remapping_candidates(
             // ├── dep/node_modules
             //     ├── symlink to `my-package`
             // ```
-            if path_is_symlink {
-                if let Ok(target) = utils::canonicalize(&subdir) {
-                    if !visited_symlink_dirs.lock().unwrap().insert(target.clone()) {
-                        // short-circuiting if we've already visited the symlink
-                        return Vec::new();
-                    }
-                    // the symlink points to a parent dir of the current window
-                    if open.components().count() > target.components().count()
-                        && utils::common_ancestor(open, &target).is_some()
-                    {
-                        // short-circuiting
-                        return Vec::new();
-                    }
+            if path_is_symlink && let Ok(target) = utils::canonicalize(&subdir) {
+                if !visited_symlink_dirs.lock().unwrap().insert(target.clone()) {
+                    // short-circuiting if we've already visited the symlink
+                    return Vec::new();
+                }
+                // the symlink points to a parent dir of the current window
+                if open.components().count() > target.components().count()
+                    && utils::common_ancestor(open, &target).is_some()
+                {
+                    // short-circuiting
+                    return Vec::new();
                 }
             }
 
@@ -449,11 +447,7 @@ fn dir_distance(root: &Path, current: &Path) -> usize {
     if root == current {
         return 0;
     }
-    if let Ok(rem) = current.strip_prefix(root) {
-        rem.components().count()
-    } else {
-        0
-    }
+    if let Ok(rem) = current.strip_prefix(root) { rem.components().count() } else { 0 }
 }
 
 /// This finds the next window between `root` and `current`
@@ -511,11 +505,14 @@ mod tests {
             "/var/folders/l5/lprhf87s6xv8djgd017f0b2h0000gn/T/lib.Z6ODLZJQeJQa/repo1/lib",
         );
         let b = Path::new(
-            "/var/folders/l5/lprhf87s6xv8djgd017f0b2h0000gn/T/lib.Z6ODLZJQeJQa/repo1/lib/ds-test/src"
+            "/var/folders/l5/lprhf87s6xv8djgd017f0b2h0000gn/T/lib.Z6ODLZJQeJQa/repo1/lib/ds-test/src",
         );
-        assert_eq!(next_nested_window(a, b),Path::new(
-            "/var/folders/l5/lprhf87s6xv8djgd017f0b2h0000gn/T/lib.Z6ODLZJQeJQa/repo1/lib/ds-test"
-        ));
+        assert_eq!(
+            next_nested_window(a, b),
+            Path::new(
+                "/var/folders/l5/lprhf87s6xv8djgd017f0b2h0000gn/T/lib.Z6ODLZJQeJQa/repo1/lib/ds-test"
+            )
+        );
     }
 
     #[test]

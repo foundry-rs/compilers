@@ -1,20 +1,20 @@
-use crate::{resolver::Node, ProjectPathsConfig};
+use crate::{ProjectPathsConfig, resolver::Node};
 use alloy_json_abi::JsonAbi;
 use core::fmt;
 use foundry_compilers_artifacts::{
+    BytecodeObject, CompactContractRef, Contract, FileToContractsMap, Severity, SourceFile,
     error::SourceLocation,
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    BytecodeObject, CompactContractRef, Contract, FileToContractsMap, Severity, SourceFile,
 };
 use foundry_compilers_core::error::Result;
 use rayon::prelude::*;
 use semver::{Version, VersionReq};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     borrow::Cow,
-    collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, hash_map::Entry},
     fmt::{Debug, Display},
     hash::Hash,
     path::{Path, PathBuf},
@@ -338,11 +338,7 @@ impl CompilerContract for Contract {
         self.abi.as_ref()
     }
     fn bin_ref(&self) -> Option<&BytecodeObject> {
-        if let Some(ref evm) = self.evm {
-            evm.bytecode.as_ref().map(|c| &c.object)
-        } else {
-            None
-        }
+        if let Some(ref evm) = self.evm { evm.bytecode.as_ref().map(|c| &c.object) } else { None }
     }
     fn bin_runtime_ref(&self) -> Option<&BytecodeObject> {
         if let Some(ref evm) = self.evm {

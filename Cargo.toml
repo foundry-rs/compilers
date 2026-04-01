@@ -1,6 +1,6 @@
 [workspace]
 members = ["crates/artifacts/*", "crates/core", "crates/compilers"]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
 authors = ["Foundry Maintainers"]
@@ -13,7 +13,7 @@ homepage = "https://github.com/foundry-rs/compilers"
 documentation = "https://docs.rs/foundry-compilers"
 description = "Utilities for working with EVM language compilers"
 keywords = ["foundry", "solidity", "solc", "ethereum", "ethers"]
-edition = "2021"
+edition = "2024"
 exclude = [".github/", "scripts/", "test-data/"]
 
 [workspace.lints.clippy]

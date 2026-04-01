@@ -15,12 +15,12 @@ use std::{
 use yansi::Paint;
 
 use crate::{
+    Artifact, ArtifactId, ArtifactOutput, Artifacts, ConfigurableArtifacts,
     buildinfo::{BuildContext, RawBuildInfo},
     compilers::{
-        multi::MultiCompiler, CompilationError, Compiler, CompilerContract, CompilerOutput,
+        CompilationError, Compiler, CompilerContract, CompilerOutput, multi::MultiCompiler,
     },
     resolver::GraphEdges,
-    Artifact, ArtifactId, ArtifactOutput, Artifacts, ConfigurableArtifacts,
 };
 
 pub mod contracts;

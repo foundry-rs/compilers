@@ -1,25 +1,25 @@
 //! Support for compiling contracts.
 
 use crate::{
+    ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
+    ProjectPaths, ProjectPathsConfig, SourceCompilationKind, SourceParser,
     buildinfo::RawBuildInfo,
     compilers::{Compiler, CompilerSettings, Language},
     output::Builds,
     resolver::GraphEdges,
-    ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
-    ProjectPaths, ProjectPathsConfig, SourceCompilationKind, SourceParser,
 };
 use foundry_compilers_artifacts::{
-    sources::{Source, Sources},
     Settings,
+    sources::{Source, Sources},
 };
 use foundry_compilers_core::{
     error::{Result, SolcError},
     utils::{self, strip_prefix},
 };
 use semver::Version;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
-    collections::{btree_map::BTreeMap, hash_map, BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet, btree_map::BTreeMap, hash_map},
     fs,
     path::{Path, PathBuf},
     time::{Duration, UNIX_EPOCH},
@@ -1060,13 +1060,14 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             // the currently configured paths
             let paths = project.paths.paths_relative();
 
-            if !invalidate_cache && project.cache_path().exists() {
-                if let Ok(cache) = CompilerCache::read_joined(&project.paths) {
-                    if cache.paths == paths && preprocessed == cache.preprocessed {
-                        // unchanged project paths and same preprocess cache option
-                        return cache;
-                    }
-                }
+            if !invalidate_cache
+                && project.cache_path().exists()
+                && let Ok(cache) = CompilerCache::read_joined(&project.paths)
+                && cache.paths == paths
+                && preprocessed == cache.preprocessed
+            {
+                // unchanged project paths and same preprocess cache option
+                return cache;
             }
 
             trace!(invalidate_cache, "cache invalidated");
@@ -1289,10 +1290,10 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 
     /// Marks the cached entry as seen by the compiler, if it's cached.
     pub fn compiler_seen(&mut self, file: &Path) {
-        if let ArtifactsCache::Cached(cache) = self {
-            if let Some(entry) = cache.cache.entry_mut(file) {
-                entry.seen_by_compiler = true;
-            }
+        if let ArtifactsCache::Cached(cache) = self
+            && let Some(entry) = cache.cache.entry_mut(file)
+        {
+            entry.seen_by_compiler = true;
         }
     }
 }
