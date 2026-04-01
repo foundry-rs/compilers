@@ -177,7 +177,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
         contracts: &crate::VersionedContracts<Contract>,
         artifacts: &crate::Artifacts<Self::Artifact>,
     ) -> Result<(), SolcError> {
-        for (file, contracts) in contracts.as_ref().iter() {
+        for (file, contracts) in contracts.as_ref() {
             for (name, versioned_contracts) in contracts {
                 for contract in versioned_contracts {
                     if let Some(artifact) = artifacts.find_artifact_with_profile(

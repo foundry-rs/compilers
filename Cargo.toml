@@ -17,20 +17,29 @@ edition = "2024"
 exclude = [".github/", "scripts/", "test-data/"]
 
 [workspace.lints.clippy]
+borrow_as_ptr = "warn"
+branches_sharing_code = "warn"
+clear_with_drain = "warn"
+cloned_instead_of_copied = "warn"
+collection_is_never_read = "warn"
 dbg-macro = "warn"
+explicit_iter_loop = "warn"
 manual-string-new = "warn"
 uninlined-format-args = "warn"
 use-self = "warn"
 redundant-clone = "warn"
-
-result-large-err = "allow"
-large-enum-variant = "allow"
+octal-escapes = "allow"
+# until <https://github.com/rust-lang/rust-clippy/issues/13885> is fixed
+literal-string-with-formatting-args = "allow"
+result_large_err = "allow"
+large_enum_variant = "allow"
 
 [workspace.lints.rust]
-rust-2018-idioms = "warn"
-# unreachable-pub = "warn"
-unused-must-use = "warn"
+redundant_imports = "warn"
 redundant-lifetimes = "warn"
+rust-2018-idioms = "warn"
+unused-must-use = "warn"
+# unreachable-pub = "warn"
 
 [workspace.lints.rustdoc]
 all = "warn"

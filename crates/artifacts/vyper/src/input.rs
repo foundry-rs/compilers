@@ -65,7 +65,6 @@ impl VyperInput {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::VyperSettings;
     use foundry_compilers_artifacts_solc::EvmVersion;
 
     #[test]

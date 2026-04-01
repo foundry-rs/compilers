@@ -130,7 +130,7 @@ impl ProjectPathsConfig<SolcLanguage> {
 
         let mut result = String::new();
 
-        for path in ordered_deps.iter() {
+        for path in &ordered_deps {
             let node_id = *graph.files().get(path).ok_or_else(|| {
                 SolcError::msg(format!("cannot resolve file at {}", path.display()))
             })?;

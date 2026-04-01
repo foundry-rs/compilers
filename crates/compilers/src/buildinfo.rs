@@ -50,7 +50,7 @@ impl<L: Language> BuildContext<L> {
         let mut source_id_to_path = BTreeMap::new();
 
         let input_sources = input.sources().map(|(path, _)| path).collect::<HashSet<_>>();
-        for (path, source) in output.sources.iter() {
+        for (path, source) in &output.sources {
             if input_sources.contains(path.as_path()) {
                 source_id_to_path.insert(source.id, path.to_path_buf());
             }
@@ -122,7 +122,6 @@ mod tests {
     use super::*;
     use crate::compilers::solc::SolcVersionedInput;
     use foundry_compilers_artifacts::{Contract, Error, SolcLanguage, Sources, sources::Source};
-    use std::path::PathBuf;
 
     #[test]
     fn build_info_serde() {

@@ -6,10 +6,8 @@ use crate::{
     resolver::parse::SolData,
 };
 use foundry_compilers_artifacts::{
-    ContractDefinitionPart, SourceUnit, SourceUnitPart,
     ast::{visitor::Visitor, *},
     output_selection::OutputSelection,
-    solc::ExternalInlineAssemblyReference,
     sources::{Source, Sources},
 };
 use foundry_compilers_core::{

@@ -506,7 +506,7 @@ impl CacheEntry {
         &self,
     ) -> Result<BTreeMap<String, Vec<ArtifactFile<Artifact>>>> {
         let mut artifacts = BTreeMap::new();
-        for (artifact_name, versioned_files) in self.artifacts.iter() {
+        for (artifact_name, versioned_files) in &self.artifacts {
             let mut files = Vec::with_capacity(versioned_files.len());
             for (version, cached_artifact) in versioned_files {
                 for (profile, cached_artifact) in cached_artifact {
@@ -880,7 +880,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 
             if !self.cache.preprocessed {
                 // Perform DFS to find direct/indirect importers of dirty files.
-                for file in self.dirty_sources.clone().iter() {
+                for file in &self.dirty_sources.clone() {
                     populate_dirty_files(file, &mut self.dirty_sources, &edges);
                 }
             } else {

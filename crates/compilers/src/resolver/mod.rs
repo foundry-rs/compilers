@@ -468,7 +468,7 @@ impl<P: SourceParser> Graph<P> {
 
         // Build `rev_edges`
         for (idx, edges) in edges.iter().enumerate() {
-            for &edge in edges.iter() {
+            for &edge in edges {
                 rev_edges[edge].push(idx);
             }
         }
@@ -710,7 +710,7 @@ impl<P: SourceParser> Graph<P> {
 
         let nodes: Vec<_> = self.node_ids(idx).collect();
         let mut failed_node_idx = None;
-        for node in nodes.iter() {
+        for node in &nodes {
             if let Some(req) = self.version_requirement(*node, project) {
                 candidates.retain(|v| req.matches(v.as_ref()));
 
@@ -782,7 +782,7 @@ impl<P: SourceParser> Graph<P> {
 
         let nodes: Vec<_> = self.node_ids(idx).collect();
         let mut failed_node_idx = None;
-        for node in nodes.iter() {
+        for node in &nodes {
             if let Some(req) = project.restrictions.get(&self.node(*node).path) {
                 candidates.retain(|(_, (_, settings))| settings.satisfies_restrictions(&**req));
                 if candidates.is_empty() {

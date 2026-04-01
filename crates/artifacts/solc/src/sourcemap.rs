@@ -130,7 +130,7 @@ impl<'input> Lexer<'input> {
 
     fn number(&mut self, start: usize, mut end: usize) -> Token<'input> {
         loop {
-            if let Some((_, ch)) = self.chars.peek().cloned() {
+            if let Some((_, ch)) = self.chars.peek().copied() {
                 if !ch.is_ascii_digit() {
                     break;
                 }

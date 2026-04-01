@@ -952,7 +952,7 @@ pub trait ArtifactOutput {
         // this is unfortunately necessary, so we can "mock" `Artifacts` for solidity files without
         // any contract definition, which are not included in the `CompilerOutput` but we want to
         // create Artifacts for them regardless
-        for (file, sources) in sources.as_ref().iter() {
+        for (file, sources) in sources.as_ref() {
             let unique_versions = sources.iter().map(|s| &s.version).collect::<HashSet<_>>();
             let unique_profiles = sources.iter().map(|s| &s.profile).collect::<HashSet<_>>();
             for source in sources {
