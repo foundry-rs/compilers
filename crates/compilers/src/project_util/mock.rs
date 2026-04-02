@@ -2,7 +2,7 @@
 
 use foundry_compilers_artifacts::Remapping;
 use foundry_compilers_core::error::{Result, SolcError};
-use rand::{seq::SliceRandom, Rng};
+use rand::{Rng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeSet, HashMap, HashSet, VecDeque},
@@ -10,8 +10,8 @@ use std::{
 };
 
 use crate::{
-    compilers::Language, multi::MultiCompilerParser, resolver::GraphEdges, Graph,
-    ProjectPathsConfig, SourceParser,
+    Graph, ProjectPathsConfig, SourceParser, compilers::Language, multi::MultiCompilerParser,
+    resolver::GraphEdges,
 };
 
 /// Represents the layout of a project
@@ -112,7 +112,7 @@ impl MockProjectGenerator {
         paths: &ProjectPathsConfig<L>,
         version: &str,
     ) -> Result<()> {
-        for file in self.inner.files.iter() {
+        for file in &self.inner.files {
             let imports = self.get_imports(file.id);
             let content = file.mock_content(version, imports.join("\n").as_str());
             super::create_contract_file(&file.target_path(self, paths), content)?;
@@ -125,7 +125,7 @@ impl MockProjectGenerator {
         let file = &self.inner.files[file];
         let mut imports = Vec::with_capacity(file.imports.len());
 
-        for import in file.imports.iter() {
+        for import in &file.imports {
             match *import {
                 MockImport::Internal(f) => {
                     imports.push(format!("import \"./{}.sol\";", self.inner.files[f].name));
@@ -243,7 +243,7 @@ impl MockProjectGenerator {
         let mut rng = rand::rng();
         let n = self.inner.files.len();
 
-        for file in self.inner.files.iter_mut() {
+        for file in &mut self.inner.files {
             let throw = rng.random_range(0..n);
             if throw == 0 {
                 // 1 in n chance that the file will be empty

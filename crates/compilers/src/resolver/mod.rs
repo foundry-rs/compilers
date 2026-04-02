@@ -46,10 +46,10 @@
 //! which is defined on a per source file basis.
 
 use crate::{
+    ArtifactOutput, CompilerSettings, Project, ProjectPathsConfig, SourceParser,
     compilers::{Compiler, CompilerVersion, ParsedSource},
     project::VersionedSources,
     resolver::parse::SolParser,
-    ArtifactOutput, CompilerSettings, Project, ProjectPathsConfig, SourceParser,
 };
 use core::fmt;
 use foundry_compilers_artifacts::sources::{Source, Sources};
@@ -69,7 +69,7 @@ pub mod parse;
 mod tree;
 
 pub use parse::SolImportAlias;
-pub use tree::{print, Charset, TreeOptions};
+pub use tree::{Charset, TreeOptions, print};
 
 /// Container for result of version and profile resolution of sources contained in [`Graph`].
 #[derive(Debug)]
@@ -468,7 +468,7 @@ impl<P: SourceParser> Graph<P> {
 
         // Build `rev_edges`
         for (idx, edges) in edges.iter().enumerate() {
-            for &edge in edges.iter() {
+            for &edge in edges {
                 rev_edges[edge].push(idx);
             }
         }
@@ -710,7 +710,7 @@ impl<P: SourceParser> Graph<P> {
 
         let nodes: Vec<_> = self.node_ids(idx).collect();
         let mut failed_node_idx = None;
-        for node in nodes.iter() {
+        for node in &nodes {
             if let Some(req) = self.version_requirement(*node, project) {
                 candidates.retain(|v| req.matches(v.as_ref()));
 
@@ -782,7 +782,7 @@ impl<P: SourceParser> Graph<P> {
 
         let nodes: Vec<_> = self.node_ids(idx).collect();
         let mut failed_node_idx = None;
-        for node in nodes.iter() {
+        for node in &nodes {
             if let Some(req) = project.restrictions.get(&self.node(*node).path) {
                 candidates.retain(|(_, (_, settings))| settings.satisfies_restrictions(&**req));
                 if candidates.is_empty() {
@@ -811,22 +811,16 @@ impl<P: SourceParser> Graph<P> {
 
         // iterate over all the nodes once again and find the one incompatible
         for node in &nodes {
-            if let Some(req) = project.restrictions.get(&self.node(*node).path) {
-                if !all_profiles
+            if let Some(req) = project.restrictions.get(&self.node(*node).path)
+                && !all_profiles
                     .iter()
                     .any(|(_, (_, settings))| settings.satisfies_restrictions(&**req))
-                {
-                    let mut msg = "Found incompatible settings restrictions:\n".white().to_string();
+            {
+                let mut msg = "Found incompatible settings restrictions:\n".white().to_string();
 
-                    self.format_imports_list(
-                        idx,
-                        [*node, failed_node_idx].into(),
-                        project,
-                        &mut msg,
-                    )
+                self.format_imports_list(idx, [*node, failed_node_idx].into(), project, &mut msg)
                     .unwrap();
-                    return Err(msg);
-                }
+                return Err(msg);
             }
         }
 
@@ -1281,7 +1275,7 @@ src/Dapp.t.sol >=0.6.6
     #[test]
     #[cfg(feature = "svm-solc")]
     fn test_print_unresolved() {
-        use crate::{solc::SolcCompiler, ProjectBuilder};
+        use crate::{ProjectBuilder, solc::SolcCompiler};
 
         let root =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-data/incompatible-pragmas");

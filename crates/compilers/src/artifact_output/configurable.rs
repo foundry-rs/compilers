@@ -9,20 +9,20 @@
 //! addition to that some output values can also be emitted as standalone files.
 
 use crate::{
-    sources::VersionedSourceFile, Artifact, ArtifactFile, ArtifactOutput, SolcConfig, SolcError,
-    SourceFile,
+    Artifact, ArtifactFile, ArtifactOutput, SolcConfig, SolcError, SourceFile,
+    sources::VersionedSourceFile,
 };
 use alloy_json_abi::JsonAbi;
 use alloy_primitives::hex;
 use foundry_compilers_artifacts::{
+    BytecodeObject, ConfigurableContractArtifact, Evm, Ewasm, GeneratedSource, LosslessMetadata,
+    Metadata, Settings,
     bytecode::{CompactBytecode, CompactDeployedBytecode},
     contract::Contract,
     output_selection::{
         BytecodeOutputSelection, ContractOutputSelection, DeployedBytecodeOutputSelection,
         EvmOutputSelection, EwasmOutputSelection,
     },
-    BytecodeObject, ConfigurableContractArtifact, Evm, Ewasm, GeneratedSource, LosslessMetadata,
-    Metadata, Settings,
 };
 use foundry_compilers_core::utils;
 use std::{fs, path::Path};
@@ -177,7 +177,7 @@ impl ArtifactOutput for ConfigurableArtifacts {
         contracts: &crate::VersionedContracts<Contract>,
         artifacts: &crate::Artifacts<Self::Artifact>,
     ) -> Result<(), SolcError> {
-        for (file, contracts) in contracts.as_ref().iter() {
+        for (file, contracts) in contracts.as_ref() {
             for (name, versioned_contracts) in contracts {
                 for contract in versioned_contracts {
                     if let Some(artifact) = artifacts.find_artifact_with_profile(
@@ -237,11 +237,11 @@ impl ArtifactOutput for ConfigurableArtifacts {
             ir_optimized_ast,
         } = contract;
 
-        if self.additional_values.metadata || self.additional_files.metadata {
-            if let Some(LosslessMetadata { raw_metadata, metadata }) = metadata {
-                artifact_raw_metadata = Some(raw_metadata);
-                artifact_metadata = Some(metadata);
-            }
+        if (self.additional_values.metadata || self.additional_files.metadata)
+            && let Some(LosslessMetadata { raw_metadata, metadata }) = metadata
+        {
+            artifact_raw_metadata = Some(raw_metadata);
+            artifact_metadata = Some(metadata);
         }
         if self.additional_values.userdoc {
             artifact_userdoc = Some(userdoc);
@@ -681,33 +681,33 @@ impl ExtraOutputFiles {
     }
 
     fn process_abi(&self, abi: Option<&JsonAbi>, file: &Path) -> Result<(), SolcError> {
-        if self.abi {
-            if let Some(abi) = abi {
-                let file = file.with_extension("abi.json");
-                fs::write(&file, serde_json::to_string_pretty(abi)?)
-                    .map_err(|err| SolcError::io(err, file))?
-            }
+        if self.abi
+            && let Some(abi) = abi
+        {
+            let file = file.with_extension("abi.json");
+            fs::write(&file, serde_json::to_string_pretty(abi)?)
+                .map_err(|err| SolcError::io(err, file))?
         }
         Ok(())
     }
 
     fn process_metadata(&self, metadata: Option<&Metadata>, file: &Path) -> Result<(), SolcError> {
-        if self.metadata {
-            if let Some(metadata) = metadata {
-                let file = file.with_extension("metadata.json");
-                fs::write(&file, serde_json::to_string_pretty(metadata)?)
-                    .map_err(|err| SolcError::io(err, file))?
-            }
+        if self.metadata
+            && let Some(metadata) = metadata
+        {
+            let file = file.with_extension("metadata.json");
+            fs::write(&file, serde_json::to_string_pretty(metadata)?)
+                .map_err(|err| SolcError::io(err, file))?
         }
         Ok(())
     }
 
     fn process_ir(&self, ir: Option<&str>, file: &Path) -> Result<(), SolcError> {
-        if self.ir {
-            if let Some(ir) = ir {
-                let file = file.with_extension("ir");
-                fs::write(&file, ir).map_err(|err| SolcError::io(err, file))?
-            }
+        if self.ir
+            && let Some(ir) = ir
+        {
+            let file = file.with_extension("ir");
+            fs::write(&file, ir).map_err(|err| SolcError::io(err, file))?
         }
         Ok(())
     }
@@ -717,32 +717,32 @@ impl ExtraOutputFiles {
         ir_optimized: Option<&str>,
         file: &Path,
     ) -> Result<(), SolcError> {
-        if self.ir_optimized {
-            if let Some(ir_optimized) = ir_optimized {
-                let file = file.with_extension("iropt");
-                fs::write(&file, ir_optimized).map_err(|err| SolcError::io(err, file))?
-            }
+        if self.ir_optimized
+            && let Some(ir_optimized) = ir_optimized
+        {
+            let file = file.with_extension("iropt");
+            fs::write(&file, ir_optimized).map_err(|err| SolcError::io(err, file))?
         }
         Ok(())
     }
 
     fn process_ewasm(&self, ewasm: Option<&Ewasm>, file: &Path) -> Result<(), SolcError> {
-        if self.ewasm {
-            if let Some(ewasm) = ewasm {
-                let file = file.with_extension("ewasm");
-                fs::write(&file, serde_json::to_vec_pretty(ewasm)?)
-                    .map_err(|err| SolcError::io(err, file))?;
-            }
+        if self.ewasm
+            && let Some(ewasm) = ewasm
+        {
+            let file = file.with_extension("ewasm");
+            fs::write(&file, serde_json::to_vec_pretty(ewasm)?)
+                .map_err(|err| SolcError::io(err, file))?;
         }
         Ok(())
     }
 
     fn process_assembly(&self, asm: Option<&str>, file: &Path) -> Result<(), SolcError> {
-        if self.assembly {
-            if let Some(asm) = asm {
-                let file = file.with_extension("asm");
-                fs::write(&file, asm).map_err(|err| SolcError::io(err, file))?
-            }
+        if self.assembly
+            && let Some(asm) = asm
+        {
+            let file = file.with_extension("asm");
+            fs::write(&file, asm).map_err(|err| SolcError::io(err, file))?
         }
         Ok(())
     }
@@ -752,11 +752,11 @@ impl ExtraOutputFiles {
         asm: Option<serde_json::Value>,
         file: &Path,
     ) -> Result<(), SolcError> {
-        if self.legacy_assembly {
-            if let Some(legacy_asm) = asm {
-                let file = file.with_extension("legacyAssembly.json");
-                fs::write(&file, format!("{legacy_asm}")).map_err(|err| SolcError::io(err, file))?
-            }
+        if self.legacy_assembly
+            && let Some(legacy_asm) = asm
+        {
+            let file = file.with_extension("legacyAssembly.json");
+            fs::write(&file, format!("{legacy_asm}")).map_err(|err| SolcError::io(err, file))?
         }
         Ok(())
     }
@@ -766,22 +766,22 @@ impl ExtraOutputFiles {
         generated_sources: Option<&Vec<GeneratedSource>>,
         file: &Path,
     ) -> Result<(), SolcError> {
-        if self.generated_sources {
-            if let Some(generated_sources) = generated_sources {
-                let file = file.with_extension("gensources");
-                fs::write(&file, serde_json::to_vec_pretty(generated_sources)?)
-                    .map_err(|err| SolcError::io(err, file))?;
-            }
+        if self.generated_sources
+            && let Some(generated_sources) = generated_sources
+        {
+            let file = file.with_extension("gensources");
+            fs::write(&file, serde_json::to_vec_pretty(generated_sources)?)
+                .map_err(|err| SolcError::io(err, file))?;
         }
         Ok(())
     }
 
     fn process_source_map(&self, source_map: Option<&str>, file: &Path) -> Result<(), SolcError> {
-        if self.source_map {
-            if let Some(source_map) = source_map {
-                let file = file.with_extension("sourcemap");
-                fs::write(&file, source_map).map_err(|err| SolcError::io(err, file))?
-            }
+        if self.source_map
+            && let Some(source_map) = source_map
+        {
+            let file = file.with_extension("sourcemap");
+            fs::write(&file, source_map).map_err(|err| SolcError::io(err, file))?
         }
         Ok(())
     }
@@ -791,12 +791,12 @@ impl ExtraOutputFiles {
         bytecode: Option<&BytecodeObject>,
         file: &Path,
     ) -> Result<(), SolcError> {
-        if self.bytecode {
-            if let Some(bytecode) = bytecode {
-                let code = hex::encode(bytecode.as_ref());
-                let file = file.with_extension("bin");
-                fs::write(&file, code).map_err(|err| SolcError::io(err, file))?
-            }
+        if self.bytecode
+            && let Some(bytecode) = bytecode
+        {
+            let code = hex::encode(bytecode.as_ref());
+            let file = file.with_extension("bin");
+            fs::write(&file, code).map_err(|err| SolcError::io(err, file))?
         }
         Ok(())
     }
@@ -806,12 +806,12 @@ impl ExtraOutputFiles {
         deployed: Option<&BytecodeObject>,
         file: &Path,
     ) -> Result<(), SolcError> {
-        if self.deployed_bytecode {
-            if let Some(deployed) = deployed {
-                let code = hex::encode(deployed.as_ref());
-                let file = file.with_extension("deployed-bin");
-                fs::write(&file, code).map_err(|err| SolcError::io(err, file))?
-            }
+        if self.deployed_bytecode
+            && let Some(deployed) = deployed
+        {
+            let code = hex::encode(deployed.as_ref());
+            let file = file.with_extension("deployed-bin");
+            fs::write(&file, code).map_err(|err| SolcError::io(err, file))?
         }
         Ok(())
     }

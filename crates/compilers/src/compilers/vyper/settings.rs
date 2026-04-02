@@ -2,10 +2,10 @@ use std::{collections::BTreeSet, path::PathBuf};
 
 pub use crate::artifacts::vyper::VyperSettings;
 use crate::{
-    compilers::{restrictions::CompilerSettingsRestrictions, CompilerSettings},
+    compilers::{CompilerSettings, restrictions::CompilerSettingsRestrictions},
     solc::Restriction,
 };
-use foundry_compilers_artifacts::{output_selection::OutputSelection, EvmVersion};
+use foundry_compilers_artifacts::{EvmVersion, output_selection::OutputSelection};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct VyperRestrictions {

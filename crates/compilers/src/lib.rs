@@ -56,8 +56,8 @@ use compilers::multi::MultiCompiler;
 use foundry_compilers_artifacts::{
     output_selection::OutputSelection,
     solc::{
-        sources::{Source, SourceCompilationKind, Sources},
         Severity, SourceFile, StandardJsonCompilerInput,
+        sources::{Source, SourceCompilationKind, Sources},
     },
 };
 use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
@@ -65,8 +65,8 @@ use output::sources::{VersionedSourceFile, VersionedSourceFiles};
 use project::ProjectCompiler;
 use semver::Version;
 use solar::parse::{
-    interface::{diagnostics::EmittedDiagnostics, source_map::FileName, Session},
     Parser,
+    interface::{Session, diagnostics::EmittedDiagnostics, source_map::FileName},
 };
 use solc::SolcSettings;
 use std::{
@@ -149,7 +149,7 @@ impl Project {
     ///
     /// or use the builder directly:
     /// ```no_run
-    /// use foundry_compilers::{multi::MultiCompiler, ConfigurableArtifacts, ProjectBuilder};
+    /// use foundry_compilers::{ConfigurableArtifacts, ProjectBuilder, multi::MultiCompiler};
     ///
     /// let config = ProjectBuilder::<MultiCompiler>::default().build(Default::default())?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -969,7 +969,7 @@ pub(crate) fn parse_one_source<R>(
 mod tests {
     use super::*;
     use foundry_compilers_artifacts::Remapping;
-    use foundry_compilers_core::utils::{self, mkdir_or_touch, tempdir};
+    use foundry_compilers_core::utils::{mkdir_or_touch, tempdir};
 
     #[test]
     #[cfg_attr(windows, ignore = "<0.7 solc is flaky")]

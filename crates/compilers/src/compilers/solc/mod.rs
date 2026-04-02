@@ -1,20 +1,20 @@
 use super::{
-    restrictions::CompilerSettingsRestrictions, CompilationError, Compiler, CompilerInput,
-    CompilerOutput, CompilerSettings, CompilerVersion, Language, ParsedSource,
+    CompilationError, Compiler, CompilerInput, CompilerOutput, CompilerSettings, CompilerVersion,
+    Language, ParsedSource, restrictions::CompilerSettingsRestrictions,
 };
 use crate::{
-    resolver::{
-        parse::{SolData, SolParser},
-        Node,
-    },
     SourceParser,
+    resolver::{
+        Node,
+        parse::{SolData, SolParser},
+    },
 };
 use foundry_compilers_artifacts::{
+    BytecodeHash, Contract, Error, EvmVersion, Settings, Severity, SolcInput,
     error::SourceLocation,
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    BytecodeHash, Contract, Error, EvmVersion, Settings, Severity, SolcInput,
 };
 use foundry_compilers_core::error::{Result, SolcError, SolcIoError};
 use rayon::prelude::*;
@@ -30,7 +30,7 @@ use std::{
 pub use foundry_compilers_artifacts::SolcLanguage;
 
 mod compiler;
-pub use compiler::{Solc, SOLC_EXTENSIONS};
+pub use compiler::{SOLC_EXTENSIONS, Solc};
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "svm-solc", derive(Default))]
@@ -159,11 +159,7 @@ impl CompilerInput for SolcVersionedInput {
 
     fn compiler_name(&self) -> Cow<'static, str> {
         // Detect Solar from version build metadata (e.g., "0.8.28+commit.xxx.solar.0.1.8")
-        if self.version.build.as_str().contains("solar") {
-            "Solar".into()
-        } else {
-            "Solc".into()
-        }
+        if self.version.build.as_str().contains("solar") { "Solar".into() } else { "Solc".into() }
     }
 
     fn strip_prefix(&mut self, base: &Path) {
@@ -236,10 +232,10 @@ impl<V: Ord + Copy> Restriction<V> {
             Some(other_max.map_or(this_max, |other_max| this_max.min(other_max)))
         });
 
-        if let (Some(min), Some(max)) = (min, max) {
-            if min > max {
-                return None;
-            }
+        if let (Some(min), Some(max)) = (min, max)
+            && min > max
+        {
+            return None;
         }
 
         Some(Self { min, max })
@@ -267,18 +263,17 @@ pub struct SolcRestrictions {
 
 impl CompilerSettingsRestrictions for SolcRestrictions {
     fn merge(self, other: Self) -> Option<Self> {
-        if let (Some(via_ir), Some(other_via_ir)) = (self.via_ir, other.via_ir) {
-            if via_ir != other_via_ir {
-                return None;
-            }
+        if let (Some(via_ir), Some(other_via_ir)) = (self.via_ir, other.via_ir)
+            && via_ir != other_via_ir
+        {
+            return None;
         }
 
         if let (Some(bytecode_hash), Some(other_bytecode_hash)) =
             (self.bytecode_hash, other.bytecode_hash)
+            && bytecode_hash != other_bytecode_hash
         {
-            if bytecode_hash != other_bytecode_hash {
-                return None;
-            }
+            return None;
         }
 
         Some(Self {
@@ -450,14 +445,13 @@ impl SourceParser for SolParser {
 
         // Set error on the first successful source, if any. This doesn't really have to be
         // exact, as long as at least one source has an error set it should be enough.
-        if let Some(Err(diag)) = compiler.sess().emitted_errors() {
-            if let Some(idx) = nodes
+        if let Some(Err(diag)) = compiler.sess().emitted_errors()
+            && let Some(idx) = nodes
                 .iter()
                 .position(|node| node.data.parse_result.is_ok())
                 .or_else(|| nodes.first().map(|_| 0))
-            {
-                nodes[idx].data.parse_result = Err(diag.to_string());
-            }
+        {
+            nodes[idx].data.parse_result = Err(diag.to_string());
         }
 
         for node in nodes.iter() {
@@ -486,11 +480,7 @@ impl ParsedSource for SolData {
     }
 
     fn language(&self) -> Self::Language {
-        if self.is_yul {
-            SolcLanguage::Yul
-        } else {
-            SolcLanguage::Solidity
-        }
+        if self.is_yul { SolcLanguage::Yul } else { SolcLanguage::Solidity }
     }
 
     fn resolve_imports<C>(
@@ -539,12 +529,12 @@ mod tests {
     use semver::Version;
 
     use crate::{
+        AggregatedCompilerOutput,
         buildinfo::RawBuildInfo,
         compilers::{
-            solc::{SolcCompiler, SolcVersionedInput},
             CompilerInput,
+            solc::{SolcCompiler, SolcVersionedInput},
         },
-        AggregatedCompilerOutput,
     };
 
     #[test]

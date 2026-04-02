@@ -52,7 +52,9 @@ pub enum SolcError {
     /// Failed to resolve a file
     #[error("failed to resolve file: {0}; check configured remappings")]
     Resolve(SolcIoError),
-    #[error("file cannot be resolved due to mismatch of file name case: {error}.\nFound existing file: {existing_file:?}\nPlease check the case of the import.")]
+    #[error(
+        "file cannot be resolved due to mismatch of file name case: {error}.\nFound existing file: {existing_file:?}\nPlease check the case of the import."
+    )]
     ResolveCaseSensitiveFileName { error: SolcIoError, existing_file: PathBuf },
     #[error(
         "{0}\n\t\

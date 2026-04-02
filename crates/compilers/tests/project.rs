@@ -2,13 +2,16 @@
 
 use alloy_primitives::{Address, Bytes};
 use foundry_compilers::{
+    Artifact, ConfigurableArtifacts, ExtraOutputFiles, ExtraOutputValues, Graph, Project,
+    ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig, RestrictionsWithVersion,
+    TestFileFilter,
     buildinfo::BuildInfo,
     cache::{CompilerCache, SOLIDITY_FILES_CACHE_FILENAME},
     compilers::{
+        CompilerOutput,
         multi::{MultiCompiler, MultiCompilerLanguage, MultiCompilerSettings},
         solc::{Solc, SolcCompiler, SolcLanguage},
         vyper::{Vyper, VyperLanguage, VyperSettings},
-        CompilerOutput,
     },
     flatten::Flattener,
     info::ContractInfo,
@@ -16,18 +19,16 @@ use foundry_compilers::{
     project::{Preprocessor, ProjectCompiler},
     project_util::*,
     solc::{Restriction, SolcRestrictions, SolcSettings},
-    take_solc_installer_lock, Artifact, ConfigurableArtifacts, ExtraOutputFiles, ExtraOutputValues,
-    Graph, Project, ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig,
-    RestrictionsWithVersion, TestFileFilter,
+    take_solc_installer_lock,
 };
 use foundry_compilers_artifacts::{
-    output_selection::OutputSelection, remappings::Remapping, BytecodeHash, Contract, DevDoc,
-    Error, ErrorDoc, EventDoc, EvmVersion, Libraries, MethodDoc, ModelCheckerEngine::CHC,
-    ModelCheckerSettings, Settings, Severity, SolcInput, UserDoc, UserDocNotice,
+    BytecodeHash, Contract, DevDoc, Error, ErrorDoc, EventDoc, EvmVersion, Libraries, MethodDoc,
+    ModelCheckerEngine::CHC, ModelCheckerSettings, Settings, Severity, SolcInput, UserDoc,
+    UserDocNotice, output_selection::OutputSelection, remappings::Remapping,
 };
 use foundry_compilers_core::{
     error::SolcError,
-    utils::{self, canonicalize, RuntimeOrHandle},
+    utils::{self, RuntimeOrHandle, canonicalize},
 };
 use semver::Version;
 use similar_asserts::assert_eq;
@@ -36,11 +37,11 @@ use std::{
     env,
     fs::{self},
     io,
-    path::{Path, PathBuf, MAIN_SEPARATOR},
+    path::{MAIN_SEPARATOR, Path, PathBuf},
     str::FromStr,
     sync::LazyLock,
 };
-use svm::{platform, Platform};
+use svm::{Platform, platform};
 
 pub static VYPER: LazyLock<Vyper> = LazyLock::new(|| {
     RuntimeOrHandle::new().block_on(async {
@@ -2184,7 +2185,12 @@ fn can_detect_invalid_version() {
     let out = tmp.compile().unwrap_err();
     match out {
         SolcError::Message(err) => {
-            assert_eq!(err, format!("Encountered invalid solc version in src{MAIN_SEPARATOR}A.sol: No solc version exists that matches the version requirement: ^0.100.10"));
+            assert_eq!(
+                err,
+                format!(
+                    "Encountered invalid solc version in src{MAIN_SEPARATOR}A.sol: No solc version exists that matches the version requirement: ^0.100.10"
+                )
+            );
         }
         _ => {
             unreachable!()
