@@ -28,7 +28,6 @@ manual-string-new = "warn"
 uninlined-format-args = "warn"
 use-self = "warn"
 redundant-clone = "warn"
-octal-escapes = "allow"
 # until <https://github.com/rust-lang/rust-clippy/issues/13885> is fixed
 literal-string-with-formatting-args = "allow"
 result_large_err = "allow"
