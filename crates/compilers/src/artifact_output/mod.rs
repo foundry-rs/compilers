@@ -575,9 +575,9 @@ pub trait Artifact {
 
     /// Returns the runtime bytecode `sourceMap` as str if it was included in the compiler output
     fn get_source_map_deployed_str(&self) -> Option<Cow<'_, str>> {
-        match self.get_bytecode()? {
-            Cow::Borrowed(code) => code.source_map.as_deref().map(Cow::Borrowed),
-            Cow::Owned(code) => code.source_map.map(Cow::Owned),
+        match self.get_deployed_bytecode()? {
+            Cow::Borrowed(code) => code.bytecode.as_ref()?.source_map.as_deref().map(Cow::Borrowed),
+            Cow::Owned(code) => code.bytecode?.source_map.map(Cow::Owned),
         }
     }
 }
@@ -1188,6 +1188,7 @@ impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     #[test]
     fn is_artifact() {
@@ -1256,5 +1257,27 @@ mod tests {
     fn test() {
         assert_artifact::<CompactContractBytecode>();
         assert_artifact::<CompactContractBytecodeCow<'static>>();
+    }
+
+    #[test]
+    fn deployed_source_map_string_uses_runtime_bytecode() {
+        let artifact = CompactContractBytecode {
+            abi: None,
+            bytecode: Some(CompactBytecode {
+                object: BytecodeObject::Bytecode(Default::default()),
+                source_map: Some("creation-map".to_string()),
+                link_references: BTreeMap::new(),
+            }),
+            deployed_bytecode: Some(CompactDeployedBytecode {
+                bytecode: Some(CompactBytecode {
+                    object: BytecodeObject::Bytecode(Default::default()),
+                    source_map: Some("runtime-map".to_string()),
+                    link_references: BTreeMap::new(),
+                }),
+                immutable_references: BTreeMap::new(),
+            }),
+        };
+
+        assert_eq!(artifact.get_source_map_deployed_str().as_deref(), Some("runtime-map"));
     }
 }
