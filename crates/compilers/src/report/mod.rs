@@ -22,7 +22,7 @@ use std::{
     any::{Any, TypeId},
     cell::RefCell,
     error::Error,
-    fmt,
+    fmt, io,
     path::{Path, PathBuf},
     ptr::NonNull,
     sync::{
@@ -311,7 +311,11 @@ pub struct NoReporter(());
 
 impl Reporter for NoReporter {}
 
-/// A [`Reporter`] that emits some general information to `stdout`
+/// A [`Reporter`] that emits some general information to `stdout`.
+///
+/// `BrokenPipe` errors are silently ignored so that piping compiler output
+/// through consumers that may close the pipe early (e.g. `tee`, `head`) does
+/// not cause a panic.
 #[derive(Clone, Debug, Default)]
 pub struct BasicStdoutReporter {
     _priv: (),
@@ -322,42 +326,62 @@ impl Reporter for BasicStdoutReporter {
     ///
     /// [`Compiler::compile()`]: crate::compilers::Compiler::compile
     fn on_compiler_spawn(&self, compiler_name: &str, version: &Version, dirty_files: &[PathBuf]) {
-        println!(
-            "Compiling {} files with {} {}.{}.{}",
-            dirty_files.len(),
-            compiler_name,
-            version.major,
-            version.minor,
-            version.patch
+        write_line(
+            io::stdout().lock(),
+            format_args!(
+                "Compiling {} files with {} {}.{}.{}",
+                dirty_files.len(),
+                compiler_name,
+                version.major,
+                version.minor,
+                version.patch
+            ),
         );
     }
 
     fn on_compiler_success(&self, compiler_name: &str, version: &Version, duration: &Duration) {
-        println!(
-            "{} {}.{}.{} finished in {duration:.2?}",
-            compiler_name, version.major, version.minor, version.patch
+        write_line(
+            io::stdout().lock(),
+            format_args!(
+                "{} {}.{}.{} finished in {duration:.2?}",
+                compiler_name, version.major, version.minor, version.patch
+            ),
         );
     }
 
     /// Invoked before a new compiler is installed
     fn on_solc_installation_start(&self, version: &Version) {
-        println!("installing solc version \"{version}\"");
+        write_line(io::stdout().lock(), format_args!("installing solc version \"{version}\""));
     }
 
     /// Invoked before a new compiler was successfully installed
     fn on_solc_installation_success(&self, version: &Version) {
-        println!("Successfully installed solc {version}");
+        write_line(io::stdout().lock(), format_args!("Successfully installed solc {version}"));
     }
 
     fn on_solc_installation_error(&self, version: &Version, error: &str) {
-        eprintln!("Failed to install solc {version}: {error}");
+        write_line(io::stderr().lock(), format_args!("Failed to install solc {version}: {error}"));
     }
 
     fn on_unresolved_imports(&self, imports: &[(&Path, &Path)], remappings: &[Remapping]) {
         if imports.is_empty() {
             return;
         }
-        println!("{}", format_unresolved_imports(imports, remappings))
+        write_line(
+            io::stdout().lock(),
+            format_args!("{}", format_unresolved_imports(imports, remappings)),
+        );
+    }
+}
+
+/// Write a single line to `writer`, silently discarding `BrokenPipe` errors.
+///
+/// Non-`BrokenPipe` errors still panic, matching the prior `println!` behavior.
+fn write_line(mut writer: impl io::Write, args: fmt::Arguments<'_>) {
+    if let Err(err) = writeln!(writer, "{args}") {
+        if err.kind() != io::ErrorKind::BrokenPipe {
+            panic!("failed to write reporter output: {err}");
+        }
     }
 }
 
@@ -480,6 +504,65 @@ mod tests {
         });
 
         get_default(|reporter| assert!(reporter.is::<BasicStdoutReporter>()))
+    }
+
+    #[test]
+    fn write_line_ignores_broken_pipe() {
+        struct BrokenPipeWriter;
+
+        impl io::Write for BrokenPipeWriter {
+            fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+                Err(io::Error::new(io::ErrorKind::BrokenPipe, "broken pipe"))
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        // Should not panic.
+        write_line(BrokenPipeWriter, format_args!("hello"));
+    }
+
+    #[test]
+    #[should_panic(expected = "failed to write reporter output")]
+    fn write_line_panics_on_non_broken_pipe_errors() {
+        struct FailingWriter;
+
+        impl io::Write for FailingWriter {
+            fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+                Err(io::Error::new(io::ErrorKind::Other, "write failed"))
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        write_line(FailingWriter, format_args!("hello"));
+    }
+
+    #[test]
+    fn write_line_writes_newline_terminated_output() {
+        #[derive(Clone, Default)]
+        struct BufferWriter(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+        impl io::Write for BufferWriter {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(buf);
+                Ok(buf.len())
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let writer = BufferWriter::default();
+        let buffer = writer.0.clone();
+        write_line(writer, format_args!("hello"));
+
+        assert_eq!(String::from_utf8(buffer.lock().unwrap().clone()).unwrap(), "hello\n");
     }
 
     #[test]
