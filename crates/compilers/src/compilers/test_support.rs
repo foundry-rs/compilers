@@ -5,6 +5,7 @@
 //! Compilers that don't provide these still work — the runner just won't have
 //! source-seeded fuzz dictionaries or inline config overrides.
 
+use super::{Compiler, CompilerOutput};
 use alloy_primitives::{Address, Bytes, I256, U256};
 use std::path::PathBuf;
 
@@ -63,4 +64,50 @@ pub struct InlineConfigEntry {
     /// Raw configuration text. Each string is a single config line in the same
     /// format as `foundry.toml`, e.g. `"default.fuzz.runs = 1024"`.
     pub config_values: Vec<String>,
+}
+
+/// Optional trait that compilers can implement to provide source-level metadata
+/// to Foundry's test runner.
+///
+/// The test runner uses this metadata to:
+/// - Seed the fuzz dictionary with literals from source code
+/// - Apply per-test configuration overrides (e.g. fuzz runs, invariant depth)
+///
+/// Compilers that don't implement this still work — the runner just uses
+/// runtime-discovered values for fuzzing and global config for all tests.
+///
+/// # Example
+///
+/// ```ignore
+/// impl TestRunnerSupport for MyCompiler {
+///     fn fuzz_literals(
+///         &self,
+///         output: &CompilerOutput<Self::CompilationError, Self::CompilerContract>,
+///     ) -> Vec<FuzzLiteral> {
+///         // Extract address/uint/string constants from your AST
+///         vec![]
+///     }
+/// }
+/// ```
+#[auto_impl::auto_impl(&, Box, Arc)]
+pub trait TestRunnerSupport: Compiler {
+    /// Extract literal values from compiled sources to seed the fuzzer dictionary.
+    ///
+    /// The runner calls this after compilation. The returned literals are merged
+    /// into the fuzz dictionary alongside runtime-discovered values.
+    ///
+    /// Default: empty (fuzzer relies only on runtime-discovered values).
+    fn fuzz_literals<E, C>(&self, _output: &CompilerOutput<E, C>) -> Vec<FuzzLiteral> {
+        vec![]
+    }
+
+    /// Extract per-test configuration overrides from sources.
+    ///
+    /// Solidity uses `/// forge-config:` NatSpec comments for this. Other languages
+    /// can use their own comment/annotation syntax.
+    ///
+    /// Default: no per-test overrides.
+    fn inline_config<E, C>(&self, _output: &CompilerOutput<E, C>) -> InlineConfigEntries {
+        InlineConfigEntries::default()
+    }
 }
