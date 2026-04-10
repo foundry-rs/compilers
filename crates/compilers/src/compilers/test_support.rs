@@ -7,7 +7,6 @@
 
 use super::{Compiler, CompilerOutput};
 use alloy_primitives::{Address, Bytes, I256, U256};
-use std::path::PathBuf;
 
 /// A literal value extracted from source code for fuzzer dictionary seeding.
 ///
@@ -52,8 +51,6 @@ pub struct InlineConfigEntries {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct InlineConfigEntry {
-    /// The source file path (relative to project root).
-    pub source: PathBuf,
     /// The contract identifier, in the form `path:ContractName`.
     pub contract: String,
     /// The function name, if this is a function-level override.
@@ -61,8 +58,8 @@ pub struct InlineConfigEntry {
     pub function: Option<String>,
     /// The location in source (for error reporting), e.g. `"10:5"`.
     pub line: String,
-    /// Raw configuration text. Each string must include the `forge-config:` prefix,
-    /// e.g. `"forge-config: default.fuzz.runs = 1024"`.
+    /// Raw configuration lines in the same key format as `foundry.toml`,
+    /// e.g. `"default.fuzz.runs = 1024"`.
     pub config_values: Vec<String>,
 }
 
