@@ -26,6 +26,9 @@ pub mod solc;
 pub mod vyper;
 pub use vyper::*;
 
+pub mod test_support;
+pub use test_support::*;
+
 mod restrictions;
 pub use restrictions::{CompilerSettingsRestrictions, RestrictionsWithVersion};
 
