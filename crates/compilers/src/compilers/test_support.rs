@@ -61,8 +61,8 @@ pub struct InlineConfigEntry {
     pub function: Option<String>,
     /// The location in source (for error reporting), e.g. `"10:5"`.
     pub line: String,
-    /// Raw configuration text. Each string is a single config line in the same
-    /// format as `foundry.toml`, e.g. `"default.fuzz.runs = 1024"`.
+    /// Raw configuration text. Each string must include the `forge-config:` prefix,
+    /// e.g. `"forge-config: default.fuzz.runs = 1024"`.
     pub config_values: Vec<String>,
 }
 
