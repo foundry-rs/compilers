@@ -86,7 +86,6 @@ pub struct InlineConfigEntry {
 ///     }
 /// }
 /// ```
-#[auto_impl::auto_impl(&, Box, Arc)]
 pub trait TestRunnerSupport: Compiler {
     /// Extract literal values from compiled sources to seed the fuzzer dictionary.
     ///
@@ -94,7 +93,10 @@ pub trait TestRunnerSupport: Compiler {
     /// into the fuzz dictionary alongside runtime-discovered values.
     ///
     /// Default: empty (fuzzer relies only on runtime-discovered values).
-    fn fuzz_literals<E, C>(&self, _output: &CompilerOutput<E, C>) -> Vec<FuzzLiteral> {
+    fn fuzz_literals(
+        &self,
+        _output: &CompilerOutput<Self::CompilationError, Self::CompilerContract>,
+    ) -> Vec<FuzzLiteral> {
         vec![]
     }
 
@@ -104,7 +106,10 @@ pub trait TestRunnerSupport: Compiler {
     /// can use their own comment/annotation syntax.
     ///
     /// Default: no per-test overrides.
-    fn inline_config<E, C>(&self, _output: &CompilerOutput<E, C>) -> InlineConfigEntries {
+    fn inline_config(
+        &self,
+        _output: &CompilerOutput<Self::CompilationError, Self::CompilerContract>,
+    ) -> InlineConfigEntries {
         InlineConfigEntries::default()
     }
 }
