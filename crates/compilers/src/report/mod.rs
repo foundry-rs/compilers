@@ -374,10 +374,10 @@ impl Reporter for BasicStdoutReporter {
 ///
 /// Non-`BrokenPipe` errors still panic, matching the prior `println!` behavior.
 fn write_line(mut writer: impl io::Write, args: fmt::Arguments<'_>) {
-    if let Err(err) = writeln!(writer, "{args}") {
-        if err.kind() != io::ErrorKind::BrokenPipe {
-            panic!("failed to write reporter output: {err}");
-        }
+    if let Err(err) = writeln!(writer, "{args}")
+        && err.kind() != io::ErrorKind::BrokenPipe
+    {
+        panic!("failed to write reporter output: {err}");
     }
 }
 

@@ -1186,7 +1186,6 @@ impl ArtifactOutput for MinimalCombinedArtifactsHardhatFallback {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
 
     #[test]
     fn is_artifact() {
