@@ -28,8 +28,8 @@ where
 
 pub mod json_string_opt {
     use serde::{
-        de::{self, DeserializeOwned},
         Deserialize, Deserializer, Serialize, Serializer,
+        de::{self, DeserializeOwned},
     };
 
     pub fn serialize<T, S>(value: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
@@ -64,8 +64,8 @@ pub mod json_string_opt {
 /// deserializes empty json object `{}` as `None`
 pub mod empty_json_object_opt {
     use serde::{
-        de::{self, DeserializeOwned},
         Deserialize, Deserializer, Serialize, Serializer,
+        de::{self, DeserializeOwned},
     };
 
     pub fn serialize<T, S>(value: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
@@ -117,16 +117,12 @@ pub mod string_bytes {
         D: Deserializer<'de>,
     {
         let value = String::deserialize(deserializer)?;
-        if let Some(rem) = value.strip_prefix("0x") {
-            Ok(rem.to_string())
-        } else {
-            Ok(value)
-        }
+        if let Some(rem) = value.strip_prefix("0x") { Ok(rem.to_string()) } else { Ok(value) }
     }
 }
 
 pub mod display_from_str_opt {
-    use serde::{de, Deserialize, Deserializer, Serializer};
+    use serde::{Deserialize, Deserializer, Serializer, de};
     use std::{fmt, str::FromStr};
 
     pub fn serialize<T, S>(value: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
@@ -156,7 +152,7 @@ pub mod display_from_str_opt {
 }
 
 pub mod display_from_str {
-    use serde::{de, Deserialize, Deserializer, Serializer};
+    use serde::{Deserialize, Deserializer, Serializer, de};
     use std::{fmt, str::FromStr};
 
     pub fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
@@ -179,7 +175,7 @@ pub mod display_from_str {
 
 /// (De)serialize vec of tuples as map
 pub mod tuple_vec_map {
-    use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer, de::DeserializeOwned};
 
     pub fn serialize<K, V, S>(data: &[(K, V)], serializer: S) -> Result<S::Ok, S::Error>
     where

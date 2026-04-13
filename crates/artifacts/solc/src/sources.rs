@@ -157,12 +157,11 @@ impl Source {
             // see also <https://docs.soliditylang.org/en/v0.8.17/path-resolution.html#import-callback>
             // check if there exists a file with different case
             #[cfg(feature = "walkdir")]
-            if !exists {
-                if let Some(existing_file) =
+            if !exists
+                && let Some(existing_file) =
                     foundry_compilers_core::utils::find_case_sensitive_existing_file(file)
-                {
-                    return SolcError::ResolveCaseSensitiveFileName { error: err, existing_file };
-                }
+            {
+                return SolcError::ResolveCaseSensitiveFileName { error: err, existing_file };
             }
 
             SolcError::Resolve(err)

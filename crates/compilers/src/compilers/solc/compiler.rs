@@ -1,12 +1,12 @@
 use crate::resolver::parse::SolData;
-use foundry_compilers_artifacts::{sources::Source, CompilerOutput, SolcInput};
+use foundry_compilers_artifacts::{CompilerOutput, SolcInput, sources::Source};
 use foundry_compilers_core::{
     error::{Result, SolcError},
     utils::{SUPPORTS_BASE_PATH, SUPPORTS_INCLUDE_PATH},
 };
 use itertools::Itertools;
 use semver::{Version, VersionReq};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     collections::BTreeSet,
     io::{self, Write},
@@ -616,11 +616,7 @@ impl Solc {
 }
 
 fn compile_output(output: Output) -> Result<Vec<u8>> {
-    if output.status.success() {
-        Ok(output.stdout)
-    } else {
-        Err(SolcError::solc_output(&output))
-    }
+    if output.status.success() { Ok(output.stdout) } else { Err(SolcError::solc_output(&output)) }
 }
 
 fn version_from_output(output: Output) -> Result<Version> {
@@ -647,7 +643,7 @@ impl AsRef<Path> for Solc {
 #[cfg(feature = "svm-solc")]
 mod tests {
     use super::*;
-    use crate::{resolver::parse::SolData, Artifact};
+    use crate::Artifact;
 
     #[test]
     fn test_version_parse() {

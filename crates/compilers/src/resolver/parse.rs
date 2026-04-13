@@ -74,13 +74,9 @@ impl interface::source_map::FileLoader for FileLoader {
     }
 
     fn load_file(&self, path: &Path) -> std::io::Result<String> {
-        interface::source_map::RealFileLoader.load_file(path).map(|s| {
-            if s.contains('\r') {
-                s.replace('\r', "")
-            } else {
-                s
-            }
-        })
+        interface::source_map::RealFileLoader
+            .load_file(path)
+            .map(|s| if s.contains('\r') { s.replace('\r', "") } else { s })
     }
 
     fn load_binary_file(&self, path: &Path) -> std::io::Result<Vec<u8>> {

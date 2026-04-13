@@ -20,8 +20,7 @@ use std::{env, path::PathBuf, str::FromStr};
 ///
 /// ```no_run
 /// use foundry_compilers::report::SolcCompilerIoReporter;
-/// std::env::set_var("foundry_compilers_LOG", "in=in.json,out=out.json");
-/// let rep = SolcCompilerIoReporter::from_default_env();
+/// let rep = SolcCompilerIoReporter::new("in=in.json,out=out.json");
 /// ```
 #[derive(Clone, Debug, Default)]
 pub struct SolcCompilerIoReporter {
@@ -198,14 +197,16 @@ mod tests {
     fn can_init_reporter_from_env() {
         let rep = SolcCompilerIoReporter::from_default_env();
         assert!(rep.target.is_none());
-        std::env::set_var("foundry_compilers_LOG", "in=in.json,out=out.json");
+        // SAFETY: This test is not run in parallel with other tests that depend on this env var.
+        unsafe { std::env::set_var("foundry_compilers_LOG", "in=in.json,out=out.json") };
         let rep = SolcCompilerIoReporter::from_default_env();
         assert!(rep.target.is_some());
         assert_eq!(
             rep.target.unwrap(),
             Target { dest_input: "in.json".into(), dest_output: "out.json".into() }
         );
-        std::env::remove_var("foundry_compilers_LOG");
+        // SAFETY: This test is not run in parallel with other tests that depend on this env var.
+        unsafe { std::env::remove_var("foundry_compilers_LOG") };
     }
 
     #[test]

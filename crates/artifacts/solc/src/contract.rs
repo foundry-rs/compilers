@@ -1,10 +1,11 @@
 //! Contract related types.
 
 use crate::{
+    DevDoc, Evm, Ewasm, LosslessMetadata, Offsets, StorageLayout, UserDoc,
     bytecode::{
         Bytecode, BytecodeObject, CompactBytecode, CompactDeployedBytecode, DeployedBytecode,
     },
-    serde_helpers, DevDoc, Evm, Ewasm, LosslessMetadata, Offsets, StorageLayout, UserDoc,
+    serde_helpers,
 };
 use alloy_json_abi::JsonAbi;
 use alloy_primitives::Bytes;
@@ -101,10 +102,10 @@ impl ContractBytecode {
             links.extend(bcode.link_references.clone());
         }
 
-        if let Some(d_bcode) = &self.deployed_bytecode {
-            if let Some(bcode) = &d_bcode.bytecode {
-                links.extend(bcode.link_references.clone());
-            }
+        if let Some(d_bcode) = &self.deployed_bytecode
+            && let Some(bcode) = &d_bcode.bytecode
+        {
+            links.extend(bcode.link_references.clone());
         }
         links
     }
@@ -146,10 +147,10 @@ impl CompactContractBytecode {
             links.extend(bcode.link_references.clone());
         }
 
-        if let Some(d_bcode) = &self.deployed_bytecode {
-            if let Some(bcode) = &d_bcode.bytecode {
-                links.extend(bcode.link_references.clone());
-            }
+        if let Some(d_bcode) = &self.deployed_bytecode
+            && let Some(bcode) = &d_bcode.bytecode
+        {
+            links.extend(bcode.link_references.clone());
         }
         links
     }

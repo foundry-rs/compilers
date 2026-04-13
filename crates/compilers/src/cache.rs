@@ -1,25 +1,25 @@
 //! Support for compiling contracts.
 
 use crate::{
+    ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
+    ProjectPaths, ProjectPathsConfig, SourceCompilationKind, SourceParser,
     buildinfo::RawBuildInfo,
     compilers::{Compiler, CompilerSettings, Language},
     output::Builds,
     resolver::GraphEdges,
-    ArtifactFile, ArtifactOutput, Artifacts, ArtifactsMap, Graph, OutputContext, Project,
-    ProjectPaths, ProjectPathsConfig, SourceCompilationKind, SourceParser,
 };
 use foundry_compilers_artifacts::{
-    sources::{Source, Sources},
     Settings,
+    sources::{Source, Sources},
 };
 use foundry_compilers_core::{
     error::{Result, SolcError},
     utils::{self, strip_prefix},
 };
 use semver::Version;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
-    collections::{btree_map::BTreeMap, hash_map, BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet, btree_map::BTreeMap, hash_map},
     fs,
     path::{Path, PathBuf},
     time::{Duration, UNIX_EPOCH},
@@ -112,7 +112,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{cache::CompilerCache, solc::SolcSettings, Project};
+    /// use foundry_compilers::{Project, cache::CompilerCache, solc::SolcSettings};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let mut cache = CompilerCache::<SolcSettings>::read(project.cache_path())?;
@@ -136,7 +136,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{cache::CompilerCache, solc::SolcSettings, Project};
+    /// use foundry_compilers::{Project, cache::CompilerCache, solc::SolcSettings};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let cache: CompilerCache<SolcSettings> = CompilerCache::read_joined(&project.paths)?;
@@ -245,7 +245,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// # Examples
     /// ```no_run
     /// use foundry_compilers::{
-    ///     artifacts::contract::CompactContract, cache::CompilerCache, solc::SolcSettings, Project,
+    ///     Project, artifacts::contract::CompactContract, cache::CompilerCache, solc::SolcSettings,
     /// };
     ///
     /// let project = Project::builder().build(Default::default())?;
@@ -269,7 +269,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     ///
     /// # Examples
     /// ```no_run
-    /// use foundry_compilers::{cache::CompilerCache, solc::SolcSettings, Project};
+    /// use foundry_compilers::{Project, cache::CompilerCache, solc::SolcSettings};
     ///
     /// let project = Project::builder().build(Default::default())?;
     /// let cache: CompilerCache<SolcSettings> = CompilerCache::read_joined(&project.paths)?;
@@ -287,7 +287,7 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// # Examples
     /// ```no_run
     /// use foundry_compilers::{
-    ///     artifacts::contract::CompactContract, cache::CompilerCache, solc::SolcSettings, Project,
+    ///     Project, artifacts::contract::CompactContract, cache::CompilerCache, solc::SolcSettings,
     /// };
     ///
     /// let project = Project::builder().build(Default::default())?;
@@ -317,8 +317,8 @@ impl<S: CompilerSettings> CompilerCache<S> {
     /// # Examples
     /// ```no_run
     /// use foundry_compilers::{
-    ///     artifacts::contract::CompactContractBytecode, cache::CompilerCache, solc::SolcSettings,
-    ///     Project,
+    ///     Project, artifacts::contract::CompactContractBytecode, cache::CompilerCache,
+    ///     solc::SolcSettings,
     /// };
     ///
     /// let project = Project::builder().build(Default::default())?;
@@ -506,7 +506,7 @@ impl CacheEntry {
         &self,
     ) -> Result<BTreeMap<String, Vec<ArtifactFile<Artifact>>>> {
         let mut artifacts = BTreeMap::new();
-        for (artifact_name, versioned_files) in self.artifacts.iter() {
+        for (artifact_name, versioned_files) in &self.artifacts {
             let mut files = Vec::with_capacity(versioned_files.len());
             for (version, cached_artifact) in versioned_files {
                 for (profile, cached_artifact) in cached_artifact {
@@ -880,7 +880,7 @@ impl<T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 
             if !self.cache.preprocessed {
                 // Perform DFS to find direct/indirect importers of dirty files.
-                for file in self.dirty_sources.clone().iter() {
+                for file in &self.dirty_sources.clone() {
                     populate_dirty_files(file, &mut self.dirty_sources, &edges);
                 }
             } else {
@@ -1060,13 +1060,14 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
             // the currently configured paths
             let paths = project.paths.paths_relative();
 
-            if !invalidate_cache && project.cache_path().exists() {
-                if let Ok(cache) = CompilerCache::read_joined(&project.paths) {
-                    if cache.paths == paths && preprocessed == cache.preprocessed {
-                        // unchanged project paths and same preprocess cache option
-                        return cache;
-                    }
-                }
+            if !invalidate_cache
+                && project.cache_path().exists()
+                && let Ok(cache) = CompilerCache::read_joined(&project.paths)
+                && cache.paths == paths
+                && preprocessed == cache.preprocessed
+            {
+                // unchanged project paths and same preprocess cache option
+                return cache;
             }
 
             trace!(invalidate_cache, "cache invalidated");
@@ -1289,10 +1290,10 @@ impl<'a, T: ArtifactOutput<CompilerContract = C::CompilerContract>, C: Compiler>
 
     /// Marks the cached entry as seen by the compiler, if it's cached.
     pub fn compiler_seen(&mut self, file: &Path) {
-        if let ArtifactsCache::Cached(cache) = self {
-            if let Some(entry) = cache.cache.entry_mut(file) {
-                entry.seen_by_compiler = true;
-            }
+        if let ArtifactsCache::Cached(cache) = self
+            && let Some(entry) = cache.cache.entry_mut(file)
+        {
+            entry.seen_by_compiler = true;
         }
     }
 }

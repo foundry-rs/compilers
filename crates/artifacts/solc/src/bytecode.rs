@@ -1,11 +1,10 @@
 //! Bytecode related types.
 
 use crate::{
-    serde_helpers,
+    FunctionDebugData, GeneratedSource, Offsets, serde_helpers,
     sourcemap::{self, SourceMap, SyntaxError},
-    FunctionDebugData, GeneratedSource, Offsets,
 };
-use alloy_primitives::{hex, Address, Bytes};
+use alloy_primitives::{Address, Bytes, hex};
 use foundry_compilers_core::utils;
 use serde::{Deserialize, Serialize, Serializer};
 use std::collections::BTreeMap;
@@ -286,10 +285,10 @@ impl BytecodeObject {
     ///
     /// Returns the string if it is a valid
     pub fn resolve(&mut self) -> Option<&Bytes> {
-        if let Self::Unlinked(unlinked) = self {
-            if let Ok(linked) = hex::decode(unlinked) {
-                *self = Self::Bytecode(linked.into());
-            }
+        if let Self::Unlinked(unlinked) = self
+            && let Ok(linked) = hex::decode(unlinked)
+        {
+            *self = Self::Bytecode(linked.into());
         }
         self.as_bytes()
     }

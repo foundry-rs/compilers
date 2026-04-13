@@ -1,16 +1,14 @@
 use crate::{
+    ArtifactOutput, CompilerSettings, Graph, Project, ProjectPathsConfig, SourceParser, Updates,
     apply_updates,
     compilers::{Compiler, ParsedSource},
     filter::MaybeSolData,
     resolver::parse::SolData,
-    ArtifactOutput, CompilerSettings, Graph, Project, ProjectPathsConfig, SourceParser, Updates,
 };
 use foundry_compilers_artifacts::{
     ast::{visitor::Visitor, *},
     output_selection::OutputSelection,
-    solc::ExternalInlineAssemblyReference,
     sources::{Source, Sources},
-    ContractDefinitionPart, SourceUnit, SourceUnitPart,
 };
 use foundry_compilers_core::{
     error::{Result, SolcError},
@@ -80,19 +78,19 @@ impl Visitor for ReferencesCollector {
     }
 
     fn visit_member_access(&mut self, access: &MemberAccess) {
-        if let Some(referenced_declaration) = access.referenced_declaration {
-            if let (Some(src_start), Some(src_length)) = (access.src.start, access.src.length) {
-                let name_length = access.member_name.len();
-                // Accessed member name is in the last name.len() symbols of the expression.
-                let start = src_start + src_length - name_length;
-                let end = start + name_length;
+        if let Some(referenced_declaration) = access.referenced_declaration
+            && let (Some(src_start), Some(src_length)) = (access.src.start, access.src.length)
+        {
+            let name_length = access.member_name.len();
+            // Accessed member name is in the last name.len() symbols of the expression.
+            let start = src_start + src_length - name_length;
+            let end = start + name_length;
 
-                self.references.entry(referenced_declaration).or_default().insert(ItemLocation {
-                    start,
-                    end,
-                    path: self.path.to_path_buf(),
-                });
-            }
+            self.references.entry(referenced_declaration).or_default().insert(ItemLocation {
+                start,
+                end,
+                path: self.path.to_path_buf(),
+            });
         }
     }
 
@@ -101,11 +99,11 @@ impl Visitor for ReferencesCollector {
 
         // If suffix is used in assembly reference (e.g. value.slot), it will be included into src.
         // However, we are only interested in the referenced name, thus we strip .<suffix> part.
-        if let Some(suffix) = &reference.suffix {
-            if let Some(len) = src.length.as_mut() {
-                let suffix_len = suffix.to_string().len();
-                *len -= suffix_len + 1;
-            }
+        if let Some(suffix) = &reference.suffix
+            && let Some(len) = src.length.as_mut()
+        {
+            let suffix_len = suffix.to_string().len();
+            *len -= suffix_len + 1;
         }
 
         self.process_referenced_declaration(reference.declaration as isize, &src);
@@ -229,10 +227,10 @@ impl Flattener {
         // Convert all ASTs from artifacts to strongly typed ASTs
         let mut asts: Vec<(PathBuf, SourceUnit)> = Vec::new();
         for (path, ast) in output.sources.0.iter().filter_map(|(path, files)| {
-            if let Some(ast) = files.first().and_then(|source| source.source_file.ast.as_ref()) {
-                if sources.contains_key(path) {
-                    return Some((path, ast));
-                }
+            if let Some(ast) = files.first().and_then(|source| source.source_file.ast.as_ref())
+                && sources.contains_key(path)
+            {
+                return Some((path, ast));
             }
             None
         }) {
@@ -452,11 +450,7 @@ impl Flattener {
                 .iter()
                 .filter_map(
                     |(name, ids)| {
-                        if !ids.is_empty() {
-                            Some((name.as_str(), ids[0]))
-                        } else {
-                            None
-                        }
+                        if !ids.is_empty() { Some((name.as_str(), ids[0])) } else { None }
                     },
                 )
                 .collect::<HashMap<_, _>>();
