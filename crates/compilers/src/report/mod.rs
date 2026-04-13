@@ -26,8 +26,8 @@ use std::{
     path::{Path, PathBuf},
     ptr::NonNull,
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -148,11 +148,7 @@ pub trait Reporter: 'static + std::fmt::Debug {
     /// with the provided `TypeId`. Failure to ensure this will result in
     /// undefined behaviour, so implementing `downcast_raw` is unsafe.
     unsafe fn downcast_raw(&self, id: TypeId) -> Option<NonNull<()>> {
-        if id == TypeId::of::<Self>() {
-            Some(NonNull::from(self).cast())
-        } else {
-            None
-        }
+        if id == TypeId::of::<Self>() { Some(NonNull::from(self).cast()) } else { None }
     }
 }
 
@@ -378,10 +374,10 @@ impl Reporter for BasicStdoutReporter {
 ///
 /// Non-`BrokenPipe` errors still panic, matching the prior `println!` behavior.
 fn write_line(mut writer: impl io::Write, args: fmt::Arguments<'_>) {
-    if let Err(err) = writeln!(writer, "{args}") {
-        if err.kind() != io::ErrorKind::BrokenPipe {
-            panic!("failed to write reporter output: {err}");
-        }
+    if let Err(err) = writeln!(writer, "{args}")
+        && err.kind() != io::ErrorKind::BrokenPipe
+    {
+        panic!("failed to write reporter output: {err}");
     }
 }
 

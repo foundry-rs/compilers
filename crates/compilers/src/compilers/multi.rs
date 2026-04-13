@@ -1,27 +1,27 @@
 use super::{
-    restrictions::CompilerSettingsRestrictions,
-    solc::{SolcCompiler, SolcSettings, SolcVersionedInput, SOLC_EXTENSIONS},
-    vyper::{
-        input::VyperVersionedInput, parser::VyperParsedSource, Vyper, VyperLanguage,
-        VYPER_EXTENSIONS,
-    },
     CompilationError, Compiler, CompilerInput, CompilerOutput, CompilerSettings, CompilerVersion,
     Language, ParsedSource,
+    restrictions::CompilerSettingsRestrictions,
+    solc::{SOLC_EXTENSIONS, SolcCompiler, SolcSettings, SolcVersionedInput},
+    vyper::{
+        VYPER_EXTENSIONS, Vyper, VyperLanguage, input::VyperVersionedInput,
+        parser::VyperParsedSource,
+    },
 };
 use crate::{
+    SourceParser,
     artifacts::vyper::{VyperCompilationError, VyperSettings},
     parser::VyperParser,
     resolver::parse::{SolData, SolParser},
     settings::VyperRestrictions,
     solc::SolcRestrictions,
-    SourceParser,
 };
 use foundry_compilers_artifacts::{
+    Contract, Error, Severity, SolcLanguage,
     error::SourceLocation,
     output_selection::OutputSelection,
     remappings::Remapping,
     sources::{Source, Sources},
-    Contract, Error, Severity, SolcLanguage,
 };
 use foundry_compilers_core::error::{Result, SolcError};
 use semver::Version;

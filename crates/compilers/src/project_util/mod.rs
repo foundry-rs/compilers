@@ -1,15 +1,15 @@
 //! Utilities for mocking project workspaces.
 
 use crate::{
+    Artifact, ArtifactOutput, Artifacts, ConfigurableArtifacts, HardhatArtifacts, PathStyle,
+    Project, ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig,
     cache::CompilerCache,
     compilers::{
-        multi::{MultiCompiler, MultiCompilerSettings},
         Compiler,
+        multi::{MultiCompiler, MultiCompilerSettings},
     },
     config::ProjectPathsConfigBuilder,
     solc::SolcSettings,
-    Artifact, ArtifactOutput, Artifacts, ConfigurableArtifacts, HardhatArtifacts, PathStyle,
-    Project, ProjectBuilder, ProjectCompileOutput, ProjectPathsConfig,
 };
 use foundry_compilers_artifacts::{ConfigurableContractArtifact, Remapping, Settings};
 use foundry_compilers_core::{
@@ -41,9 +41,8 @@ pub struct TempProject<
     inner: Project<C, T>,
 }
 
-impl<
-        T: ArtifactOutput<CompilerContract = <MultiCompiler as Compiler>::CompilerContract> + Default,
-    > TempProject<MultiCompiler, T>
+impl<T: ArtifactOutput<CompilerContract = <MultiCompiler as Compiler>::CompilerContract> + Default>
+    TempProject<MultiCompiler, T>
 {
     /// Creates a new temp project using the provided paths and artifacts handler.
     /// sets the project root to a temp dir
@@ -70,9 +69,8 @@ impl<
     }
 }
 
-impl<
-        T: ArtifactOutput<CompilerContract = <MultiCompiler as Compiler>::CompilerContract> + Default,
-    > TempProject<MultiCompiler, T>
+impl<T: ArtifactOutput<CompilerContract = <MultiCompiler as Compiler>::CompilerContract> + Default>
+    TempProject<MultiCompiler, T>
 {
     /// Creates a new temp project for the given `PathStyle`
     #[cfg(feature = "svm-solc")]
@@ -85,9 +83,8 @@ impl<
     }
 }
 
-impl<
-        T: ArtifactOutput<CompilerContract = <MultiCompiler as Compiler>::CompilerContract> + Default,
-    > fmt::Debug for TempProject<MultiCompiler, T>
+impl<T: ArtifactOutput<CompilerContract = <MultiCompiler as Compiler>::CompilerContract> + Default>
+    fmt::Debug for TempProject<MultiCompiler, T>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TempProject").field("paths", &self.inner.paths).finish()
@@ -128,10 +125,8 @@ impl TempProject<MultiCompiler, HardhatArtifacts> {
     }
 }
 
-impl<
-        C: Compiler + Default,
-        T: ArtifactOutput<CompilerContract = C::CompilerContract> + Default,
-    > TempProject<C, T>
+impl<C: Compiler + Default, T: ArtifactOutput<CompilerContract = C::CompilerContract> + Default>
+    TempProject<C, T>
 {
     /// Wraps an existing project in a temp dir.
     pub fn from_project(inner: Project<C, T>) -> std::result::Result<Self, SolcIoError> {
@@ -374,8 +369,8 @@ contract {name} {{}}
     }
 
     /// Populate the project with mock files
-    pub fn mock(&self, gen: &MockProjectGenerator, version: &str) -> Result<()> {
-        gen.write_to(self.paths(), version)
+    pub fn mock(&self, generator: &MockProjectGenerator, version: &str) -> Result<()> {
+        generator.write_to(self.paths(), version)
     }
 
     /// Compiles the project and ensures that the output does not contain errors
@@ -477,9 +472,9 @@ impl TempProject {
     /// Create a new temporary project and populate it with mock files.
     pub fn mocked(settings: &MockProjectSettings, version: &str) -> Result<Self> {
         let mut tmp = Self::dapptools()?;
-        let gen = MockProjectGenerator::new(settings);
-        tmp.mock(&gen, version)?;
-        let remappings = gen.remappings_at(tmp.root());
+        let generator = MockProjectGenerator::new(settings);
+        tmp.mock(&generator, version)?;
+        let remappings = generator.remappings_at(tmp.root());
         tmp.paths_mut().remappings.extend(remappings);
         Ok(tmp)
     }
@@ -490,9 +485,8 @@ impl TempProject {
     }
 }
 
-impl<
-        T: ArtifactOutput<CompilerContract = <MultiCompiler as Compiler>::CompilerContract> + Default,
-    > AsRef<Project<MultiCompiler, T>> for TempProject<MultiCompiler, T>
+impl<T: ArtifactOutput<CompilerContract = <MultiCompiler as Compiler>::CompilerContract> + Default>
+    AsRef<Project<MultiCompiler, T>> for TempProject<MultiCompiler, T>
 {
     fn as_ref(&self) -> &Project<MultiCompiler, T> {
         self.project()

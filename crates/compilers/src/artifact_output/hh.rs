@@ -1,7 +1,7 @@
-use crate::{output::sources::VersionedSourceFile, ArtifactOutput};
+use crate::{ArtifactOutput, output::sources::VersionedSourceFile};
 use foundry_compilers_artifacts::{
-    hh::{HardhatArtifact, HH_ARTIFACT_VERSION},
     Contract, SourceFile,
+    hh::{HH_ARTIFACT_VERSION, HardhatArtifact},
 };
 use std::path::Path;
 

@@ -1,6 +1,6 @@
 //! Bindings for standard json output selection.
 
-use serde::{ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeMap};
 use std::{collections::BTreeMap, fmt, str::FromStr};
 
 /// Represents the desired outputs based on a File `(file -> (contract -> [outputs]))`
@@ -169,7 +169,7 @@ impl Serialize for OutputSelection {
         }
 
         let mut map = serializer.serialize_map(Some(self.0.len()))?;
-        for (file, selection) in self.0.iter() {
+        for (file, selection) in &self.0 {
             if selection.is_empty() {
                 map.serialize_entry(file, &EmptyFileOutput {})?;
             } else {

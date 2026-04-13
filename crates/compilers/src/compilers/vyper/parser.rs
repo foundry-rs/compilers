@@ -1,11 +1,11 @@
 use super::VyperLanguage;
 use crate::{
-    compilers::{vyper::VYPER_EXTENSIONS, ParsedSource},
     ProjectPathsConfig, SourceParser,
+    compilers::{ParsedSource, vyper::VYPER_EXTENSIONS},
 };
 use foundry_compilers_core::{
     error::{Result, SolcError},
-    utils::{capture_outer_and_inner, RE_VYPER_VERSION},
+    utils::{RE_VYPER_VERSION, capture_outer_and_inner},
 };
 use semver::VersionReq;
 use std::{
@@ -13,10 +13,10 @@ use std::{
     path::{Path, PathBuf},
 };
 use winnow::{
+    ModalResult, Parser,
     ascii::space1,
     combinator::{alt, opt, preceded},
     token::{take_till, take_while},
-    ModalResult, Parser,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -193,7 +193,7 @@ fn parse_import(input: &mut &str) -> ModalResult<VyperImport> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_import, VyperImport};
+    use super::{VyperImport, parse_import};
     use winnow::Parser;
 
     #[test]

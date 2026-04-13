@@ -1,5 +1,5 @@
 use crate::{artifacts::vyper::VyperCompilationError, compilers::CompilationError};
-use foundry_compilers_artifacts::{error::SourceLocation, Severity};
+use foundry_compilers_artifacts::{Severity, error::SourceLocation};
 
 impl CompilationError for VyperCompilationError {
     fn is_warning(&self) -> bool {

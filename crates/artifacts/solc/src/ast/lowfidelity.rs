@@ -1,7 +1,7 @@
 //! Bindings for solc's `ast` output field
 
 use crate::serde_helpers;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{collections::BTreeMap, fmt, fmt::Write, str::FromStr};
 
 /// Represents the AST field in the solc output
