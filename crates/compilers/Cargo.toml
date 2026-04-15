@@ -36,7 +36,7 @@ futures-util = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 
 auto_impl = "1"
-winnow = "0.7"
+winnow = "1.0"
 dyn-clone = "1"
 derive_more = { version = "2", features = ["debug"] }
 itertools = ">=0.13, <=0.14"
